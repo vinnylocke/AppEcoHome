@@ -11,6 +11,12 @@ export const EVENT = {
   PLANT_ADDED:               "plant_added",
   PLANT_ARCHIVED:            "plant_archived",
   PLANT_VIEWED:              "plant_viewed",
+  // Cross-home favourites (Phase 1 — plants). Payload: { plant_ref_id, source }.
+  PLANT_FAVOURITED:            "plant_favourited",
+  PLANT_UNFAVOURITED:          "plant_unfavourited",
+  FAVOURITE_ADDED_TO_HOME:     "favourite_added_to_home",
+  // Copy-on-write edit — a non-manual plant was saved as the user's own copy.
+  PLANT_FORKED_ON_EDIT:        "plant_forked_on_edit",
   // Plant instances (area)
   PLANT_ASSIGNED:            "plant_assigned",
   PLANT_INSTANCE_PLANTED:    "plant_instance_planted",
@@ -23,6 +29,14 @@ export const EVENT = {
   AILMENT_RESTORED:          "ailment_restored",
   AILMENT_DELETED:           "ailment_deleted",
   AILMENT_LINKED:            "ailment_linked",
+  // Cross-home favourites (Phase 2 — ailments). Payload: { ailment_library_id, source }.
+  AILMENT_FAVOURITED:            "ailment_favourited",
+  AILMENT_UNFAVOURITED:          "ailment_unfavourited",
+  FAVOURITE_AILMENT_ADDED_TO_HOME: "favourite_ailment_added_to_home",
+  // Cross-home favourites (Phase 3 — nursery seed packets). Payload: { identity_key }.
+  SEED_PACKET_FAVOURITED:            "seed_packet_favourited",
+  SEED_PACKET_UNFAVOURITED:          "seed_packet_unfavourited",
+  FAVOURITE_SEED_PACKET_ADDED_TO_HOME: "favourite_seed_packet_added_to_home",
   // Planner
   PLAN_CREATED:              "plan_created",
   PLAN_RESTORED:             "plan_restored",

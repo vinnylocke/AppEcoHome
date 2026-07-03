@@ -15,6 +15,8 @@ A grid of plant cards. Each card represents one `plants` row (a species/type, no
 
 A **Plants / Nursery** toggle pill under the page title swaps the body to [The Nursery](./10-nursery.md) — seed packets + sowings + the plant-out lifecycle. Nursery mode hides the plant search bar and grid; seedlings graduate from the Nursery back into the Shed via the Plant Out flow.
 
+A **Home | Favourites** scope pill (above the Active/Archived pills, Plants view only) switches between the shared home-scoped grid and the user's personal, **cross-home favourites** list (Cross-Home Favourites Phase 1, 2026-07-03). "Home" is today's data unchanged; "Favourites" starts empty and follows the *user* (keyed on `user_id`, not `home_id`) so it survives home switches and leaving/joining homes. Deep link: **`/shed?scope=favourites`** — a new param; the existing GardenHub `?tab=` / `?open=` / `?query=` params are untouched. See [Cross-Home Favourites (data model)](../99-cross-cutting/03-data-model-plants.md#cross-home-favourites--user_favourite_plants) and [Tier Gating § source × tier action matrix](../99-cross-cutting/17-tier-gating.md#source--tier-action-matrix--cross-home-favourites).
+
 ---
 
 ## Role 1 — Technical Reference
@@ -187,9 +189,20 @@ For home-scoped rows added via the bulk-add or PlantSearchModal flow (`forked_fr
 
 Tapping the chip opens the plant in Plant Edit Modal, where the full `<CareUpdateCallout>` lists the changed fields and offers "Mark as reviewed". The chip is driven by `useAiPlantFreshness` in [`src/hooks/useAiPlantFreshness.ts`](../../../src/hooks/useAiPlantFreshness.ts).
 
+### Cross-home favourites (Phase 1 — plants)
+
+Scope pills **Home | Favourites** (`data-testid="shed-scope-toggle"`, buttons `shed-scope-home` / `shed-scope-favourites`). State derives from `?scope=favourites`; `switchScope` does a targeted `setSearchParams` get/set (never `setParams({})`) so it never clobbers `?tab=` etc.
+
+- **Favourite affordance (Home tab):** a heart button on each `PlantCard` (`data-testid="favourite-plant-<id>"`, `aria-pressed` reflects saved state). Fill is driven by `favouriteRefIds` — a Set of the **canonical reference ids** of the user's favourites. `handleToggleFavourite` optimistically inserts/removes via `favouritesService`. Identity = `canonicalPlantRefId(plant)` in [`src/lib/favouriteIdentity.ts`](../../../src/lib/favouriteIdentity.ts): the **global catalogue id** for AI/library forks (`forked_from_plant_id`), the row's own id otherwise. Because copy-on-write keeps referenced rows immutable, favourites need **no dedupe machinery** — a `UNIQUE (user_id, plant_id)` upsert suffices (re-favouriting refreshes the tombstone).
+- **Favourites tab:** `<FavouritePlantsGrid>` ([`src/components/favourites/FavouritePlantsGrid.tsx`](../../../src/components/favourites/FavouritePlantsGrid.tsx)) lists the user's favourites with the live joined `plants` row ("always live"); when the reference is gone (`plant_id` NULL after `ON DELETE SET NULL`) it renders from the jsonb `snapshot` **tombstone** with an "Original removed — saved copy" chip. Actions: **Add to this home** (`favourite-add-to-home-<id>`) and **Remove** (`favourite-remove-<id>`); a first-visit **hint banner** (`favourites-hint-banner`) and an empty state. Home-scope-only chrome (Select, Add Plant, Bulk paste, AssistantCard, smart filters, Active/Archived) is hidden in Favourites.
+- **Add to this home:** `addFavouritePlantToHome` copies the favourite into the active home via the **existing `saveToShed` insert path** — zero AI/API calls, **allowed for any home member regardless of permission keys** (favouriting is personal; add-to-home is a plain member write). AI/library favourites are copied as the classic shallow fork (`source='ai'`, `forked_from_plant_id` = global id, empty overrides) + seed `user_plant_ack`. The button reads **"In this home"** (`favourite-in-home-<id>`, disabled) when `isFavouriteInHome` finds a home row that is or forks-from the reference.
+- **Copy-on-write plant edits (2026-07-03):** editing ANY **non-manual** plant (api / verdantly / ai / library) does **not** mutate the row — `PlantEditModal` presents "Save as my own copy" and calls `onForkSave` → `handleForkPlant` → `forkPlantForHomeEdit`: insert a NEW `source='manual'` row (provenance via `forked_from_plant_id`), **re-point** the home's `inventory_items` / `plant_schedules` / `seed_packets` / `plant_sprites` / `automations` from the original to the fork, then **delete** the original home row. Manual plants still edit in place. This keeps favourite references stable forever ("always live" is safe) and is why favourites carry only a tombstone snapshot. See [Data Model — Plants § copy-on-write](../99-cross-cutting/03-data-model-plants.md#copy-on-write-plant-edits-2026-07-03).
+- **Strict source × tier gating:** sources above the viewer's entitlements are **view-only** — the heart AND add-to-home are disabled with an upsell tooltip, enforced **client-side** (`isSourceLockedForTier`) AND **server-side** (a `BEFORE INSERT/UPDATE` trigger `enforce_favourite_plant_tier` on `user_favourite_plants` re-derives the source from the referenced `plants` row and compares `ai_enabled` / `enable_perenual`). See [Tier Gating § source × tier action matrix](../99-cross-cutting/17-tier-gating.md#source--tier-action-matrix--cross-home-favourites).
+- **Service:** [`src/services/favouritesService.ts`](../../../src/services/favouritesService.ts) — all reads are `user_id`-only (never `home_id`, which would silently return nothing under the user-scoped RLS). Events: `PLANT_FAVOURITED` / `PLANT_UNFAVOURITED` / `FAVOURITE_ADDED_TO_HOME` / `PLANT_FORKED_ON_EDIT`.
+
 ### Realtime channels
 
-`plants` and `inventory_items` filtered by `home_id`. Any change triggers shed refresh.
+`plants` and `inventory_items` filtered by `home_id`. Any change triggers shed refresh. **Favourites** are not on a realtime channel (per-user data, mutated only by the same client) — the list refetches on mount and after each mutation.
 
 ### Tier gating
 
@@ -212,6 +225,8 @@ None on TheShed surface itself; BetaFeedbackBanner sits at the global header.
 | `shed.delete` | Archive + Delete buttons + bulk archive/delete bar |
 
 If lacking permissions, the buttons are hidden.
+
+**Favourites are ungated by permission keys:** favouriting/unfavouriting is personal (no `PermissionKey`), and **Add to this home** is allowed for any home member regardless of `shed.add` (it's a member write, not an admin action — 2026-07-03 decision). Only the source × tier gate can block a favourite action.
 
 ### Error states
 
@@ -283,7 +298,16 @@ Each card shows up to four chips:
 - **Archive** (box icon): hides the plant from active view without deleting.
 - **Delete** (trash): confirms first. If the plant has instances, you choose between **Keep the history** (mark them End of Life → Senescence, and archive the plant) or **Delete everything** (permanent, cascades to instances).
 
-#### 6. Smart filter chips
+#### 6. Favourites — keep plants across every garden you tend
+
+Tap the **Favourites** pill (next to **Home**) to see your personal saved list. Unlike the Home list, which belongs to whichever home you're currently in, favourites follow **you** — switch home, leave a home, join a new one, and they're still there.
+
+- **Save one:** tap the ♡ on any plant card in the Home tab. It fills in, and the plant lands in Favourites. Tap again to remove it.
+- **Bring one into this garden:** on the Favourites tab, **Add to this home** creates a fresh copy of that plant in the home you're currently in (no AI or database lookup — instant, and free on every tier). Once it's here the button reads **In this home**. Any household member can do this — you don't need special permissions.
+- **Old favourites still work:** if a plant you favourited was later removed or you left that garden, the card still shows what you saved (a "saved copy") so you never lose the reference.
+- **Editing a database or AI plant makes your own copy:** the built-in Perenual/Verdantly/AI plants are shared, so when you edit one Rhozly saves it as **your own copy** ("Save as my own copy") and leaves the original untouched — your instances, schedules and seed packets move onto your copy automatically. Plants you typed in yourself edit normally.
+
+#### 7. Smart filter chips
 
 - "Unassigned": plants with no `inventory_items` row (added but never planted).
 - "In a plan": plants referenced by a `plans.ai_blueprint.plant_manifest`.
@@ -305,10 +329,10 @@ Each card shows up to four chips:
 
 | Tier | Differences |
 |------|-------------|
-| Sprout | Add Plant offers Manual only. No AI search. No Ask AI buttons. AssistantCard hidden. |
-| Botanist | Add Plant offers Perenual + Verdantly + Manual. No AI. |
-| Sage | Full Add Plant + Ask AI + AssistantCard. |
-| Evergreen | Same as Sage. |
+| Sprout | Add Plant offers Manual only. No AI search. No Ask AI buttons. AssistantCard hidden. **Favourites: can favourite/add-to-home only manual plants — the ♡ and "Add to this home" are disabled (view-only) on Perenual/Verdantly/AI plants a housemate added.** |
+| Botanist | Add Plant offers Perenual + Verdantly + Manual. No AI. **Favourites: can act on manual + Perenual/Verdantly plants; AI plants view-only.** |
+| Sage | Full Add Plant + Ask AI + AssistantCard. **Favourites: can act on manual + AI plants; Perenual/Verdantly plants view-only** (Sage has AI, not the species database — tiers are a lattice, not a ladder). |
+| Evergreen | Same as Sage, plus the species database. **Favourites: can act on every source.** |
 
 ### New user vs returning user vs power user
 
@@ -361,7 +385,11 @@ The BetaFeedbackBanner sits above the page (global), not Shed-specific.
 
 ## Code references for ongoing maintenance
 
-- `src/components/TheShed.tsx` — entire component
+- `src/components/TheShed.tsx` — entire component (incl. scope pills, heart, copy-on-write fork handler)
+- `src/components/favourites/FavouritePlantsGrid.tsx` — Favourites scope body
+- `src/services/favouritesService.ts` — favourite/unfavourite, add-to-home, copy-on-write fork+re-point
+- `src/lib/favouriteIdentity.ts` — pure identity / gating / fork helpers (unit-tested)
+- `supabase/migrations/20260831000000_user_favourite_plants.sql` — table + RLS + grants + tier-gate trigger
 - `src/hooks/useCachedShed.ts` — caching hook
 - `src/lib/plantProvider.ts` — unified search + details
 - `src/lib/perenualService.ts` / `verdantlyService.ts` — provider clients

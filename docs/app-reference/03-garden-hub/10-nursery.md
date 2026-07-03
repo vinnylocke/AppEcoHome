@@ -190,6 +190,15 @@ TheShed (Plants / Nursery toggle in the header)
 
 - `SeedPacketDetailModal` footer. `is_archived` flag toggles; the list view filters archived by default.
 
+#### Cross-home favourites — seed packets (Phase 3, FINAL)
+
+- **Scope pill** `Home | Favourites` at the top of `NurseryTab` — **component state** (`scope`), NOT a URL param, matching the existing Plants/Nursery toggle's model. The Favourites body renders `FavouriteSeedPacketsGrid` and is shown regardless of the Home list's loading / empty / error state (favourites are user-scoped, loaded independently via `listFavouriteSeedPackets`).
+- **Favourite a packet** (`favouriteSeedPacket`): the heart on each `NurseryRow` (Home tab, `data-testid="favourite-packet-<id>"`) upserts a `user_favourite_seed_packets` row keyed `(user_id, identity_key)` where `identity_key = lower(variety) || '|' || lower(plant_common_name)`. SNAPSHOT-ONLY — packets have no canonical library, so the favourite stores the variety reference (variety + vendor + plant identity) + a snapshot of the reference fields (`sow_by`, `notes`, `quantity_remaining`, dates). **Never live stock or sowings.** `seed_packet_id` is a tombstone back-reference (`ON DELETE SET NULL`) used only for the "in this home" check. Logs `EVENT.SEED_PACKET_FAVOURITED`.
+- **Image copy at favourite time**: packet images are home-scoped (`seed-packet-images/{home_id}/{packet_id}.jpg`). `favouriteSeedPacket` downloads the object and re-uploads it to a favourite-scoped path (`seed-packet-images/favourites/{user_id}/{favourite_id}.jpg`), storing the public URL in `copied_image_url` — so the favourite survives deletion of the home packet. No image → `copied_image_url` stays null (graceful; card shows the packet icon).
+- **Add to this home** (`addFavouritePacketToHome`): recreates the packet via `createSeedPacket` (plain insert, no fork, open to any home member — favouriting/add-to-home are ungated). `plant_id` is re-linked only when a plant with the same common name already exists in the target home's shed, else NULL (the "link plant" nudge handles it). The favourite-scoped image is copied BACK into the new home path via `setSeedPacketImageUrl`. Logs `EVENT.FAVOURITE_SEED_PACKET_ADDED_TO_HOME`.
+- **Remove** (`unfavouriteSeedPacket`): deletes the favourite row; never touches any home packet. Logs `EVENT.SEED_PACKET_UNFAVOURITED`.
+- **No tier gating** — `seed_packets` have no `source` column and packet favourites make zero AI/API calls, so unlike plants/ailments there is NO source × tier lock and NO server-side tier trigger on `user_favourite_seed_packets`. See `docs/plans/cross-home-favourites-phase-3-nursery.md`.
+
 ### Edge functions invoked
 
 | Function | When | Tier | Notes |
@@ -214,6 +223,8 @@ None — the parent calls `load()` on every modal callback so the list is always
 | Botanist | Same as Sprout. |
 | Sage | Bulk-paste runs Gemini. AI failures still fall back to regex. **Scan-a-packet** available — Gemini Vision OCR. |
 | Evergreen | Same as Sage. |
+
+**Cross-home favourites are UNGATED at every tier.** Seed packets carry no `source` (they're user-created), and favouriting / add-to-home make no AI/API call, so there is no source × tier lock (unlike plant and ailment favourites) and no server-side tier trigger on `user_favourite_seed_packets`. Every tier can heart a packet and add a favourite variety into any home they belong to.
 
 ### Beta gating
 
@@ -243,7 +254,7 @@ Every read + write is gated by `is_home_member(home_id)` in RLS. The original pl
 
 ### Linked storage buckets
 
-None.
+- **`seed-packet-images`** (public). Home packets store photos at `{home_id}/{packet_id}.jpg` (Scan flow). Cross-home favourites additionally store a favourite-scoped copy at `favourites/{user_id}/{favourite_id}.jpg` so the favourite's image survives the origin packet's deletion. Both directions of the copy (favourite-time and add-to-home) are plain client Storage ops — the bucket's INSERT/SELECT policies allow any authenticated user to read/write any path.
 
 ### Design notes
 
@@ -303,6 +314,13 @@ Crucially, it's not just inventory. The Plant Out flow is what makes it earn its
 
 - Empty packets / out-of-rotation varieties get **Archive** from the packet detail. They disappear from the active list but the history's still queryable.
 
+#### 9. Favourite a variety (follows you across homes)
+
+- Tap the **♡** on any packet to remember the *variety* for next season — the variety, vendor, plant, sow-by note, and the packet photo (a personal copy is kept, so it survives even if you later delete or leave the home). This is a **personal** list keyed to you, not the home: switch homes, leave a home, join a new one — your favourite seeds come with you.
+- The **Favourites** pill at the top of the Nursery shows that list. Each card offers **Add to this home** — recreates the packet in the garden you're in right now (linking it to that home's matching plant if you have one, else leaving it unlinked for you to link later). Once a matching packet exists in the current home the card reads **In this home** instead.
+- It's the variety reference only — never the live stock or sowing history, which belong to the physical packet in its home.
+- **Any tier can do all of this** — there's no upgrade wall on favouriting or adding a favourite variety to a home.
+
 ### Information on display — what every field means
 
 | Element | Meaning |
@@ -325,6 +343,8 @@ Crucially, it's not just inventory. The Plant Out flow is what makes it earn its
 | Botanist | Same as Sprout. |
 | Sage | Bulk-paste uses Gemini — looser formats welcome. AI failures still fall back to regex automatically. |
 | Evergreen | Same as Sage. |
+
+Cross-home favourites (hearting a variety, the Favourites list, Add to this home) are identical for **every tier** — no upgrade prompt anywhere in that flow.
 
 ### New user vs returning user vs power user
 
@@ -364,15 +384,22 @@ No difference.
 - [Instance Edit Modal](../08-modals-and-overlays/08-instance-edit-modal.md) — "From the Nursery" badge on Details tab
 - [Plant Assignment Modal](../08-modals-and-overlays/07-plant-assignment-modal.md) — Plant Out modal mirrors its area-picker shape
 - [Shopping Lists](../04-planner/05-shopping-lists.md) — refill banner host surface
-- [Data Model — Nursery](../99-cross-cutting/33-data-model-nursery.md) — `seed_packets`, `seed_sowings`, view, FK
+- [Data Model — Nursery](../99-cross-cutting/33-data-model-nursery.md) — `seed_packets`, `seed_sowings`, `user_favourite_seed_packets`, view, FK
+- [Data Model — Plants](../99-cross-cutting/03-data-model-plants.md) — cross-home favourites family (plants / ailments / seed packets)
+- [Tier Gating](../99-cross-cutting/17-tier-gating.md) — source × tier favourites matrix (packets are ungated)
 - [Edge Functions Catalogue](../99-cross-cutting/10-edge-functions-catalogue.md) — `parse-seed-packets`
-- [RLS Patterns](../99-cross-cutting/19-rls-patterns.md) — `is_home_member`-based gating
+- [RLS Patterns](../99-cross-cutting/19-rls-patterns.md) — `is_home_member`-based gating + user-scoped favourites
 
 ## Code references for ongoing maintenance
 
-- `src/components/nursery/` — every UI component
+- `src/components/nursery/` — every UI component (favourites wiring in `NurseryTab.tsx`)
+- `src/components/favourites/FavouriteSeedPacketsGrid.tsx` — Favourites-scope body (Phase 3)
 - `src/services/nurseryService.ts` — all reads + writes + lifecycle helpers
+- `src/services/favouritesService.ts` — packet favourite fns (list / favourite / unfavourite / add-to-home / image copy)
+- `src/lib/favouriteIdentity.ts` — `packetIdentityKey`, `buildPacketSnapshot`, `PACKET_SNAPSHOT_FIELDS`
 - `src/lib/parseSeedPackets.ts` — bulk-paste parser (regex fallback + AI wrapper)
 - `supabase/functions/parse-seed-packets/index.ts` — Sage+ Gemini parser
 - `supabase/migrations/20260624000500_nursery.sql` — schema (packets, sowings, view, FK, RLS)
+- `supabase/migrations/20260902000000_user_favourite_seed_packets.sql` — favourites table (Phase 3, no tier trigger)
 - `tests/unit/lib/parseSeedPackets.test.ts` — 16 cases covering the regex grammar
+- `tests/e2e/specs/favourites.spec.ts` — FAV-NU-001..006

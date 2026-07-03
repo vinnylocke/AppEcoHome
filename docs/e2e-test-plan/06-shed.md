@@ -1,8 +1,8 @@
 # 6. The Shed (Plant Inventory)
 
-**Spec files:** `tests/e2e/specs/plants.spec.ts` · `tests/e2e/specs/shed-crud.spec.ts` · `tests/e2e/specs/shed-discovery.spec.ts` · `tests/e2e/specs/plant-edit-assignment.spec.ts` · `tests/e2e/specs/instance-edit-tabs.spec.ts`
+**Spec files:** `tests/e2e/specs/plants.spec.ts` · `tests/e2e/specs/shed-crud.spec.ts` · `tests/e2e/specs/shed-discovery.spec.ts` · `tests/e2e/specs/plant-edit-assignment.spec.ts` · `tests/e2e/specs/instance-edit-tabs.spec.ts` · `tests/e2e/specs/favourites.spec.ts`
 **Page Objects:** `tests/e2e/pages/ShedPage.ts` · `tests/e2e/pages/PlantEditPage.ts` · `tests/e2e/pages/PlantAssignmentPage.ts` · `tests/e2e/pages/BulkAssignPage.ts` · `tests/e2e/pages/InstanceEditPage.ts`
-**Seed dependencies:** `01_locations_areas.sql`, `02_plants_shed.sql`
+**Seed dependencies:** `01_locations_areas.sql`, `02_plants_shed.sql`, `13_ai_freshness.sql` (AI-source lock case), `15_favourites.sql` (favourites fixtures + W1 second home)
 **App-reference:** [03-garden-hub/02-shed-plants.md](../app-reference/03-garden-hub/02-shed-plants.md)
 
 ## Navigation + basic render
@@ -85,6 +85,19 @@
 | PA-002 | ✅ | Assignment — increment ticks +1 each press | — | ✅ Passing |
 | PA-003 | ✅ | Assignment — Add to garden CTA advances to Step 2 | — | ✅ Passing |
 | BA-001 | ✅ | Bulk assign — modal lists per-plant qty inputs | — | ✅ Passing |
+
+## Cross-home favourites (`favourites.spec.ts`)
+
+Cross-Home Favourites Phase 1 (2026-07-03). Fixtures: `15_favourites.sql` (0017 UUID segment + W1's second home "Rooftop Terrace") and `13_ai_freshness.sql` (Cherry Tomato AI fork for the AI-source lock).
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| FAV-001 | ✅ | `/shed?scope=favourites` deep link → Favourites scope; seeded Tomato (live ref) + Snapdragon (tombstone) render; hint banner shows + dismisses | — | ✅ Passing |
+| FAV-002 | ✅ | Heart a Home-tab plant → appears in Favourites; remove cleans up + unfills the heart | — | ✅ Passing |
+| FAV-003 | ✅ | Seeded Tomato favourite — heart pre-filled on Home tab, "In this home" on Favourites (dedupe) | — | ✅ Passing |
+| FAV-004 | ✅ | "Add to this home" copies the tombstone (Snapdragon) into the active home → flips to "In this home" + appears on Home tab | — | ✅ Passing |
+| FAV-005 | ✅ | Tier lock — forced Sprout sees disabled hearts on api (Lavender) + ai (Cherry Tomato) plants with upsell tooltip; manual heartable | Sprout profile route patch | ✅ Passing |
+| FAV-006 | ✅ | Home-switch persistence (W1 only) — favourites identical after switch to Rooftop Terrace; Fig flips to "In this home"; Home tab re-roots | — | ✅ Passing (W1); skipped on W2–W4 |
 
 ## Instance Edit Modal tabs (`instance-edit-tabs.spec.ts`)
 

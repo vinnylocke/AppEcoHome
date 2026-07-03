@@ -89,7 +89,7 @@ export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled =
             <TheShed homeId={homeId} aiEnabled={aiEnabled} perenualEnabled={perenualEnabled} />
           )}
           {activeTab === "watchlist" && (
-            <AilmentWatchlist homeId={homeId} aiEnabled={aiEnabled} />
+            <AilmentWatchlist homeId={homeId} aiEnabled={aiEnabled} perenualEnabled={perenualEnabled} />
           )}
           {activeTab === "senescence" && (
             <SenescenceTab homeId={homeId} aiEnabled={aiEnabled} />

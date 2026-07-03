@@ -11,6 +11,8 @@
 
 A grid of ailment cards. Each card represents one `ailments` row — a pest, disease, or invasive plant defined for this home. Cards show the ailment image, severity badge, prevention/remedy step counts, an "N plants affected" rose chip when at least one plant instance is linked, and an "Ask Rhozly AI about this" button (Sage/Evergreen). Add new ailments via a tiered search: library → more databases → Rhozly AI (which saves its result to the shared library), plus a manual fallback.
 
+A **Home | Favourites** scope pill (above the Active/Archived pills) switches between the shared home-scoped watchlist and the user's personal, **cross-home favourites** list (Cross-Home Favourites Phase 2, 2026-07-03). "Home" is today's data unchanged; "Favourites" starts empty and follows the *user* (keyed on `user_id`, not `home_id`) so it survives home switches and leaving/joining homes. Deep link: **`/shed?tab=watchlist&scope=favourites`** — a new param; the existing GardenHub `?tab=` / `?open=` params are untouched. See [Cross-Home Favourite Ailments (data model)](../99-cross-cutting/06-data-model-ailments.md#cross-home-favourite-ailments--user_favourite_ailments) and [Tier Gating § source × tier action matrix](../99-cross-cutting/17-tier-gating.md#source--tier-action-matrix--cross-home-favourites).
+
 ---
 
 ## Role 1 — Technical Reference
@@ -110,6 +112,18 @@ setIsOpen(true);
 
 Opens Plant Doctor chat with the ailment loaded as context.
 
+### Cross-home favourites (Phase 2 — ailments)
+
+Scope pills **Home | Favourites** (`data-testid="watchlist-scope-toggle"`, buttons `watchlist-scope-home` / `watchlist-scope-favourites`). State derives from `?scope=favourites`; `switchScope` does a targeted `setSearchParams` get/set so it never clobbers `?tab=` etc. In Favourites scope the Add button, Active/Archived + type-filter pills, the search box and the library-browse button are hidden.
+
+- **Favourite affordance (Home tab):** a heart button on each `AilmentCard` (`data-testid="favourite-ailment-<ailmentId>"`, `aria-pressed` reflects saved state). Fill is driven by `favouriteKeys` — a Set of `ailmentIdentityKey(name)` (lowercased trimmed name, mirroring `ailment_library.name_key`) because the home `ailments` row carries no stable cross-home id. `handleToggleFavourite` optimistically inserts/removes via `favouritesService`. The heart is always visible (favouriting is personal — never permission-gated), unlike the Archive/Delete buttons which stay `ailments.delete`-gated.
+- **Reference resolution.** Unlike plants (which reference an immutable `plants` id), the favourite references `ailment_library.id`, resolved **best-effort by `name_key`** at favourite time (`resolveAilmentLibraryId`) — the home `ailments` row has no library FK. Matched → the favourite renders **live** library data ("always live"); unmatched (manual / one-off ailments) → `ailment_library_id` NULL and the card renders from the jsonb `snapshot` **tombstone** with a "Saved copy" chip. E2E workers don't seed the library, so all their favourite ailments are tombstones.
+- **Favourites tab:** `<FavouriteAilmentsGrid>` ([`src/components/favourites/FavouriteAilmentsGrid.tsx`](../../../src/components/favourites/FavouriteAilmentsGrid.tsx)) lists the user's favourites with the live joined `ailment_library` row when resolvable. Actions: **Add to this home** (`favourite-ailment-add-to-home-<id>`) and **Remove** (`favourite-ailment-remove-<id>`); a first-visit **hint banner** (`watchlist-favourites-hint-banner`) and an empty state.
+- **Add to this home:** `addFavouriteAilmentToHome` copies the favourite into the active home as a plain **`ailments` insert** (the same path the watchlist add flow uses) — **NO fork.** Ailments have no shared-catalogue edit path like plants had (no copy-on-write requirement), so add-to-home is a straight copy; `source` is preserved (`library` rows stay `library`). Zero AI/API calls, **allowed for any home member regardless of permission keys**. The button reads **"In this home"** (`favourite-ailment-in-home-<id>`, disabled) when `isFavouriteAilmentInHome` finds a home ailment with the same identity key (case-insensitive name).
+- **Dedupe.** Two partial unique indexes — `(user_id, ailment_library_id)` where the ref is present, `(user_id, identity_key)` where it's NULL. PostgREST cannot disambiguate two partial uniques via `on_conflict`, so `favouriteAilment` does an explicit **find-then-update-or-insert** (not a supabase-js upsert). Re-favouriting the same identity refreshes the tombstone.
+- **Strict source × tier gating:** sources above the viewer's entitlements are **view-only** — the heart AND add-to-home are disabled with an upsell tooltip, enforced **client-side** (`isAilmentSourceLockedForTier`: `ai`→`ai_enabled`, `perenual`→`enable_perenual`, `manual`/`library` open to all) AND **server-side** (a `BEFORE INSERT/UPDATE` trigger `enforce_favourite_ailment_tier` on `user_favourite_ailments` gates on the claimed `source`). See [Tier Gating § source × tier action matrix](../99-cross-cutting/17-tier-gating.md#source--tier-action-matrix--cross-home-favourites).
+- **Service:** [`src/services/favouritesService.ts`](../../../src/services/favouritesService.ts) — all reads are `user_id`-only (never `home_id`, which would silently return nothing under the user-scoped RLS). Events: `AILMENT_FAVOURITED` / `AILMENT_UNFAVOURITED` / `FAVOURITE_AILMENT_ADDED_TO_HOME`.
+
 ### Edge functions invoked
 
 | Function | When |
@@ -133,10 +147,10 @@ Opens Plant Doctor chat with the ailment loaded as context.
 
 | Tier | Differences |
 |------|-------------|
-| Sprout | Manual mode only. AI suggest + Ask AI hidden. Perenual gated if not on perenualEnabled. |
-| Botanist | Manual + Perenual. No AI. |
-| Sage | All three add modes + Ask AI button. |
-| Evergreen | Same as Sage. |
+| Sprout | Manual mode only. AI suggest + Ask AI hidden. Perenual gated if not on perenualEnabled. **Favourites: can favourite/add-to-home only manual + library ailments — the ♡ and "Add to this home" are disabled (view-only) on Perenual/AI ailments a housemate added.** |
+| Botanist | Manual + Perenual. No AI. **Favourites: can act on manual + library + Perenual ailments; AI ailments view-only.** |
+| Sage | All three add modes + Ask AI button. **Favourites: can act on manual + library + AI ailments; Perenual ailments view-only** (Sage has AI, not the species database). |
+| Evergreen | Same as Sage, plus the species database. **Favourites: can act on every source.** |
 
 ### Beta gating
 
@@ -149,6 +163,8 @@ None.
 | `ailments.add` | Add Ailment button |
 | `ailments.delete` | Archive + Delete buttons |
 | `ailments.link` | LinkAilmentModal usage |
+
+**Favourites are ungated by permission keys:** favouriting/unfavouriting is personal (no `PermissionKey`), and **Add to this home** is allowed for any home member regardless of `ailments.add` (a member write, not an admin action — 2026-07-03 decision). Only the source × tier gate can block a favourite action. Favourites are **not** on a realtime channel (per-user data, mutated only by the same client) — the list refetches on mount and after each mutation.
 
 ### Error states
 
@@ -210,6 +226,14 @@ Three modes:
 
 - Opens the chat with this ailment loaded. Ask questions like "is it safe to plant tomatoes near a rose with this disease?" or "what's the gentlest remedy for someone with kids in the garden?"
 
+#### 7. Favourites — carry an ailment's playbook to every garden you tend
+
+Tap the **Favourites** pill (next to **Home**) to see your personal saved list of ailments. Unlike the Home watchlist, which belongs to whichever home you're currently in, favourites follow **you** — switch home, leave a home, join a new one, and the prevention/remedy steps you saved are still there.
+
+- **Save one:** tap the ♡ on any ailment card in the Home tab. It fills in, and the ailment lands in Favourites. Tap again to remove it.
+- **Bring one into this garden:** on the Favourites tab, **Add to this home** creates a fresh copy of that ailment in the home you're currently in (no AI or database lookup — instant, and free on every tier). Once it's here the button reads **In this home**. Any household member can do this — you don't need special permissions.
+- **Old favourites still work:** if an ailment you favourited was never in the shared library (a one-off you typed yourself), the card still shows exactly what you saved (a "saved copy") so the steps travel with you.
+
 ### Information on display — what every field means
 
 | Element | Meaning |
@@ -224,9 +248,10 @@ Three modes:
 
 | Tier | Differences |
 |------|-------------|
-| Sprout | Manual only. No AI suggest. No Ask AI. |
-| Botanist | Manual + Perenual. |
-| Sage / Evergreen | Full feature set. |
+| Sprout | Manual only. No AI suggest. No Ask AI. Favourites: can save/copy manual + library ailments; Perenual/AI ailments are view-only. |
+| Botanist | Manual + Perenual. Favourites: manual + library + Perenual; AI view-only. |
+| Sage | Full feature set. Favourites: manual + library + AI; Perenual view-only. |
+| Evergreen | Full feature set + species database. Favourites: every source. |
 
 ### New user vs returning user vs power user
 
@@ -258,16 +283,21 @@ No difference.
 
 ## Related reference files
 
-- [The Shed](./01-the-shed.md)
+- [The Shed](./01-the-shed.md) — cross-home favourites Phase 1 (plants); mirrors this surface's scope pill + heart + add-to-home
 - [Link Ailment Modal](../08-modals-and-overlays/14-link-ailment-modal.md)
 - [Plant Doctor](../05-tools/02-plant-doctor.md)
 - [Plant Doctor Chat](../05-tools/03-plant-doctor-chat.md)
-- [Data Model — Ailments (cross-cutting)](../99-cross-cutting/06-data-model-ailments.md)
+- [Data Model — Ailments (cross-cutting)](../99-cross-cutting/06-data-model-ailments.md) — `user_favourite_ailments` table
+- [Tier Gating](../99-cross-cutting/17-tier-gating.md) — source × tier action matrix for favourites
 
 ## Code references for ongoing maintenance
 
-- `src/components/AilmentWatchlist.tsx` — entire component
+- `src/components/AilmentWatchlist.tsx` — entire component (scope pill, heart, favourites wiring)
+- `src/components/favourites/FavouriteAilmentsGrid.tsx` — Favourites scope body
+- `src/services/favouritesService.ts` — favourite/unfavourite, add-to-home (ailment fns)
+- `src/lib/favouriteIdentity.ts` — pure ailment identity / gating helpers (unit-tested)
 - `src/components/LinkAilmentModal.tsx` — link UI
 - `supabase/functions/generate-ailment-suggestions/index.ts` — AI suggest mode
 - `supabase/migrations/20260429000000_ailments_watchlist.sql` — base schema
+- `supabase/migrations/20260901000000_user_favourite_ailments.sql` — favourites table + RLS + grants + tier-gate trigger
 - `supabase/migrations/20260601000000_photo_surfaces.sql` — photo_url + notes columns

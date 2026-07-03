@@ -1,17 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Sprout, Calendar, Package, AlertCircle, Loader2, Plus, Sun, Cloud,
-  CheckCircle2, Inbox, ClipboardPaste, Camera,
+  CheckCircle2, Inbox, ClipboardPaste, Camera, Heart, Loader,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
+import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
 import {
   fetchNurseryPackets,
   type NurseryListEntry,
 } from "../../services/nurseryService";
+import {
+  listFavouriteSeedPackets,
+  favouriteSeedPacket,
+  unfavouriteSeedPacket,
+} from "../../services/favouritesService";
+import { packetIdentityKey } from "../../lib/favouriteIdentity";
+import { logEvent, EVENT } from "../../events/registry";
+import type { FavouriteSeedPacket } from "../../types";
 import AddSeedPacketModal from "./AddSeedPacketModal";
 import SeedPacketDetailModal from "./SeedPacketDetailModal";
 import BulkPasteSeedPacketsModal from "./BulkPasteSeedPacketsModal";
 import ScanSeedPacketModal from "./ScanSeedPacketModal";
+import FavouriteSeedPacketsGrid from "../favourites/FavouriteSeedPacketsGrid";
 import { recordSignal } from "../../onboarding/signals";
 import FeatureGate from "../shared/FeatureGate";
 
@@ -54,6 +65,17 @@ function NurseryTabInner({
   const [showScanModal, setShowScanModal] = useState(false);
   const [activeEntry, setActiveEntry] = useState<NurseryListEntry | null>(null);
 
+  // ── Cross-home favourites (Phase 3 — seed packets) ─────────────────────────
+  // Scope pill: "Home" = today's home-scoped nursery; "Favourites" = the user's
+  // cross-home list. Component STATE (no URL param — the Nursery toggle has none
+  // today, so favourites scope stays symmetric with it). See
+  // docs/plans/cross-home-favourites.md.
+  const [scope, setScope] = useState<"home" | "favourites">("home");
+  const [favourites, setFavourites] = useState<FavouriteSeedPacket[]>([]);
+  const [favouritesLoading, setFavouritesLoading] = useState(true);
+  const [homeName, setHomeName] = useState<string | null>(null);
+  const [togglingKey, setTogglingKey] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -68,9 +90,125 @@ function NurseryTabInner({
     }
   }, [homeId]);
 
+  const loadFavourites = useCallback(async () => {
+    try {
+      const rows = await listFavouriteSeedPackets();
+      setFavourites(rows);
+    } catch (err) {
+      Logger.warn("Could not load favourite seed packets", { err });
+    } finally {
+      setFavouritesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    loadFavourites();
+  }, [loadFavourites]);
+
+  useEffect(() => {
+    if (!homeId) return;
+    supabase
+      .from("homes")
+      .select("name")
+      .eq("id", homeId)
+      .maybeSingle()
+      .then(({ data }) => setHomeName(data?.name ?? null));
+  }, [homeId]);
+
+  /** Identity keys of the user's favourite packets — drives heart fill. */
+  const favouriteKeys = useMemo(
+    () => new Set(favourites.map((f) => f.identity_key)),
+    [favourites],
+  );
+
+  const handleToggleFavourite = useCallback(
+    async (entry: NurseryListEntry) => {
+      const key = packetIdentityKey(
+        entry.packet.variety,
+        entry.plant?.common_name ?? null,
+      );
+      if (togglingKey === key) return;
+      setTogglingKey(key);
+      const isFavourited = favouriteKeys.has(key);
+      try {
+        if (isFavourited) {
+          setFavourites((prev) => prev.filter((f) => f.identity_key !== key));
+          const existing = favourites.find((f) => f.identity_key === key);
+          if (existing) await unfavouriteSeedPacket(existing.id);
+          logEvent(EVENT.SEED_PACKET_UNFAVOURITED, { identity_key: key });
+          toast.success("Removed from favourites.");
+        } else {
+          const row = await favouriteSeedPacket(
+            {
+              id: entry.packet.id,
+              home_id: entry.packet.home_id,
+              plant_id: entry.packet.plant_id,
+              variety: entry.packet.variety,
+              vendor: entry.packet.vendor,
+              image_url: entry.packet.image_url,
+              plant_common_name: entry.plant?.common_name ?? null,
+              sow_by: entry.packet.sow_by,
+              notes: entry.packet.notes,
+              quantity_remaining: entry.packet.quantity_remaining,
+              purchased_on: entry.packet.purchased_on,
+              opened_on: entry.packet.opened_on,
+            },
+            homeId,
+          );
+          setFavourites((prev) => [row, ...prev.filter((f) => f.id !== row.id)]);
+          logEvent(EVENT.SEED_PACKET_FAVOURITED, { identity_key: key });
+          toast.success("Saved to your favourites — it follows you across homes.");
+        }
+        loadFavourites();
+      } catch (err: any) {
+        loadFavourites(); // roll back optimistic state
+        Logger.error(
+          "Favourite packet toggle failed",
+          err,
+          { packetId: entry.packet.id },
+          "Could not update favourites — please try again.",
+        );
+      } finally {
+        setTogglingKey(null);
+      }
+    },
+    [favourites, favouriteKeys, togglingKey, homeId, loadFavourites],
+  );
+
+  const scopePills = (
+    <div
+      data-testid="nursery-scope-toggle"
+      className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10 self-start w-fit"
+    >
+      {(["home", "favourites"] as const).map((s) => (
+        <button
+          key={s}
+          type="button"
+          data-testid={`nursery-scope-${s}`}
+          onClick={() => setScope(s)}
+          className={`flex items-center gap-1.5 px-5 py-2 min-h-[40px] rounded-xl text-sm font-black transition-all ${
+            scope === s
+              ? "bg-white text-rhozly-primary shadow-sm"
+              : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+          }`}
+        >
+          {s === "favourites" && (
+            <Heart size={13} className={scope === "favourites" ? "fill-current" : ""} />
+          )}
+          {s === "home" ? "Home" : "Favourites"}
+          {s === "favourites" && favourites.length > 0 && (
+            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
+              {favourites.length}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
 
   // Wave 23.0001 — gate the nursery walkthrough (23.0003) so it only
   // fires after the tab has been opened.
@@ -89,20 +227,49 @@ function NurseryTabInner({
     return { total: entries.length, activeSowings, approachingSowBy };
   }, [entries]);
 
+  // Favourites scope renders regardless of the Home list's loading / empty /
+  // error state (favourites are user-scoped, loaded independently). Placed after
+  // all hooks so it never short-circuits a hook call (rules of hooks).
+  if (scope === "favourites") {
+    return (
+      <div data-testid="nursery-tab" className="space-y-3">
+        {scopePills}
+        <FavouriteSeedPacketsGrid
+          homeId={homeId}
+          homeName={homeName}
+          homeEntries={entries}
+          favourites={favourites}
+          loading={favouritesLoading}
+          searchQuery=""
+          onFavouritesChanged={loadFavourites}
+          onHomePacketsChanged={() => {
+            load();
+            loadFavourites();
+          }}
+        />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div
-        data-testid="nursery-loading"
-        className="flex items-center gap-2 px-2 py-10 text-sm text-rhozly-on-surface/55 justify-center"
-      >
-        <Loader2 size={16} className="animate-spin" />
-        Loading your nursery…
+      <div className="space-y-3">
+        {scopePills}
+        <div
+          data-testid="nursery-loading"
+          className="flex items-center gap-2 px-2 py-10 text-sm text-rhozly-on-surface/55 justify-center"
+        >
+          <Loader2 size={16} className="animate-spin" />
+          Loading your nursery…
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
+      <div className="space-y-3">
+        {scopePills}
       <div
         data-testid="nursery-error"
         className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
@@ -122,12 +289,14 @@ function NurseryTabInner({
           </div>
         </div>
       </div>
+      </div>
     );
   }
 
   if (entries.length === 0) {
     return (
       <>
+        <div className="mb-3">{scopePills}</div>
         <div
           data-testid="nursery-empty"
           className="rounded-3xl bg-white border border-rhozly-outline/15 p-8 text-center"
@@ -202,6 +371,7 @@ function NurseryTabInner({
 
   return (
     <div data-testid="nursery-tab" className="space-y-3">
+      {scopePills}
       {/* Summary header — stacks on phone so the summary text reads in full;
           side-by-side on sm+ where there's room for both. */}
       <div className="flex flex-col items-stretch gap-2 px-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
@@ -259,13 +429,22 @@ function NurseryTabInner({
 
       {/* Packet list */}
       <ul data-testid="nursery-list" className="flex flex-col gap-2">
-        {entries.map((entry) => (
-          <NurseryRow
-            key={entry.packet.id}
-            entry={entry}
-            onOpen={() => setActiveEntry(entry)}
-          />
-        ))}
+        {entries.map((entry) => {
+          const key = packetIdentityKey(
+            entry.packet.variety,
+            entry.plant?.common_name ?? null,
+          );
+          return (
+            <NurseryRow
+              key={entry.packet.id}
+              entry={entry}
+              onOpen={() => setActiveEntry(entry)}
+              isFavourited={favouriteKeys.has(key)}
+              favouriteBusy={togglingKey === key}
+              onToggleFavourite={() => handleToggleFavourite(entry)}
+            />
+          );
+        })}
       </ul>
 
       {showAddModal && (
@@ -313,9 +492,15 @@ function NurseryTabInner({
 function NurseryRow({
   entry,
   onOpen,
+  isFavourited,
+  favouriteBusy,
+  onToggleFavourite,
 }: {
   entry: NurseryListEntry;
   onOpen: () => void;
+  isFavourited: boolean;
+  favouriteBusy: boolean;
+  onToggleFavourite: () => void;
 }) {
   const { packet, plant } = entry;
 
@@ -359,12 +544,12 @@ function NurseryRow({
   const sowByLabel = packet.sow_by ? formatSowBy(packet.sow_by) : null;
 
   return (
-    <li>
+    <li className="relative">
     <button
       type="button"
       data-testid={`nursery-row-${packet.id}`}
       onClick={onOpen}
-      className="w-full text-left rounded-2xl bg-white border border-rhozly-outline/15 hover:border-rhozly-primary/40 active:scale-[0.99] transition-all p-3 flex items-start gap-3"
+      className="w-full text-left rounded-2xl bg-white border border-rhozly-outline/15 hover:border-rhozly-primary/40 active:scale-[0.99] transition-all p-3 pr-14 flex items-start gap-3"
     >
       <div className="shrink-0 w-10 h-10 rounded-xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center">
         <Package size={18} />
@@ -405,6 +590,32 @@ function NurseryRow({
           )}
         </div>
       </div>
+    </button>
+    {/* Cross-home favourite heart — recorded per packet variety, follows the
+        user across homes. Ungated (packets have no source). */}
+    <button
+      type="button"
+      data-testid={`favourite-packet-${packet.id}`}
+      onClick={(e) => { e.stopPropagation(); onToggleFavourite(); }}
+      disabled={favouriteBusy}
+      aria-pressed={isFavourited}
+      aria-label={
+        isFavourited
+          ? `Remove ${title} from favourites`
+          : `Save ${title} to favourites`
+      }
+      title={
+        isFavourited
+          ? "Remove from favourites"
+          : "Save to favourites — follows you across homes"
+      }
+      className="absolute top-3 right-3 w-9 h-9 rounded-xl flex items-center justify-center transition-colors text-rhozly-on-surface/40 hover:bg-rose-50 hover:text-rose-600"
+    >
+      {favouriteBusy ? (
+        <Loader size={16} className="animate-spin" />
+      ) : (
+        <Heart size={16} className={isFavourited ? "fill-current text-rose-500" : ""} />
+      )}
     </button>
     </li>
   );

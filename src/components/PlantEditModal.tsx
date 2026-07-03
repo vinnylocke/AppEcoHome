@@ -18,9 +18,12 @@ import toast from "react-hot-toast";
 import { useAiPlantFreshness } from "../hooks/useAiPlantFreshness";
 import CareUpdateCallout from "./aiPlants/CareUpdateCallout";
 import SourceChip from "./aiPlants/SourceChip";
-import DetachConfirmModal from "./aiPlants/DetachConfirmModal";
 import ResetConfirmModal from "./aiPlants/ResetConfirmModal";
-import { diffOverriddenFields, mergeOverriddenFields } from "../lib/aiPlantOverrides";
+import {
+  isSourceLockedForTier,
+  lockedSourceMessage,
+  shouldForkOnEdit,
+} from "../lib/favouriteIdentity";
 
 function formatRelativeDate(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 60 * 60 * 1000));
@@ -134,6 +137,10 @@ interface PlantEditModalProps {
   homeId: string;
   plant: any;
   onSave: (updatedData: any) => void;
+  /** Copy-on-write save for non-manual plants ("Save as my own copy") —
+   *  receives the form payload; the parent forks a NEW row and re-points the
+   *  home's usage. When omitted, non-manual plants stay read-only. */
+  onForkSave?: (updatedData: any) => void;
   onClose: () => void;
   isSaving?: boolean;
   aiEnabled?: boolean;
@@ -147,6 +154,7 @@ export default function PlantEditModal({
   homeId,
   plant,
   onSave,
+  onForkSave,
   onClose,
   isSaving,
   aiEnabled = false,
@@ -278,11 +286,8 @@ export default function PlantEditModal({
     }
   };
 
-  // Wave 6 — override-on-edit + reset state
-  const [pendingDetach, setPendingDetach] = useState<{
-    payload: Record<string, unknown>;
-    changedFields: string[];
-  } | null>(null);
+  // Wave 6 — legacy custom-fork revert state (rows edited in place before
+  // the 2026-07-03 copy-on-write change still carry overridden_fields).
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -290,47 +295,31 @@ export default function PlantEditModal({
     ? (plant.overridden_fields as string[])
     : [];
   const isAiCustomFork = plant?.source === "ai" && overriddenFields.length > 0;
-  const isAiCatalogueTracking = plant?.source === "ai" && overriddenFields.length === 0;
+
+  // ── Copy-on-write edits (docs/plans/cross-home-favourites.md, 2026-07-03) ──
+  // Manual plants edit in place; ANY non-manual plant (api / verdantly / ai /
+  // library) saves as a NEW plant row — "Save as my own copy". Sources above
+  // the viewer's tier entitlements are view-only (strict gating): the form
+  // stays read-only with an upsell note.
+  const sourceLocked = isSourceLockedForTier(plant?.source, {
+    aiEnabled,
+    perenualEnabled: isPremium,
+  });
+  const forksOnEdit =
+    shouldForkOnEdit(plant?.source) && !!onForkSave && !sourceLocked;
+  const formReadOnly = plant?.source !== "manual" && !forksOnEdit;
 
   /**
-   * Intercept the form's Save. For catalogue-tracking AI plants where the
-   * user actually changed an AI care field, we open the DetachConfirmModal
-   * before calling the parent `onSave`. For custom forks, we merge any new
-   * overrides into the existing list and save without a modal. Non-AI plants
-   * pass straight through.
+   * Intercept the form's Save. Manual plants update in place via `onSave`;
+   * non-manual plants fork to a new row via `onForkSave` (the parent
+   * re-points the home's usage and deletes the replaced original).
    */
   const handleSaveWithOverride = (payload: Record<string, unknown>) => {
-    if (plant?.source !== "ai") {
-      onSave(payload);
+    if (forksOnEdit) {
+      onForkSave!(payload);
       return;
     }
-
-    const changed = diffOverriddenFields(plant, payload);
-
-    if (isAiCatalogueTracking && changed.length > 0) {
-      setPendingDetach({ payload, changedFields: changed });
-      return;
-    }
-
-    if (isAiCustomFork && changed.length > 0) {
-      onSave({
-        ...payload,
-        overridden_fields: mergeOverriddenFields(overriddenFields, changed),
-      });
-      return;
-    }
-
-    // No care-field change OR already custom but no new overrides
     onSave(payload);
-  };
-
-  const confirmDetach = () => {
-    if (!pendingDetach) return;
-    onSave({
-      ...pendingDetach.payload,
-      overridden_fields: mergeOverriddenFields(overriddenFields, pendingDetach.changedFields),
-    });
-    setPendingDetach(null);
   };
 
   const handleReset = async () => {
@@ -459,7 +448,7 @@ export default function PlantEditModal({
         wateringNeeds: fullPlantData?.watering,
         sunlightNeeds: fullPlantData?.sunlight,
       },
-      isEditingRestricted: plant.source === "api" || plant.source === "verdantly",
+      isEditingRestricted: formReadOnly,
     });
 
     // Cleanup on close
@@ -702,11 +691,27 @@ export default function PlantEditModal({
                   (hides itself when there are none). Sits above the existing
                   source/refresh strip so power users see it on every visit. */}
               <NurseryPacketsForPlant homeId={homeId} plantId={Number(plant.id)} />
-              {(plant.source === "api" || plant.source === "verdantly") && (
+              {sourceLocked ? (
+                <div
+                  data-testid="plant-edit-tier-locked"
+                  className="bg-rhozly-surface-low border border-rhozly-outline/20 rounded-2xl px-3 py-2 mb-4"
+                >
+                  <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/50 mb-1">
+                    View only on your plan
+                  </p>
+                  <p className="text-xs font-bold text-rhozly-on-surface/60 leading-snug">
+                    {lockedSourceMessage(plant.source)}
+                  </p>
+                </div>
+              ) : (plant.source === "api" || plant.source === "verdantly") && forksOnEdit ? (
+                <p className="text-[10px] text-rhozly-on-surface/40 font-semibold uppercase tracking-widest mb-4">
+                  Sourced from {getProviderLabel(plant.source) ?? "the plant encyclopedia"} — saving creates your own editable copy; the original stays untouched
+                </p>
+              ) : (plant.source === "api" || plant.source === "verdantly") ? (
                 <p className="text-[10px] text-rhozly-on-surface/40 font-semibold uppercase tracking-widest mb-4">
                   Read-only — data sourced from {getProviderLabel(plant.source) ?? "the plant encyclopedia"}
                 </p>
-              )}
+              ) : null}
 
               {/* Wave 5 — AI catalogue freshness callout + Refresh now action */}
               {freshness?.has_update && (
@@ -785,9 +790,9 @@ export default function PlantEditModal({
               <ManualPlantCreation
                 initialData={fullPlantData}
                 onSave={handleSaveWithOverride}
-                submitLabel="Save Updates"
+                submitLabel={forksOnEdit ? "Save as my own copy" : "Save Updates"}
                 isSaving={isSaving}
-                isReadOnly={plant.source === "api" || plant.source === "verdantly"}
+                isReadOnly={formReadOnly}
                 // Wave 7 (D9) — yellow highlight on fields the catalogue cron
                 // updated but the user hasn't ack'd, purple on fields the
                 // user has explicitly overridden. Both lists default to []
@@ -855,15 +860,7 @@ export default function PlantEditModal({
           )}
         </div>
       </div>
-      {/* Wave 6 — confirm modals for fork-on-edit + reset */}
-      {pendingDetach && (
-        <DetachConfirmModal
-          changedFields={pendingDetach.changedFields}
-          isSaving={!!isSaving}
-          onCancel={() => setPendingDetach(null)}
-          onConfirm={confirmDetach}
-        />
-      )}
+      {/* Wave 6 — revert confirm for legacy in-place custom forks */}
       {resetOpen && (
         <ResetConfirmModal
           plantName={plant.common_name || "this plant"}

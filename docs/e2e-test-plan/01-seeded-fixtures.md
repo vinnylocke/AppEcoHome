@@ -186,6 +186,54 @@ MANAGER_LOG_FEED_ID  = 00000001-0000-0000-0013-000000000002  (acted follow-up �
 
 Brief: goals `grow_your_own, year_round_colour, attract_wildlife` · styles `cottage, kitchen_veg` · time `1_3h` · experience `improving`. Evergreen-gated (set the test account tier to `evergreen` to exercise the Head Gardener tab).
 
+### Cross-home favourites — UUIDs at `0017-` (`15_favourites.sql`)
+
+Cross-Home Favourites Phase 1 (2026-07-03). Favourites are **user-scoped** (`user_favourite_plants`), so they persist across home switches. Per-worker rows use the `0017-` segment; Worker 1 additionally gets a **second home** (hardcoded `00000001-` prefix, like `09_cross_home_markers.sql` — not substituted, runs idempotently every worker pass) for home-switch coverage.
+
+```
+FAV_TOMATO_ID        = 00000000-0000-0000-0017-000000000001  (live ref → seeded manual Tomato 100000{1→w+1}; "In this home" case)
+FAV_SNAPDRAGON_ID    = 00000000-0000-0000-0017-000000000002  (TOMBSTONE — plant_id NULL, snapshot only; clean "Add to this home" case)
+
+— Worker 1 only (hardcoded, not substituted) —
+W1_SECOND_HOME_ID    = 00000001-0000-0000-0000-000000000022  ("Rooftop Terrace", W1 owns it)
+W1_SECOND_HOME_LOC   = 00000001-0000-0000-0001-999000000022  ("Terrace" location — keeps the home from re-triggering the WelcomeModal on switch)
+W1_FIG_PLANT_ID      = 9900101                               (manual "Fig" in the second home; fixed id outside all substitution ranges)
+W1_FAV_FIG_ID        = 00000001-0000-0000-0017-000000000003  (live cross-home ref → Fig; "Add to this home" in home 1, "In this home" in the Rooftop Terrace)
+```
+
+> The AI-source tier-lock case (FAV-005) reuses the Cherry Tomato AI fork from `13_ai_freshness.sql` (`200011` on W1) and Lavender (api, `200006`) — no new fixture needed.
+> Because W1 now owns two homes, the RLS-isolation Deno test RLS-005 (locations) treats both `W1_HOME_ID` and `W1_SECOND_HOME_ID` as "own" (see `supabase/tests/rls_isolation.test.ts`).
+
+### Cross-home favourite ailments — UUIDs at `0018-` (`15_favourites.sql`)
+
+Cross-Home Favourites Phase 2 (2026-07-03 — Watchlist). Favourites are **user-scoped** (`user_favourite_ailments`). E2E workers don't seed `ailment_library`, so all favourite ailments are **library-less tombstones** (`ailment_library_id` NULL); dedupe is on `(user_id, identity_key)`.
+
+```
+LOCKED_RUST_AILMENT  = 00000000-0000-0000-0007-000000000018  (home ailment, source='perenual' — Sprout tier-lock fixture for FAV-WL-005)
+FAV_AILMENT_APHID    = 00000000-0000-0000-0018-000000000001  (dedupes against seeded home ailment "Aphid"; "In this home" case)
+FAV_AILMENT_ROSERUST = 00000000-0000-0000-0018-000000000002  (TOMBSTONE — "Rose Rust", not in any home; clean "Add to this home" case)
+
+— Worker 1 only (hardcoded, not substituted) —
+W1_SLUGS_AILMENT     = 00000001-0000-0000-0007-999000000018  ("Slugs" ailment in the Rooftop Terrace second home)
+W1_FAV_AILMENT_SLUGS = 00000001-0000-0000-0018-000000000003  (favourite for Slugs; "Add to this home" in home 1, "In this home" in the Rooftop Terrace)
+```
+
+> Because W1 now owns two homes, RLS-008 (ailments) in `rls_isolation.test.ts` also treats both homes as "own" (the second home carries the seeded "Slugs" ailment).
+
+### Cross-home favourite seed packets — UUIDs at `0019-` (`15_favourites.sql`)
+
+Cross-Home Favourites Phase 3, FINAL (2026-07-03 — Nursery). Favourites are **user-scoped** (`user_favourite_seed_packets`), SNAPSHOT-ONLY (no canonical library), dedupe on `(user_id, identity_key)` where `identity_key = lower(variety) || '|' || lower(plant name)`. **No tier gating** — packets have no `source`. This block also seeds the home packets the favourites dedupe against (there is no dedicated nursery E2E seed).
+
+```
+FAV_PACKET_CHEROKEE_HOME = 00000000-0000-0000-0019-00000000000a  (home packet "Cherokee Purple", linked to Tomato 100000{1→w+1})
+FAV_PACKET_CHEROKEE      = 00000000-0000-0000-0019-000000000001  (favourite, identity 'cherokee purple|tomato'; dedupes → "In this home")
+FAV_PACKET_COSMOS        = 00000000-0000-0000-0019-000000000002  (favourite "Sensation Mix", identity 'sensation mix|', plant-less; clean "Add to this home")
+
+— Worker 1 only (hardcoded, not substituted) —
+W1_PACKET_KALE_HOME      = 00000001-0000-0000-0019-99000000000b  (home packet "Cavolo Nero" in the Rooftop Terrace, plant-less)
+W1_FAV_PACKET_KALE       = 00000001-0000-0000-0019-000000000003  (favourite, identity 'cavolo nero|'; "Add to this home" in home 1, "In this home" in the Rooftop Terrace)
+```
+
 ### Rhozly guides (shared across all workers)
 
 ```

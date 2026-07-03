@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import {
   Plus, Search, Loader2, Biohazard, X,
   Edit3, Trash2, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle,
-  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles, Library,
+  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles, Library, Heart,
 } from "lucide-react";
 import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -25,6 +25,18 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import EmptyState from "./shared/EmptyState";
+import FavouriteAilmentsGrid from "./favourites/FavouriteAilmentsGrid";
+import {
+  isAilmentSourceLockedForTier,
+  lockedAilmentSourceMessage,
+  ailmentIdentityKey,
+} from "../lib/favouriteIdentity";
+import {
+  listFavouriteAilments,
+  favouriteAilment,
+  unfavouriteAilment,
+} from "../services/favouritesService";
+import type { FavouriteAilment } from "../types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1546,6 +1558,10 @@ function AilmentCard({
   onArchiveToggle,
   onDelete,
   onAskAi,
+  onToggleFavourite,
+  isFavourited,
+  favouriteLocked,
+  favouriteBusy,
   canDelete,
   aiEnabled,
 }: {
@@ -1555,6 +1571,10 @@ function AilmentCard({
   onArchiveToggle: () => void;
   onDelete: () => void;
   onAskAi: () => void;
+  onToggleFavourite: () => void;
+  isFavourited: boolean;
+  favouriteLocked: boolean;
+  favouriteBusy: boolean;
   canDelete: boolean;
   aiEnabled: boolean;
 }) {
@@ -1601,25 +1621,65 @@ function AilmentCard({
           triggerClassName="absolute bottom-3 left-3"
         />
 
-        {/* Archive + Delete buttons — top right */}
-        {canDelete && (
-          <div className="absolute top-4 right-4 flex gap-2">
-            <button
-              onClick={(e) => { e.stopPropagation(); onArchiveToggle(); }}
-              aria-label={ailment.is_archived ? "Restore ailment" : "Archive ailment"}
-              className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-            >
-              {ailment.is_archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              aria-label="Delete ailment"
-              className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        )}
+        {/* Archive + Delete + Favourite buttons — top right */}
+        <div className="absolute top-4 right-4 flex gap-2">
+          {/* Cross-home favourite heart. Strict source × tier gating: above-tier
+              sources are view-only, so the heart is disabled with an upsell
+              tooltip. Favouriting is personal — never permission-gated. */}
+          <button
+            data-testid={`favourite-ailment-${ailment.id}`}
+            onClick={(e) => { e.stopPropagation(); if (!favouriteLocked) onToggleFavourite(); }}
+            disabled={favouriteLocked || favouriteBusy}
+            aria-pressed={isFavourited}
+            aria-label={
+              favouriteLocked
+                ? `Favouriting ${ailment.name} is locked on your plan`
+                : isFavourited
+                  ? `Remove ${ailment.name} from favourites`
+                  : `Save ${ailment.name} to favourites`
+            }
+            title={
+              favouriteLocked
+                ? lockedAilmentSourceMessage(ailment.source)
+                : isFavourited
+                  ? "Remove from favourites"
+                  : "Save to favourites — follows you across homes"
+            }
+            className={`w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl flex items-center justify-center shadow-md transition-all active:scale-90 ${
+              favouriteLocked
+                ? "text-rhozly-on-surface/20 cursor-not-allowed"
+                : isFavourited
+                  ? "text-rose-500 hover:bg-rose-50"
+                  : "text-rhozly-on-surface/60 hover:text-rose-500"
+            }`}
+          >
+            {favouriteBusy ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : favouriteLocked ? (
+              <Lock size={16} />
+            ) : (
+              <Heart size={16} className={isFavourited ? "fill-current" : ""} />
+            )}
+          </button>
+          {canDelete && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); onArchiveToggle(); }}
+                aria-label={ailment.is_archived ? "Restore ailment" : "Archive ailment"}
+                className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
+              >
+                {ailment.is_archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                aria-label="Delete ailment"
+                className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
+              >
+                <Trash2 size={16} />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Body */}
@@ -1670,7 +1730,7 @@ function AilmentCard({
 
 export type AilmentFilter = "all" | AilmentType;
 
-export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
+export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEnabled = false }: { homeId: string; aiEnabled?: boolean; perenualEnabled?: boolean }) {
   const { can } = usePermissions();
   const { requestFeedback } = useBetaFeedbackContext();
   const { setIsOpen, setPageContext } = usePlantDoctor();
@@ -1686,6 +1746,86 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState<Ailment | null>(null);
+
+  // ── Cross-home favourites (Phase 2 — ailments) ─────────────────────────────
+  // Scope pill: "Home" = today's home-scoped watchlist; "Favourites" = the
+  // user's cross-home list. Deep link `/shed?tab=watchlist&scope=favourites` —
+  // a NEW param; the existing GardenHub `?tab=` / `?open=` params are untouched.
+  const scope: "home" | "favourites" =
+    searchParams.get("scope") === "favourites" ? "favourites" : "home";
+  const switchScope = (next: "home" | "favourites") => {
+    setSearchParams((p) => {
+      const n = new URLSearchParams(p);
+      if (next === "favourites") n.set("scope", "favourites");
+      else n.delete("scope");
+      return n;
+    }, { replace: true });
+  };
+
+  const [favourites, setFavourites] = useState<FavouriteAilment[]>([]);
+  const [favouritesLoading, setFavouritesLoading] = useState(true);
+  const [homeName, setHomeName] = useState<string | null>(null);
+  const [togglingFavouriteKey, setTogglingFavouriteKey] = useState<string | null>(null);
+
+  const loadFavourites = useCallback(async () => {
+    try {
+      const rows = await listFavouriteAilments();
+      setFavourites(rows);
+    } catch (err) {
+      Logger.warn("Could not load favourite ailments", { err });
+    } finally {
+      setFavouritesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadFavourites(); }, [loadFavourites]);
+
+  useEffect(() => {
+    if (!homeId) return;
+    supabase
+      .from("homes")
+      .select("name")
+      .eq("id", homeId)
+      .maybeSingle()
+      .then(({ data }) => setHomeName(data?.name ?? null));
+  }, [homeId]);
+
+  /** Identity keys of the user's favourite ailments — drives heart fill. */
+  const favouriteKeys = useMemo(
+    () => new Set(favourites.map((f) => f.identity_key || ailmentIdentityKey(f.name))),
+    [favourites],
+  );
+
+  const handleToggleFavourite = async (ailment: Ailment) => {
+    const key = ailmentIdentityKey(ailment.name);
+    if (togglingFavouriteKey === key) return;
+    setTogglingFavouriteKey(key);
+    const isFavourited = favouriteKeys.has(key);
+    try {
+      if (isFavourited) {
+        setFavourites((prev) => prev.filter((f) => (f.identity_key || ailmentIdentityKey(f.name)) !== key));
+        const existing = favourites.find((f) => (f.identity_key || ailmentIdentityKey(f.name)) === key);
+        if (existing) await unfavouriteAilment(existing.id);
+        logEvent(EVENT.AILMENT_UNFAVOURITED, { ailment_library_id: existing?.ailment_library_id ?? null, source: ailment.source });
+        toast.success("Removed from favourites.");
+      } else {
+        const row = await favouriteAilment(ailment as any, homeId);
+        setFavourites((prev) => [row, ...prev.filter((f) => f.id !== row.id)]);
+        logEvent(EVENT.AILMENT_FAVOURITED, { ailment_library_id: row.ailment_library_id, source: ailment.source });
+        toast.success("Saved to your favourites — it follows you across homes.");
+      }
+      loadFavourites();
+    } catch (err: any) {
+      loadFavourites(); // roll back optimistic state
+      if (String(err?.message ?? "").includes("tier_locked_source")) {
+        toast.error(lockedAilmentSourceMessage(ailment.source));
+      } else {
+        Logger.error("Favourite ailment toggle failed", err, { ailmentId: ailment.id }, "Could not update favourites — please try again.");
+      }
+    } finally {
+      setTogglingFavouriteKey(null);
+    }
+  };
 
   useEffect(() => {
     if (openHandled.current) return;
@@ -1815,7 +1955,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
           </h1>
           <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">Track pests, diseases, and invasive plants</p>
         </div>
-        {can("ailments.add") && (
+        {scope === "home" && can("ailments.add") && (
           <button
             onClick={() => setShowAdd(true)}
             className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
@@ -1825,6 +1965,52 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
         )}
       </div>
 
+      {/* Home | Favourites scope pills — "Home" is today's shared, home-scoped
+          watchlist; "Favourites" is the user's personal cross-home list.
+          Deep link: /shed?tab=watchlist&scope=favourites */}
+      <div
+        data-testid="watchlist-scope-toggle"
+        className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10 self-start w-fit"
+      >
+        {(["home", "favourites"] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            data-testid={`watchlist-scope-${s}`}
+            onClick={() => switchScope(s)}
+            className={`flex items-center gap-1.5 px-5 py-2 min-h-[40px] rounded-xl text-sm font-black transition-all ${
+              scope === s ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+            }`}
+          >
+            {s === "favourites" && (
+              <Heart size={13} className={scope === "favourites" ? "fill-current" : ""} />
+            )}
+            {s === "home" ? "Home" : "Favourites"}
+            {s === "favourites" && favourites.length > 0 && (
+              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
+                {favourites.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Favourites scope body — the user's cross-home favourite ailments. */}
+      {scope === "favourites" ? (
+        <FavouriteAilmentsGrid
+          homeId={homeId}
+          homeName={homeName}
+          homeAilments={ailments}
+          favourites={favourites}
+          loading={favouritesLoading}
+          searchQuery={search}
+          aiEnabled={aiEnabled}
+          perenualEnabled={perenualEnabled}
+          onFavouritesChanged={loadFavourites}
+          onHomeAilmentsChanged={() => { fetchAilments(); loadFavourites(); }}
+        />
+      ) : (
+      <>
       {/* Active / Archived tabs + type filters */}
       <div className="flex flex-col gap-2">
         <div role="tablist" aria-label="Ailment status" className="flex gap-1 overflow-x-auto bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10">
@@ -1929,6 +2115,10 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
                 });
                 setIsOpen(true);
               }}
+              onToggleFavourite={() => handleToggleFavourite(a)}
+              isFavourited={favouriteKeys.has(ailmentIdentityKey(a.name))}
+              favouriteLocked={isAilmentSourceLockedForTier(a.source, { aiEnabled, perenualEnabled })}
+              favouriteBusy={togglingFavouriteKey === ailmentIdentityKey(a.name)}
               aiEnabled={aiEnabled}
               canDelete={can("ailments.delete")}
             />
@@ -1963,6 +2153,8 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
               : undefined
           }
         />
+      )}
+      </>
       )}
 
       {/* Modals — rendered via portal so they escape any parent overflow/z-index */}

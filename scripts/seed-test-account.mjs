@@ -50,10 +50,14 @@ const EMAIL = arg("email");
 const PASSWORD = arg("password");
 const TIER = (arg("tier", "sprout") || "sprout").toLowerCase();
 
+// Matches src/constants/tiers.ts + migration 20260514000001 (the enforced
+// lattice): Botanist = species database (enable_perenual), Sage = AI
+// (ai_enabled). An earlier version of this table had the two swapped —
+// fixed 2026-07-03 alongside the cross-home favourites work.
 const TIER_FLAGS = {
   sprout:    { ai_enabled: false, enable_perenual: false },
-  botanist:  { ai_enabled: true,  enable_perenual: false },
-  sage:      { ai_enabled: false, enable_perenual: true },
+  botanist:  { ai_enabled: false, enable_perenual: true },
+  sage:      { ai_enabled: true,  enable_perenual: false },
   evergreen: { ai_enabled: true,  enable_perenual: true },
 };
 
@@ -797,10 +801,16 @@ async function seedSmartHome(homeId, uid, bed, loc, blueprints) {
   await insert("automation_actions", acts);
 }
 
-// User-scoped extras (saved bed templates + guide bookmarks) — once per account.
-async function seedUserScoped(uid) {
+// User-scoped extras (saved bed templates + guide bookmarks + cross-home
+// favourites) — once per account, NOT inside the per-home loop. Favourites
+// are keyed on user_id, so the reset must delete by user_id (a home_id
+// delete would silently miss them).
+async function seedUserScoped(uid, homeIds = []) {
   await sb.from("garden_shape_templates").delete().eq("user_id", uid);
   await sb.from("guide_bookmarks").delete().eq("user_id", uid);
+  await sb.from("user_favourite_plants").delete().eq("user_id", uid);
+  await sb.from("user_favourite_ailments").delete().eq("user_id", uid);
+  await sb.from("user_favourite_seed_packets").delete().eq("user_id", uid);
   await insert("garden_shape_templates", [
     { id: randomUUID(), user_id: uid, name: "4×8 Raised Bed", shape_type: "rect", colour: "#4ade80", width_m: 4, height_m: 8, dashed: false, suggested_plant_species: ["Tomato", "Basil", "Pepper"] },
     { id: randomUUID(), user_id: uid, name: "Round Herb Pot", shape_type: "circle", colour: "#34d399", radius_m: 0.6, dashed: false, suggested_plant_species: ["Mint", "Thyme", "Sage"] },
@@ -808,6 +818,182 @@ async function seedUserScoped(uid) {
   ]);
   const { data: guides } = await sb.from("guides").select("id").limit(3);
   if (guides?.length) await insert("guide_bookmarks", guides.map((g) => ({ user_id: uid, guide_id: g.id })));
+
+  // ── Cross-home favourite plants (docs/plans/cross-home-favourites.md §11) ──
+  // ~10 favourites spread across the account's homes: manual rows referenced by
+  // their own id, library/AI forks by their GLOBAL catalogue id (the immutable
+  // canonical reference), plus one dangling-reference tombstone to exercise the
+  // snapshot fallback. favourited_from_home_id varies across homes so switching
+  // homes demonstrably keeps the list stable. Because favourites carry
+  // ai-source rows, a Sprout account directly exercises "sees the AI favourite
+  // but every action is tier-locked (view-only)".
+  if (homeIds.length) {
+    const { data: shedPlants } = await sb.from("plants")
+      .select("id, home_id, common_name, scientific_name, source, forked_from_plant_id, thumbnail_url, watering, care_level, cycle, sunlight, description")
+      .in("home_id", homeIds)
+      .eq("is_archived", false)
+      .order("id");
+    const manuals = (shedPlants ?? []).filter((p) => p.source === "manual");
+    const aiForks = (shedPlants ?? []).filter((p) => p.source === "ai");
+    // Spread manual picks across homes (one slice per home) so the
+    // favourited_from captions vary.
+    const picks = [];
+    for (const hid of homeIds) {
+      picks.push(...manuals.filter((p) => p.home_id === hid).slice(0, Math.ceil(6 / homeIds.length)));
+    }
+    picks.push(...aiForks.slice(0, 3));
+    const seen = new Set();
+    const favRows = [];
+    for (const p of picks.slice(0, 9)) {
+      const refId = p.source === "ai" && p.forked_from_plant_id != null ? p.forked_from_plant_id : p.id;
+      if (seen.has(refId)) continue;
+      seen.add(refId);
+      favRows.push({
+        id: randomUUID(), user_id: uid, plant_id: refId, source: p.source,
+        common_name: p.common_name,
+        scientific_name: p.scientific_name ?? [],
+        image_url: p.thumbnail_url ?? null,
+        snapshot: {
+          common_name: p.common_name, scientific_name: p.scientific_name ?? [],
+          watering: p.watering, care_level: p.care_level, cycle: p.cycle,
+          sunlight: p.sunlight, description: p.description,
+        },
+        favourited_from_home_id: p.home_id,
+      });
+    }
+    // Dangling-reference tombstone — renders from the snapshot alone.
+    favRows.push({
+      id: randomUUID(), user_id: uid, plant_id: null, source: "manual",
+      common_name: "Sweet Pea (from an old garden)",
+      scientific_name: ["Lathyrus odoratus"],
+      image_url: null,
+      snapshot: {
+        common_name: "Sweet Pea (from an old garden)",
+        scientific_name: ["Lathyrus odoratus"],
+        watering: "Frequent", care_level: "Low", cycle: "Annual",
+        sunlight: ["Full sun"],
+        description: "Fragrant climber saved from a garden this account has since left.",
+      },
+      favourited_from_home_id: null,
+    });
+    await insert("user_favourite_plants", favRows);
+
+    // ── Cross-home favourite ailments (Phase 2) ──────────────────────────────
+    // ~6 favourite ailments spread across the account's homes. Reference the
+    // GLOBAL ailment_library row by name_key where one exists (→ "always live"),
+    // else a library-less tombstone. Because favourites carry perenual/ai-source
+    // rows, a Sprout account exercises "sees the ailment favourite but every
+    // action is tier-locked (view-only)". favourited_from_home_id varies so
+    // switching homes demonstrably keeps the list stable.
+    const idKey = (s) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+    const { data: homeAilments } = await sb.from("ailments")
+      .select("id, home_id, name, scientific_name, type, source, thumbnail_url, description, symptoms, affected_plants, prevention_steps, remedy_steps, perenual_id")
+      .in("home_id", homeIds)
+      .eq("is_archived", false)
+      .order("created_at");
+    // De-dupe by identity_key (the same ailment may live in several homes).
+    const ailmentPicks = [];
+    const seenA = new Set();
+    for (const a of homeAilments ?? []) {
+      const key = idKey(a.name);
+      if (seenA.has(key)) continue;
+      seenA.add(key);
+      ailmentPicks.push(a);
+      if (ailmentPicks.length >= 5) break;
+    }
+    // Resolve library ids by name_key (best-effort — matches the client service).
+    const { data: libRows } = await sb.from("ailment_library").select("id, name").limit(1000);
+    const libByKey = new Map((libRows ?? []).map((r) => [idKey(r.name), r.id]));
+    const ailFavRows = ailmentPicks.map((a) => ({
+      id: randomUUID(), user_id: uid,
+      ailment_library_id: libByKey.get(idKey(a.name)) ?? null,
+      identity_key: idKey(a.name),
+      source: a.source, name: a.name, ailment_type: a.type,
+      thumbnail_url: a.thumbnail_url ?? null,
+      snapshot: {
+        scientific_name: a.scientific_name ?? null,
+        description: a.description ?? "",
+        symptoms: a.symptoms ?? [],
+        affected_plants: a.affected_plants ?? [],
+        prevention_steps: a.prevention_steps ?? [],
+        remedy_steps: a.remedy_steps ?? [],
+        perenual_id: a.perenual_id ?? null,
+      },
+      favourited_from_home_id: a.home_id,
+    }));
+    // A dangling-reference tombstone — renders from the snapshot alone.
+    ailFavRows.push({
+      id: randomUUID(), user_id: uid, ailment_library_id: null,
+      identity_key: "vine weevil (from an old garden)",
+      source: "manual", name: "Vine Weevil (from an old garden)", ailment_type: "pest",
+      thumbnail_url: null,
+      snapshot: {
+        scientific_name: "Otiorhynchus sulcatus",
+        description: "Grubs that eat roots of pot plants — remembered from a garden this account has since left.",
+        symptoms: [], affected_plants: ["Heuchera", "Primula"],
+        prevention_steps: [], remedy_steps: [], perenual_id: null,
+      },
+      favourited_from_home_id: null,
+    });
+    await insert("user_favourite_ailments", ailFavRows);
+
+    // ── Cross-home favourite seed packets (Phase 3) ──────────────────────────
+    // ~5 packet favourites across the account's homes + a dangling tombstone.
+    // SNAPSHOT-ONLY (no canonical library) — dedupe on (user_id, identity_key).
+    // No tier gating (packets have no source). favourited_from_home_id varies so
+    // switching homes demonstrably keeps the list stable.
+    const idKeyPacket = (variety, plantName) => {
+      const norm = (s) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+      return `${norm(variety)}|${norm(plantName)}`;
+    };
+    const { data: homePackets } = await sb.from("seed_packets")
+      .select("id, home_id, plant_id, variety, vendor, sow_by, notes, quantity_remaining, purchased_on, opened_on")
+      .in("home_id", homeIds)
+      .eq("is_archived", false)
+      .order("created_at");
+    // Hydrate plant names for the identity key.
+    const packetPlantIds = Array.from(new Set((homePackets ?? []).map((p) => p.plant_id).filter(Boolean)));
+    let packetPlantNameById = new Map();
+    if (packetPlantIds.length) {
+      const { data: pp } = await sb.from("plants").select("id, common_name").in("id", packetPlantIds);
+      packetPlantNameById = new Map((pp ?? []).map((r) => [r.id, r.common_name]));
+    }
+    const packetPicks = [];
+    const seenP = new Set();
+    for (const p of homePackets ?? []) {
+      const plantName = p.plant_id != null ? packetPlantNameById.get(p.plant_id) ?? null : null;
+      const key = idKeyPacket(p.variety, plantName);
+      if (seenP.has(key)) continue;
+      seenP.add(key);
+      packetPicks.push({ ...p, _plantName: plantName, _key: key });
+      if (packetPicks.length >= 5) break;
+    }
+    const packetFavRows = packetPicks.map((p) => ({
+      id: randomUUID(), user_id: uid,
+      seed_packet_id: p.id, plant_id: p.plant_id ?? null,
+      plant_common_name: p._plantName, variety: p.variety, vendor: p.vendor,
+      identity_key: p._key, copied_image_url: null,
+      snapshot: {
+        sow_by: p.sow_by ?? null, notes: p.notes ?? null,
+        quantity_remaining: p.quantity_remaining ?? null,
+        purchased_on: p.purchased_on ?? null, opened_on: p.opened_on ?? null,
+      },
+      favourited_from_home_id: p.home_id,
+    }));
+    // A dangling-reference tombstone — renders from the snapshot alone.
+    packetFavRows.push({
+      id: randomUUID(), user_id: uid, seed_packet_id: null, plant_id: null,
+      plant_common_name: "Sweet Pea", variety: "Cupani (from an old garden)", vendor: "Higgledy Garden",
+      identity_key: idKeyPacket("Cupani (from an old garden)", "Sweet Pea"),
+      copied_image_url: null,
+      snapshot: {
+        sow_by: null, notes: "Heritage fragrant sweet pea remembered from a garden this account has since left.",
+        quantity_remaining: null, purchased_on: null, opened_on: null,
+      },
+      favourited_from_home_id: null,
+    });
+    await insert("user_favourite_seed_packets", packetFavRows);
+  }
 }
 
 // ───────────────────────── main ─────────────────────────
@@ -842,7 +1028,7 @@ async function seedUserScoped(uid) {
     await resetHome(homeIds[i]);
     await seedHome(homeIds[i], uid, i, allocId);
   }
-  await seedUserScoped(uid);
+  await seedUserScoped(uid, homeIds);
 
   console.log(`\n✅  Done. Seeded ${homeIds.length} homes for ${EMAIL} (${TIER}).`);
   console.log(`    Plant id range: ${base}–${counter - 1}`);

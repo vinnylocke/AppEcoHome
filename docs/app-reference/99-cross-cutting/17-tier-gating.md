@@ -29,10 +29,12 @@ Lives in `src/constants/tiers.ts`:
 [
   { id: "sprout",    name: "Sprout",    ai_enabled: false, enable_perenual: false, ... },
   { id: "botanist",  name: "Botanist",  ai_enabled: false, enable_perenual: true,  ... },
-  { id: "sage",      name: "Sage",      ai_enabled: true,  enable_perenual: true,  ... },
+  { id: "sage",      name: "Sage",      ai_enabled: true,  enable_perenual: false, ... },
   { id: "evergreen", name: "Evergreen", ai_enabled: true,  enable_perenual: true,  ... },
 ]
 ```
+
+> **Drift fixed 2026-07-03:** this block previously showed Sage as `enable_perenual: true`, contradicting the header table above (correct: Sage has AI, *not* the species database) and the enforced lattice in `src/constants/tiers.ts` + migration `20260514000001`. The lattice is `sprout(–,–) · botanist(–,perenual) · sage(ai,–) · evergreen(ai,perenual)` — tiers are a **lattice, not a ladder**. `scripts/seed-test-account.mjs`'s `TIER_FLAGS` carried the same swap and was corrected in the same change.
 
 ### `user_profiles` columns
 
@@ -79,6 +81,39 @@ Then `onTierChange()` lifts flags into App state so the rest of the app re-rende
 | Perenual tab in BulkSearch | `enable_perenual` |
 | Perenual care details fetch | `enable_perenual` |
 | Garden Layout 3D view | (Sage/Evergreen — soft gate) |
+
+### Source × tier action matrix — Cross-Home Favourites
+
+**Cross-Home Favourites Phase 1 (2026-07-03).** Acting on a plant (favouriting it, adding a favourite to a home, or copy-on-write editing it) is **strictly gated by the plant's `source` against the actor's entitlement flags** — a plant whose source exceeds your plan is **view-only**: you can *see* it (home-member RLS, not tier) but the ♡, "Add to this home", and "Save as my own copy" controls are disabled with an upsell.
+
+| Plant `source` | Requires | Sprout | Botanist | Sage | Evergreen |
+|---|---|---|---|---|---|
+| `manual` | — (open) | ✅ | ✅ | ✅ | ✅ |
+| `api` / `verdantly` | `enable_perenual` | 🔒 | ✅ | 🔒 | ✅ |
+| `ai` (incl. library forks) | `ai_enabled` | 🔒 | 🔒 | ✅ | ✅ |
+
+Because the lattice gives Botanist the species database and Sage the AI (not the other way round), Botanist can act on Perenual/Verdantly favourites but not AI ones, and Sage the inverse — exactly matching the flags.
+
+**Enforcement is client + server:**
+- **Client:** `isSourceLockedForTier(source, { aiEnabled, perenualEnabled })` in [`src/lib/favouriteIdentity.ts`](../../../src/lib/favouriteIdentity.ts) (unit-tested) drives the disabled controls + tooltip in `TheShed` / `FavouritePlantsGrid` / `PlantEditModal`.
+- **Server:** a `BEFORE INSERT/UPDATE` trigger `enforce_favourite_plant_tier()` on `user_favourite_plants` (migration `20260831000000`) re-derives the source from the referenced `plants` row and raises `tier_locked_source` when the actor's flags don't allow it. Favourites inserts are plain PostgREST writes (no edge function on this path), so the trigger — not `aiGuard` — is the server enforcement point. It exempts service-role/direct-SQL so seeds can plant above-tier favourites for view-only UI coverage.
+
+Favouriting/unfavouriting is otherwise **ungated by permission keys**, and add-to-home is allowed for any home member regardless of `shed.add` (personal + member writes). See [The Shed § cross-home favourites](../03-garden-hub/01-the-shed.md#cross-home-favourites-phase-1--plants) and [Data Model — Plants § user_favourite_plants](./03-data-model-plants.md#cross-home-favourites--user_favourite_plants).
+
+**Cross-Home Favourites Phase 2 (2026-07-03 — Watchlist ailments).** The same strict gate applies to favouriting an ailment and adding a favourite ailment to a home. Ailments use their own source vocabulary — `perenual` where plants say `api`/`verdantly`, plus a first-class `library` source that is **open to every tier** (the seeded ailment library is the free default search source). There is **no** copy-on-write path for ailments (no fork).
+
+| Ailment `source` | Requires | Sprout | Botanist | Sage | Evergreen |
+|---|---|---|---|---|---|
+| `manual` / `library` | — (open) | ✅ | ✅ | ✅ | ✅ |
+| `perenual` | `enable_perenual` | 🔒 | ✅ | 🔒 | ✅ |
+| `ai` | `ai_enabled` | 🔒 | 🔒 | ✅ | ✅ |
+
+- **Client:** `isAilmentSourceLockedForTier(source, { aiEnabled, perenualEnabled })` in [`src/lib/favouriteIdentity.ts`](../../../src/lib/favouriteIdentity.ts) (unit-tested) drives the disabled heart + "Add to this home" + tooltip in `AilmentWatchlist` / `FavouriteAilmentsGrid`.
+- **Server:** a `BEFORE INSERT/UPDATE OF source` trigger `enforce_favourite_ailment_tier()` on `user_favourite_ailments` (migration `20260901000000`) gates on the favourite's claimed `source` (the home `ailments` row has no library FK, so — unlike plants — it can't re-derive from the referenced row). Raises `tier_locked_source`; exempts service-role/direct-SQL.
+
+See [Watchlist § cross-home favourites](../03-garden-hub/02-watchlist.md#cross-home-favourites-phase-2--ailments) and [Data Model — Ailments § user_favourite_ailments](./06-data-model-ailments.md#cross-home-favourite-ailments--user_favourite_ailments).
+
+**Cross-Home Favourites Phase 3 (2026-07-03 — Nursery seed packets) — UNGATED.** Seed packets are the one favourites surface with **no source × tier gate at all**. `seed_packets` has **no `source` column** (packets are user-created — scanned or manually added), and favouriting / add-to-home make zero AI/API calls, so there is nothing to gate: every tier can heart a packet variety and add a favourite variety into any home they belong to. The favourite stores a variety reference, not AI/API-generated content. Consequently `user_favourite_seed_packets` (migration `20260902000000`) has **no `enforce_favourite_*_tier()` trigger** and there is no client `isSourceLockedForTier` call on any packet control. Add-to-home is open to any home member (personal + member writes, no permission key). See [The Nursery § cross-home favourites](../03-garden-hub/10-nursery.md), [Data Model — Nursery § user_favourite_seed_packets](./33-data-model-nursery.md), and `docs/plans/cross-home-favourites-phase-3-nursery.md`.
 
 ### Capability gating for non-AI / non-Perenual features (`FEATURE_GATES`)
 

@@ -317,3 +317,123 @@ All new interactive elements get `data-testid`s (`shed-scope-toggle`, `favourite
   - Favourite references are stable forever → "always live" display is safe; the jsonb snapshot is reduced to a deletion tombstone fallback only.
   - No dedupe machinery anywhere — identity is the immutable id.
   - The edit surfaces (PlantEditModal etc.) present non-manual edits as "Save as my own copy" (fork), not a disabled form.
+
+---
+
+## Phase 1 — IMPLEMENTED 2026-07-03 (Plants / Shed end-to-end)
+
+Phase 1 (plants only) is implemented and all gates green. **Watchlist (Phase 2) and Nursery (Phase 3) are NOT built** — only plants.
+
+### What shipped
+
+- **Migration** `supabase/migrations/20260831000000_user_favourite_plants.sql` — `user_favourite_plants` (immutable `plant_id` ref `ON DELETE SET NULL`, jsonb `snapshot` tombstone, `UNIQUE (user_id, plant_id)`), pure user-scoped RLS, explicit grants, and a `BEFORE INSERT/UPDATE` trigger `enforce_favourite_plant_tier()` for server-side source×tier gating. **Applied locally only** (`supabase migration up`) — NOT pushed to remote.
+- **Pure lib** `src/lib/favouriteIdentity.ts` — `canonicalPlantRefId`, `isSourceLockedForTier`, `lockedSourceMessage`, `shouldForkOnEdit`, `buildFavouriteSnapshot`, `buildForkRow`. Unit-tested (`tests/unit/lib/favouriteIdentity.test.ts`, 25 tests).
+- **Service** `src/services/favouritesService.ts` — list/favourite/unfavourite (user-scoped only), `isFavouriteInHome`, `addFavouritePlantToHome` (copy via `saveToShed`, zero AI/API, seeds `user_plant_ack` for AI copies), `forkPlantForHomeEdit` (copy-on-write fork + re-point + delete).
+- **UI** — `TheShed.tsx` (Home|Favourites scope pills + `?scope=favourites`, heart on each card, `handleForkPlant`), `FavouritePlantsGrid.tsx` (favourites grid, add-to-home, remove, tombstone card, hint banner, empty state), `PlantEditModal.tsx` (copy-on-write "Save as my own copy" via `onForkSave`, tier-locked view-only note). New events + `FavouritePlant` type.
+- **Seeds** — `supabase/seeds/15_favourites.sql` (0017 segment: Tomato live-ref + Snapdragon tombstone; W1 second home "Rooftop Terrace" + Fig plant + Fig favourite + a location) and `scripts/seed-test-account.mjs` (~10 favourites across the account's homes + a dangling-reference tombstone; user-scoped reset; **fixed the Botanist/Sage `TIER_FLAGS` swap**).
+- **Tests** — `tests/e2e/specs/favourites.spec.ts` (FAV-001..006, all passing; `ShedPage.ts` extended) + the Vitest suite above. `supabase/tests/rls_isolation.test.ts` RLS-005 updated to treat both of W1's homes as "own" (W1 legitimately owns two homes now).
+- **Docs** — this file, `03-garden-hub/01-the-shed.md` (both roles), `99-cross-cutting/03-data-model-plants.md`, `99-cross-cutting/17-tier-gating.md` (source×tier matrix + Sage `enable_perenual` drift fixed), `docs/e2e-test-plan/06-shed.md`, `docs/e2e-test-plan/01-seeded-fixtures.md`, `TESTING.md`.
+
+### The fork / re-point decision (plan was silent)
+
+The plan left the inventory re-point behaviour to implementation. **Decision: the fork becomes the home's plant going forward.** On a copy-on-write edit of a non-manual plant, `forkPlantForHomeEdit` (1) inserts the new manual row, (2) re-points the home's `inventory_items` / `plant_schedules` / `seed_packets` / `plant_sprites` / `automations` from the original to the fork, then (3) **deletes** the original home row. Rationale: the user is editing the home's own row, so the fork *is* that row after the edit — instances/schedules/packets must carry on uninterrupted, and leaving the immutable original around would strand the home on stale data. AI/library favourites reference the **global** catalogue row (never touched here), so they're unaffected; a favourite that referenced the deleted home original degrades to its tombstone, which holds exactly the pre-edit state the favouriter saved.
+
+### Server-side source-gating
+
+Favourites inserts are plain PostgREST writes with no edge function on the path, so `aiGuard` can't apply. Enforcement is a `BEFORE INSERT OR UPDATE OF plant_id, source` trigger, `enforce_favourite_plant_tier()`: it re-derives `source` from the referenced `plants` row (client can't spoof a lower-gated source), reads the favouriter's `ai_enabled`/`enable_perenual` from `user_profiles`, and raises `tier_locked_source` when `ai` lacks `ai_enabled` or `api`/`verdantly` lack `enable_perenual`. INVOKER-rights (plant visibility still RLS-gated); service-role/direct-SQL exempt (`auth.uid() IS NULL`) so seeds can plant above-tier favourites for view-only UI coverage. Mirrors client `isSourceLockedForTier`.
+
+### Deviations from the plan
+
+1. **Scope narrowed to plants only.** The plan §4 DDL created all three favourites tables in one migration. The 2026-07-03 immutable-id redesign (identity = plant id, no `identity_key`) invalidated the ailments/packets DDL as written, and the brief scoped this session to Plants end-to-end. So only `user_favourite_plants` was created; `user_favourite_ailments` / `user_favourite_seed_packets` are deferred to their own Phase 2/3 migrations. `FavouritePlant` is the only new type; ailment/packet interfaces not added.
+2. **No `identity_key` column / no dedupe machinery** — per the second-round decision, dedupe is `UNIQUE (user_id, plant_id)` only.
+3. **`DetachConfirmModal` fork-on-edit-in-place path retired** in PlantEditModal (superseded by copy-on-write). Legacy in-place custom forks keep their "Revert" affordance.
+4. **Fixed pre-existing drift:** Sage `enable_perenual` in `17-tier-gating.md`'s TIERS block and `scripts/seed-test-account.mjs`'s `TIER_FLAGS` (both had Botanist/Sage swapped vs the enforced lattice).
+
+### Handoff notes — Phases 2 & 3
+
+- **Phase 2 (Watchlist ailments):** create `user_favourite_ailments` with the SAME shape as `user_favourite_plants` — immutable ref (`ailment_library.id` where present, else NULL) `ON DELETE SET NULL`, jsonb tombstone, `UNIQUE (user_id, <ref>)`, user-scoped RLS + grants, and a tier-gate trigger IF ailments have a tier-gated source (check `ailment_library` source semantics; `library`/`ai` may need `ai_enabled`). Reuse `FavouritePlantsGrid` as the template for a `FavouriteAilmentsGrid`; the scope-pill pattern in `AilmentWatchlist.tsx` mirrors TheShed. Deep link `/shed?tab=watchlist&scope=favourites`. Copy-on-write does NOT apply to ailments (no equivalent edit-fork requirement) unless product wants it.
+- **Phase 3 (Nursery seed packets):** snapshot-only (no canonical library), so no live-ref "always live" — packets are pure tombstones. Packet images are home-scoped (`seed-packet-images/{home_id}/…`), so the plan's decision to copy the storage object into a user path at favourite time must be implemented (a small edge function or a client copy). Scope pill is component state (no URL param today).
+- **Shared pieces already generalised:** `FavouritePlantsGrid` and the service structure are plant-specific but the shape (live-ref-or-tombstone card, add-to-home, remove, hint banner, empty state, source-badge helper) transfers directly. `favouriteIdentity.ts`'s gating helpers are source-agnostic and reusable. The seed-test-account user-scoped reset already deletes `user_favourite_plants` by `user_id`; extend the same block for the other two tables.
+- **Seed segments:** 0017 is now used for favourites. Phase 2/3 should claim 0018 / 0019.
+
+---
+
+## Phase 2 — IMPLEMENTED 2026-07-03 (Watchlist / ailments end-to-end)
+
+Phase 2 (ailments only) is implemented and all gates green. **Nursery (Phase 3) is NOT built.** Phase 1 (plants) untouched except for shared-code reuse.
+
+### What shipped
+
+- **Migration** `supabase/migrations/20260901000000_user_favourite_ailments.sql` — `user_favourite_ailments` (immutable `ailment_library_id` bigint ref `ON DELETE SET NULL`, `identity_key`, jsonb `snapshot` tombstone, **two partial uniques** `(user_id, ailment_library_id) WHERE NOT NULL` + `(user_id, identity_key) WHERE NULL`), pure user-scoped RLS, explicit grants, and a `BEFORE INSERT/UPDATE OF source` trigger `enforce_favourite_ailment_tier()`. **Applied locally only** (`supabase migration up`) — NOT pushed to remote.
+- **Pure lib** `src/lib/favouriteIdentity.ts` — added `isAilmentSourceLockedForTier`, `lockedAilmentSourceMessage`, `ailmentIdentityKey`, `buildAilmentSnapshot`, `AILMENT_SNAPSHOT_FIELDS`. Unit-tested (+16 cases, suite now 41).
+- **Service** `src/services/favouritesService.ts` — added `listFavouriteAilments`, `resolveAilmentLibraryId` (best-effort name_key match), `favouriteAilment` (explicit find-then-update-or-insert — see deviation 2), `unfavouriteAilment`, `isFavouriteAilmentInHome`, `addFavouriteAilmentToHome` (plain `ailments` insert, NO fork).
+- **UI** — `AilmentWatchlist.tsx` (Home|Favourites scope pills + `?scope=favourites`, always-visible heart on each `AilmentCard`, favourites wiring; `perenualEnabled` prop threaded through `GardenHub`), `FavouriteAilmentsGrid.tsx` (favourites grid, add-to-home, remove, tombstone card, hint banner, empty state). New events (`AILMENT_FAVOURITED` / `AILMENT_UNFAVOURITED` / `FAVOURITE_AILMENT_ADDED_TO_HOME`) + `FavouriteAilment` type.
+- **Seeds** — `supabase/seeds/15_favourites.sql` (0018 segment: Aphid dedupe + Rose Rust tombstone + a perenual "Locked Rust" home ailment for the Sprout lock; W1 second-home "Slugs" ailment + favourite) and `scripts/seed-test-account.mjs` (~6 ailment favourites across the account's homes + a dangling-reference tombstone; user-scoped reset extended to the new table).
+- **Tests** — `tests/e2e/specs/favourites.spec.ts` (FAV-WL-001..006, all passing; `WatchlistPage.ts` extended) + the Vitest suite above.
+- **Docs** — this file, `03-garden-hub/02-watchlist.md` (both roles), `99-cross-cutting/06-data-model-ailments.md` (favourites table), `99-cross-cutting/17-tier-gating.md` (ailment source×tier matrix row), `docs/e2e-test-plan/11-watchlist.md`, `docs/e2e-test-plan/01-seeded-fixtures.md` (0018 segment), `TESTING.md`.
+
+### Add-to-home needed NO fork (as expected)
+
+Confirmed by reading `AilmentWatchlist`'s add flow + `ailmentLibraryService.ts`: adding an ailment to a home is always a plain `ailments` insert (manual form, library-map, Perenual, or AI paths all end in `supabase.from("ailments").insert(...)`). Ailments have **no shared-catalogue in-place edit path** like plants' library rows (which forced copy-on-write forks to keep referenced rows immutable). So `addFavouriteAilmentToHome` is a straight copy from the live library row (or the tombstone snapshot); `source` is preserved. No `forkAilmentForHomeEdit` equivalent exists or is needed.
+
+### Server-side source-gating
+
+Same pattern as plants: a `BEFORE INSERT/UPDATE OF source` trigger `enforce_favourite_ailment_tier()` reads the favouriter's `ai_enabled`/`enable_perenual` from `user_profiles` and raises `tier_locked_source` when `source='ai'` lacks `ai_enabled` or `source='perenual'` lacks `enable_perenual` (`manual`/`library` always open). **Difference from plants:** the home `ailments` row has no FK to `ailment_library`, so the trigger CANNOT re-derive source from the referenced row — it gates on the favourite's **claimed `source`** (the axis the client lock uses and the source the user sees on the card). Service-role/direct-SQL exempt (`auth.uid() IS NULL`) so seeds can plant above-tier favourites for view-only coverage.
+
+### Deviations from the plan
+
+1. **Reference = `ailment_library.id`, resolved best-effort by `name_key`.** The plan assumed the favourite reference "= `ailment_library.id` when the ailment links to it". In fact the home `ailments` row carries **no library link column**, so `resolveAilmentLibraryId` matches by the library's generated `name_key` at favourite time. Matched → "always live" library render; unmatched (manual / one-off ailments, and all E2E fixtures since workers don't seed the library) → NULL + snapshot tombstone.
+2. **`favouriteAilment` uses find-then-update-or-insert, not upsert.** Two partial unique indexes (ref-present vs ref-NULL) can't be disambiguated by PostgREST's `on_conflict` (Postgres partial-index ON CONFLICT inference needs the WHERE predicate, which supabase-js can't send) — the first E2E run surfaced this as a silent favourite failure. The service now explicitly looks up the existing row (by library id or identity_key) and updates or inserts. Raw-SQL seeds keep the partial-index `ON CONFLICT … WHERE` (valid in psql).
+3. **Added `perenualEnabled` to `AilmentWatchlist`.** The component previously took only `{ homeId, aiEnabled }`; the strict source×tier lock needs the perenual flag, so `GardenHub` now threads `perenualEnabled` through (it already had it).
+4. **Search box is Home-scope-only.** The watchlist search input lives inside the home chrome; in Favourites scope there's no visible search box (the grid still accepts a `searchQuery` prop, inert without input). Minor UX delta vs the plant Shed, which keeps one search box across both scopes. Not worth restructuring the watchlist header for.
+5. **Added a `perenual`-source home ailment fixture** (`15_favourites.sql`) so the Sprout tier-lock E2E has a stable target — every ailment in `06_ailments_watchlist.sql` is `manual`.
+
+### Handoff notes — Phase 3 (Nursery seed packets)
+
+- **No canonical library** for seed packets → favourites are pure tombstones (no "always live" live-ref join). Claim seed segment **0019**.
+- **Packet images are home-scoped** (`seed-packet-images/{home_id}/…`), so the plan's decision to copy the storage object into a user path at favourite time must be implemented (client copy or a small edge fn) — plants/ailments both used public/library URLs and dodged this.
+- **Scope pill is component state** (the Nursery toggle has no URL param today) — keep favourites scope as state too, per the plan.
+- **Shared pieces to reuse:** `FavouriteAilmentsGrid`/`FavouritePlantsGrid` are the card-grid template (live-ref-or-tombstone card, add-to-home, remove, hint banner, empty state, source-badge helper); `favouriteIdentity.ts`'s gating helpers are source-agnostic; the seed-test-account user-scoped reset already deletes both favourite tables by `user_id` — extend the same block for packets. `favouriteAilment`'s find-then-insert pattern is the template if packet dedupe also needs partial uniques.
+- **No fork for packets** either — add-to-home is `createSeedPacket` (plain insert), `plant_id` linked only if the plant identity already exists in the target home.
+
+---
+
+## Phase 3 — IMPLEMENTED 2026-07-03 (Nursery / seed packets end-to-end — FINAL)
+
+Phase 3 (seed packets only) is implemented and all gates green. **The whole cross-home favourites feature (plants + ailments + seed packets) is now complete and ready for combined validation.** Phases 1 & 2 untouched except for shared-code reuse. Detailed sub-plan: `docs/plans/cross-home-favourites-phase-3-nursery.md`.
+
+### What shipped
+
+- **Migration** `supabase/migrations/20260902000000_user_favourite_seed_packets.sql` — `user_favourite_seed_packets` (SNAPSHOT-ONLY; `seed_packet_id` tombstone back-reference `ON DELETE SET NULL`, `plant_id` `ON DELETE SET NULL`, immutable identity columns, `identity_key`, `copied_image_url` for the favourite-scoped image, jsonb `snapshot`, single `UNIQUE (user_id, identity_key)`), pure user-scoped RLS, explicit grants, indexes. **NO tier trigger** (see decision below). **Applied locally only** (`supabase migration up`) — NOT pushed to remote.
+- **Pure lib** `src/lib/favouriteIdentity.ts` — added `packetIdentityKey`, `buildPacketSnapshot`, `PACKET_SNAPSHOT_FIELDS`. Unit-tested (+9 cases, suite now 50).
+- **Service** `src/services/favouritesService.ts` — added `listFavouriteSeedPackets`, `favouriteSeedPacket` (upsert on identity_key + image copy to favourite-scoped path), `unfavouriteSeedPacket`, `isFavouritePacketInHome`, `addFavouritePacketToHome` (`createSeedPacket` plain insert + plant re-link by name + image copy-back), plus a shared `copyPacketImage` Storage helper.
+- **UI** — `NurseryTab.tsx` (Home|Favourites scope pill as COMPONENT STATE — no URL param, matching the Plants/Nursery toggle; heart on each `NurseryRow` as a sibling of the row button; favourites wiring loaded independently of the Home list's loading/empty/error states), `FavouriteSeedPacketsGrid.tsx` (favourites grid, add-to-home, remove, "Saved variety" chip, hint banner, empty state — no tier lock). New events (`SEED_PACKET_FAVOURITED` / `SEED_PACKET_UNFAVOURITED` / `FAVOURITE_SEED_PACKET_ADDED_TO_HOME`) + `FavouriteSeedPacket` type.
+- **Seeds** — `supabase/seeds/15_favourites.sql` (0019 segment: home packet "Cherokee Purple / Tomato" + its favourite for the dedupe case, "Sensation Mix" plant-less favourite for the clean add-to-home case; W1 second-home "Cavolo Nero" packet + favourite) and `scripts/seed-test-account.mjs` (~5 packet favourites across the account's homes + a dangling tombstone; user-scoped reset now deletes all THREE favourite tables).
+- **Tests** — `tests/e2e/specs/favourites.spec.ts` (FAV-NU-001..006, all passing; `NurseryPage.ts` extended with the favourites locators + `goto`/`gotoFavourites`/`waitForLoad`/heart/card helpers) + the Vitest suite above. `supabase/tests/rls_isolation.test.ts` RLS-008 (ailments) updated to treat both of W1's homes as "own" — a pre-existing Phase 2 drift (the "Slugs" ailment in W1's second home was never accounted for) fixed in this task.
+- **Docs** — this file + `docs/plans/cross-home-favourites-phase-3-nursery.md`, `03-garden-hub/10-nursery.md` (both roles), `99-cross-cutting/33-data-model-nursery.md` (favourites table + image copy + cascade), `99-cross-cutting/03-data-model-plants.md` (family-complete note), `99-cross-cutting/17-tier-gating.md` (packets-ungated section), `docs/e2e-test-plan/24-nursery.md`, `docs/e2e-test-plan/01-seeded-fixtures.md` (0019 segment), `TESTING.md` (counts).
+
+### Packet tier-gating decision — NO gate, NO trigger
+
+Packets are the one favourites surface with **no source × tier gate**. `seed_packets` has **no `source` column** (packets are user-created — scanned or manually added), and favouriting / add-to-home make zero AI/API calls. The favourite stores a variety reference (variety + vendor + plant identity + snapshot), not AI/API-generated content. Gating a manual seed reference by an *incidentally-linked* plant's source would be surprising and would block a Sprout user from remembering a variety for next season — against the feature's cross-home intent. So the migration ships **without** a tier trigger (simpler than P1/P2), and no client `isSourceLockedForTier` call exists on any packet control. Confirmed against the plan (§ on packets, answers 4/5, the P3 handoff) and the brief's recommendation.
+
+### Image copy — both directions
+
+- **On favourite** (`favouriteSeedPacket`): if the origin packet has a home-bucket `image_url`, `copyPacketImage` downloads the object and re-uploads it to `seed-packet-images/favourites/{user_id}/{favourite_id}.jpg`; the public URL is stored in `copied_image_url`. No image → `copied_image_url` stays null (card shows the packet icon). The favourite-scoped copy is what the card + add-to-home use, so the favourite survives the home packet's deletion.
+- **On add-to-home** (`addFavouritePacketToHome`): after `createSeedPacket`, if `copied_image_url` is set, `copyPacketImage` copies it into the new home path `{home_id}/{new_packet_id}.jpg` and `setSeedPacketImageUrl` patches the row. Both directions are plain client Storage ops (the bucket's policies allow any authenticated user any path) — no edge function.
+
+### Deviations from the plan / handoff
+
+1. **`copied_image_url` column name** (as the brief specified) rather than reusing a generic `image_url` — makes the favourite-scoped provenance explicit and avoids confusion with the home packet's `image_url`.
+2. **Single `UNIQUE (user_id, identity_key)`** (not P2's two partial uniques) — packets always have exactly one identity axis (there is no library-ref-vs-tombstone split), so a plain unique + `upsert(onConflict: "user_id,identity_key")` suffices; no find-then-insert dance needed.
+3. **Scope pill is component state** (confirmed against the handoff) — the Nursery toggle has no URL param, so favourites scope stays symmetric with it. The favourites body short-circuits **after** all hooks (rules-of-hooks safe) and renders regardless of the Home list's loading/empty/error state so the user can always reach it.
+4. **Seeded the home packets too** — there was no existing nursery E2E seed, so `15_favourites.sql` plants the "Cherokee Purple" / "Cavolo Nero" home packets the favourites dedupe against. Plant-less favourites use `plant_common_name = NULL` (identity_key ends in `|`) so they match the plant-less packets `add-to-home` recreates.
+5. **Fixed pre-existing Phase 2 drift:** RLS-008 (ailments) in `rls_isolation.test.ts` still filtered W1 ailments against only `W1_HOME_ID`, but Phase 2 had seeded a "Slugs" ailment into W1's second home — so RLS-008 was already failing. Updated it to use `W1_OWN_HOMES` (mirroring RLS-005), which W1 legitimately owns.
+
+### Feature complete — combined validation ready
+
+All three surfaces are consistent: pure user-scoped RLS (`user_id = (SELECT auth.uid())`), reset-by-`user_id` in `scripts/seed-test-account.mjs` (all three tables), and E2E seed segments **0017** (plants) / **0018** (ailments) / **0019** (seed packets) in `15_favourites.sql`. Plants + ailments carry a source × tier trigger; packets are ungated (no `source`). Gates green: `npm run typecheck` (0), schema gate (0 findings, LOCAL), `npm run test:unit` (1187), `npm run test:functions` (757), `npm run test:seed` (idempotent), `favourites.spec.ts` + `home-main.spec.ts` (green), `npm run build` (ok). Nothing deployed / pushed / committed — ready for the human's combined on-device validation.
+
+## Post-implementation follow-ups (non-blocking)
+
+- **Packet favourite image cleanup**: `favouriteSeedPacket` copies the home-scoped packet image to `favourites/{user_id}/{favourite_id}.jpg`, but `unfavouriteSeedPacket` deletes only the DB row — the copied storage object is orphaned. Slow storage leak, not a correctness/security issue (seed-packet photos aren't sensitive). Fix: delete `copied_image_url`'s object in `unfavouriteSeedPacket`, or a periodic sweep. Deferred.
+- **Reviewer hardening applied during phase review (not by the phase agents)**: (1) `forkPlantForHomeEdit` now asserts the original plant is home-scoped to the caller's home before re-pointing/deleting — refuses to touch a shared/global row (Phase 1); (2) `enforce_favourite_ailment_tier()` re-derives `source` from the referenced `ailment_library` row when present rather than trusting the client's claimed source (Phase 2). Both are defence-in-depth against future callers.

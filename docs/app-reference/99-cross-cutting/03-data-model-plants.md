@@ -132,6 +132,42 @@ Clicking Refresh on an orphan triggers an inline **self-heal**:
 
 User sees one toast: "Care guide is up to date." Orphan state is invisible to them.
 
+### Cross-Home Favourites — `user_favourite_plants`
+
+**Cross-Home Favourites Phase 1 (2026-07-03, migration `20260831000000_user_favourite_plants.sql`).** A **user-scoped** saved list of plants that follows the *user* across homes — the first user-scoped table on the Shed surface (pattern: `guide_bookmarks` / `user_plant_ack`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid | PK |
+| `user_id` | uuid (FK → auth.users) | RLS key. `ON DELETE CASCADE`. |
+| `plant_id` | int (FK → plants.id) | The **immutable canonical reference**: the GLOBAL catalogue id for AI/library favourites (resolved client-side via `forked_from_plant_id`), the origin row id otherwise. `ON DELETE SET NULL` → the favourite degrades to its tombstone. |
+| `source` | text | `manual`/`api`/`ai`/`verdantly`. Server-re-derived from the referenced plant by the tier-gate trigger, so a client can't spoof a lower-gated source. |
+| `common_name`, `scientific_name`, `image_url` | text / jsonb / text | Tombstone display columns. |
+| `snapshot` | jsonb | **Deletion tombstone only** — a capped care-card payload (`buildFavouriteSnapshot` in `src/lib/favouriteIdentity.ts`, whitelisted fields; never ids/home_id/provider ids/catalogue bookkeeping). Live data through `plant_id` always wins when the reference resolves ("always live"). |
+| `favourited_from_home_id` | uuid (FK → homes) | Informational ("Saved from <home>"). `ON DELETE SET NULL`. |
+| `created_at` | timestamptz | |
+| — | `UNIQUE (user_id, plant_id)` | The whole dedupe mechanism — re-favouriting the same id upserts (refreshes the tombstone). No identity-key machinery (the 2026-07-03 immutable-id redesign removed it). |
+
+**RLS:** pure user-scoped — `FOR ALL … USING (user_id = (SELECT auth.uid())) WITH CHECK (…)`. Grants: `SELECT/INSERT/UPDATE/DELETE` to `authenticated`, no `anon`.
+
+**Server-side source × tier gate:** a `BEFORE INSERT OR UPDATE OF plant_id, source` trigger, `enforce_favourite_plant_tier()`, blocks favouriting a plant whose source exceeds the favouriter's entitlements (`ai` needs `ai_enabled`; `api`/`verdantly` need `enable_perenual`; `manual` open). It runs INVOKER-rights so plant visibility is still RLS-governed, re-derives `NEW.source` from the referenced row, and exempts service-role/direct-SQL (`auth.uid() IS NULL`) so seeds can deliberately plant above-tier favourites ("favourited before downgrade") to exercise the view-only UI. Mirrors the client `isSourceLockedForTier`. See [Tier Gating](./17-tier-gating.md#source--tier-action-matrix--cross-home-favourites).
+
+**Reads are `user_id`-only** — filtering favourites by `home_id` would silently return nothing under the user-scoped RLS. The cross-home favourites family is now complete: Phase 2 (`user_favourite_ailments`, migration `20260901000000`, see [Data Model — Ailments](./06-data-model-ailments.md)) and Phase 3 (`user_favourite_seed_packets`, migration `20260902000000`, see [Data Model — Nursery](./33-data-model-nursery.md)) landed in their own migrations. All three share the pure user-scoped RLS pattern and reset-by-`user_id`; packets carry **no tier trigger** (they have no `source`).
+
+### Copy-on-write plant edits (2026-07-03)
+
+Editing a plant no longer always mutates the row. Under the copy-on-write rule (from the cross-home-favourites work):
+
+- **Manual plants** (`source='manual'`) edit **in place** — `PlantEditModal` → `onSave` → `plants.update`, as before.
+- **Any non-manual plant** (`api` / `verdantly` / `ai` / library) is **immutable**: saving an edit presents "Save as my own copy" and forks a NEW row — `onForkSave` → `TheShed.handleForkPlant` → `favouritesService.forkPlantForHomeEdit`:
+  1. insert a new `source='manual'` row (provider ids dropped; `forked_from_plant_id` = the original's canonical id for provenance; no AI-catalogue bookkeeping);
+  2. **re-point the home's operational references** — `inventory_items`, `plant_schedules`, `seed_packets`, `plant_sprites`, `automations` — from the original id to the fork id;
+  3. **delete the original home row** (it was replaced, not duplicated).
+
+**`inventory_items.plant_id` invariant.** Favouriting never touches `inventory_items` — the FK keeps pointing at whatever row the home actually uses. On a copy-on-write fork the home's `inventory_items.plant_id` is **re-pointed to the fork** (step 2), so instances, schedules and packets carry on uninterrupted; the fork becomes the home's plant going forward. This is the decision the plan left to implementation: since the home's own row is what's being edited, the fork *is* the home's row after the edit, and every home reference moves with it. (AI/library plants' favourites reference the **global** row, which is never touched by this flow, so they're unaffected; a favourite that referenced the deleted *home* original degrades to its tombstone — which holds exactly the pre-edit state the favouriter saved.)
+
+Legacy AI custom forks (rows edited *in place* before this change, carrying `overridden_fields`) keep their "Revert" affordance (`revert_ai_plant_fork_in_place`); the old `DetachConfirmModal` fork-on-edit-in-place path is retired.
+
 ### `inventory_items` columns (subset)
 
 | Column | Type | Notes |

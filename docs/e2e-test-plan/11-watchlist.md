@@ -34,3 +34,17 @@
 | WL-023 | ❌ | Search no-match | — | ✅ Passing |
 | WL-024 | ✅ | Filter by Pest | — | ✅ Passing |
 | WL-025 | ✅ | Filter by Disease | — | ✅ Passing |
+
+## Cross-home favourites (Phase 2 — ailments)
+
+**Spec file:** `tests/e2e/specs/favourites.spec.ts` (Section FAV-WL)
+**Seed dependencies:** `15_favourites.sql` (0018 segment — see [01-seeded-fixtures.md](./01-seeded-fixtures.md#cross-home-favourite-ailments--uuids-at-0018-15_favouritessql))
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| FAV-WL-001 | ✅ | `/shed?tab=watchlist&scope=favourites` deep link → Favourites scope with seeded fixtures (Aphid + Rose Rust tombstone); hint banner shows + dismisses | — | ✅ Passing |
+| FAV-WL-002 | ✅ | Hearting a Home-tab ailment (Early Blight) adds it to Favourites; removing cleans up + un-fills the heart | — | ✅ Passing |
+| FAV-WL-003 | ✅ | Seeded Aphid favourite — heart pre-filled on Home tab, "In this home" on Favourites (dedupe) | — | ✅ Passing |
+| FAV-WL-004 | ✅ | "Add to this home" copies the Rose Rust favourite into the active home; button flips to "In this home"; copy on Home tab | — | ✅ Passing |
+| FAV-WL-005 | ✅ | Tier lock — Sprout sees a disabled heart on the seeded perenual-source ailment; manual ailments stay heartable | route-intercepted Sprout profile | ✅ Passing |
+| FAV-WL-006 | ✅ | W1 only — favourite ailments persist across a home switch while the add-state recomputes (Slugs) | — | ✅ Passing |

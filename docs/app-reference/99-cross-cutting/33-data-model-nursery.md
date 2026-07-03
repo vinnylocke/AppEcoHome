@@ -160,20 +160,44 @@ CREATE POLICY "Home members write seed packets"
 
 The view inherits the underlying tables' RLS (`security_invoker = false` by default in Postgres, so the view runs as the calling user against the policies).
 
+### `user_favourite_seed_packets` columns (Cross-Home Favourites Phase 3, FINAL)
+
+**Cross-Home Favourites Phase 3 (migration `20260902000000_user_favourite_seed_packets.sql`).** A **user-scoped** saved list of packet *varieties* that follows the *user* across homes — the third and final table in the favourites family (siblings: `user_favourite_plants`, `user_favourite_ailments`). **SNAPSHOT-ONLY** — packets have no canonical library, so a favourite is a pure variety reference + a snapshot of the reference fields; there is no live-ref "always live" join.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid PK | gen_random_uuid() |
+| `user_id` | uuid NOT NULL | FK → `auth.users(id)` ON DELETE CASCADE. The RLS key. |
+| `seed_packet_id` | uuid | FK → `seed_packets(id)`, ON DELETE SET NULL. **Tombstone back-reference** for the "in this home" check only — never a live-data source. |
+| `plant_id` | int | FK → `plants(id)`, ON DELETE SET NULL. The variety's plant (nullable); used to re-link on add-to-home. |
+| `plant_common_name` / `variety` / `vendor` | text | Immutable identity columns, captured at favourite time. |
+| `identity_key` | text NOT NULL | `lower(coalesce(variety,'')) \|\| '\|' \|\| lower(coalesce(plant_common_name,''))` — the single dedupe key (`packetIdentityKey` in `src/lib/favouriteIdentity.ts`). |
+| `copied_image_url` | text | Public URL of the favourite-scoped image copy (`seed-packet-images/favourites/{user_id}/{favourite_id}.jpg`). NULL when the origin packet had no image. Survives the home packet's deletion. |
+| `snapshot` | jsonb NOT NULL DEFAULT `{}` | Variety-reference fields only (`sow_by`, `notes`, `quantity_remaining`, `purchased_on`, `opened_on` — `buildPacketSnapshot`, whitelisted). **NEVER live stock or sowings.** |
+| `favourited_from_home_id` | uuid | FK → `homes`, informational ("Saved from <home>"). ON DELETE SET NULL. |
+| `created_at` | timestamptz | DEFAULT now() |
+
+- **Dedupe:** `UNIQUE (user_id, identity_key)` — a single path (unlike ailments' two partial uniques), since a packet always has exactly one identity axis. Re-favouriting the same variety upserts (refreshes the snapshot + image).
+- **RLS:** pure user-scoped — `USING/WITH CHECK (user_id = (SELECT auth.uid()))`. Grants `SELECT,INSERT,UPDATE,DELETE` to `authenticated`, no anon.
+- **NO tier trigger.** `seed_packets` have no `source` column and packet favourites make zero AI/API calls, so — unlike `user_favourite_plants` / `user_favourite_ailments` — there is no source × tier gate and no `enforce_favourite_*_tier()` trigger. Favouriting and add-to-home are open to every tier and every home member. See `docs/plans/cross-home-favourites-phase-3-nursery.md` for the decision.
+- **Image copy (both directions):** favourite-time copies the home packet object → favourite-scoped path (`favouritesService.favouriteSeedPacket`); add-to-home copies the favourite-scoped object → the new home path (`addFavouritePacketToHome`). Both are plain client Storage ops (the bucket's policies allow any authenticated user any path).
+
 ### Triggers
 
 - `touch_seed_packets_updated_at` / `touch_seed_sowings_updated_at` — bump `updated_at` on every UPDATE.
+- No trigger on `user_favourite_seed_packets` (packets are ungated — see above).
 
 ### Migration files
 
 - `supabase/migrations/20260624000500_nursery.sql` — packets + sowings + view + FK + RLS.
 - `supabase/migrations/20260624000600_nursery_scan.sql` — `seed_packets.image_url` + `seed-packet-images` storage bucket + policies (public read, authenticated write / update / delete).
+- `supabase/migrations/20260902000000_user_favourite_seed_packets.sql` — cross-home favourites (Phase 3): `user_favourite_seed_packets` + user-scoped RLS + grants + indexes. No tier trigger.
 
 ### Storage bucket — `seed-packet-images`
 
 - **Public read** so the URL renders anywhere; no signed URLs needed.
 - **Authenticated write** — the client uploads from `ScanSeedPacketModal` after the packet row is inserted (so the path can use the new UUID).
-- Path layout: `home_id/packet_id.jpg`. Re-uploading to the same path overwrites — used by future "replace photo" flows.
+- Path layout: `home_id/packet_id.jpg` for home packets; `favourites/{user_id}/{favourite_id}.jpg` for the favourite-scoped copies (Phase 3). Re-uploading to the same path overwrites.
 - 5 MB file-size cap server-side; the client compresses to ~150-300 KB so we never hit it.
 
 ### Cascade behaviour
@@ -182,6 +206,8 @@ The view inherits the underlying tables' RLS (`security_invoker = false` by defa
 - `seed_packets` deleted → sowings cascade (`ON DELETE CASCADE`).
 - `seed_sowings` deleted → matching `inventory_items.from_sowing_id` is `SET NULL` (the instance survives — it's a real plant in the garden now).
 - `plants` deleted → `seed_packets.plant_id` is `SET NULL` (packet survives, just loses its link).
+- `seed_packets` deleted → `user_favourite_seed_packets.seed_packet_id` is `SET NULL` (the favourite survives on its snapshot + `copied_image_url`; only the "in this home" back-reference is lost).
+- `auth.users` deleted → `user_favourite_seed_packets` cascade (favourites are the user's own).
 
 ---
 

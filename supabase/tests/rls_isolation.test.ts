@@ -27,6 +27,11 @@ const WORKER1_EMAIL = "test1@rhozly.com";
 const WORKER2_EMAIL = "test2@rhozly.com";
 
 const W1_HOME_ID = "00000001-0000-0000-0000-000000000002";
+// Worker 1's SECOND home, seeded by 15_favourites.sql (cross-home favourites
+// home-switch coverage). W1 legitimately owns both homes, so RLS correctly
+// lets W1 read either home's rows — "own" means "in one of W1's homes".
+const W1_HOME2_ID = "00000001-0000-0000-0000-000000000022";
+const W1_OWN_HOMES = new Set([W1_HOME_ID, W1_HOME2_ID]);
 const W2_HOME_ID = "00000002-0000-0000-0000-000000000002";
 const W1_USER_ID = "00000001-0000-0000-0000-000000000001";
 const W2_USER_ID = "00000002-0000-0000-0000-000000000001";
@@ -108,8 +113,9 @@ Deno.test({
   fn: async () => {
     const c1 = await makeClient(WORKER1_EMAIL);
     const { data } = await c1.from("locations").select("home_id");
-    const alien = (data ?? []).filter((l) => l.home_id !== W1_HOME_ID);
-    assertEquals(alien.length, 0, "Worker1 should see no locations from other homes");
+    // W1 owns two homes (see W1_HOME2_ID) — both are "own".
+    const alien = (data ?? []).filter((l) => !W1_OWN_HOMES.has(l.home_id));
+    assertEquals(alien.length, 0, "Worker1 should see no locations from homes it doesn't belong to");
   },
 });
 
@@ -139,8 +145,10 @@ Deno.test({
   fn: async () => {
     const c1 = await makeClient(WORKER1_EMAIL);
     const { data } = await c1.from("ailments").select("home_id");
-    const alien = (data ?? []).filter((a) => a.home_id !== W1_HOME_ID);
-    assertEquals(alien.length, 0, "Worker1 should see no ailments from other homes");
+    // W1 owns two homes (see W1_HOME2_ID) — both are "own". The Rooftop Terrace
+    // second home carries a seeded "Slugs" ailment (15_favourites.sql).
+    const alien = (data ?? []).filter((a) => !W1_OWN_HOMES.has(a.home_id));
+    assertEquals(alien.length, 0, "Worker1 should see no ailments from homes it doesn't belong to");
   },
 });
 

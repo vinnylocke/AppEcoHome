@@ -140,6 +140,105 @@ export interface JournalEntry {
 }
 
 /**
+ * A cross-home favourite plant (user_favourite_plants row). `plant_id` is the
+ * immutable canonical reference (global catalogue id for AI/library plants,
+ * origin row id otherwise); the tombstone columns render the card when the
+ * reference is gone (`plant_id` NULL after ON DELETE SET NULL). `plant` is the
+ * live joined row when the reference resolves — live data always wins.
+ * See docs/plans/cross-home-favourites.md.
+ */
+export interface FavouritePlant {
+  id: string;
+  user_id: string;
+  plant_id: number | null;
+  source: "manual" | "api" | "ai" | "verdantly";
+  common_name: string;
+  scientific_name: string[];
+  image_url: string | null;
+  snapshot: Record<string, unknown>;
+  favourited_from_home_id: string | null;
+  created_at: string;
+  /** Live joined plants row (null when the reference is gone → tombstone). */
+  plant?: {
+    id: number;
+    common_name: string;
+    scientific_name: string[] | null;
+    source: string;
+    thumbnail_url: string | null;
+    home_id: string | null;
+    freshness_version?: number | null;
+    [key: string]: unknown;
+  } | null;
+  /** Joined home name for the "Saved from <home>" caption (null when the
+   *  user can no longer read that home). */
+  favourited_from_home?: { name: string } | null;
+}
+
+/**
+ * A cross-home favourite ailment (user_favourite_ailments row, Phase 2).
+ * `ailment_library_id` is the immutable canonical reference to the global
+ * `ailment_library` row (matched by name_key at favourite time); NULL for
+ * manual / unmatched ailments, which render from the snapshot tombstone. `library`
+ * is the live joined library row when the reference resolves — live data wins.
+ * See docs/plans/cross-home-favourites.md.
+ */
+export interface FavouriteAilment {
+  id: string;
+  user_id: string;
+  ailment_library_id: number | null;
+  identity_key: string;
+  source: "manual" | "perenual" | "ai" | "library";
+  name: string;
+  ailment_type: "invasive_plant" | "pest" | "disease";
+  thumbnail_url: string | null;
+  snapshot: Record<string, unknown>;
+  favourited_from_home_id: string | null;
+  created_at: string;
+  /** Live joined ailment_library row (null when the reference is gone → tombstone). */
+  library?: {
+    id: number;
+    name: string;
+    kind: string;
+    scientific_name: string | null;
+    description: string | null;
+    symptoms: unknown;
+    treatment: string | null;
+    prevention: string | null;
+    thumbnail_url: string | null;
+    image_url: string | null;
+    [key: string]: unknown;
+  } | null;
+  /** Joined home name for the "Saved from <home>" caption. */
+  favourited_from_home?: { name: string } | null;
+}
+
+/**
+ * A cross-home favourite seed packet (user_favourite_seed_packets row, Phase 3).
+ * SNAPSHOT-ONLY — packets have no canonical library, so there is no live-ref
+ * join and the card always renders from the immutable identity columns +
+ * snapshot. `seed_packet_id` is a tombstone back-reference for the "in this
+ * home" check only. `copied_image_url` is the favourite-scoped image copy that
+ * survives the origin packet's deletion. No tier gating (packets are manual
+ * creations). See docs/plans/cross-home-favourites.md.
+ */
+export interface FavouriteSeedPacket {
+  id: string;
+  user_id: string;
+  seed_packet_id: string | null;
+  plant_id: number | null;
+  plant_common_name: string | null;
+  variety: string | null;
+  vendor: string | null;
+  identity_key: string;
+  copied_image_url: string | null;
+  snapshot: Record<string, unknown>;
+  favourited_from_home_id: string | null;
+  created_at: string;
+  /** Joined home name for the "Saved from <home>" caption. */
+  favourited_from_home?: { name: string } | null;
+}
+
+/**
  * End-of-life payload captured by the LifecycleCompleteModal. Saved onto the
  * inventory_items row; the analysis (when invoked) uses these fields plus
  * journal / task / weather context to build the Gemini prompt.

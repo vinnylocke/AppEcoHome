@@ -81,6 +81,14 @@ export class NurseryPage {
   readonly seedRefillBanner: Locator;
   readonly seedRefillBannerAdd: Locator;
 
+  // Cross-home favourites (Phase 3 — component-state scope pill, no URL param)
+  readonly scopeToggle: Locator;
+  readonly scopeHomeBtn: Locator;
+  readonly scopeFavouritesBtn: Locator;
+  readonly favouritesGrid: Locator;
+  readonly favouritesHintBanner: Locator;
+  readonly favouritesHintDismiss: Locator;
+
   constructor(page: Page) {
     this.page = page;
 
@@ -143,10 +151,73 @@ export class NurseryPage {
 
     this.seedRefillBanner = page.getByTestId("seed-refill-banner");
     this.seedRefillBannerAdd = page.getByTestId("seed-refill-banner-add");
+
+    this.scopeToggle = page.getByTestId("nursery-scope-toggle");
+    this.scopeHomeBtn = page.getByTestId("nursery-scope-home");
+    this.scopeFavouritesBtn = page.getByTestId("nursery-scope-favourites");
+    this.favouritesGrid = page.getByTestId("nursery-favourites-grid");
+    this.favouritesHintBanner = page.getByTestId("nursery-favourites-hint-banner");
+    this.favouritesHintDismiss = page.getByTestId("nursery-favourites-hint-dismiss");
+  }
+
+  /** Open The Shed, flip to the Nursery view (Home scope). */
+  async goto() {
+    await this.gotoShed();
+    await this.shedViewNurseryBtn.waitFor({ state: "visible", timeout: 15000 });
+    await this.shedViewNurseryBtn.click();
+    await this.scopeToggle.waitFor({ state: "visible", timeout: 15000 });
+  }
+
+  /** Open the Nursery and switch to the Favourites scope (component state). */
+  async gotoFavourites() {
+    await this.goto();
+    await this.scopeFavouritesBtn.click();
+    await this.favouritesGrid.waitFor({ state: "visible", timeout: 15000 });
+  }
+
+  /** The favourite heart on a Home-tab packet row (scoped to its <li>). */
+  heartFor(name: string): Locator {
+    return this.page
+      .locator("li")
+      .filter({
+        has: this.page
+          .locator("[data-testid^='nursery-row-']")
+          .filter({ hasText: name }),
+      })
+      .locator("[data-testid^='favourite-packet-']");
+  }
+
+  /** A favourite packet card in the Favourites scope, matched by its heading. */
+  favouriteCard(name: string): Locator {
+    return this.favouritesGrid
+      .locator("[data-testid^='favourite-packet-card-']")
+      .filter({
+        has: this.page.locator("h3").filter({ hasText: new RegExp(name) }),
+      });
+  }
+
+  favouriteAddToHomeIn(card: Locator): Locator {
+    return card.locator("[data-testid^='favourite-packet-add-to-home-']");
+  }
+
+  favouriteInHomeBadgeIn(card: Locator): Locator {
+    return card.locator("[data-testid^='favourite-packet-in-home-']");
+  }
+
+  favouriteRemoveIn(card: Locator): Locator {
+    return card.locator("[data-testid^='favourite-packet-remove-']");
+  }
+
+  favouriteTombstoneIn(card: Locator): Locator {
+    return card.locator("[data-testid^='favourite-packet-tombstone-']");
   }
 
   async gotoShed() {
     await this.page.goto("/shed");
+    await this.waitForLoad();
+  }
+
+  async waitForLoad() {
     await this.page
       .locator(".animate-spin, .animate-pulse")
       .first()

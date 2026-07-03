@@ -73,6 +73,31 @@ The Garden Layout's ailment-severity ring is computed by counting active ailment
 areaAilmentSeverity[area_id] = countActiveByArea(plant_instance_ailments JOIN inventory_items)
 ```
 
+### Cross-Home Favourite Ailments — `user_favourite_ailments`
+
+**Cross-Home Favourites Phase 2 (2026-07-03, migration `20260901000000_user_favourite_ailments.sql`).** A **user-scoped** saved list of watchlist ailments that follows the *user* across homes — mirrors Phase 1's `user_favourite_plants` (pattern: `guide_bookmarks`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid | PK |
+| `user_id` | uuid (FK → auth.users) | RLS key. `ON DELETE CASCADE`. |
+| `ailment_library_id` | bigint (FK → ailment_library.id) | The **immutable canonical reference** — the GLOBAL library row, resolved **best-effort by `name_key`** at favourite time (`resolveAilmentLibraryId`), because the home `ailments` row has **no library FK** (unlike plants → `plants`). Matched → "always live" library render; NULL for manual/unmatched ailments (→ tombstone). `ON DELETE SET NULL`. |
+| `identity_key` | text | Lowercased trimmed name (mirrors `ailment_library.name_key`). Dedupes library-less (tombstone) favourites; drives the Home-tab heart-fill. |
+| `source` | text | `manual`/`perenual`/`ai`/`library`. Gated by the tier-gate trigger. |
+| `name`, `ailment_type`, `thumbnail_url` | text | Tombstone display columns. |
+| `snapshot` | jsonb | Tombstone payload (`buildAilmentSnapshot` — `scientific_name`, `description`, `symptoms`, `affected_plants`, `prevention_steps`, `remedy_steps`, `perenual_id`; never home-scoped bookkeeping). Live library data wins when the reference resolves. |
+| `favourited_from_home_id` | uuid (FK → homes) | Informational ("Saved from <home>"). `ON DELETE SET NULL`. |
+| `created_at` | timestamptz | |
+| — | `UNIQUE (user_id, ailment_library_id) WHERE …NOT NULL` + `UNIQUE (user_id, identity_key) WHERE …NULL` | Two **partial** uniques (one per reference-present case). PostgREST can't disambiguate them via `on_conflict`, so `favouriteAilment` does an explicit find-then-update-or-insert instead of an upsert. |
+
+**No fork / copy-on-write.** Ailments have no shared-catalogue in-place edit path like plants had, so **add-to-home is a plain `ailments` insert** (`addFavouriteAilmentToHome`) — no fork row, no re-point, no delete. `source` is preserved.
+
+**RLS:** pure user-scoped — `FOR ALL … USING (user_id = (SELECT auth.uid())) WITH CHECK (…)`. Grants: `SELECT/INSERT/UPDATE/DELETE` to `authenticated`, no `anon`.
+
+**Server-side source × tier gate:** a `BEFORE INSERT OR UPDATE OF source` trigger, `enforce_favourite_ailment_tier()`, blocks favouriting an ailment whose source exceeds the favouriter's entitlements (`ai` needs `ai_enabled`; `perenual` needs `enable_perenual`; `manual`/`library` open — `library` is the free default search source for every tier). Unlike plants it **cannot re-derive source from the referenced row** (a library row's `source` is unrelated to the home ailment's), so it gates on the favourite's own claimed `source` (the axis the client lock uses). Exempts service-role/direct-SQL (`auth.uid() IS NULL`) so seeds can plant above-tier favourites. See [Tier Gating](./17-tier-gating.md#source--tier-action-matrix--cross-home-favourites).
+
+**Reads are `user_id`-only** — filtering by `home_id` would silently return nothing under the user-scoped RLS. Phase 3 (`user_favourite_seed_packets`) is deferred to its own migration.
+
 ---
 
 ## Role 2 — Expert Gardener's Guide
@@ -98,4 +123,7 @@ Ailments are reusable (one "Aphids" record per home), but each instance of an ou
 
 - `supabase/migrations/*_ailments.sql`
 - `supabase/migrations/*_plant_instance_ailments.sql`
+- `supabase/migrations/20260901000000_user_favourite_ailments.sql` — cross-home favourite ailments
+- `src/services/favouritesService.ts` — favourite/add-to-home ailment fns
+- `src/lib/favouriteIdentity.ts` — ailment identity / gating helpers
 - `src/lib/automationEngine.ts`

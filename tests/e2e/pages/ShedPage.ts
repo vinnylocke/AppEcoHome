@@ -54,6 +54,15 @@ export class ShedPage {
   readonly viewPlantsBtn: Locator;
   readonly viewNurseryBtn: Locator;
 
+  // Cross-home favourites (Phase 1)
+  readonly scopeToggle: Locator;
+  readonly scopeHomeBtn: Locator;
+  readonly scopeFavouritesBtn: Locator;
+  readonly favouritesGrid: Locator;
+  readonly favouritesHintBanner: Locator;
+  readonly favouritesHintDismiss: Locator;
+  readonly favouritesEmptyState: Locator;
+
   // Sort dropdown (aria-label only — no testid in source)
   readonly sortSelect: Locator;
 
@@ -109,6 +118,14 @@ export class ShedPage {
     this.viewPlantsBtn = page.locator('[data-testid="shed-view-plants"]');
     this.viewNurseryBtn = page.locator('[data-testid="shed-view-nursery"]');
 
+    this.scopeToggle = page.locator('[data-testid="shed-scope-toggle"]');
+    this.scopeHomeBtn = page.locator('[data-testid="shed-scope-home"]');
+    this.scopeFavouritesBtn = page.locator('[data-testid="shed-scope-favourites"]');
+    this.favouritesGrid = page.locator('[data-testid="favourites-grid"]');
+    this.favouritesHintBanner = page.locator('[data-testid="favourites-hint-banner"]');
+    this.favouritesHintDismiss = page.locator('[data-testid="favourites-hint-dismiss"]');
+    this.favouritesEmptyState = page.getByText("No favourites yet");
+
     this.sortSelect = page.getByLabel("Sort plants");
 
     this.anyCreditBadge = page.locator('[data-testid="image-credit-badge"]').first();
@@ -131,8 +148,47 @@ export class ShedPage {
     return this.plantCard(name).locator('[data-testid^="plant-card-light-"]');
   }
 
+  /** The favourite heart on a Home-tab plant card (matched by card heading). */
+  heartFor(name: string): Locator {
+    return this.plantCard(name).locator('[data-testid^="favourite-plant-"]');
+  }
+
+  /** The favourite heart for a specific plant id (avoids duplicate-name cards). */
+  heartForId(plantId: string | number): Locator {
+    return this.page.locator(`[data-testid="favourite-plant-${plantId}"]`);
+  }
+
+  /** A favourite card in the Favourites scope, matched by its heading. */
+  favouriteCard(name: string): Locator {
+    return this.favouritesGrid
+      .locator('[data-testid^="favourite-card-"]')
+      .filter({
+        has: this.page.locator("h3").filter({ hasText: new RegExp(`^\\s*${name}\\s*$`) }),
+      });
+  }
+
+  favouriteAddToHomeIn(card: Locator): Locator {
+    return card.locator('[data-testid^="favourite-add-to-home-"]');
+  }
+
+  favouriteInHomeBadgeIn(card: Locator): Locator {
+    return card.locator('[data-testid^="favourite-in-home-"]');
+  }
+
+  favouriteRemoveIn(card: Locator): Locator {
+    return card.locator('[data-testid^="favourite-remove-"]');
+  }
+
+  favouriteTombstoneIn(card: Locator): Locator {
+    return card.locator('[data-testid^="favourite-tombstone-"]');
+  }
+
   async goto() {
     await this.page.goto("/shed");
+  }
+
+  async gotoFavourites() {
+    await this.page.goto("/shed?scope=favourites");
   }
 
   async waitForLoad() {

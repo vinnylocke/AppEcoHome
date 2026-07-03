@@ -30,6 +30,7 @@ import {
   Square as SquareIcon,
   FileText,
   Library,
+  Heart,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -59,6 +60,20 @@ import { usePermissions } from "../context/HomePermissionsContext";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
 import NurseryTab from "./nursery/NurseryTab";
+import FavouritePlantsGrid from "./favourites/FavouritePlantsGrid";
+import {
+  buildForkRow,
+  canonicalPlantRefId,
+  isSourceLockedForTier,
+  lockedSourceMessage,
+} from "../lib/favouriteIdentity";
+import {
+  favouritePlant,
+  forkPlantForHomeEdit,
+  listFavouritePlants,
+  unfavouritePlantByRef,
+} from "../services/favouritesService";
+import type { FavouritePlant } from "../types";
 import InfoTooltip from "./InfoTooltip";
 import EmptyState from "./shared/EmptyState";
 import AssistantCard from "./AssistantCard";
@@ -180,6 +195,116 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   // swaps the body to the seed-packet list (kept inside The Shed so the user
   // doesn't have to learn a new route).
   const [view, setView] = useState<"plants" | "nursery">("plants");
+
+  // ── Cross-home favourites (Phase 1 — plants) ──────────────────────────────
+  // Scope pill: "Home" = today's home-scoped grid; "Favourites" = the user's
+  // cross-home list. Deep link `/shed?scope=favourites` — a NEW param; the
+  // existing GardenHub `?tab=` / `?open=` / `?query=` params are untouched.
+  const scope: "home" | "favourites" =
+    searchParams.get("scope") === "favourites" ? "favourites" : "home";
+  const switchScope = (next: "home" | "favourites") => {
+    setSearchParams((p) => {
+      const n = new URLSearchParams(p);
+      if (next === "favourites") n.set("scope", "favourites");
+      else n.delete("scope");
+      return n;
+    }, { replace: true });
+  };
+
+  const [favourites, setFavourites] = useState<FavouritePlant[]>([]);
+  const [favouritesLoading, setFavouritesLoading] = useState(true);
+  const [homeName, setHomeName] = useState<string | null>(null);
+  const [togglingFavouriteRef, setTogglingFavouriteRef] = useState<number | null>(null);
+
+  const loadFavourites = useCallback(async () => {
+    try {
+      const rows = await listFavouritePlants();
+      setFavourites(rows);
+    } catch (err) {
+      Logger.warn("Could not load favourites", { err });
+    } finally {
+      setFavouritesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFavourites();
+  }, [loadFavourites]);
+
+  useEffect(() => {
+    if (!homeId) return;
+    supabase
+      .from("homes")
+      .select("name")
+      .eq("id", homeId)
+      .maybeSingle()
+      .then(({ data }) => setHomeName(data?.name ?? null));
+  }, [homeId]);
+
+  /** Canonical reference ids of the user's favourites — drives heart fill. */
+  const favouriteRefIds = useMemo(
+    () =>
+      new Set(
+        favourites.map((f) => f.plant_id).filter((id): id is number => id != null),
+      ),
+    [favourites],
+  );
+
+  const handleToggleFavourite = async (plant: any) => {
+    const refId = canonicalPlantRefId(plant);
+    if (togglingFavouriteRef === refId) return;
+    setTogglingFavouriteRef(refId);
+    const isFavourited = favouriteRefIds.has(refId);
+    try {
+      if (isFavourited) {
+        // Optimistic remove.
+        setFavourites((prev) => prev.filter((f) => f.plant_id !== refId));
+        await unfavouritePlantByRef(refId);
+        logEvent(EVENT.PLANT_UNFAVOURITED, { plant_ref_id: refId, source: plant.source });
+        toast.success("Removed from favourites.");
+      } else {
+        const row = await favouritePlant(plant, homeId);
+        setFavourites((prev) => [row, ...prev.filter((f) => f.id !== row.id)]);
+        logEvent(EVENT.PLANT_FAVOURITED, { plant_ref_id: refId, source: plant.source });
+        toast.success("Saved to your favourites — it follows you across homes.");
+      }
+      loadFavourites();
+    } catch (err: any) {
+      loadFavourites(); // roll back optimistic state
+      if (String(err?.message ?? "").includes("tier_locked_source")) {
+        toast.error(lockedSourceMessage(plant.source));
+      } else {
+        Logger.error("Favourite toggle failed", err, { plantId: plant.id }, "Could not update favourites — please try again.");
+      }
+    } finally {
+      setTogglingFavouriteRef(null);
+    }
+  };
+
+  // Copy-on-write save from PlantEditModal ("Save as my own copy"): fork to a
+  // NEW manual row, re-point this home's usage, delete the replaced original.
+  const handleForkPlant = async (payload: any) => {
+    if (!editingPlant) return;
+    setActionLoading(true);
+    try {
+      const forkRow = buildForkRow(payload, editingPlant);
+      const fork = await forkPlantForHomeEdit(editingPlant.id, forkRow, homeId);
+      logEvent(EVENT.PLANT_FORKED_ON_EDIT, {
+        original_plant_id: editingPlant.id,
+        fork_plant_id: (fork as any).id,
+        original_source: editingPlant.source,
+      });
+      toast.success(`Saved as your own copy of ${payload.common_name}.`);
+      setEditingPlant(null);
+      setEditingPlantTab("care");
+      refreshShed();
+      loadFavourites();
+    } catch (err: any) {
+      Logger.error("Save-as-copy failed", err, { plantId: editingPlant.id }, `Could not save your copy: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   useEffect(() => {
     setPageContext({
@@ -1517,6 +1642,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 />
               )}
               <div className="ml-auto xl:ml-0 flex items-center gap-2">
+                {(view !== "plants" || scope === "home") && (
                 <button
                   data-testid="shed-select-mode-btn"
                   onClick={toggleSelectMode}
@@ -1530,6 +1656,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 >
                   <CheckSquare2 size={16} /> <span className="hidden sm:inline">{selectMode ? "Done" : "Select"}</span>
                 </button>
+                )}
                 <button
                   data-testid="shed-open-layout-btn"
                   onClick={() => navigate("/garden-layout")}
@@ -1539,7 +1666,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 >
                   <LayoutGrid size={16} /> <span className="hidden sm:inline">Layout</span>
                 </button>
-                {can("shed.add") && (
+                {can("shed.add") && (view !== "plants" || scope === "home") && (
                   <>
                     <button
                       data-testid="shed-add-plant-btn"
@@ -1600,6 +1727,40 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           </div>
           {view === "plants" && (
           <div className="flex flex-col gap-4 sticky top-0 z-20 bg-rhozly-bg/95 backdrop-blur-sm pt-2 pb-2 -mx-1 px-1 rounded-b-2xl">
+            {/* Home | Favourites scope pills — "Home" is today's shared,
+                home-scoped grid; "Favourites" is the user's personal
+                cross-home list. Deep link: /shed?scope=favourites */}
+            <div
+              data-testid="shed-scope-toggle"
+              className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10 self-start"
+            >
+              {(["home", "favourites"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  data-testid={`shed-scope-${s}`}
+                  onClick={() => switchScope(s)}
+                  className={`flex items-center gap-1.5 px-5 py-2 min-h-[40px] rounded-xl text-sm font-black transition-all ${
+                    scope === s
+                      ? "bg-white text-rhozly-primary shadow-sm"
+                      : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+                  }`}
+                >
+                  {s === "favourites" && (
+                    <Heart
+                      size={13}
+                      className={scope === "favourites" ? "fill-current" : ""}
+                    />
+                  )}
+                  {s === "home" ? "Home" : "Favourites"}
+                  {s === "favourites" && favourites.length > 0 && (
+                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
+                      {favourites.length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
             <div className="relative flex items-center">
               <Search
                 className="absolute left-4 text-rhozly-on-surface/40"
@@ -1607,7 +1768,11 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               />
               <input
                 type="text"
-                placeholder="Search your saved plants..."
+                placeholder={
+                  scope === "favourites"
+                    ? "Search your favourites..."
+                    : "Search your saved plants..."
+                }
                 aria-label="Search your saved plants"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -1623,6 +1788,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 </button>
               )}
             </div>
+            {scope === "home" && (
+            <>
             <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
               <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10">
                 {["active", "archived"].map((tab) => (
@@ -1692,6 +1859,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 );
               })}
             </div>
+            </>
+            )}
           </div>
           )}
         </div>
@@ -1705,8 +1874,27 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           />
         )}
 
+        {/* Favourites scope body — the user's cross-home favourites list. */}
+        {view === "plants" && scope === "favourites" && (
+          <FavouritePlantsGrid
+            homeId={homeId}
+            homeName={homeName}
+            homePlants={plants as any}
+            favourites={favourites}
+            loading={favouritesLoading}
+            searchQuery={searchQuery}
+            aiEnabled={aiEnabled}
+            perenualEnabled={perenualEnabled}
+            onFavouritesChanged={loadFavourites}
+            onHomePlantsChanged={() => {
+              refreshShed();
+              loadFavourites();
+            }}
+          />
+        )}
+
         {/* One-time badge guide — shown until dismissed */}
-        {view === "plants" && !badgeGuideShown && (
+        {view === "plants" && scope === "home" && !badgeGuideShown && (
           <div className="flex items-start gap-3 bg-rhozly-primary/5 border border-rhozly-primary/10 rounded-2xl px-4 py-3 mb-4">
             <div className="flex-1 text-xs font-bold text-rhozly-on-surface/60 leading-snug">
               <span className="font-black text-rhozly-on-surface/80">Where plant info comes from:</span>
@@ -1726,7 +1914,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           </div>
         )}
 
-        {view === "plants" && (
+        {view === "plants" && scope === "home" && (
         <>
         {/* AI Assistant — surfaces insights related to the Shed (plant counts,
             care reminders, suitability flags) right where the user is browsing. */}
@@ -1925,6 +2113,58 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                       the card body. Ghost-icon style; click handlers and
                       gating identical to the previous photo overlay. */}
                   <div className="mt-3 flex items-center gap-1" data-testid={`plant-card-actions-${plant.id}`}>
+                    {/* Cross-home favourite heart. Strict source × tier
+                        gating: above-tier sources are view-only, so the
+                        heart is disabled with an upsell tooltip. */}
+                    {(() => {
+                      const refId = canonicalPlantRefId(plant as any);
+                      const isFavourited = favouriteRefIds.has(refId);
+                      const locked = isSourceLockedForTier(plant.source, {
+                        aiEnabled,
+                        perenualEnabled,
+                      });
+                      return (
+                        <button
+                          data-testid={`favourite-plant-${plant.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!locked) handleToggleFavourite(plant);
+                          }}
+                          disabled={locked}
+                          aria-label={
+                            locked
+                              ? `Favouriting ${plant.common_name} is locked on your plan`
+                              : isFavourited
+                                ? `Remove ${plant.common_name} from favourites`
+                                : `Save ${plant.common_name} to favourites`
+                          }
+                          aria-pressed={isFavourited}
+                          title={
+                            locked
+                              ? lockedSourceMessage(plant.source)
+                              : isFavourited
+                                ? "Remove from favourites"
+                                : "Save to favourites — follows you across homes"
+                          }
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors active:scale-95 ${
+                            locked
+                              ? "text-rhozly-on-surface/20 cursor-not-allowed"
+                              : isFavourited
+                                ? "text-rose-500 hover:bg-rose-50"
+                                : "text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-rose-500"
+                          }`}
+                        >
+                          {togglingFavouriteRef === refId ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Heart
+                              size={16}
+                              className={isFavourited ? "fill-current" : ""}
+                            />
+                          )}
+                        </button>
+                      );
+                    })()}
                     <button
                       data-testid={`plant-card-layout-${plant.id}`}
                       onClick={(e) => {
@@ -2331,6 +2571,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 plant={editingPlant}
                 initialTab={editingPlantTab}
                 onSave={handleUpdatePlant}
+                onForkSave={handleForkPlant}
                 onClose={() => { setEditingPlant(null); setEditingPlantTab("care"); }}
                 isSaving={actionLoading}
                 aiEnabled={aiEnabled}
