@@ -308,3 +308,12 @@ All new interactive elements get `data-testid`s (`shed-scope-toggle`, `favourite
 7. Awaiting clarification (member-permissions interaction) — see below.
 8. **Always live**: favourites with a resolvable canonical reference always display live data; the snapshot is retained only as a tombstone fallback when the reference is gone.
 9. **Sprout test data volume**: increase to ~10 favourite plants, ~6 ailments, ~5 packets across the account's homes.
+
+## Final decisions 2026-07-03 (second round)
+
+- **Tier gating — strict**: above-tier sources are view-only in every sense: favouriting AND add-to-home both blocked (disabled controls + upsell, enforced client and server).
+- **Member permissions**: add-to-home is always allowed for any home member regardless of per-member permission keys (favouriting is personal and ungated by definition).
+- **Copy-on-write plant edits (supersedes the earlier "lock non-manual" wording)**: editing ANY non-manual plant (library / api / ai / verdantly) creates a NEW plant row with a NEW id; the original row is immutable. Manual plants remain editable in place. Consequences:
+  - Favourite references are stable forever → "always live" display is safe; the jsonb snapshot is reduced to a deletion tombstone fallback only.
+  - No dedupe machinery anywhere — identity is the immutable id.
+  - The edit surfaces (PlantEditModal etc.) present non-manual edits as "Save as my own copy" (fork), not a disabled form.
