@@ -61,6 +61,9 @@ export const EVENT = {
   // Sprint 4a (UX review 2026-06-15 item 4.1) — bulk paste plant import.
   // Payload: { attempted, succeeded, failed, source: "ai" | "local" }.
   BULK_PLANT_IMPORT_COMPLETED: "bulk_plant_import_completed",
+  // RHO-4 Phase 2 — bulk ailment import (Watchlist CSV / AI paste).
+  // Payload: { attempted, succeeded, failed, favourited, mode: "csv" | "paste", source }.
+  BULK_AILMENT_IMPORT_COMPLETED: "bulk_ailment_import_completed",
   // Sprint 4b (UX review 2026-06-15 item 5.1) — tokenised email invites.
   INVITE_SENT:               "invite_sent",
   INVITE_REDEEMED:           "invite_redeemed",
@@ -73,6 +76,9 @@ export const EVENT = {
   SEASONAL_PICKS_LOADED:    "seasonal_picks_loaded",
   SEASONAL_PICKS_REFRESHED: "seasonal_picks_refreshed",
   SEASONAL_PICK_OPENED:     "seasonal_pick_opened",
+  // RHO-4 Phase 3 — bulk seed-packet import (Nursery CSV / AI paste).
+  // Payload: { attempted, succeeded, failed, favourited, mode: "csv" | "paste", source }.
+  BULK_PACKET_IMPORT_COMPLETED: "bulk_packet_import_completed",
   // The Nursery — seed packets + sowings + plant-out lifecycle
   NURSERY_PACKET_ADDED:        "nursery_packet_added",
   NURSERY_PACKET_EDITED:       "nursery_packet_edited",

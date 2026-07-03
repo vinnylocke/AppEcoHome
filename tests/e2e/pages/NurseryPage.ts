@@ -64,11 +64,17 @@ export class NurseryPage {
   readonly plantOutPlantedAt: Locator;
   readonly plantOutSave: Locator;
 
-  // Bulk Paste modal
+  // Bulk Paste / Add modal (RHO-4 Phase 3 — CSV mode added)
   readonly bulkPasteModal: Locator;
   readonly bulkPasteTextarea: Locator;
   readonly bulkPasteParse: Locator;
   readonly bulkPasteSave: Locator;
+  readonly bulkPasteModePaste: Locator;
+  readonly bulkPasteModeCsv: Locator;
+  readonly csvTemplateDownload: Locator;
+  readonly csvFileInput: Locator;
+  readonly bulkPasteFavouriteAll: Locator;
+  readonly bulkPasteFileIssues: Locator;
 
   // Nursery packet picker (in AddTaskModal)
   readonly nurseryPacketPicker: Locator;
@@ -143,6 +149,12 @@ export class NurseryPage {
     this.bulkPasteTextarea = page.getByTestId("bulk-paste-textarea");
     this.bulkPasteParse = page.getByTestId("bulk-paste-parse");
     this.bulkPasteSave = page.getByTestId("bulk-paste-save");
+    this.bulkPasteModePaste = page.getByTestId("bulk-paste-mode-paste");
+    this.bulkPasteModeCsv = page.getByTestId("bulk-paste-mode-csv");
+    this.csvTemplateDownload = page.getByTestId("csv-template-download");
+    this.csvFileInput = page.locator('[data-testid="csv-file-input"]');
+    this.bulkPasteFavouriteAll = page.getByTestId("bulk-paste-favourite-all");
+    this.bulkPasteFileIssues = page.getByTestId("bulk-paste-file-issues");
 
     this.nurseryPacketPicker = page.getByTestId("nursery-packet-picker");
     this.nurseryPacketPickerSelect = page.getByTestId("nursery-packet-picker-select");
@@ -269,5 +281,24 @@ export class NurseryPage {
     return this.page.locator("[data-testid^='bulk-paste-row-']").filter({
       hasNot: this.page.locator("[data-testid$='-remove']"),
     });
+  }
+
+  /** Upload a CSV file into the bulk-add modal's file input (RHO-4 Phase 3). */
+  async uploadCsv(fileName: string, content: string) {
+    await this.csvFileInput.setInputFiles({
+      name: fileName,
+      mimeType: "text/csv",
+      buffer: Buffer.from(content, "utf-8"),
+    });
+  }
+
+  /** The per-row review-card favourite checkbox (RHO-4 Phase 3). */
+  bulkPasteRowFavourite(i: number): Locator {
+    return this.page.getByTestId(`bulk-paste-row-${i}-favourite`);
+  }
+
+  /** The per-row review-card error block (RHO-4 Phase 3). */
+  bulkPasteRowErrors(i: number): Locator {
+    return this.page.getByTestId(`bulk-paste-row-${i}-errors`);
   }
 }

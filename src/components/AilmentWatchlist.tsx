@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import {
   Plus, Search, Loader2, Biohazard, X,
   Edit3, Trash2, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle,
-  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles, Library, Heart,
+  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles, Library, Heart, FileText,
 } from "lucide-react";
 import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -26,6 +26,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import EmptyState from "./shared/EmptyState";
 import FavouriteAilmentsGrid from "./favourites/FavouriteAilmentsGrid";
+import BulkAddAilmentsModal from "./BulkAddAilmentsModal";
 import {
   isAilmentSourceLockedForTier,
   lockedAilmentSourceMessage,
@@ -1745,6 +1746,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   const [filter, setFilter] = useState<AilmentFilter>("all");
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState<Ailment | null>(null);
 
   // ── Cross-home favourites (Phase 2 — ailments) ─────────────────────────────
@@ -1956,12 +1958,24 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">Track pests, diseases, and invasive plants</p>
         </div>
         {scope === "home" && can("ailments.add") && (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
-          >
-            <Plus size={18} /> Add
-          </button>
+          <div className="flex items-center gap-2">
+            {/* RHO-4 Phase 2 — bulk add (paste a list or upload a CSV). Subtle
+                styling so it doesn't compete with the primary "Add" CTA. */}
+            <button
+              data-testid="watchlist-bulk-add-btn"
+              onClick={() => setShowBulkAdd(true)}
+              title="Paste a list or upload a CSV to add ailments all at once"
+              className="hidden sm:flex items-center gap-2 px-4 py-3 bg-white border border-rhozly-outline/20 text-rhozly-primary rounded-2xl font-black text-sm hover:border-rhozly-primary/30 hover:bg-rhozly-primary/5 transition-colors"
+            >
+              <FileText size={16} /> Bulk add
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
+            >
+              <Plus size={18} /> Add
+            </button>
+          </div>
         )}
       </div>
 
@@ -2166,6 +2180,20 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           onClose={() => setShowAdd(false)}
         />,
         document.body,
+      )}
+      {showBulkAdd && (
+        <BulkAddAilmentsModal
+          homeId={homeId}
+          aiEnabled={aiEnabled}
+          onClose={() => setShowBulkAdd(false)}
+          onCreated={(created) => {
+            if (created.length > 0) {
+              setAilments((prev) => [...created, ...prev]);
+              loadFavourites();
+              requestFeedback("ailment_add");
+            }
+          }}
+        />
       )}
       {selectedAilment && createPortal(
         <AilmentDetailModal

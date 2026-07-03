@@ -26,6 +26,7 @@ AilmentWatchlist
 │   ├── View tabs: Active / Archived
 │   ├── Type filter (All / Pest / Disease / Invasive)
 │   ├── Search bar
+│   ├── Bulk add button → BulkAddAilmentsModal (RHO-4 Phase 2; perm `ailments.add`)
 │   └── Add Ailment button → AilmentAddModal
 ├── AilmentCard ×N
 │   ├── Cover image (from ailment.thumbnail_url)
@@ -50,6 +51,7 @@ AilmentWatchlist
 | `filter` | All / pest / disease / invasive |
 | `search` | Free text |
 | `showAdd` | Add modal open |
+| `showBulkAdd` | Bulk-add modal open (RHO-4 Phase 2) |
 | `selectedAilment` | Currently open detail |
 
 ### Data flow — read paths
@@ -99,6 +101,15 @@ supabase.from("plant_instance_ailments").insert({
 });
 ```
 
+#### Bulk add — CSV upload + AI free-text paste (RHO-4 Phase 2)
+
+The **Bulk add** header button (`data-testid="watchlist-bulk-add-btn"`, `ailments.add`-gated, Home scope only) opens [`BulkAddAilmentsModal`](../../../src/components/BulkAddAilmentsModal.tsx) — a two-step modal cloned from the Shed's `BulkPastePlantsModal`. A **mode toggle** offers:
+
+- **Paste a list** — free text → `parseAilmentList` ([`src/lib/parseAilmentList.ts`](../../../src/lib/parseAilmentList.ts)). Sage/Evergreen hit the `parse-ailment-list` Gemini edge fn; everyone else (and any AI failure) falls back to a client-side regex parser that classifies each line into pest/disease/invasive_plant. Same tier split as the plant paste.
+- **Upload CSV** — deterministic, tier-free strict parse against `AILMENT_TEMPLATE` ([`src/lib/uploadTemplates/registry.ts`](../../../src/lib/uploadTemplates/registry.ts)). A **Download template** button emits `rhozly-watchlist-template.csv`. Grammar v1: symptoms are `title [severity]` per `;`-separated cell; prevention/remedy steps are titles only (full step config stays in the detail editor). 200-row cap. `name` + `type` are required; `type` validates against the DB CHECK (`pest`/`disease`/`invasive_plant`).
+
+Both paths feed the **same review step** — an editable name + type per row, per-row/per-field error banners (bad rows excluded from save), a per-row favourite checkbox and a **"Mark all as favourites"** toggle. On import each valid row is a serial `ailments` insert (`source='manual'`, `home_id` injected by the modal), and rows whose favourite flag is set then call `favouriteAilment()` on the new row. Partial-success toast; event `BULK_AILMENT_IMPORT_COMPLETED` (`{ attempted, succeeded, failed, favourited, mode }`).
+
 #### Archive / Delete
 
 Standard pattern. Delete cascades to `plant_instance_ailments` via FK ON DELETE CASCADE.
@@ -131,6 +142,7 @@ Scope pills **Home | Favourites** (`data-testid="watchlist-scope-toggle"`, butto
 | `generate-ailment-suggestions` | AI search tier |
 | `add-ailment-to-library` | Persists an AI result into the shared `ailment_library` (service role; dedups on `name_key`) |
 | `perenual-proxy` | Databases tier (pest/disease search) |
+| `parse-ailment-list` | Bulk add → "Paste a list" (Sage/Evergreen) — extracts `{name, type, symptoms[], notes}` candidates from free text (RHO-4 Phase 2). `requireAuth` + `guardAiByUser` + `enforceRateLimit`; regex fallback for non-AI tiers. |
 
 ### Cron / scheduled jobs that affect this surface
 
@@ -160,7 +172,7 @@ None.
 
 | Permission | Effect |
 |------------|--------|
-| `ailments.add` | Add Ailment button |
+| `ailments.add` | Add Ailment button + Bulk add button (RHO-4 Phase 2) |
 | `ailments.delete` | Archive + Delete buttons |
 | `ailments.link` | LinkAilmentModal usage |
 
@@ -204,6 +216,15 @@ Three modes:
 - **Manual**: type everything yourself. Useful for region-specific issues you know.
 - **Perenual**: searches a curated database; pick a result and the steps come pre-filled.
 - **AI (recommended for new users)**: describe the symptoms in plain English → AI proposes an ailment with structured steps → review and save.
+
+#### 1b. Bulk add — a whole list at once (RHO-4 Phase 2)
+
+Got a list of pests and diseases to watch for — from a garden book, an RHS leaflet, or last season's notes? Tap **Bulk add** (next to the primary **Add** button) instead of typing them one at a time.
+
+- **Paste a list**: type or paste one ailment per line — `Aphids`, `Powdery mildew (white coating)`, `Black spot: yellowing, leaf drop`. On Sage/Evergreen the AI reads messy lists; on other tiers a built-in parser does its best. Rhozly guesses each one's **type** (pest / disease / invasive plant) — you can change it before saving.
+- **Upload CSV**: for spreadsheet people. **Download template** gives you a ready-made file with every column and an example row; fill it, upload it, review, save. Symptoms go in as `Sticky leaves [moderate]; Curled shoots`; prevention/remedy steps are just titles (fine-tune the timing and products in each ailment afterwards).
+
+Either way you land on a **review screen**: fix or delete any rows flagged in red, tick the **favourite** box on any you want to carry across your gardens (or **Mark all as favourites**), then add them all in one go. Everything you add this way is saved as your own **Manual** ailment, fully editable.
 
 #### 2. View tabs
 
@@ -292,7 +313,12 @@ No difference.
 
 ## Code references for ongoing maintenance
 
-- `src/components/AilmentWatchlist.tsx` — entire component (scope pill, heart, favourites wiring)
+- `src/components/AilmentWatchlist.tsx` — entire component (scope pill, heart, favourites wiring, Bulk add entry point)
+- `src/components/BulkAddAilmentsModal.tsx` — RHO-4 Phase 2 bulk add modal (paste + CSV, shared review, favourites-on-import)
+- `src/lib/parseAilmentList.ts` — client caller for `parse-ailment-list` + regex fallback (unit-tested)
+- `src/lib/uploadTemplates/registry.ts` — `AILMENT_TEMPLATE` (CSV field registry, parity-tested)
+- `supabase/functions/parse-ailment-list/index.ts` — Sage+ AI paste extraction
+- `supabase/functions/_shared/ailmentListParse.ts` — pure prompt + schema + row normaliser (Deno-tested)
 - `src/components/favourites/FavouriteAilmentsGrid.tsx` — Favourites scope body
 - `src/services/favouritesService.ts` — favourite/unfavourite, add-to-home (ailment fns)
 - `src/lib/favouriteIdentity.ts` — pure ailment identity / gating helpers (unit-tested)

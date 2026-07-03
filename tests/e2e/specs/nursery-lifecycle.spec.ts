@@ -27,6 +27,7 @@ const LOC_GARDEN_ID   = `0000000${workerNum}-0000-0000-0001-000000000001`;
 const AREA_GREENHOUSE = `0000000${workerNum}-0000-0000-0002-000000000003`;
 // Worker N (1-based) → plant_id = (N + 1) * 1_000_000 + offset.
 // worker 1 (test1) → Basil 2_000_002; worker 2 (test2) → 3_000_002.
+const PLANT_TOMATO    = (workerNum + 1) * 1_000_000 + 1;
 const PLANT_BASIL     = (workerNum + 1) * 1_000_000 + 2;
 const PLANT_LAVENDER  = (workerNum + 1) * 1_000_000 + 6;
 const LIST_ACTIVE_ID  = `0000000${workerNum}-0000-0000-0011-000000000001`;
@@ -533,8 +534,12 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
       .select("id,plant_id")
       .eq("home_id", HOME_ID);
     expect((data ?? []).length).toBe(3);
-    // Bulk-paste rows start with plant_id null until linked.
-    expect((data ?? []).every((p) => p.plant_id === null)).toBe(true);
+    // RHO-4 Phase 3: link-by-name now applies to the paste path too — "Tomato"
+    // and "Basil" match seeded Shed plants and link; "Sunflower" has no match
+    // and stays unlinked (plant_id null).
+    const linked = (data ?? []).filter((p) => p.plant_id != null);
+    expect(linked.length).toBe(2);
+    expect((data ?? []).filter((p) => p.plant_id == null).length).toBe(1);
   });
 
   test("NURSERY-032: Bulk paste row editing flows through to save", async ({ authenticatedPage }) => {
@@ -602,6 +607,119 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
 
     await expect(nursery.bulkPasteRow(0)).toBeVisible({ timeout: 10000 });
     await expect(authenticatedPage.getByTestId("bulk-paste-row-0-variety")).toHaveValue("Mock AI Sungold");
+  });
+
+  // ── RHO-4 Phase 3 — CSV upload + template + favourites + link-by-name ─────
+
+  test("NURSERY-034 (RHO-4): Bulk add opens with a mode toggle + CSV template download", async ({ authenticatedPage }) => {
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryPasteEmpty.click();
+
+    await expect(nursery.bulkPasteModePaste).toBeVisible({ timeout: 8000 });
+    await expect(nursery.bulkPasteModeCsv).toBeVisible();
+
+    await nursery.bulkPasteModeCsv.click();
+    const [download] = await Promise.all([
+      authenticatedPage.waitForEvent("download", { timeout: 8000 }),
+      nursery.csvTemplateDownload.click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("rhozly-seed-packets-template.csv");
+  });
+
+  test("NURSERY-035 (RHO-4): CSV upload shows review rows; bad date row is flagged", async ({ authenticatedPage }) => {
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryPasteEmpty.click();
+    await nursery.bulkPasteModeCsv.click();
+
+    // Row 0 valid (partial sow_by date), row 1 has an unparseable date.
+    const csv =
+      "plant_name,variety,sow_by\n" +
+      "Tomato,CSV Sungold,2028-12\n" +
+      "Basil,CSV Genovese,someday\n";
+    await nursery.uploadCsv("packets.csv", csv);
+
+    await expect(nursery.bulkPasteRow(0)).toBeVisible({ timeout: 8000 });
+    await expect(nursery.bulkPasteRow(1)).toBeVisible();
+    await expect(nursery.bulkPasteRowErrors(1)).toBeVisible();
+    // The valid row's flexible date resolved to end-of-month.
+    await expect(authenticatedPage.getByTestId("bulk-paste-row-0-sow-by")).toHaveValue("2028-12-31");
+    // Save counts only the valid row.
+    await expect(nursery.bulkPasteSave).toContainText(/Add 1 packet/i, { timeout: 5000 });
+  });
+
+  test("NURSERY-036 (RHO-4): CSV import creates packets, links by name + favourites a flagged row", async ({ authenticatedPage }) => {
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryPasteEmpty.click();
+    await nursery.bulkPasteModeCsv.click();
+
+    const stamp = Date.now();
+    const linkedVariety = `CSV Linked ${stamp}`;
+    const favVariety = `CSV Fav ${stamp}`;
+    // Row 0: plant_name "Tomato" matches a seeded Shed plant → linked.
+    // Row 1: unknown plant → unlinked; favourite flagged.
+    const csv =
+      "plant_name,variety,favourite\n" +
+      `Tomato,${linkedVariety},false\n` +
+      `Nonexistent Plant ${stamp},${favVariety},true\n`;
+    await nursery.uploadCsv("packets.csv", csv);
+
+    await expect(nursery.bulkPasteRow(0)).toBeVisible({ timeout: 8000 });
+    // The favourite column pre-ticks the second row.
+    await expect(nursery.bulkPasteRowFavourite(1)).toBeChecked();
+
+    await nursery.bulkPasteSave.click();
+    await expect(authenticatedPage.getByText(/Added 2 packets/i)).toBeVisible({ timeout: 12000 });
+
+    // Linked packet resolved plant_name "Tomato" → the seeded plant_id.
+    const { data: linked } = await supabase
+      .from("seed_packets")
+      .select("plant_id, notes")
+      .eq("home_id", HOME_ID)
+      .eq("variety", linkedVariety)
+      .single();
+    expect(linked!.plant_id).toBe(PLANT_TOMATO);
+
+    // Unlinked packet keeps plant_id null + preserves the name in notes provenance.
+    const { data: unlinked } = await supabase
+      .from("seed_packets")
+      .select("plant_id, notes")
+      .eq("home_id", HOME_ID)
+      .eq("variety", favVariety)
+      .single();
+    expect(unlinked!.plant_id).toBeNull();
+    expect(unlinked!.notes ?? "").toContain("Nonexistent Plant");
+
+    // The flagged row is favourited (packets are ungated).
+    const { data: favs } = await supabase
+      .from("user_favourite_seed_packets")
+      .select("variety")
+      .eq("variety", favVariety);
+    expect((favs ?? []).length).toBe(1);
+
+    // Cleanup favourite (packets are wiped by beforeEach; favourites are not).
+    await supabase.from("user_favourite_seed_packets").delete().eq("variety", favVariety);
+  });
+
+  test("NURSERY-037 (RHO-4): free-text paste still reaches the shared review step + favourite toggle", async ({ authenticatedPage }) => {
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryPasteEmpty.click();
+
+    // Paste mode is the default.
+    await nursery.bulkPasteTextarea.fill("Tomato Sungold (Suttons, ~30 seeds)");
+    await nursery.bulkPasteParse.click();
+
+    await expect(nursery.bulkPasteRow(0)).toBeVisible({ timeout: 10000 });
+    // The shared review step exposes the "Mark all as favourites" toggle + per-row favourite.
+    await expect(nursery.bulkPasteFavouriteAll).toBeVisible();
+    await expect(nursery.bulkPasteRowFavourite(0)).toBeVisible();
   });
 
   // ── AddTaskModal + Care Guide integration ────────────────────────────────

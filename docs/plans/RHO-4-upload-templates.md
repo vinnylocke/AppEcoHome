@@ -297,3 +297,133 @@ This adds one FieldSpec per template + a review-step toggle + a post-insert favo
 6. **Button naming** (Q4 in §12): "Bulk add" across all three entry points (plan default).
 
 Ready to implement. Phases: (1) registry + plants CSV + favourites column, (2) Watchlist bulk add — CSV + AI paste (parse-ailment-list) + favourites, (3) seed packets CSV + favourites, (4) docs/polish folded into each.
+
+---
+
+## Phase 1 — IMPLEMENTED (2026-07-03)
+
+Delivered the registry module + plants CSV upload + favourites-on-import, exactly to §4 / §5.1 / §10 + the appendices. **Phases 2/3 (Watchlist, seed packets) NOT built** — but the registry is structured so they slot in by adding a `RecordTemplate` to `TEMPLATES` (no changes to `csv.ts` / `parse.ts` / `template.ts`).
+
+### Files added
+- **`src/lib/uploadTemplates/`** (pure, no React):
+  - `types.ts` — `FieldSpec`, `RecordTemplate`, `RowIssue`, `ParsedRow`, `ParseResult`. Added `extractFavourite` on `RecordTemplate` + a `favourite: boolean` on `ParsedRow` so the review step gets the flag without it leaking onto the insert payload.
+  - `csv.ts` — RFC-4180 tokenizer + serialiser; BOM strip on input / BOM prepend on output; delimiter sniffing on the header row (`,` / `;` / tab); smart-quote normalisation; CRLF/LF.
+  - `registry.ts` — `PLANT_TEMPLATE` only (Phase 1). `buildPayload` folds variety/quantity/notes into `plant_metadata` + derives labels, returns a `source='manual'` `saveToShed` skeleton. Exposes `PLANT_TEMPLATE_PLANT_COLUMNS` for the parity test.
+  - `parse.ts` — `parseCsv<T>(text, template) → { rows, issues }` with per-row + per-field errors, EXAMPLE-row skip, **200-row cap**, enum normalisation, cross-field validation, formula-prefix hardening.
+  - `template.ts` — `buildTemplateCsv` (BOM + headers + EXAMPLE row) + `downloadTemplate`.
+  - `index.ts` — public barrel.
+- **`tests/unit/lib/uploadTemplates/`** — `csv.test.ts` (17), `registry.test.ts` (8, incl. the cleanPayload parity guard), `parse.test.ts` (31), `template.test.ts` (4) = **60 tests, all green**.
+
+### Files changed
+- `src/components/BulkPastePlantsModal.tsx` — mode toggle ("Paste a list" / "Upload CSV"), file input + template download in CSV mode, shared review step with per-row/field error display, per-row favourite checkbox + "Mark all as favourites", favourites-on-import via `favouritePlant()`. Header renamed to "Bulk add plants".
+- `src/components/TheShed.tsx` — bulk button label "Bulk paste" → **"Bulk add"**.
+- `tests/e2e/pages/ShedPage.ts` + `tests/e2e/specs/shed-crud.spec.ts` — new `SHED-BULK-001..005` (mode toggle, template download, review + bad-row exclusion, import creates manual plants + favourite in Favourites scope, free-text paste still reaches the shared review step).
+- Docs: `03-garden-hub/01-the-shed.md` (both roles + code refs), `99-cross-cutting/03-data-model-plants.md` (CSV write-path note), `docs/e2e-test-plan/06-shed.md` (SHED-BULK rows), `TESTING.md` (unit count 1187→1247, new suite row).
+
+### Deviations from the plan
+1. **`labels` defaults to `[]`, not `null`.** The `plants.labels` column is `NOT NULL`; the plan's §5.1 implied a nullable label list. Both the CSV `buildPayload` and the free-text candidate path now default to `[]` (matching `ManualPlantCreation.cleanPayload`, which sends `labels: []`). Caught by SHED-BULK-004 (a `23502` not-null violation) and fixed. **The pre-existing free-text paste path had the same latent bug** (`labels: variety ? [...] : null`) and was fixed in the same change.
+2. **Shared `CsvUploadStep.tsx` component NOT extracted.** §6 proposed a shared component for reuse across the three surfaces. Since Phase 1 only touches the Shed, the CSV UI lives inline in `BulkPastePlantsModal`. Phase 2/3 can extract it then, when there's a second/third caller to share it with (avoids a one-off abstraction — CLAUDE.md "no speculative changes").
+3. **Date parsing is ISO-only in `parse.ts`.** `date` kind accepts `YYYY-MM-DD` only; the seed-packet flexible dates (`YYYY-MM`, `Month YYYY`) land with Phase 3's `SEED_PACKET_TEMPLATE`. No plant field is a date, so this is a no-op for Phase 1.
+4. **Row cap is 200 (per answer 4), not the 60 the AI paste path uses.** CSV skips AI token limits.
+5. **Favourite plumbing:** rather than putting `favourite` on the insert payload (which would try to insert a non-existent column), it's surfaced on `ParsedRow.favourite` via `RecordTemplate.extractFavourite`, read by the modal to call `favouritePlant(newRow, homeId)` after each successful insert.
+
+### Gates (all green)
+- `npm run typecheck` → 0 errors.
+- `node scripts/check-schema-columns.mjs --local` → 0 findings (134 tables).
+- `npm run test:unit` → 1247 passed (111 files).
+- `npm run test:functions` → 757 passed.
+- `npm run build` → success.
+- `npx playwright test shed-crud.spec.ts -g "RHO-4 CSV upload"` → 5 passed.
+
+### Phase 2/3 handoff
+- **Ailments (Phase 2):** add `AILMENT_TEMPLATE` to `registry.ts` (fields per §5.2 + a `favourite` bool) and register it in `TEMPLATES`. Its `buildPayload` maps to the `ailments` insert shape (symptoms/steps jsonb per the `title [severity]` grammar) and `extractFavourite` reads the flag; the review step calls `favouriteAilment()`. New `BulkAddAilmentsModal` clones the Shed modal's two-mode structure; add `parse-ailment-list` for the AI paste half. `csv.ts` / `parse.ts` / `template.ts` need **no changes**.
+- **Seed packets (Phase 3):** add `SEED_PACKET_TEMPLATE` (§5.3) + register it; add flexible-date support to `parse.ts`'s `date` kind (accept `YYYY-MM` / `Month YYYY` → end-of-period, reusing `parseDatePhrase`). `buildPayload` maps to `createSeedPacket`; `extractFavourite` → `favouriteSeedPacket()`. Add the mode toggle to `BulkPasteSeedPacketsModal` + link-by-name resolution.
+- **Shared UI:** extract `CsvUploadStep.tsx` when wiring the second caller.
+
+---
+
+## Phase 2 — IMPLEMENTED (2026-07-03)
+
+Delivered the Watchlist bulk add — **CSV upload AND the AI free-text paste** — exactly to §5.2 / §6.2 + the answers appendix (simple grammar v1, build `parse-ailment-list`, `source='manual'`, favourites-on-upload, 200-row cap). Extended Phase 1's registry (no rebuild): `AILMENT_TEMPLATE` slots into `TEMPLATES`; `csv.ts` / `template.ts` unchanged; `parse.ts` gained two new field kinds (`symptoms`, `steps`) shared by any future template.
+
+### Files added
+- **`src/lib/uploadTemplates/registry.ts`** — `AILMENT_TEMPLATE` (fields per §5.2 + a `favourite` bool). `buildPayload` → the `ailments` insert shape (`source='manual'`, jsonb symptom/step arrays, `description` defaults `''` for the NOT-NULL col, `home_id` injected by the modal not the template). `extractFavourite` reads the flag. Exposes `AILMENT_TEMPLATE_COLUMNS` for the parity test.
+- **`src/lib/uploadTemplates/types.ts` + `parse.ts`** — new `symptoms` (`title [severity]` → `AilmentSymptom{id,title,severity,description:"",location:""}`) and `steps` (title-only → full `AilmentStep` with StepBuilder defaults + 1-based `step_order`) field kinds. `ParsedValue` widened to allow object arrays. These are reusable, not ailment-specific.
+- **`src/components/BulkAddAilmentsModal.tsx`** — cloned from `BulkPastePlantsModal`: mode toggle ("Paste a list" AI/regex → `parseAilmentList`; "Upload CSV" → `AILMENT_TEMPLATE`), shared review step with editable **name + type** per row, per-row/per-field error banners, per-row favourite checkbox + "Mark all as favourites", template download, serial `ailments` insert (`source='manual'`) + post-insert `favouriteAilment()` for flagged rows. Event `BULK_AILMENT_IMPORT_COMPLETED`.
+- **`src/lib/parseAilmentList.ts`** — client caller mirroring `parsePlantList`: Sage+ → `parse-ailment-list` edge fn; else `parseAilmentListLocal` regex (name + dash/colon/paren detail → symptom titles) with keyword `classifyAilmentType` (pest/disease/invasive_plant). AI failure falls back to regex.
+- **`supabase/functions/parse-ailment-list/index.ts`** — mirrors `parse-plant-list` but **USER-scoped**: `requireAuth` + `guardAiByUser` + `enforceRateLimit` (no homeId needed for pure extraction). Returns `{ ailments }`.
+- **`supabase/functions/_shared/ailmentListParse.ts`** — pure prompt + `AILMENT_PARSE_SCHEMA` + `normaliseAilments` / `normaliseAilmentType` (Deno-tested, factored out like the seed-prompt helpers so the edge fn shape is verifiable without the DB).
+- **Tests:** `tests/unit/lib/uploadTemplates/registry.test.ts` (+8 ailment parity / `title [severity]` / step-defaults / favourite tests = 68 in the suite), `tests/unit/lib/parseAilmentList.test.ts` (11), `supabase/tests/parseAilmentList.test.ts` (9 Deno). E2E: `tests/e2e/specs/watchlist.spec.ts` WL-BULK-001..005 + `WatchlistPage.ts` locators/helpers.
+
+### Files changed
+- `src/components/AilmentWatchlist.tsx` — "Bulk add" header button (perm-gated `ailments.add`, Home scope) + `showBulkAdd` state + modal render (prepends created rows, refreshes favourites).
+- `src/events/registry.ts` — `BULK_AILMENT_IMPORT_COMPLETED`.
+- Docs: `03-garden-hub/02-watchlist.md` (both roles + code refs + edge-fn row), `99-cross-cutting/06-data-model-ailments.md` (CSV write-path note + code refs), `10-edge-functions-catalogue.md` (`parse-ailment-list`), `docs/e2e-test-plan/11-watchlist.md` (WL-BULK rows), `TESTING.md` (counts 1247→1267 unit / 757→766 Deno / 521→526 E2E + suite rows).
+
+### Deviations from the plan
+1. **Auth by user, not home.** The plan/§6.2 implied cloning `parse-plant-list` (which uses `requireHomeMembership` + `guardAiByHome` on a `homeId`). The prompt specified `guardAiByUser`, and the pure extraction needs no homeId — so `parse-ailment-list` takes `{ text }` only and gates on the token's user. Simpler; the insert (which IS home-scoped) still happens client-side via RLS-checked `ailments.insert`.
+2. **`config.toml` unchanged.** The other parse fns aren't listed in `supabase/config.toml`, so `parse-ailment-list` isn't added there either (matches the handoff's conditional "if the others are listed there").
+3. **Shared `CsvUploadStep.tsx` NOT extracted.** The Phase 1 handoff said to extract shared CSV/review components "when Phase 2/3 add a second caller." On inspection the CSV/review UI is tightly interwoven with per-record specifics (plant name+variety+extras vs ailment name+type+symptom/step summaries; different favourite services; different insert paths). A generic extraction would need heavy prop/callback plumbing for two callers and would obscure both. Per CLAUDE.md "no speculative changes," the modal is a focused clone of `BulkPastePlantsModal` sharing the real DRY win — the `uploadTemplates/` registry + parser + `csv.ts`/`template.ts` (100% shared). Re-evaluate at Phase 3 (a third caller) whether a shared step component then pays for itself.
+4. **New reusable field kinds.** `symptoms`/`steps` were added to the generic `parse.ts` (not a one-off in the registry) so Phase 3 / future templates can reuse the nested-object cell grammar.
+
+### Gates (all green)
+- `npm run typecheck` → 0 errors.
+- `node scripts/check-schema-columns.mjs --local` → 0 findings (134 tables). (Local anon key = `VITE_SUPABASE_PUBLISHABLE_KEY` from `.env` / `supabase status`.)
+- `npm run test:unit` → 1267 passed (112 files).
+- `npm run test:functions` → 766 passed.
+- `npm run build` → success.
+- `npx playwright test watchlist.spec.ts` → WL-BULK-001..005 pass; full spec 21 passed + 1 pre-existing flaky (WL-022 search, unrelated — passed on retry).
+
+### Phase 3 handoff (seed packets — NOT built here)
+- Add `SEED_PACKET_TEMPLATE` (§5.3) to `registry.ts` + register in `TEMPLATES`; add flexible-date support to `parse.ts`'s `date` kind (`YYYY-MM` / `Month YYYY` → end-of-period via `parseDatePhrase`). `buildPayload` → `createSeedPacket`; `extractFavourite` → `favouriteSeedPacket()`. Add the mode toggle to `BulkPasteSeedPacketsModal` + link-by-name resolution.
+- With a **third** CSV/review caller landing, that's the point to reconsider extracting a shared `CsvUploadStep` / `ReviewStep` (see deviation 3). `csv.ts` / `template.ts` / the two new field kinds still need no changes.
+
+---
+
+## Phase 3 — IMPLEMENTED (2026-07-03) — FINAL
+
+Delivered the Nursery seed-packet CSV upload — mode toggle on the existing paste modal, `SEED_PACKET_TEMPLATE`, flexible dates, link-by-name, favourites-on-import — exactly to §5.3 / §6.3 / §10 + the appendices (200-row cap, favourite column + review toggle, packets ungated). Extended Phase 1/2's registry (no rebuild): `SEED_PACKET_TEMPLATE` slots into `TEMPLATES`; `csv.ts` / `template.ts` unchanged; `parse.ts` gained shared flexible-date support (a generic `date`-kind enhancement, not packet-specific). **RHO-4 is now feature-complete across all three surfaces (Shed plants, Watchlist ailments, Nursery packets) and ready for combined validation.**
+
+### Flexible-date approach (shared infra, kept generic)
+- New `parseFlexibleDate(raw, round: "up" | "down")` in `parse.ts` — a template-agnostic helper mirroring `parseSeedPackets.parseDatePhrase`: full `YYYY-MM-DD` used verbatim; `YYYY-MM` / `Month YYYY` / `YYYY Month` resolved by direction (down → first of period, up → last); bare year accepted only when rounding up (a deadline). Range-guarded (1980–2100), leap-year aware.
+- A **`FieldSpec.datePartial: "up" | "down"`** prop (default `"down"`) is how any template opts a `date` field into round-up vs round-down. `SEED_PACKET_TEMPLATE`'s `purchased_on` / `opened_on` use `"down"`; `sow_by` uses `"up"`. The `date` case in `coerceField` reads the prop → calls `parseFlexibleDate`. No plant/ailment field is a date, so this is inert for their templates.
+
+### Shared review-step component — NOT extracted (justification)
+The Phase 2 handoff flagged the **third** caller as the point to reconsider a shared `CsvReviewStep`. Evaluated and **declined** — the three review steps are NOT substantially duplicated in a way a clean extraction would resolve:
+- The per-row body differs materially per record: plants (name + variety + a 25-field expander), ailments (name + editable **type select** + symptom/step summary expander), packets (a 6-field grid: plant / variety / vendor / qty / sow-by / opened + the notes provenance line). The editable cells, the "extra fields" affordance, and the per-record patch semantics are all different.
+- Each calls a different favourite service (`favouritePlant` / `favouriteAilment` / `favouriteSeedPacket`) and a different insert path (`saveToShed` / `ailments.insert` / `createSeedPacket`), with per-record post-insert logic (link-by-name only for packets).
+- A generic component would need heavy render-prop / callback plumbing (row renderer, favourite fn, insert fn, id shape) for exactly three callers and would obscure all three. The **real** DRY win is already fully shared: `uploadTemplates/` registry + `parseCsv` + `csv.ts` + `template.ts` + the `date`/`symptoms`/`steps` field kinds — 100% common across all three. The mode-toggle + file-input + template-download + "mark all favourites" + file-issues + per-row error banner **patterns** are mirrored (structurally identical) without a forced abstraction, per CLAUDE.md "no speculative changes." This matches the Phase 1 (deviation 2) and Phase 2 (deviation 3) calls.
+
+### Link-by-name reuse
+Uses the **exact** existing unlinked-packet convention — no new linking scheme. On Save, `BulkPasteSeedPacketsModal` (for BOTH paste and CSV modes) fetches the home's non-archived `plants` once, builds a case-insensitive `common_name → id` map, and resolves each row: match → `plant_id` set; no match → `plant_id = null` + the name preserved in the existing `buildNotes` provenance line (`Bulk import — plant: "X".`). This mirrors `favouritesService.addFavouritePacketToHome`'s own name-resolution and the packet-detail unlinked convention. Consequence: link-by-name now also applies to the **paste** path (previously always `plant_id = null`) — a strict improvement; the pre-existing NURSERY-031 assertion was updated to reflect Tomato/Basil auto-linking against seeded plants.
+
+### Files added
+- Tests: `tests/unit/lib/uploadTemplates/parse.test.ts` (+10: `parseFlexibleDate` round up/down/verbatim/bare-year/garbage + the `date` FieldSpec through the parser on SEED_PACKET_TEMPLATE); `registry.test.ts` (+7: SEED_PACKET_TEMPLATE ↔ createSeedPacket parity, `plant_name` required + non-column, modal-owned keys stripped, datePartial directions, favourite bool). E2E: `nursery-lifecycle.spec.ts` NURSERY-034..037 + `NurseryPage.ts` locators/helpers.
+
+### Files changed
+- `src/lib/uploadTemplates/types.ts` — `FieldSpec.datePartial` prop.
+- `src/lib/uploadTemplates/parse.ts` — `parseFlexibleDate` + flexible `date` case (was ISO-only).
+- `src/lib/uploadTemplates/registry.ts` — `SEED_PACKET_TEMPLATE` + `SEED_PACKET_TEMPLATE_COLUMNS` + registered in `TEMPLATES`.
+- `src/lib/uploadTemplates/index.ts` — export `SEED_PACKET_TEMPLATE`, `SEED_PACKET_TEMPLATE_COLUMNS`, `parseFlexibleDate`.
+- `src/components/nursery/BulkPasteSeedPacketsModal.tsx` — mode toggle (paste / CSV), template download + file input, shared review step with per-row/file error banners, per-row favourite + "Mark all", link-by-name resolution on save, favourites-on-import, `EVENT.BULK_PACKET_IMPORT_COMPLETED`.
+- `src/events/registry.ts` — `BULK_PACKET_IMPORT_COMPLETED`.
+- `tests/e2e/specs/nursery-lifecycle.spec.ts` — NURSERY-031 assertion updated for link-by-name; NURSERY-034..037 added.
+- Docs: `03-garden-hub/10-nursery.md` (both roles + component graph + code refs), `99-cross-cutting/33-data-model-nursery.md` (link-by-name write-path + code refs), `docs/e2e-test-plan/24-nursery.md` (NURSERY-034..037 rows + testids/page-object note), `TESTING.md` (unit 1267→1283, E2E 526→530, uploadTemplates suite 68→85, nursery spec 22→26).
+
+### Deviations from the plan
+1. **`datePartial` prop instead of hardcoding per-field.** The plan said "a FieldSpec can opt into 'partial date rounds up vs down' via a prop" — implemented exactly as `FieldSpec.datePartial`. `parseFlexibleDate` is exported so it's independently unit-tested.
+2. **Link-by-name now also applies to the paste path.** The plan scoped link-by-name to the CSV path, but both paths feed the same save loop, so it applies uniformly (a strict improvement — paste rows can now auto-link too). NURSERY-031 updated accordingly.
+3. **Shared review-step component not extracted** (see justification above).
+4. **No migration** — all target columns exist; CSV import is bulk `createSeedPacket`.
+
+### Gates (all green)
+- `npm run typecheck` → 0 errors.
+- `node scripts/check-schema-columns.mjs --local` → 0 findings (134 tables). (Local anon key = `VITE_SUPABASE_PUBLISHABLE_KEY` / `supabase status` Publishable; export it as `VITE_SUPABASE_ANON_KEY` so the script's `--local` branch reads it — a bare run 401s.)
+- `npm run test:unit` → 1283 passed (112 files).
+- `npm run test:functions` → 766 passed (no edge-fn change in Phase 3).
+- `npm run build` → success.
+- `npm run test:seed` → all 4 workers seeded.
+- `npx playwright test nursery-lifecycle.spec.ts` → 26 passed (RHO-4 NURSERY-034..037 + the pre-existing 22, incl. the updated NURSERY-031).
+
+### Feature status — READY FOR COMBINED VALIDATION
+All three CSV surfaces are consistent: one shared `uploadTemplates/` registry (`PLANT_TEMPLATE` / `AILMENT_TEMPLATE` / `SEED_PACKET_TEMPLATE` in `TEMPLATES`); the same 200-row cap; the same `favourite` bool column + "Mark all as favourites" review toggle + post-insert favourite call (`favouritePlant` / `favouriteAilment` / `favouriteSeedPacket`); the same per-row/file-level error model, template download, and mode toggle. RHO-4 (all four phases) is complete.

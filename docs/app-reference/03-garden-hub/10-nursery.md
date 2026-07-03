@@ -51,9 +51,11 @@ TheShed (Plants / Nursery toggle in the header)
     ├── AddSeedPacketModal (portal)
     │   ├── Step 1 — Pick plant (Shed search OR free-text "add later")
     │   └── Step 2 — Packet details (vendor, dates, quantity, notes)
-    ├── BulkPasteSeedPacketsModal (portal)
-    │   ├── Step 1 — Paste textarea + Parse button (AI for Sage+, regex otherwise)
-    │   └── Step 2 — Review: editable rows + Save N packets
+    ├── BulkPasteSeedPacketsModal (portal)  — RHO-4 Phase 3: two entry modes
+    │   ├── Step 1 — Mode toggle: "Paste a list" (AI for Sage+, regex otherwise)
+    │   │            OR "Upload CSV" (strict SEED_PACKET_TEMPLATE parse + template download)
+    │   └── Step 2 — Shared review: editable rows + per-row/"mark all" favourite
+    │                + per-row error banners; Save N packets (link-by-name → plant_id)
     └── SeedPacketDetailModal (portal)
         ├── Packet meta strip (vendor / dates / qty / notes)
         ├── Tab strip — Sowings | Calendar (defaults to Sowings)
@@ -153,11 +155,17 @@ TheShed (Plants / Nursery toggle in the header)
 - Unlinking a packet that has active sowings surfaces an inline warning ("you'll need to relink before planting them out") — allowed, but flagged.
 - **Edge case** — if the user adds a plant via the provider search but then cancels the editor without saving (or unlinks before saving), the new Shed plant remains; only the packet link is unset. Acceptable, the plant exists independently.
 
-#### Bulk paste (`parseSeedPackets` + `createSeedPacket` per row)
+#### Bulk add — paste OR CSV upload (`BulkPasteSeedPacketsModal`, RHO-4 Phase 3)
 
-- `AddSeedPacketModal` calls `parseSeedPackets(text, { homeId, aiEnabled })` which routes Sage+ to the edge fn `parse-seed-packets` and others to the local regex.
-- Review step lets the user edit every field inline; trash icon per row.
-- Save iterates `createSeedPacket` per row with partial-success handling.
+- **Two entry modes, one review step.** Step 1 has a mode toggle:
+  - **"Paste a list"** (unchanged) → `parseSeedPackets(text, { homeId, aiEnabled })`, routing Sage+ to the edge fn `parse-seed-packets` and others to the local regex.
+  - **"Upload CSV"** (new) → strict, deterministic, tier-free parse against `SEED_PACKET_TEMPLATE` via `parseCsv` (no Gemini, no tier gate). A "Download template" button emits `rhozly-seed-packets-template.csv` (BOM + headers + a skipped EXAMPLE row). File input reads client-side (`File.text()`), 200 KB / 200-row caps.
+- **Shared review step** (Step 2): editable rows (plant / variety / vendor / qty / sow-by / opened); per-row + file-level error banners (CSV bad rows are flagged and excluded from Save); a per-row favourite checkbox + a "Mark all as favourites" toggle; trash icon per row.
+- **Flexible dates** (CSV): `SEED_PACKET_TEMPLATE`'s `purchased_on` / `opened_on` / `sow_by` accept `YYYY-MM-DD`, `YYYY-MM`, and `Month YYYY`. Partial dates resolve via each field's `datePartial` prop — `purchased_on` / `opened_on` round **down** (first of the period), `sow_by` rounds **up** (last day = deadline), reusing `parseSeedPackets.parseDatePhrase` semantics via the shared `parseFlexibleDate` in `uploadTemplates/parse.ts`.
+- **Link-by-name** (both paths): on Save the modal fetches the home's non-archived Shed plants once and resolves each row's plant name to a `plant_id` by case-insensitive exact match. Matched → `plant_id` set (Plant Out works straight away). Unmatched → `plant_id = null` and the parsed name is preserved in a notes provenance line (`Bulk import — plant: "X".`) — the existing unlinked-packet convention, now applied identically to CSV and paste.
+- **Favourites-on-import** (ungated): after each successful `createSeedPacket`, rows whose favourite flag is set call `favouriteSeedPacket()` on the new packet. Packets have no source column, so this is always allowed on every tier.
+- Save iterates `createSeedPacket` per row with partial-success handling. Fires `EVENT.BULK_PACKET_IMPORT_COMPLETED` with `{ attempted, succeeded, failed, favourited, mode: 'csv' | 'paste' }`.
+- **Consistency with the other two CSV surfaces** (Shed plants, Watchlist ailments): all three read the same `uploadTemplates/` registry + parser + `csv.ts` / `template.ts`, share the 200-row cap, the `favourite` bool column + review toggle, and the same per-row error model. The review-step UI stays per-modal (tightly coupled to each record's fields) rather than a shared component — see the plan §5.3 handoff note.
 
 #### Scan a packet (`scanSeedPacket` + `createSeedPacket` + `uploadPacketImage`)
 
@@ -339,10 +347,12 @@ Crucially, it's not just inventory. The Plant Out flow is what makes it earn its
 
 | Tier | Differences |
 |------|-------------|
-| Sprout | Full CRUD; bulk-paste limited to the strict regex grammar. |
+| Sprout | Full CRUD; bulk **paste** limited to the strict regex grammar. Bulk **CSV upload** works fully (deterministic, no AI) — the spreadsheet route to every field, favourites and all. |
 | Botanist | Same as Sprout. |
-| Sage | Bulk-paste uses Gemini — looser formats welcome. AI failures still fall back to regex automatically. |
+| Sage | Bulk paste uses Gemini — looser formats welcome. AI failures still fall back to regex automatically. CSV upload identical to Sprout. |
 | Evergreen | Same as Sage. |
+
+The **CSV upload** path is the same on every tier — it costs no AI and is the spreadsheet-friendly way to bring a whole seed order in at once, with a downloadable template, per-field validation, link-by-name, and a favourites column.
 
 Cross-home favourites (hearting a variety, the Favourites list, Add to this home) are identical for **every tier** — no upgrade prompt anywhere in that flow.
 
@@ -350,7 +360,7 @@ Cross-home favourites (hearting a variety, the Favourites list, Add to this home
 
 - **Brand new** (Sarah): one-off packet via Add Packets. Never opens the Nursery again on purpose. Value comes from the refill banner pinging her 14 months later and the Care Guide pill on her Sunflower plant.
 - **Returning** (small library): logs sowings, observes, plants out via the cycle the modals walk her through.
-- **Power user** (Marcus): bulk-paste a season's worth of packets in one go; Care Guide pill on each plant shows which packets are in play; refill banner during weekly shop drives the order list.
+- **Power user** (Marcus): bulk-paste or **bulk CSV upload** a season's worth of packets in one go — the CSV template carries every field plus a `favourite` column, and packets whose `plant_name` matches a plant already in his Shed link automatically; Care Guide pill on each plant shows which packets are in play; refill banner during weekly shop drives the order list.
 
 ### Beta user experience
 
@@ -358,13 +368,13 @@ No difference.
 
 ### Common mistakes / pitfalls
 
-- **Forgetting to link the catalogue plant on bulk-paste rows.** Plant Out won't work until you do — the detail modal nudges you.
+- **Forgetting to link the catalogue plant on bulk-add rows.** Plant Out won't work until a packet has a `plant_id`. Bulk add now auto-links by name — put the exact plant name (matching a plant in your Shed) in the paste line / CSV `plant_name` column and it links on save. Names with no Shed match stay unlinked (the name is kept in notes); the detail modal nudges you to link them later.
 - **Treating "discard" as undo.** It's not — discards stay in viability history. If you mis-clicked Plant Out, re-edit the resulting Shed instance instead.
 - **Skipping the Observe step.** Plant Out requires a `germinated_count` to know the cap; the modal forces an Observe first if you haven't done one.
 
 ### Recommended workflows
 
-- **January seed haul:** Bulk-paste your whole order → review → save. Pop the catalogue plant on each packet later as you decide which to grow.
+- **January seed haul:** Bulk-paste your whole order, or download the CSV template, fill one row per packet (put the plant name in `plant_name` to auto-link), and upload it → review → save. Tick the `favourite` column on the standouts to keep them across homes.
 - **Sowing day:** Open the packet → Log sowing. Optionally pre-schedule a germination check via the AddTask flow.
 - **Day of germination:** Notification fires (when wired) → Observe → numbers in.
 - **Planting-out day:** Plant out → choose area → care schedules auto-generate.
@@ -372,7 +382,7 @@ No difference.
 ### What to do if something looks wrong
 
 - **A sowing's "ready to plant out" but the button is disabled** — the packet has no `plant_id`. Open the packet, link it to a Shed plant via the picker, retry.
-- **Bulk-paste extracted the wrong fields** — every row is fully editable on the review step. Fix inline, save.
+- **Bulk add extracted the wrong fields (paste or CSV)** — every row is fully editable on the review step, and CSV rows with a bad value show the exact per-field error. Fix inline, save. CSV rows that still have a blocking error are excluded from the count until fixed or removed.
 - **Refill banner won't go away** — dismiss it with the X (sessionStorage), or add the refills to a list (auto-dismisses).
 
 ---
@@ -397,7 +407,9 @@ No difference.
 - `src/services/nurseryService.ts` — all reads + writes + lifecycle helpers
 - `src/services/favouritesService.ts` — packet favourite fns (list / favourite / unfavourite / add-to-home / image copy)
 - `src/lib/favouriteIdentity.ts` — `packetIdentityKey`, `buildPacketSnapshot`, `PACKET_SNAPSHOT_FIELDS`
-- `src/lib/parseSeedPackets.ts` — bulk-paste parser (regex fallback + AI wrapper)
+- `src/lib/parseSeedPackets.ts` — bulk-paste parser (regex fallback + AI wrapper) + `parseDatePhrase` (source of the CSV flexible-date semantics)
+- `src/lib/uploadTemplates/` — RHO-4 CSV registry: `registry.ts` (`SEED_PACKET_TEMPLATE`), `parse.ts` (`parseCsv`, `parseFlexibleDate`, `date` FieldSpec `datePartial`), `template.ts` (download), `csv.ts` (RFC-4180 + BOM + delimiter sniff)
+- `src/components/nursery/BulkPasteSeedPacketsModal.tsx` — mode toggle (paste / CSV), shared review step, link-by-name resolution, favourites-on-import
 - `supabase/functions/parse-seed-packets/index.ts` — Sage+ Gemini parser
 - `supabase/migrations/20260624000500_nursery.sql` — schema (packets, sowings, view, FK, RLS)
 - `supabase/migrations/20260902000000_user_favourite_seed_packets.sql` — favourites table (Phase 3, no tier trigger)

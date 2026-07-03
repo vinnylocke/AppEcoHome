@@ -43,6 +43,18 @@
 | SHED-022b | 🔲 | Result thumbnails self-resolve via `plant-image-search` | `plant-image-search` mock | 🔲 Planned |
 | SHED-022c | 🔲 | Library clone keeps the selected variant's name (`ensureCataloguePlantFromLibrary`) | — | 🔲 Planned |
 
+## Bulk add — CSV upload + template + favourites (RHO-4 Phase 1)
+
+The "Bulk add" header button opens `BulkPastePlantsModal`, which now has a **mode toggle**: "Paste a list" (existing free-text → AI/regex) and "Upload CSV" (new: strict parse against `PLANT_TEMPLATE`). Both feed the same review step. The CSV path is deterministic + tier-free (no Gemini, works on Sprout). Rows are inserted as `source='manual'` via `saveToShed`; rows with the `favourite` flag call `favouritePlant()` after insert.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| SHED-BULK-001 | ✅ | Bulk add opens with a mode toggle (Paste / Upload CSV) | — | ✅ Passing |
+| SHED-BULK-002 | ✅ | CSV mode "Download template" downloads `rhozly-plants-template.csv` | — | ✅ Passing |
+| SHED-BULK-003 | ✅ | CSV upload renders review rows; bad row (watering min>max) flagged + excluded, save counts only valid rows | — | ✅ Passing |
+| SHED-BULK-004 | ✅ | Import valid CSV rows creates manual plants; `favourite=true` row lands in the Favourites scope | — | ✅ Passing |
+| SHED-BULK-005 | ✅ | Free-text paste still reaches the shared review step (with "Mark all as favourites" toggle) | — | ✅ Passing |
+
 ## Plant card actions
 
 | ID | Type | Description | Mock | Status |

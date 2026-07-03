@@ -802,3 +802,138 @@ test.describe("Shed — Plant card actions", () => {
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RHO-4 — Bulk add: CSV upload + downloadable template + favourites-on-upload.
+// The CSV path is deterministic + tier-free (no Gemini) and both entry paths
+// feed the same review step.
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe("Shed — Bulk add (RHO-4 CSV upload)", () => {
+  test("SHED-BULK-001: Bulk add opens with a mode toggle (Paste / Upload CSV)", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await shed.openBulkAdd();
+    await expect(shed.bulkAddModePaste).toBeVisible({ timeout: 5000 });
+    await expect(shed.bulkAddModeCsv).toBeVisible();
+  });
+
+  test("SHED-BULK-002: CSV mode exposes a Download template button", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await shed.openBulkAdd();
+    await shed.bulkAddModeCsv.click();
+
+    // The download triggers a real Blob download; assert filename via the event.
+    const [download] = await Promise.all([
+      authenticatedPage.waitForEvent("download", { timeout: 8000 }),
+      shed.csvTemplateDownload.click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("rhozly-plants-template.csv");
+  });
+
+  test("SHED-BULK-003: Uploading a CSV shows review rows; bad row is flagged and excluded", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await shed.openBulkAdd();
+    await shed.bulkAddModeCsv.click();
+
+    // One valid row + one invalid row (watering min > max).
+    const csv =
+      "common_name,watering_min_days,watering_max_days\n" +
+      "E2E CSV Good,2,5\n" +
+      "E2E CSV Bad,10,3\n";
+    await shed.uploadCsv("plants.csv", csv);
+
+    // Two candidate cards render; the bad one shows an error block.
+    await expect(shed.bulkAddCandidate(0)).toBeVisible({ timeout: 8000 });
+    await expect(shed.bulkAddCandidate(1)).toBeVisible();
+    await expect(shed.bulkAddCandidateErrors(1)).toBeVisible();
+
+    // The save button counts only the valid row.
+    await expect(shed.bulkAddSave).toContainText(/Add 1 plant/i, { timeout: 5000 });
+  });
+
+  test("SHED-BULK-004: Import valid CSV rows creates manual plants + a favourite", async ({ authenticatedPage }) => {
+    // Creates two plants, verifies both grids + the favourites scope, then
+    // cleans up (unfavourite + delete both) — give it headroom past the default 30s.
+    test.setTimeout(90_000);
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    const stamp = Date.now();
+    const plainName = `E2E CSV Plain ${stamp}`;
+    const favName = `E2E CSV Fav ${stamp}`;
+
+    await shed.openBulkAdd();
+    await shed.bulkAddModeCsv.click();
+
+    const csv =
+      "common_name,favourite\n" +
+      `${plainName},false\n` +
+      `${favName},true\n`;
+    await shed.uploadCsv("plants.csv", csv);
+
+    await expect(shed.bulkAddCandidate(0)).toBeVisible({ timeout: 8000 });
+    // The favourite column pre-ticks the second row's checkbox.
+    await expect(shed.bulkAddCandidateFavourite(1)).toBeChecked();
+
+    await shed.bulkAddSave.click();
+
+    // Success toast confirms the serial saves finished, then the modal closes.
+    await authenticatedPage.getByText(/added .* to your shed/i)
+      .waitFor({ state: "visible", timeout: 15000 });
+    await shed.bulkAddModal.waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
+    await authenticatedPage.goto("/shed");
+    await shed.waitForLoad();
+    await expect(shed.plantCard(plainName)).toBeVisible({ timeout: 10000 });
+    await expect(shed.plantCard(favName)).toBeVisible({ timeout: 10000 });
+
+    // The favourited row shows in the Favourites scope.
+    await shed.gotoFavourites();
+    await shed.waitForLoad();
+    await expect(shed.favouriteCard(favName)).toBeVisible({ timeout: 10000 });
+    await expect(shed.favouriteCard(plainName)).toHaveCount(0);
+
+    // ── Cleanup: unfavourite + delete both test plants ──
+    const favRemove = shed.favouriteRemoveIn(shed.favouriteCard(favName));
+    if (await favRemove.isVisible({ timeout: 4000 }).catch(() => false)) {
+      await favRemove.click();
+    }
+    for (const name of [plainName, favName]) {
+      // Reload between deletes so the previous confirm overlay is fully gone
+      // and the grid reflects the last deletion.
+      await authenticatedPage.goto("/shed");
+      await shed.waitForLoad();
+      const delBtn = shed.deleteButtonFor(name);
+      if (!(await delBtn.isVisible({ timeout: 4000 }).catch(() => false))) continue;
+      await delBtn.click();
+      const confirm = authenticatedPage.getByRole("button", { name: /^Delete$/i });
+      if (await confirm.isVisible({ timeout: 4000 }).catch(() => false)) {
+        await confirm.click();
+        await expect(shed.plantCard(name)).toHaveCount(0, { timeout: 8000 }).catch(() => {});
+      }
+    }
+  });
+
+  test("SHED-BULK-005: Free-text paste still works and reaches the shared review step", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await shed.openBulkAdd();
+    // Paste mode is the default — type a one-line list and parse.
+    await authenticatedPage.locator('[data-testid="bulk-paste-textarea"]').fill("Foxglove");
+    await authenticatedPage.locator('[data-testid="bulk-paste-parse"]').click();
+
+    // Review step: the candidate card + the shared "Mark all as favourites" toggle.
+    await expect(shed.bulkAddCandidate(0)).toBeVisible({ timeout: 10000 });
+    await expect(shed.bulkAddFavouriteAll).toBeVisible();
+  });
+});

@@ -44,6 +44,19 @@ export class WatchlistPage {
   readonly favouritesHintBanner: Locator;
   readonly favouritesHintDismiss: Locator;
 
+  // Bulk add modal (RHO-4 Phase 2 — paste + CSV upload)
+  readonly bulkAddButton: Locator;
+  readonly bulkAddModal: Locator;
+  readonly bulkAddModePaste: Locator;
+  readonly bulkAddModeCsv: Locator;
+  readonly bulkAddTextarea: Locator;
+  readonly bulkAddParse: Locator;
+  readonly csvTemplateDownload: Locator;
+  readonly csvFileInput: Locator;
+  readonly bulkAddSave: Locator;
+  readonly bulkAddFavouriteAll: Locator;
+  readonly bulkAddFileIssues: Locator;
+
   constructor(page: Page) {
     this.page = page;
     this.heading = page.getByRole("heading", { name: "Ailment Watchlist" });
@@ -83,6 +96,49 @@ export class WatchlistPage {
     this.favouritesGrid = page.locator('[data-testid="watchlist-favourites-grid"]');
     this.favouritesHintBanner = page.locator('[data-testid="watchlist-favourites-hint-banner"]');
     this.favouritesHintDismiss = page.locator('[data-testid="watchlist-favourites-hint-dismiss"]');
+
+    this.bulkAddButton = page.locator('[data-testid="watchlist-bulk-add-btn"]');
+    this.bulkAddModal = page.locator('[data-testid="bulk-add-ailments-modal"]');
+    this.bulkAddModePaste = page.locator('[data-testid="bulk-ailment-mode-paste"]');
+    this.bulkAddModeCsv = page.locator('[data-testid="bulk-ailment-mode-csv"]');
+    this.bulkAddTextarea = page.locator('[data-testid="bulk-ailment-textarea"]');
+    this.bulkAddParse = page.locator('[data-testid="bulk-ailment-parse"]');
+    this.csvTemplateDownload = page.locator('[data-testid="csv-template-download"]');
+    this.csvFileInput = page.locator('[data-testid="csv-file-input"]');
+    this.bulkAddSave = page.locator('[data-testid="bulk-ailment-save"]');
+    this.bulkAddFavouriteAll = page.locator('[data-testid="bulk-ailment-favourite-all"]');
+    this.bulkAddFileIssues = page.locator('[data-testid="bulk-ailment-file-issues"]');
+  }
+
+  // ── Bulk add modal helpers (RHO-4 Phase 2) ─────────────────────────────────
+  /** Open the Bulk add modal from the Watchlist header. */
+  async openBulkAdd() {
+    await this.bulkAddButton.click();
+    await this.bulkAddModal.waitFor({ state: "visible", timeout: 8000 });
+  }
+
+  /** A review candidate card by index. */
+  bulkAddCandidate(idx: number): Locator {
+    return this.page.locator(`[data-testid="bulk-ailment-candidate-${idx}"]`);
+  }
+
+  /** The per-row favourite checkbox in the review step. */
+  bulkAddCandidateFavourite(idx: number): Locator {
+    return this.page.locator(`[data-testid="bulk-ailment-candidate-favourite-${idx}"]`);
+  }
+
+  /** The per-row error block (present only for invalid rows). */
+  bulkAddCandidateErrors(idx: number): Locator {
+    return this.page.locator(`[data-testid="bulk-ailment-candidate-errors-${idx}"]`);
+  }
+
+  /** Upload a CSV into the file input by buffer (no fixture file on disk). */
+  async uploadCsv(fileName: string, content: string) {
+    await this.csvFileInput.setInputFiles({
+      name: fileName,
+      mimeType: "text/csv",
+      buffer: Buffer.from(content, "utf-8"),
+    });
   }
 
   async goto() {

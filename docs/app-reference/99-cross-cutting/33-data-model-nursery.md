@@ -235,9 +235,11 @@ Everything on the packet is free-text and editable any time — variety, vendor,
 
 Two paths create rows without a linked plant:
 1. **"Add later"** path in the single-add modal — the user just wants to log the packet now.
-2. **Bulk-paste** rows — the free-text doesn't carry a catalogue link.
+2. **Bulk add** rows (paste OR CSV upload) whose plant name has **no** match in the home's Shed.
 
-Both paths land with `plant_id = null` and a notes stamp recording the parsed common name. Plant Out is gated on `plant_id != null` so the resulting `inventory_items` row always references a real catalogue plant.
+Unmatched rows land with `plant_id = null` and a notes stamp recording the parsed/entered plant name. Plant Out is gated on `plant_id != null` so the resulting `inventory_items` row always references a real catalogue plant.
+
+**Link-by-name write path (RHO-4 Phase 3).** `BulkPasteSeedPacketsModal` — for both the paste and CSV modes — resolves each row's plant name against the home's non-archived `plants` (case-insensitive exact `common_name` match) before calling `createSeedPacket`. A match sets `plant_id` (so the packet is immediately Plant-Out-ready and its favourite identity carries the plant name); no match keeps `plant_id = null` and preserves the name in the notes provenance line. The CSV path enters via `SEED_PACKET_TEMPLATE` in `src/lib/uploadTemplates/registry.ts` (its `plant_name` field is a scratch link key, never a `seed_packets` column) with flexible date parsing (`purchased_on`/`opened_on` round to first-of-period, `sow_by` to last-of-period). No new columns, no migration — the CSV import is bulk `createSeedPacket`, identical to the existing paste insert.
 
 ---
 
@@ -252,5 +254,7 @@ Both paths land with `plant_id = null` and a notes stamp recording the parsed co
 
 - `supabase/migrations/20260624000500_nursery.sql` — schema + view + RLS
 - `src/services/nurseryService.ts` — all reads / writes / lifecycle
+- `src/components/nursery/BulkPasteSeedPacketsModal.tsx` — paste + CSV bulk add, link-by-name resolution, favourites-on-import
+- `src/lib/uploadTemplates/registry.ts` — `SEED_PACKET_TEMPLATE` (RHO-4 Phase 3 CSV contract)
 - `src/components/nursery/PlantOutSowingModal.tsx` — only writer of `inventory_items.from_sowing_id`
 - `src/components/InstanceEditModal.tsx` — only reader of `from_sowing_id` for the provenance badge

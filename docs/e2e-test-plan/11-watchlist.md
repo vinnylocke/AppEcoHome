@@ -35,6 +35,19 @@
 | WL-024 | ✅ | Filter by Pest | — | ✅ Passing |
 | WL-025 | ✅ | Filter by Disease | — | ✅ Passing |
 
+## Bulk add — CSV upload + AI paste (RHO-4 Phase 2)
+
+**Spec file:** `tests/e2e/specs/watchlist.spec.ts` (Section WL-BULK) · **Page object:** `WatchlistPage.ts` (bulk-add locators + `openBulkAdd`/`uploadCsv` helpers)
+**Seed dependencies:** none beyond the standard seeded watchlist; the import test creates + cleans up its own uniquely-named ailments.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| WL-BULK-001 | ✅ | Bulk add opens with a mode toggle (Paste a list / Upload CSV); the AI-paste textarea is visible | — | ✅ Passing |
+| WL-BULK-002 | ✅ | CSV mode → Download template emits `rhozly-watchlist-template.csv` | — | ✅ Passing |
+| WL-BULK-003 | ✅ | Upload CSV → review rows; bad-`type` row flagged + excluded; save button counts only valid rows | — | ✅ Passing |
+| WL-BULK-004 | ✅ | Import valid CSV rows creates `source='manual'` ailments (Manual badge); favourite-flagged row lands in the Favourites scope; cleanup deletes both | — | ✅ Passing |
+| WL-BULK-005 | ✅ | Free-text paste (regex fallback) reaches the shared review step; "Mark all as favourites" visible; knotweed classified `invasive_plant` | — | ✅ Passing |
+
 ## Cross-home favourites (Phase 2 — ailments)
 
 **Spec file:** `tests/e2e/specs/favourites.spec.ts` (Section FAV-WL)

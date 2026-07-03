@@ -1683,10 +1683,10 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     <button
                       data-testid="shed-bulk-paste-btn"
                       onClick={() => setShowBulkPaste(true)}
-                      title="Paste a list of plants to add all at once"
+                      title="Paste a list or upload a CSV to add plants all at once"
                       className="hidden sm:flex items-center gap-2 px-4 py-3 bg-white border border-rhozly-outline/20 text-rhozly-primary rounded-2xl font-black text-sm hover:border-rhozly-primary/30 hover:bg-rhozly-primary/5 transition-colors"
                     >
-                      <FileText size={16} /> Bulk paste
+                      <FileText size={16} /> Bulk add
                     </button>
                   </>
                 )}

@@ -41,7 +41,7 @@ plants (species)
 |--------|------|-------|
 | `id` | int (auto) | PK |
 | `home_id` | uuid (nullable) | FK. NULL for global rows (Perenual API + global AI catalogue). |
-| `source` | text | constraint allows manual / api / ai / verdantly |
+| `source` | text | constraint allows manual / api / ai / verdantly. **Bulk CSV import (RHO-4 Phase 1)** inserts every uploaded row as `source='manual'` via the standard `saveToShed` path (no lookup/dedup — the user's own data stays editable). The CSV field set mirrors `ManualPlantCreation.cleanPayload` (minus `thumbnail_url`), driven by the pure `src/lib/uploadTemplates/` registry; a parity unit test pins the template headers to the form's insert keys so the two can't drift. `labels` is NOT NULL, so CSV rows default it to `[]`. See [The Shed § Bulk add](../03-garden-hub/01-the-shed.md). |
 | `common_name` | text | |
 | `scientific_name` | jsonb (array) | |
 | `perenual_id`, `verdantly_id` | int / text | Provider ids |

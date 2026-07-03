@@ -45,6 +45,8 @@ A self-populating **global** catalogue of pests/diseases/invasives/disorders, mi
 | `treatments` | jsonb | Recommended products + frequency |
 | `is_archived` | bool | |
 
+**Bulk CSV / AI-paste write path (RHO-4 Phase 2).** Besides the one-at-a-time Add modal, a home `ailments` row can be created in batch via [`BulkAddAilmentsModal`](../../../src/components/BulkAddAilmentsModal.tsx) (Watchlist **Bulk add**): a strict CSV parse against `AILMENT_TEMPLATE` ([`src/lib/uploadTemplates/registry.ts`](../../../src/lib/uploadTemplates/registry.ts)) or a free-text AI/regex paste ([`parse-ailment-list`](./10-edge-functions-catalogue.md) / `src/lib/parseAilmentList.ts`). **Every bulk-imported ailment is `source='manual'`** — no library/Perenual/AI lookup runs during import; user-supplied fields are authoritative and edits stay unlocked. `symptoms`/`prevention_steps`/`remedy_steps` land as the same jsonb object arrays the manual `StepBuilder` produces — CSV grammar v1 populates only symptom `title [severity]` and step titles (task_type / frequency / product default and are configured in the detail editor). `name` + `type` are the required CSV columns; `type` is validated against the DB CHECK before insert. A per-row favourite flag (CSV `favourite` column or the review-step toggle) triggers a post-insert `favouriteAilment()` on the new row. Row cap 200 per file.
+
 ### `plant_instance_ailments` columns
 
 | Column | Type | Notes |
@@ -126,4 +128,5 @@ Ailments are reusable (one "Aphids" record per home), but each instance of an ou
 - `supabase/migrations/20260901000000_user_favourite_ailments.sql` — cross-home favourite ailments
 - `src/services/favouritesService.ts` — favourite/add-to-home ailment fns
 - `src/lib/favouriteIdentity.ts` — ailment identity / gating helpers
+- `src/components/BulkAddAilmentsModal.tsx` + `src/lib/uploadTemplates/registry.ts` (`AILMENT_TEMPLATE`) + `src/lib/parseAilmentList.ts` + `supabase/functions/parse-ailment-list/` — RHO-4 Phase 2 bulk manual-ailment write path
 - `src/lib/automationEngine.ts`

@@ -63,6 +63,17 @@ export class ShedPage {
   readonly favouritesHintDismiss: Locator;
   readonly favouritesEmptyState: Locator;
 
+  // Bulk add modal (RHO-4 — paste + CSV upload)
+  readonly bulkAddButton: Locator;
+  readonly bulkAddModal: Locator;
+  readonly bulkAddModePaste: Locator;
+  readonly bulkAddModeCsv: Locator;
+  readonly csvTemplateDownload: Locator;
+  readonly csvFileInput: Locator;
+  readonly bulkAddSave: Locator;
+  readonly bulkAddFavouriteAll: Locator;
+  readonly bulkAddFileIssues: Locator;
+
   // Sort dropdown (aria-label only — no testid in source)
   readonly sortSelect: Locator;
 
@@ -125,6 +136,16 @@ export class ShedPage {
     this.favouritesHintBanner = page.locator('[data-testid="favourites-hint-banner"]');
     this.favouritesHintDismiss = page.locator('[data-testid="favourites-hint-dismiss"]');
     this.favouritesEmptyState = page.getByText("No favourites yet");
+
+    this.bulkAddButton = page.locator('[data-testid="shed-bulk-paste-btn"]');
+    this.bulkAddModal = page.locator('[data-testid="bulk-paste-plants-modal"]');
+    this.bulkAddModePaste = page.locator('[data-testid="bulk-add-mode-paste"]');
+    this.bulkAddModeCsv = page.locator('[data-testid="bulk-add-mode-csv"]');
+    this.csvTemplateDownload = page.locator('[data-testid="csv-template-download"]');
+    this.csvFileInput = page.locator('[data-testid="csv-file-input"]');
+    this.bulkAddSave = page.locator('[data-testid="bulk-paste-save"]');
+    this.bulkAddFavouriteAll = page.locator('[data-testid="bulk-add-favourite-all"]');
+    this.bulkAddFileIssues = page.locator('[data-testid="bulk-add-file-issues"]');
 
     this.sortSelect = page.getByLabel("Sort plants");
 
@@ -224,5 +245,36 @@ export class ShedPage {
 
   assignButtonFor(name: string): Locator {
     return this.plantCard(name).getByRole("button", { name: "Assign", exact: true });
+  }
+
+  // ── Bulk add modal helpers (RHO-4) ─────────────────────────────────────────
+  /** Open the Bulk add modal from the Shed header. */
+  async openBulkAdd() {
+    await this.bulkAddButton.click();
+    await this.bulkAddModal.waitFor({ state: "visible", timeout: 8000 });
+  }
+
+  /** A CSV review candidate card by index. */
+  bulkAddCandidate(idx: number): Locator {
+    return this.page.locator(`[data-testid="bulk-paste-candidate-${idx}"]`);
+  }
+
+  /** The per-row favourite checkbox in the review step. */
+  bulkAddCandidateFavourite(idx: number): Locator {
+    return this.page.locator(`[data-testid="bulk-paste-candidate-favourite-${idx}"]`);
+  }
+
+  /** The per-row error block (present only for invalid rows). */
+  bulkAddCandidateErrors(idx: number): Locator {
+    return this.page.locator(`[data-testid="bulk-paste-candidate-errors-${idx}"]`);
+  }
+
+  /** Upload a CSV into the file input by buffer (no fixture file on disk). */
+  async uploadCsv(fileName: string, content: string) {
+    await this.csvFileInput.setInputFiles({
+      name: fileName,
+      mimeType: "text/csv",
+      buffer: Buffer.from(content, "utf-8"),
+    });
   }
 }

@@ -11,7 +11,12 @@
 
 A grid of plant cards. Each card represents one `plants` row (a species/type, not an individual instance). Cards show common name, scientific name, source badge (Perenual / Verdantly / AI / Manual), planted count chip, and a row of action buttons (View on Layout, Light needs, Ask AI, Archive, Delete). At the top: a sticky search bar, multi-select toggle, smart filter chips (unassigned / in-plan / harvest-ready), "Find a plant" button (opens BulkSearchModal), and a "Bulk paste" entry (opens BulkPastePlantsModal, Sprint 4a 2026-06-15).
 
-**Bulk paste (Sprint 4a, 2026-06-15):** the new [`BulkPastePlantsModal`](../../../src/components/BulkPastePlantsModal.tsx) accepts a multi-line text paste — one plant per line. Sage+ users get a Gemini-backed fuzzy parser ([`parse-plant-list`](../../../supabase/functions/parse-plant-list/index.ts)); free / Botanist users get the regex fallback in [`src/lib/parsePlantList.ts`](../../../src/lib/parsePlantList.ts). Both return the same `ParsedPlant` shape so the review step is identical. Each row is saved via the standard `saveToShed` path as `source: "manual"`.
+**Bulk add (Sprint 4a 2026-06-15; CSV upload RHO-4 Phase 1 2026-07-03):** the [`BulkPastePlantsModal`](../../../src/components/BulkPastePlantsModal.tsx) (header button now labelled **"Bulk add"**) has a **mode toggle**:
+
+- **"Paste a list"** (unchanged) — a multi-line text paste, one plant per line. Sage+ users get a Gemini-backed fuzzy parser ([`parse-plant-list`](../../../supabase/functions/parse-plant-list/index.ts)); free / Botanist users get the regex fallback in [`src/lib/parsePlantList.ts`](../../../src/lib/parsePlantList.ts).
+- **"Upload CSV"** (RHO-4 Phase 1) — a strict CSV parse against `PLANT_TEMPLATE` from the new pure module [`src/lib/uploadTemplates/`](../../../src/lib/uploadTemplates/). A **"Download template"** button emits `rhozly-plants-template.csv` (UTF-8 BOM + canonical header row + one EXAMPLE row the parser skips on re-upload). The parser handles RFC-4180 quoting, CRLF/LF, BOM, delimiter sniffing on the header row (`,` / `;` / tab), enum normalisation, per-row + per-field validation (required, enum, int-range, watering min≤max cross-check), a **200-row cap**, and formula-injection hardening. The CSV path is **deterministic and tier-free** (no Gemini call, no `ai_enabled` gate) so it works identically on Sprout.
+
+Both modes feed the **same review step**, which surfaces per-row + per-field errors (invalid rows show a red banner and are excluded from Save), a per-row **favourite** checkbox, and a **"Mark all as favourites"** toggle. Each row is saved via the standard `saveToShed` path as `source: "manual"` (no lookup/dedup — user's own data stays editable); for rows whose favourite flag is set, `favouritePlant()` is called on the new row after insert (manual source → the server tier-trigger always allows it, no AI/API spend). The single field-registry drives the template download, the parser, per-field validation, AND (via a parity unit test) the manual form's payload shape, so template and form can never drift.
 
 A **Plants / Nursery** toggle pill under the page title swaps the body to [The Nursery](./10-nursery.md) — seed packets + sowings + the plant-out lifecycle. Nursery mode hides the plant search bar and grid; seedlings graduate from the Nursery back into the Shed via the Plant Out flow.
 
@@ -267,7 +272,10 @@ The card-grid layout lets you scan visually. The status chips at the bottom of e
 - Tap **Add Plant** (top right) → BulkSearchModal opens.
 - Search by common or scientific name. Up to three sources (depending on tier) return candidate matches.
 - Pick one or many → review → confirm → plants land in your Shed.
-- Add Plant has a **"Paste a list"** mode for bulk adding (e.g. you've got a list of 30 species you want to import).
+- The **"Bulk add"** button (next to Add Plant) is for adding many plants at once. It offers two ways in:
+  - **Paste a list** — type or paste a plant per line (e.g. you scribbled 30 plants on your phone). Sage+ gets smarter AI parsing; every tier gets a solid regex fallback.
+  - **Upload CSV** — for spreadsheet people who want every field. Tap **Download template**, fill one row per plant in Excel/Sheets (only the common name is required; up to 200 rows), and upload it. This path is exact and works on every plan — no AI needed. Tick the **favourite** column (or "Mark all as favourites" on the review screen) to save rows straight to your cross-home Favourites as they import.
+  - Both ways land on the same review screen, where you fix or remove any flagged rows before saving. Every plant is added as your own editable **Manual** plant — there's no database lookup, so nothing gets locked or overwritten.
 
 #### 2. Multi-select bulk actions
 
@@ -390,6 +398,9 @@ The BetaFeedbackBanner sits above the page (global), not Shed-specific.
 - `src/services/favouritesService.ts` — favourite/unfavourite, add-to-home, copy-on-write fork+re-point
 - `src/lib/favouriteIdentity.ts` — pure identity / gating / fork helpers (unit-tested)
 - `supabase/migrations/20260831000000_user_favourite_plants.sql` — table + RLS + grants + tier-gate trigger
+- `src/components/BulkPastePlantsModal.tsx` — bulk add modal (paste + CSV modes, shared review step, favourites-on-import)
+- `src/lib/uploadTemplates/` — pure CSV upload registry: `types.ts` (FieldSpec / RecordTemplate / RowIssue / ParsedRow), `registry.ts` (`PLANT_TEMPLATE` — Phase 1; AILMENT/SEED_PACKET slot in for Phases 2/3), `csv.ts` (RFC-4180 tokenizer + serialiser, BOM, delimiter sniffing), `parse.ts` (`parseCsv` — per-row/field validation, EXAMPLE skip, 200-row cap), `template.ts` (`buildTemplateCsv` + `downloadTemplate`)
+- `tests/unit/lib/uploadTemplates/*.test.ts` — registry↔cleanPayload parity guard + csv/parse/template coverage
 - `src/hooks/useCachedShed.ts` — caching hook
 - `src/lib/plantProvider.ts` — unified search + details
 - `src/lib/perenualService.ts` / `verdantlyService.ts` — provider clients

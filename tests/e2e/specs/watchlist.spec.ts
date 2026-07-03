@@ -533,3 +533,136 @@ test.describe("Watchlist — empty state (WL-003)", () => {
     ).toBeVisible({ timeout: 10000 });
   });
 });
+
+test.describe("Watchlist — Bulk add (RHO-4 Phase 2)", () => {
+  test("WL-BULK-001: Bulk add opens with a mode toggle (Paste / Upload CSV)", async ({ authenticatedPage }) => {
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    await wl.openBulkAdd();
+    // Both the AI/regex paste mode and the CSV mode are visible.
+    await expect(wl.bulkAddModePaste).toBeVisible({ timeout: 5000 });
+    await expect(wl.bulkAddModeCsv).toBeVisible();
+    await expect(wl.bulkAddTextarea).toBeVisible();
+  });
+
+  test("WL-BULK-002: CSV mode exposes a Download template button (ailment template)", async ({ authenticatedPage }) => {
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    await wl.openBulkAdd();
+    await wl.bulkAddModeCsv.click();
+
+    const [download] = await Promise.all([
+      authenticatedPage.waitForEvent("download", { timeout: 8000 }),
+      wl.csvTemplateDownload.click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("rhozly-watchlist-template.csv");
+  });
+
+  test("WL-BULK-003: Uploading a CSV shows review rows; bad row (missing type) is flagged and excluded", async ({ authenticatedPage }) => {
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    await wl.openBulkAdd();
+    await wl.bulkAddModeCsv.click();
+
+    // One valid row + one invalid row (bad enum type).
+    const csv =
+      "name,type\n" +
+      "E2E CSV Good Ailment,pest\n" +
+      "E2E CSV Bad Ailment,notatype\n";
+    await wl.uploadCsv("watchlist.csv", csv);
+
+    await expect(wl.bulkAddCandidate(0)).toBeVisible({ timeout: 8000 });
+    await expect(wl.bulkAddCandidate(1)).toBeVisible();
+    await expect(wl.bulkAddCandidateErrors(1)).toBeVisible();
+
+    // The save button counts only the valid row.
+    await expect(wl.bulkAddSave).toContainText(/Add 1 ailment/i, { timeout: 5000 });
+  });
+
+  test("WL-BULK-004: Import valid CSV rows creates manual ailments + a favourite", async ({ authenticatedPage }) => {
+    test.setTimeout(90_000);
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    const stamp = Date.now();
+    const plainName = `E2E CSV Ailment Plain ${stamp}`;
+    const favName = `E2E CSV Ailment Fav ${stamp}`;
+
+    await wl.openBulkAdd();
+    await wl.bulkAddModeCsv.click();
+
+    const csv =
+      "name,type,favourite\n" +
+      `${plainName},pest,false\n` +
+      `${favName},disease,true\n`;
+    await wl.uploadCsv("watchlist.csv", csv);
+
+    await expect(wl.bulkAddCandidate(0)).toBeVisible({ timeout: 8000 });
+    // The favourite column pre-ticks the second row's checkbox.
+    await expect(wl.bulkAddCandidateFavourite(1)).toBeChecked();
+
+    await wl.bulkAddSave.click();
+
+    // Success toast confirms the serial inserts finished, then the modal closes.
+    await authenticatedPage.getByText(/added .* to your watchlist/i)
+      .waitFor({ state: "visible", timeout: 15000 });
+    await wl.bulkAddModal.waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
+
+    await authenticatedPage.goto("/watchlist");
+    await wl.waitForLoad();
+    // Both new ailments appear with the Manual source badge.
+    await expect(wl.ailmentCard(plainName)).toBeVisible({ timeout: 10000 });
+    await expect(wl.ailmentCard(favName)).toBeVisible({ timeout: 10000 });
+    await expect(wl.ailmentCard(plainName).getByText("Manual", { exact: true })).toBeVisible();
+
+    // The favourited row shows in the Favourites scope.
+    await wl.gotoFavourites();
+    await wl.waitForLoad();
+    await expect(wl.favouriteCard(favName)).toBeVisible({ timeout: 10000 });
+    await expect(wl.favouriteCard(plainName)).toHaveCount(0);
+
+    // ── Cleanup: unfavourite + delete both test ailments ──
+    const favRemove = wl.favouriteRemoveIn(wl.favouriteCard(favName));
+    if (await favRemove.isVisible({ timeout: 4000 }).catch(() => false)) {
+      await favRemove.click();
+    }
+    for (const name of [plainName, favName]) {
+      await authenticatedPage.goto("/watchlist");
+      await wl.waitForLoad();
+      const delBtn = wl.deleteButtonFor(name);
+      if (!(await delBtn.isVisible({ timeout: 4000 }).catch(() => false))) continue;
+      await delBtn.click();
+      const confirm = authenticatedPage.getByRole("button", { name: /^Delete$/i });
+      if (await confirm.isVisible({ timeout: 4000 }).catch(() => false)) {
+        await confirm.click();
+        await expect(wl.ailmentCard(name)).toHaveCount(0, { timeout: 8000 }).catch(() => {});
+      }
+    }
+  });
+
+  test("WL-BULK-005: Free-text paste (regex fallback) reaches the shared review step with an editable type", async ({ authenticatedPage }) => {
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    await wl.openBulkAdd();
+    // Paste mode is the default — type a one-line list and parse.
+    await wl.bulkAddTextarea.fill("Japanese knotweed");
+    await wl.bulkAddParse.click();
+
+    // Review step: the candidate card + the shared "Mark all as favourites" toggle.
+    await expect(wl.bulkAddCandidate(0)).toBeVisible({ timeout: 10000 });
+    await expect(wl.bulkAddFavouriteAll).toBeVisible();
+    // The regex classifier picked invasive_plant for knotweed.
+    await expect(
+      authenticatedPage.locator('[data-testid="bulk-ailment-candidate-type-0"]'),
+    ).toHaveValue("invasive_plant");
+  });
+});

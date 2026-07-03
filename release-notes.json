@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "label": "New — Bulk upload & templates",
+    "items": [
+      "Upload plants, watchlist pests/diseases and seed packets in bulk from a spreadsheet (CSV) — with every field the manual form offers, not just the basics.",
+      "Download a ready-made template for each, showing all the columns and formats, so you know exactly what to fill in.",
+      "Tick a Favourites column (or 'Mark all') as you upload to save rows straight to your personal Favourites.",
+      "The Watchlist now has bulk add for the first time — paste a rough list and let AI sort it, or upload a CSV.",
+      "A clear review step flags any row problems before anything is saved, and imports up to 200 rows at a time."
+    ]
+  }
+]
