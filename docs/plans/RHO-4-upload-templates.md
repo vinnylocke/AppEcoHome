@@ -270,3 +270,30 @@ Each phase is independently shippable; Phase 1 alone already delivers asks 2+3 f
 **Test plan:** rows in `docs/e2e-test-plan/` for Shed / Watchlist / Nursery surfaces; `TESTING.md` inventory + counts for the new spec + page objects.
 
 **Release notes:** entry in `release-notes.json` when deployed (sections-array format).
+
+---
+
+## Revision 2026-07-03 — favourites integration (post cross-home-favourites)
+
+The cross-home favourites feature (plants/ailments/packets) shipped after this plan was written. RHO-4 now integrates with it.
+
+**Uploaded plants are ALL created as `source='manual'`** (user decision 2026-07-03). Rationale: uploaded rows are the user's own data — manual keeps them editable (non-manual plants are now copy-on-write locked), off the tier gates, own unique ids, and needs no dedup/scientific-name matching (explicitly rejected for favourites too). NO lookup against library/API/AI catalogue rows. Ailments uploaded the same way (`source='manual'`); seed packets have no source (always user-created).
+
+**"Add uploaded rows to Favourites" — no new DB column.** Favourites live in `user_favourite_plants` / `_ailments` / `_seed_packets` (their own tables). Mechanism:
+- A `favourite` boolean FieldSpec (kind `bool`, default false) is added to each RecordTemplate → appears as an optional column in the downloadable CSV template, so a user can mark specific rows in their spreadsheet.
+- The review step gets a **"Mark all as favourites"** convenience toggle (sets every row's favourite flag) and a per-row favourite checkbox.
+- On import: after the manual insert succeeds for a row, if its favourite flag is set, call the existing `favouritePlant()` / `favouriteAilment()` / `favouriteSeedPacket()` service fn for that new row. Since the row is `manual`, the server tier-trigger always allows it — no gating, no AI/API spend.
+- The AI free-text paste path (unchanged parser) also reaches the same review step, so the favourite toggle works identically there.
+
+This adds one FieldSpec per template + a review-step toggle + a post-insert favourite call — no schema change, no migration.
+
+## Answers to open questions 2026-07-03
+
+1. **Favourites UX**: `favourite` boolean CSV column + "Mark all as favourites" review-step toggle (per-row control). Confirmed above.
+2. **Ailment nested grammar**: simple v1 — symptoms as `title [severity]`, step titles only; full step config in the detail editor afterwards. Approved.
+3. **Watchlist AI free-text paste**: BUILD it — new `parse-ailment-list` Gemini edge function so the Watchlist gets the same "paste a list" mode as plants/packets (Sage+ AI with regex fallback, mirroring parse-plant-list). In Phase 2.
+4. **Row cap**: 200 rows per CSV import (AI-paste path keeps its ~60 token-bound limit).
+5. **Image URLs** (Q1 in §12): excluded v1 (plan default) — images stay a per-record UI action.
+6. **Button naming** (Q4 in §12): "Bulk add" across all three entry points (plan default).
+
+Ready to implement. Phases: (1) registry + plants CSV + favourites column, (2) Watchlist bulk add — CSV + AI paste (parse-ailment-list) + favourites, (3) seed packets CSV + favourites, (4) docs/polish folded into each.
