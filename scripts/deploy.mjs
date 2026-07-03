@@ -205,6 +205,13 @@ async function deploy() {
   // (RHOZLY-3P).
   console.log("🧪  [0/6] Pre-flight: typecheck + schema column check...");
   run("npm run typecheck");
+  // The schema check validates against PROD, but this very deploy may be
+  // the one carrying the migrations that add the columns the code uses
+  // (chicken-and-egg — bit the RHO-17 deploy). Push migrations FIRST,
+  // then gate: db push is additive/idempotent and safe before
+  // maintenance, and a failed gate still aborts before maintenance goes
+  // on or any code ships.
+  run("supabase db push --include-all");
   run("node scripts/check-schema-columns.mjs");
 
   // Step 1: maintenance ON
@@ -213,7 +220,9 @@ async function deploy() {
   console.log(`     Users will see: "${MAINTENANCE_MESSAGE}"`);
 
   try {
-    // Step 2: push DB migrations
+    // Step 2: push DB migrations. Normally a no-op — step 0 already
+    // pushed them ahead of the schema gate — kept as a belt-and-braces
+    // re-run in case anything landed between the gate and here.
     console.log("\n📦  [2/6] Pushing database migrations...");
     run("supabase db push --include-all");
 
