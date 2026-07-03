@@ -74,6 +74,25 @@ function run(cmd) {
   execSync(cmd, { stdio: "inherit" });
 }
 
+// Retry a command with backoff. Used for the post-migration schema gate:
+// after `db push` adds tables, PostgREST's schema cache lags a few seconds
+// before the new tables appear in the OpenAPI the checker reads — so a
+// migration-carrying deploy would fail the gate on pure timing even though
+// the migration succeeded. Retrying absorbs the cache-reload window.
+function runWithRetry(cmd, { attempts = 4, delayMs = 8000 } = {}) {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      console.log(`\n  $ ${cmd}${i > 1 ? `  (attempt ${i}/${attempts})` : ""}`);
+      execSync(cmd, { stdio: "inherit" });
+      return;
+    } catch (err) {
+      if (i === attempts) throw err;
+      console.log(`     ↻ failed — retrying in ${delayMs / 1000}s (schema cache may still be reloading)...`);
+      execSync(process.platform === "win32" ? `powershell -Command "Start-Sleep -Milliseconds ${delayMs}"` : `sleep ${Math.ceil(delayMs / 1000)}`);
+    }
+  }
+}
+
 async function setMaintenance(enabled, message = null) {
   const url = `${SUPABASE_URL}/rest/v1/app_config?key=eq.maintenance_mode`;
   const res = await fetch(url, {
@@ -212,7 +231,10 @@ async function deploy() {
   // maintenance, and a failed gate still aborts before maintenance goes
   // on or any code ships.
   run("supabase db push --include-all");
-  run("node scripts/check-schema-columns.mjs");
+  // Retry the gate: PostgREST's schema cache takes a few seconds to expose
+  // freshly-migrated tables in its OpenAPI, so a first check right after the
+  // push can false-fail on cache lag alone.
+  runWithRetry("node scripts/check-schema-columns.mjs");
 
   // Step 1: maintenance ON
   console.log("🔧  [1/3] Turning maintenance mode ON...");
