@@ -106,6 +106,10 @@ TASK_PEST_ID         = 00000001-0000-0000-0006-000000000011  (Aphid Treatment �
 TASK_MAINTAIN_ID     = 00000001-0000-0000-0006-000000000012  (Clear Weeds — tomorrow)
 TASK_PLANTING_ID     = 00000001-0000-0000-0006-000000000013  (Plant Seedlings — today)
 
+# Garden Walk v2 (RHO-17) — both land on the walk's HOME step:
+TASK_UNASSIGNED_ID   = 00000001-0000-0000-0006-000000000014  (Sweep the Potting Bench — today, NO location/area/plants)
+TASK_PERSONAL_ID     = 00000001-0000-0000-0006-000000000015  (Sharpen Your Secateurs — today, scope='personal')
+
 # Harvest-window contract (Wave 20+):
 TASK_PUMPKIN_CLOSED  = 00000001-0000-0000-0006-000000000020  (Pumpkin Final Harvest — window closed -2d)
 TASK_STRAWBERRY_SNZ  = 00000001-0000-0000-0006-000000000021  (Strawberry Snooze Test — next_check_at +2d)

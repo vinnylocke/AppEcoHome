@@ -2146,10 +2146,15 @@ function AppShell() {
             createPortal(
               <div className="font-body text-rhozly-on-surface antialiased">
                 {/* Plant chat is an AI feature — only mount for AI-enabled tiers
-                    (RHO-10). Server re-verifies ai_enabled on every chat call. */}
-                {profile?.home_id && profile?.ai_enabled && (
-                  <PlantDoctorChat homeId={profile.home_id} />
-                )}
+                    (RHO-10). Server re-verifies ai_enabled on every chat call.
+                    RHO-17: hidden during a Garden Walk — the walk is a focus
+                    experience and the bottom-right FAB overlapped the walk
+                    cards' skip control on desktop. */}
+                {profile?.home_id &&
+                  profile?.ai_enabled &&
+                  !routerLocation.pathname.startsWith("/walk") && (
+                    <PlantDoctorChat homeId={profile.home_id} />
+                  )}
                 <HelpCenter
                   userId={session?.user?.id}
                   onboardingState={onboardingState}

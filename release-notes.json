@@ -1,1 +1,15 @@
-[]
+[
+  {
+    "label": "New — Garden Walk, rebuilt",
+    "items": [
+      "The walk now tours your whole garden the way you would: home first, then each location, each bed, then the plants in it — with anything unassigned gathered at the start and end.",
+      "Do a full day's gardening in one walk: complete, postpone or skip any task on any card — including harvest ripeness checks, partial picks and yield logging right in the walk.",
+      "Live soil readings and valve controls on every card: see moisture and temperature, open a valve on a timer or close it as you pass.",
+      "Log manual soil readings per bed (moisture + temperature) — they feed the Readings tab and AI Coach like any sensor reading.",
+      "Your watchlist walks with you: 'look out for' reminders at the gate and flagged-in-this-bed warnings as you reach each area.",
+      "Active plans appear where they matter, with next steps you can action mid-walk.",
+      "Notes and photos on any stop, skip whole sections and come back later — a same-day walk resumes where you left off.",
+      "Newer gardeners get gentle guidance as they go; experienced gardeners get compact, data-first cards."
+    ]
+  }
+]

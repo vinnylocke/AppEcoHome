@@ -27,6 +27,10 @@
 --   TASK_INSPECT     — Inspection, Pending, due CURRENT_DATE
 --   TASK_PEST        — Pest Control, Pending, due CURRENT_DATE
 --   TASK_MAINTAIN    — Maintenance, Pending, due CURRENT_DATE + 1
+--   TASK_UNASSIGNED  — Maintenance, Pending, due CURRENT_DATE, NO location/area/plants
+--                      (RHO-17: lands on the Garden Walk HOME step)
+--   TASK_PERSONAL    — Maintenance, Pending, due CURRENT_DATE, scope='personal'
+--                      (RHO-17: personal tasks join the walk's HOME step)
 -- ============================================================
 
 -- ---- Cleanup: remove ghost-converted physical tasks from previous runs ----
@@ -54,7 +58,9 @@ WHERE home_id = '00000000-0000-0000-0000-000000000002'
     '00000000-0000-0000-0006-000000000010',
     '00000000-0000-0000-0006-000000000011',
     '00000000-0000-0000-0006-000000000012',
-    '00000000-0000-0000-0006-000000000013'
+    '00000000-0000-0000-0006-000000000013',
+    '00000000-0000-0000-0006-000000000014',
+    '00000000-0000-0000-0006-000000000015'
   );
 
 -- ---- Task Blueprints ----
@@ -447,6 +453,48 @@ VALUES (
   '00000000-0000-0000-0000-000000000001'
 )
 ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
+
+-- Unassigned home task — NO location, area or plants. RHO-17: the Garden
+-- Walk's most-specific-step rule routes this to the HOME card (WALK-023).
+INSERT INTO public.tasks (
+  id, home_id, title, type, status, due_date,
+  location_id, area_id, inventory_item_ids, scope, created_by
+)
+VALUES (
+  '00000000-0000-0000-0006-000000000014',
+  '00000000-0000-0000-0000-000000000002',
+  'Sweep the Potting Bench',
+  'Maintenance',
+  'Pending',
+  CURRENT_DATE,
+  NULL,
+  NULL,
+  '{}',
+  'home',
+  '00000000-0000-0000-0000-000000000001'
+)
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', location_id = NULL, area_id = NULL, scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
+
+-- Personal-scope task — RHO-17 approved answer 6: the walker's personal
+-- tasks join the Garden Walk HOME card, labelled "Personal".
+INSERT INTO public.tasks (
+  id, home_id, title, type, status, due_date,
+  location_id, area_id, inventory_item_ids, scope, created_by
+)
+VALUES (
+  '00000000-0000-0000-0006-000000000015',
+  '00000000-0000-0000-0000-000000000002',
+  'Sharpen Your Secateurs',
+  'Maintenance',
+  'Pending',
+  CURRENT_DATE,
+  NULL,
+  NULL,
+  '{}',
+  'personal',
+  '00000000-0000-0000-0000-000000000001'
+)
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', location_id = NULL, area_id = NULL, scope = 'personal', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Watering task with full metadata — due today
 INSERT INTO public.tasks (

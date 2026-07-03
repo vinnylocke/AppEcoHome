@@ -159,6 +159,7 @@ None.
 ### Tier gating
 
 - Chat overlay is hidden entirely on non-AI tiers (client gate — the `<PlantDoctorChat>` mount in `src/App.tsx`, RHO-10).
+- **Not mounted on `/walk`** (RHO-17) — the Garden Walk is a focus experience, and the bottom-right FAB overlapped the walk cards' skip control on desktop. The same App.tsx mount gate checks `routerLocation.pathname`.
 - **Server-side re-verification:** `agent-chat` now re-checks `ai_enabled` via `guardAiByUser` on **every** action — including tool confirm / cancel / undo — returning 403 "AI tier required" otherwise. This makes the App.tsx gate comment ("the server re-verifies") actually true; previously the client mount gate was the only enforcement.
 
 ### Beta gating

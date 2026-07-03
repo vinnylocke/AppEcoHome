@@ -2,24 +2,33 @@ import React from "react";
 import {
   Sparkles,
   Camera,
+  ClipboardPen,
   NotebookPen,
   CheckSquare2,
   TriangleAlert,
   ArrowRight,
   Footprints,
+  MapPin,
 } from "lucide-react";
+import { usePersona } from "../../hooks/usePersona";
 import type { WalkSessionSummary } from "../../services/walkService";
 
 interface Props {
   durationMs: number;
   summary: WalkSessionSummary;
+  /**
+   * RHO-17 — labels of sections the user skipped during this walk.
+   * They reappear on "Walk what's left" (skipped ≠ done).
+   */
+  skippedSections?: string[];
   onDone: () => void;
   /**
    * Optional — when supplied, the summary card renders a "Walk what's
-   * left" button that re-runs the walk. The walk-list query already
-   * filters out plants the user actioned today, so this naturally
-   * surfaces just the remainder (or lands on the friendly empty state
-   * if there's nothing left to walk).
+   * left" button that re-runs the walk. The walk-route rebuild already
+   * filters out plants and sections the user actioned today, so this
+   * naturally surfaces just the remainder — skipped sections first-class
+   * among them (or lands on the friendly empty state if there's nothing
+   * left to walk).
    */
   onWalkAgain?: () => void;
 }
@@ -37,8 +46,23 @@ function formatDuration(ms: number): string {
  * session in a single, restrained card — no fireworks. The user
  * presses Done to return to Quick Access.
  */
-export default function WalkSummaryCard({ durationMs, summary, onDone, onWalkAgain }: Props) {
+export default function WalkSummaryCard({
+  durationMs,
+  summary,
+  skippedSections = [],
+  onDone,
+  onWalkAgain,
+}: Props) {
+  // §11 persona pass (RHO-17 Phase 3) — the "new" persona (null ⇒ new)
+  // gets encouraging framing plus a "what tomorrow holds" line;
+  // "experienced" gets stats-first terseness. Copy only — the stats list
+  // itself is identical for both.
+  const persona = usePersona();
+  const isNewGardener = persona !== "experienced";
+
   const stats: { icon: React.ReactNode; label: string; value: number; tone: string }[] = [
+    { icon: <MapPin size={16} />,         label: "Sections visited", value: summary.sectionsVisited, tone: "text-sky-700" },
+    { icon: <ClipboardPen size={16} />,   label: "Readings logged",  value: summary.readingsLogged,  tone: "text-blue-700" },
     { icon: <Camera size={16} />,         label: "Photos taken",     value: summary.photosTaken,     tone: "text-rhozly-primary" },
     { icon: <NotebookPen size={16} />,    label: "Notes added",      value: summary.notesAdded,      tone: "text-violet-700" },
     { icon: <CheckSquare2 size={16} />,   label: "Tasks completed",  value: summary.tasksCompleted,  tone: "text-emerald-700" },
@@ -67,8 +91,10 @@ export default function WalkSummaryCard({ durationMs, summary, onDone, onWalkAga
           {summary.plantsVisited === 1 ? "plant" : "plants"} in{" "}
           <span className="text-rhozly-primary">{formatDuration(durationMs)}</span>
         </h1>
-        <p className="text-sm text-rhozly-on-surface/65 mt-1.5">
-          Nice walk. Come back tomorrow to keep the streak going.
+        <p data-testid="walk-summary-subtitle" className="text-sm text-rhozly-on-surface/65 mt-1.5">
+          {isNewGardener
+            ? "Nice walk — every lap teaches you a little more about this garden. Tomorrow's walk picks up whatever today left behind, skipped bits included."
+            : "Session logged."}
         </p>
 
         <ul data-testid="walk-summary-stats" className="mt-5 space-y-2">
@@ -89,6 +115,23 @@ export default function WalkSummaryCard({ durationMs, summary, onDone, onWalkAga
             </li>
           ))}
         </ul>
+
+        {skippedSections.length > 0 && (
+          <div
+            data-testid="walk-summary-skipped"
+            className="mt-3 rounded-2xl bg-amber-50 border border-amber-200 p-3"
+          >
+            <p className="text-[10px] font-black uppercase tracking-widest text-amber-800 mb-1">
+              Skipped earlier
+            </p>
+            <p className="text-sm font-bold text-amber-900/85 leading-snug">
+              {skippedSections.join(" · ")}
+            </p>
+            <p className="text-[11px] font-bold text-amber-900/60 mt-1">
+              "Walk what's left" brings these back.
+            </p>
+          </div>
+        )}
 
         <div className="mt-auto pt-5 space-y-2">
           {onWalkAgain && (

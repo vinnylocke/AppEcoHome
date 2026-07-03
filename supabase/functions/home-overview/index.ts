@@ -12,10 +12,12 @@ import { captureException } from "../_shared/sentry.ts";
 import {
   deriveValveState,
   rankAttention,
+  shapeWalkDevices,
   soilBand,
   summariseSoilReading,
   type ValveEventRow,
   type ValveQueueRow,
+  type WalkDeviceRow,
 } from "../_shared/homeOverview.ts";
 
 const FN = "home-overview";
@@ -43,7 +45,10 @@ Deno.serve(async (req) => {
     if (authResult instanceof Response) return authResult;
     const userId = authResult.user.id;
 
-    const { homeId, today } = await req.json();
+    // `view: "walk"` (RHO-17 Phase 2) appends a flat per-device `devices[]`
+    // array for the Garden Walk. The default (no view) response is
+    // unchanged — HOME-008 E2E mocks depend on its exact shape.
+    const { homeId, today, view } = await req.json();
     if (!homeId || !today) return json({ error: "homeId and today required" }, 400);
 
     const { data: membership } = await db
@@ -82,9 +87,12 @@ Deno.serve(async (req) => {
         .from("inventory_items")
         .select("id, status, growth_state, plant_name, area_id, location_id")
         .eq("home_id", homeId),
+      // `provider` + `metadata` are only consumed by the walk view's
+      // device payload; selecting them unconditionally doesn't change the
+      // default response (shaping below never echoes them).
       db
         .from("devices")
-        .select("id, name, device_type, area_id, location_id, battery_percent, is_active")
+        .select("id, name, device_type, area_id, location_id, battery_percent, is_active, provider, metadata")
         .eq("home_id", homeId)
         .eq("is_active", true),
       db.rpc("latest_device_readings", { p_home_id: homeId }),
@@ -303,6 +311,24 @@ Deno.serve(async (req) => {
         )
         .map((t) => ({ title: t.title, windowEndDate: t.window_end_date! })),
     });
+
+    // ── Walk view (RHO-17 Phase 2): flat per-device payload ───────────────
+    if (view === "walk") {
+      const walkDevices = shapeWalkDevices(
+        devices as WalkDeviceRow[],
+        readingByDevice,
+        eventsByDevice,
+        queueByDevice,
+        nowMs,
+      );
+      log(FN, "done (walk)", {
+        homeId,
+        locations: shapedLocations.length,
+        attention: attention.length,
+        devices: walkDevices.length,
+      });
+      return json({ locations: shapedLocations, attention, devices: walkDevices });
+    }
 
     log(FN, "done", { homeId, locations: shapedLocations.length, attention: attention.length });
     return json({ locations: shapedLocations, attention });

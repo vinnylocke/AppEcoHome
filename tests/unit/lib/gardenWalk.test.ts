@@ -1,9 +1,19 @@
 import { describe, test, expect } from "vitest";
 import {
   composeAndOrderWalk,
+  composeWalkRoute,
+  derivePlanPhase,
+  sectionForStep,
+  isWalkableTask,
   DEFAULT_WALK_SETTINGS,
+  MAX_PLANTS_PER_WALK,
+  type ComposeWalkRouteInput,
   type InventoryItemRow,
+  type RouteAreaRow,
+  type RouteTaskRow,
+  type WalkDevice,
   type WalkPlant,
+  type WalkStep,
 } from "../../../src/lib/gardenWalk";
 
 // All rows use this home id for brevity.
@@ -245,5 +255,704 @@ describe("composeAndOrderWalk", () => {
     expect(out[0].lastJournalSubject).toBe("Note");
     // critical because there are ailments — beats the overdue tasks
     expect(out[0].band).toBe("critical");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// RHO-17 — composeWalkRoute (hierarchical route)
+// ═══════════════════════════════════════════════════════════════════
+
+const TODAY = "2026-07-02";
+
+function mkWalkPlant(
+  over: Partial<WalkPlant> & { inventoryItemId: string },
+): WalkPlant {
+  return {
+    inventoryItemId: over.inventoryItemId,
+    plantName: over.plantName ?? "Plant",
+    scientificName: null,
+    thumbnailUrl: null,
+    areaId: over.areaId !== undefined ? over.areaId : "area-1",
+    areaName: over.areaName ?? "Back bed",
+    locationId: over.locationId !== undefined ? over.locationId : "loc-1",
+    locationName: over.locationName ?? "Garden",
+    plantedAt: null,
+    daysSincePlanted: null,
+    lastJournalSubject: null,
+    lastJournalDescription: null,
+    lastJournalImageUrl: null,
+    lastJournalAt: null,
+    lastWateredAt: null,
+    lastPhotoAt: null,
+    activeAilmentCount: 0,
+    overdueTaskCount: 0,
+    dueTodayTaskCount: 0,
+    freshInsightCount: 0,
+    lastWalkVisitedAt: null,
+    lastWalkOutcome: null,
+    band: over.band ?? "stale",
+  };
+}
+
+function mkRouteTask(over: Partial<RouteTaskRow> & { id: string }): RouteTaskRow {
+  return {
+    id: over.id,
+    home_id: HOME,
+    title: over.title ?? "Task",
+    description: null,
+    type: over.type ?? "Watering",
+    due_date: over.due_date ?? TODAY,
+    status: over.status ?? "Pending",
+    isGhost: over.isGhost ?? false,
+    blueprint_id: over.blueprint_id ?? null,
+    location_id: over.location_id ?? null,
+    area_id: over.area_id ?? null,
+    plan_id: null,
+    inventory_item_ids: over.inventory_item_ids ?? [],
+    window_end_date: over.window_end_date ?? null,
+    next_check_at: over.next_check_at ?? null,
+    scope: over.scope ?? "home",
+    created_by: over.created_by ?? null,
+    assigned_to: over.assigned_to ?? null,
+  };
+}
+
+const LOCATIONS = [
+  { id: "loc-1", name: "Garden" },
+  { id: "loc-2", name: "Allotment" },
+];
+const AREAS = [
+  { id: "area-1", name: "Back bed", location_id: "loc-1" },
+  { id: "area-2", name: "Front bed", location_id: "loc-1" },
+  { id: "area-3", name: "Plot A", location_id: "loc-2" },
+];
+
+function baseInput(over: Partial<ComposeWalkRouteInput> = {}): ComposeWalkRouteInput {
+  return {
+    plants: [],
+    locations: LOCATIONS,
+    areas: AREAS,
+    tasks: [],
+    sectionVisits: [],
+    userId: "user-1",
+    todayIso: TODAY,
+    ...over,
+  };
+}
+
+function kinds(steps: WalkStep[]): string[] {
+  return steps.map((s) => s.kind);
+}
+
+describe("composeWalkRoute — RHO-17 hierarchical route", () => {
+  test("orders home, location, area, plants; unassigned plants last; empty areas/locations omitted", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [
+          mkWalkPlant({ inventoryItemId: "p1", plantName: "Basil" }),
+          mkWalkPlant({ inventoryItemId: "p2", plantName: "Rose" }),
+          mkWalkPlant({ inventoryItemId: "u1", plantName: "Tomato", areaId: null, areaName: null, locationId: null, locationName: null }),
+        ],
+      }),
+    );
+
+    // Allotment (loc-2) and Front bed (area-2) are empty and omitted.
+    expect(kinds(route.steps)).toEqual(["home", "location", "area", "plant", "plant", "plant"]);
+    expect((route.steps[1] as any).name).toBe("Garden");
+    expect((route.steps[2] as any).name).toBe("Back bed");
+    // Unassigned plant trails the areas.
+    expect((route.steps[5] as any).plant.inventoryItemId).toBe("u1");
+
+    const sectionKeys = route.sections.map((s) => s.key);
+    expect(sectionKeys).toContain("home");
+    expect(sectionKeys).toContain("loc-loc-1");
+    expect(sectionKeys).toContain("area-area-1");
+    expect(sectionKeys).toContain("unassigned-plants");
+    expect(sectionKeys).not.toContain("loc-loc-2");
+    expect(sectionKeys).not.toContain("area-area-2");
+  });
+
+  test("a location section spans its areas + plants so skip-section jumps the whole range", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [
+          mkWalkPlant({ inventoryItemId: "p1" }),
+          mkWalkPlant({ inventoryItemId: "p2", areaId: "area-2", areaName: "Front bed" }),
+        ],
+      }),
+    );
+    const locSection = route.sections.find((s) => s.key === "loc-loc-1")!;
+    // home(0) location(1) area-1(2) plant(3) area-2(4) plant(5)
+    expect(locSection.stepStart).toBe(1);
+    expect(locSection.stepEnd).toBe(5);
+    // The smallest enclosing section for a plant step is its area.
+    expect(sectionForStep(route, 3)?.key).toBe("area-area-1");
+    expect(sectionForStep(route, 1)?.key).toBe("loc-loc-1");
+  });
+
+  test("tasks map to exactly one step by most-specific rule", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [mkWalkPlant({ inventoryItemId: "p1" })],
+        tasks: [
+          mkRouteTask({ id: "t-plant", inventory_item_ids: ["p1"], area_id: "area-1", location_id: "loc-1" }),
+          mkRouteTask({ id: "t-area", area_id: "area-1", location_id: "loc-1" }),
+          mkRouteTask({ id: "t-loc", location_id: "loc-1" }),
+          mkRouteTask({ id: "t-home" }),
+        ],
+      }),
+    );
+
+    const home = route.steps[0] as Extract<WalkStep, { kind: "home" }>;
+    const loc = route.steps[1] as Extract<WalkStep, { kind: "location" }>;
+    const area = route.steps[2] as Extract<WalkStep, { kind: "area" }>;
+    const plant = route.steps[3] as Extract<WalkStep, { kind: "plant" }>;
+
+    expect(home.tasks.map((t) => t.id)).toEqual(["t-home"]);
+    expect(loc.tasks.map((t) => t.id)).toEqual(["t-loc"]);
+    expect(area.tasks.map((t) => t.id)).toEqual(["t-area"]);
+    expect(plant.tasks.map((t) => t.id)).toEqual(["t-plant"]);
+
+    // No double counting anywhere.
+    const allIds = route.steps.flatMap((s) => s.tasks.map((t) => t.id));
+    expect(allIds.sort()).toEqual(["t-area", "t-home", "t-loc", "t-plant"]);
+  });
+
+  test("multi-plant task shows on the FIRST of its plants in route order, with alsoCoversCount", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [
+          mkWalkPlant({ inventoryItemId: "p1", plantName: "Basil" }),
+          mkWalkPlant({ inventoryItemId: "p2", plantName: "Rose", areaId: "area-2", areaName: "Front bed" }),
+        ],
+        tasks: [mkRouteTask({ id: "t-multi", inventory_item_ids: ["p2", "p1", "p-gone"] })],
+      }),
+    );
+    const plantSteps = route.steps.filter((s) => s.kind === "plant") as Extract<WalkStep, { kind: "plant" }>[];
+    const first = plantSteps.find((s) => s.plant.inventoryItemId === "p1")!;
+    const second = plantSteps.find((s) => s.plant.inventoryItemId === "p2")!;
+    expect(first.tasks).toHaveLength(1);
+    expect(first.tasks[0].alsoCoversCount).toBe(2);
+    expect(second.tasks).toHaveLength(0);
+  });
+
+  test("plant task whose plants are not on the route falls back down area then home", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [mkWalkPlant({ inventoryItemId: "p1" })],
+        tasks: [
+          mkRouteTask({ id: "t-fb-area", inventory_item_ids: ["visited-today"], area_id: "area-1" }),
+          mkRouteTask({ id: "t-fb-home", inventory_item_ids: ["visited-today"] }),
+        ],
+      }),
+    );
+    const area = route.steps[2] as Extract<WalkStep, { kind: "area" }>;
+    const home = route.steps[0] as Extract<WalkStep, { kind: "home" }>;
+    expect(area.tasks.map((t) => t.id)).toContain("t-fb-area");
+    expect(home.tasks.map((t) => t.id)).toContain("t-fb-home");
+  });
+
+  test("personal-scope tasks land on the Home step, labelled; another user's personal tasks are excluded", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [mkWalkPlant({ inventoryItemId: "p1" })],
+        tasks: [
+          mkRouteTask({ id: "t-mine", scope: "personal", created_by: "user-1", area_id: "area-1" }),
+          mkRouteTask({ id: "t-theirs", scope: "personal", created_by: "user-2" }),
+        ],
+      }),
+    );
+    const home = route.steps[0] as Extract<WalkStep, { kind: "home" }>;
+    expect(home.tasks.map((t) => t.id)).toEqual(["t-mine"]);
+    expect(home.tasks[0].isPersonal).toBe(true);
+    const allIds = route.steps.flatMap((s) => s.tasks.map((t) => t.id));
+    expect(allIds).not.toContain("t-theirs");
+  });
+
+  test("ghost tasks are included and flagged", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [mkWalkPlant({ inventoryItemId: "p1" })],
+        tasks: [
+          mkRouteTask({ id: "ghost-bp1-2026-07-02", isGhost: true, blueprint_id: "bp1", location_id: "loc-1" }),
+        ],
+      }),
+    );
+    const loc = route.steps[1] as Extract<WalkStep, { kind: "location" }>;
+    expect(loc.tasks).toHaveLength(1);
+    expect(loc.tasks[0].isGhost).toBe(true);
+  });
+
+  test("snoozed, future-dated and non-Pending tasks are excluded; in-window harvest included and not overdue", () => {
+    expect(isWalkableTask(mkRouteTask({ id: "a", next_check_at: "2026-07-04" }), TODAY)).toBe(false);
+    expect(isWalkableTask(mkRouteTask({ id: "b", due_date: "2026-07-03" }), TODAY)).toBe(false);
+    expect(isWalkableTask(mkRouteTask({ id: "c", status: "Completed" }), TODAY)).toBe(false);
+    expect(isWalkableTask(mkRouteTask({ id: "d", due_date: "2026-06-20" }), TODAY)).toBe(true);
+
+    const route = composeWalkRoute(
+      baseInput({
+        tasks: [
+          mkRouteTask({ id: "t-window", due_date: "2026-06-30", window_end_date: "2026-07-06" }),
+        ],
+      }),
+    );
+    const home = route.steps[0] as Extract<WalkStep, { kind: "home" }>;
+    expect(home.tasks).toHaveLength(1);
+    expect(home.tasks[0].isOverdue).toBe(false); // window still open
+  });
+
+  test("a task alone keeps its section alive (area with no plants still gets a card)", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        tasks: [mkRouteTask({ id: "t-area3", area_id: "area-3", location_id: "loc-2" })],
+      }),
+    );
+    // Allotment/Plot A render purely because of the task.
+    expect(kinds(route.steps)).toEqual(["home", "location", "area"]);
+    expect((route.steps[1] as any).name).toBe("Allotment");
+    expect((route.steps[2] as any).name).toBe("Plot A");
+  });
+
+  test("section_done today removes the header step but keeps its plants; section_skipped reappears flagged", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [
+          mkWalkPlant({ inventoryItemId: "p1" }),
+          mkWalkPlant({ inventoryItemId: "p2", areaId: "area-2", areaName: "Front bed" }),
+        ],
+        sectionVisits: [
+          { section_kind: "area", section_ref_id: "area-1", outcome: "section_done" },
+          { section_kind: "area", section_ref_id: "area-2", outcome: "section_skipped" },
+          { section_kind: "home", section_ref_id: null, outcome: "section_done" },
+        ],
+      }),
+    );
+    // Home step gone, area-1 header gone (plant remains), area-2 header present + flagged.
+    expect(kinds(route.steps)).toEqual(["location", "plant", "area", "plant"]);
+    const area2 = route.sections.find((s) => s.key === "area-area-2")!;
+    expect(area2.skippedEarlier).toBe(true);
+    // task_completed section rows must NOT exclude a section.
+    const route2 = composeWalkRoute(
+      baseInput({
+        plants: [mkWalkPlant({ inventoryItemId: "p1" })],
+        sectionVisits: [
+          { section_kind: "home", section_ref_id: null, outcome: "task_completed" },
+        ],
+      }),
+    );
+    expect(kinds(route2.steps)[0]).toBe("home");
+  });
+
+  test("homes with no locations collapse to Home step then unassigned plants; truly empty homes yield no steps", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        locations: [],
+        areas: [],
+        plants: [mkWalkPlant({ inventoryItemId: "u1", areaId: null, locationId: null })],
+      }),
+    );
+    expect(kinds(route.steps)).toEqual(["home", "plant"]);
+
+    const empty = composeWalkRoute(baseInput({ locations: [], areas: [] }));
+    expect(empty.steps).toHaveLength(0);
+  });
+
+  test("home attention preview lists top critical/overdue plants (max 3) with their area", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [
+          mkWalkPlant({ inventoryItemId: "c1", plantName: "Sick Rose", band: "critical" }),
+          mkWalkPlant({ inventoryItemId: "o1", plantName: "Dry Basil", band: "overdue" }),
+          mkWalkPlant({ inventoryItemId: "c2", plantName: "Sick Fern", band: "critical" }),
+          mkWalkPlant({ inventoryItemId: "c3", plantName: "Sick Mint", band: "critical" }),
+          mkWalkPlant({ inventoryItemId: "s1", plantName: "Fine Thyme", band: "stale" }),
+        ],
+      }),
+    );
+    const home = route.steps[0] as Extract<WalkStep, { kind: "home" }>;
+    expect(home.attentionPreview).toHaveLength(3);
+    expect(home.attentionPreview[0]).toMatchObject({ plantName: "Sick Rose", areaName: "Back bed" });
+    expect(home.attentionPreview.map((a) => a.inventoryItemId)).not.toContain("s1");
+  });
+
+  test("MAX_PLANTS_PER_WALK is the default cap; sections render on top of the capped plant list", () => {
+    expect(DEFAULT_WALK_SETTINGS.maxPerWalk).toBe(MAX_PLANTS_PER_WALK);
+    // composeAndOrderWalk applies the cap to plants; sections are added on
+    // top by composeWalkRoute — a capped plant list still gets its
+    // section header cards.
+    const capped = Array.from({ length: 5 }, (_, i) =>
+      mkWalkPlant({ inventoryItemId: `p${i}` }),
+    );
+    const route = composeWalkRoute(baseInput({ plants: capped }));
+    const plantSteps = route.steps.filter((s) => s.kind === "plant");
+    const sectionSteps = route.steps.filter((s) => s.kind !== "plant");
+    expect(plantSteps).toHaveLength(5);
+    expect(sectionSteps.length).toBeGreaterThan(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// RHO-17 Phase 2 — walk telemetry (devices + latest readings on steps)
+// ═══════════════════════════════════════════════════════════════════
+
+function mkDevice(over: Partial<WalkDevice> & { id: string }): WalkDevice {
+  return {
+    id: over.id,
+    name: over.name ?? `Device ${over.id}`,
+    deviceType: over.deviceType ?? "soil_sensor",
+    areaId: over.areaId ?? null,
+    locationId: over.locationId ?? null,
+    batteryPercent: over.batteryPercent ?? null,
+    sensor: over.sensor ?? null,
+    valve: over.valve ?? null,
+    provider: over.provider ?? null,
+    controllable: over.controllable ?? false,
+    defaultDurationSeconds: over.defaultDurationSeconds ?? 1800,
+  };
+}
+
+describe("composeWalkRoute — RHO-17 Phase 2 telemetry", () => {
+  test("devices attach to the most specific step: area → location → home", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [mkWalkPlant({ inventoryItemId: "p1" })],
+        devices: [
+          mkDevice({ id: "d-area", areaId: "area-1", locationId: "loc-1" }),
+          mkDevice({ id: "d-loc", deviceType: "water_valve", locationId: "loc-1" }),
+          mkDevice({ id: "d-home" }),
+          // Unknown area falls back down the chain to its location.
+          mkDevice({ id: "d-ghost-area", areaId: "area-nope", locationId: "loc-1" }),
+          // Unknown both → home.
+          mkDevice({ id: "d-orphan", areaId: "area-nope", locationId: "loc-nope" }),
+        ],
+      }),
+    );
+    const home = route.steps[0] as Extract<WalkStep, { kind: "home" }>;
+    const loc = route.steps[1] as Extract<WalkStep, { kind: "location" }>;
+    const area = route.steps[2] as Extract<WalkStep, { kind: "area" }>;
+    expect(home.devices.map((d) => d.id).sort()).toEqual(["d-home", "d-orphan"]);
+    expect(loc.devices.map((d) => d.id).sort()).toEqual(["d-ghost-area", "d-loc"]);
+    expect(area.devices.map((d) => d.id)).toEqual(["d-area"]);
+  });
+
+  test("a device alone keeps its section alive (area and location cards render for device-only sections)", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        devices: [mkDevice({ id: "d1", areaId: "area-3", locationId: "loc-2" })],
+      }),
+    );
+    expect(kinds(route.steps)).toEqual(["home", "location", "area"]);
+    expect((route.steps[1] as any).name).toBe("Allotment");
+    expect((route.steps[2] as any).name).toBe("Plot A");
+    expect((route.steps[2] as any).devices.map((d: WalkDevice) => d.id)).toEqual(["d1"]);
+  });
+
+  test("an unassigned device alone keeps the Home step alive", () => {
+    const route = composeWalkRoute(
+      baseInput({ devices: [mkDevice({ id: "d-home" })] }),
+    );
+    expect(kinds(route.steps)).toEqual(["home"]);
+    expect((route.steps[0] as any).devices).toHaveLength(1);
+  });
+
+  test("multiple sensors in one area all attach (dashboard grid only shows the first)", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [mkWalkPlant({ inventoryItemId: "p1" })],
+        devices: [
+          mkDevice({ id: "s1", areaId: "area-1" }),
+          mkDevice({ id: "s2", areaId: "area-1" }),
+          mkDevice({ id: "v1", deviceType: "water_valve", areaId: "area-1" }),
+        ],
+      }),
+    );
+    const area = route.steps[2] as Extract<WalkStep, { kind: "area" }>;
+    expect(area.devices).toHaveLength(3);
+  });
+
+  test("area steps carry the areas.latest_soil_* strip; all-null areas get latest = null", () => {
+    const areas: RouteAreaRow[] = [
+      {
+        id: "area-1",
+        name: "Back bed",
+        location_id: "loc-1",
+        latest_soil_moisture_pct: 41,
+        latest_soil_moisture_recorded_at: "2026-06-29T08:00:00Z",
+        latest_soil_temp_c: 16.5,
+        latest_soil_temp_recorded_at: "2026-06-29T08:00:00Z",
+      },
+      { id: "area-2", name: "Front bed", location_id: "loc-1" },
+    ];
+    const route = composeWalkRoute(
+      baseInput({
+        areas,
+        plants: [
+          mkWalkPlant({ inventoryItemId: "p1" }),
+          mkWalkPlant({ inventoryItemId: "p2", areaId: "area-2", areaName: "Front bed" }),
+        ],
+      }),
+    );
+    const area1 = route.steps[2] as Extract<WalkStep, { kind: "area" }>;
+    expect(area1.latest).toMatchObject({ moisturePct: 41, tempC: 16.5, ec: null });
+    const area2 = route.steps.find(
+      (s) => s.kind === "area" && s.id === "area-2",
+    ) as Extract<WalkStep, { kind: "area" }>;
+    expect(area2.latest).toBeNull();
+  });
+
+  test("no devices input leaves every step with an empty devices list (Phase 1 behaviour preserved)", () => {
+    const route = composeWalkRoute(
+      baseInput({ plants: [mkWalkPlant({ inventoryItemId: "p1" })] }),
+    );
+    for (const step of route.steps) {
+      if (step.kind !== "plant") expect(step.devices).toEqual([]);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// RHO-17 Phase 3 — watchlist weaving + actionable plans
+// ═══════════════════════════════════════════════════════════════════
+
+describe("derivePlanPhase — PlanStaging parity", () => {
+  test("In-Progress plan with only linked_area_id → phase 2 (The Shed), 2 phases done", () => {
+    const d = derivePlanPhase({
+      id: "plan-1",
+      name: "Summer Veg Plan",
+      status: "In Progress",
+      kind: "designed",
+      staging_state: { linked_area_id: "area-1" },
+    });
+    // Phase 1 (area) + phase 4 (status In Progress) are done; phase 2 is current.
+    expect(d.phase).toBe(2);
+    expect(d.phaseLabel).toBe("The Shed");
+    expect(d.phasesDone).toBe(2);
+    expect(d.linkedAreaId).toBe("area-1");
+    expect(d.canActivateMaintenance).toBe(false);
+    expect(d.nextAction).toMatch(/Shed/);
+  });
+
+  test("phases 1–4 done → phase 5 (Maintenance) is current and activatable in-walk", () => {
+    const d = derivePlanPhase({
+      id: "plan-1",
+      name: "P",
+      status: "In Progress",
+      staging_state: {
+        linked_area_id: "area-1",
+        plants_linked: true,
+        plants_assigned: true,
+      },
+    });
+    expect(d.phase).toBe(5);
+    expect(d.phaseLabel).toBe("Maintenance");
+    expect(d.phasesDone).toBe(4);
+    expect(d.canActivateMaintenance).toBe(true);
+  });
+
+  test("all five phases done → phase null, 'All phases complete'", () => {
+    const d = derivePlanPhase({
+      id: "plan-1",
+      name: "P",
+      status: "Completed",
+      staging_state: {
+        linked_area_id: "area-1",
+        plants_linked: true,
+        plants_assigned: true,
+        maintenance_active: true,
+      },
+    });
+    expect(d.phase).toBeNull();
+    expect(d.phasesDone).toBe(5);
+    expect(d.nextAction).toBe("All phases complete");
+    expect(d.canActivateMaintenance).toBe(false);
+  });
+
+  test("plant-first plans are phase-less (no staging_state) and never activatable", () => {
+    const d = derivePlanPhase({
+      id: "plan-1",
+      name: "P",
+      status: "In Progress",
+      kind: "plant-first",
+      staging_state: null,
+    });
+    expect(d.phase).toBeNull();
+    expect(d.phaseLabel).toBeNull();
+    expect(d.canActivateMaintenance).toBe(false);
+    expect(d.nextAction).toBe("Tracked in the planner");
+  });
+
+  test("Draft plan with nothing staged → phase 1 (Infrastructure)", () => {
+    const d = derivePlanPhase({ id: "p", name: "P", status: "Draft", staging_state: {} });
+    expect(d.phase).toBe(1);
+    expect(d.phasesDone).toBe(0);
+  });
+});
+
+describe("composeWalkRoute — Phase 3 watchlist weaving", () => {
+  const WATCHLIST = [
+    { id: "ail-aphid", name: "Aphid", type: "pest", symptoms: ["Sticky residue on leaves", "Curled growth"] },
+    { id: "ail-blight", name: "Early Blight", type: "disease", symptoms: ["Dark brown spots"] },
+    { id: "ail-arch", name: "Powdery Mildew", type: "disease", is_archived: true },
+  ];
+
+  test("home step carries the active watchlist digest with home-wide link counts; archived excluded", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [mkWalkPlant({ inventoryItemId: "p1" })],
+        watchlist: WATCHLIST,
+        ailmentLinks: [
+          { ailment_id: "ail-aphid", plant_instance_id: "p1" },
+          { ailment_id: "ail-aphid", plant_instance_id: "p-other" },
+        ],
+        itemAreas: [
+          { id: "p1", area_id: "area-1" },
+          { id: "p-other", area_id: "area-2" },
+        ],
+      }),
+    );
+    const home = route.steps[0] as Extract<WalkStep, { kind: "home" }>;
+    expect(home.watchlist.map((w) => w.id)).toEqual(["ail-aphid", "ail-blight"]);
+    expect(home.watchlist[0]).toMatchObject({
+      name: "Aphid",
+      type: "pest",
+      affectedPlantCount: 2,
+      firstSymptom: "Sticky residue on leaves",
+    });
+    expect(home.watchlist[1].affectedPlantCount).toBe(0);
+  });
+
+  test("area steps only list ailments linked to THAT area's plants — even plants not on today's route", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [
+          mkWalkPlant({ inventoryItemId: "p1" }),
+          mkWalkPlant({ inventoryItemId: "p2", areaId: "area-2", areaName: "Front bed" }),
+        ],
+        watchlist: WATCHLIST,
+        ailmentLinks: [
+          { ailment_id: "ail-aphid", plant_instance_id: "p1" },
+          // p-visited was already walked today (not in plants) but its
+          // area context must still show the flag.
+          { ailment_id: "ail-blight", plant_instance_id: "p-visited" },
+        ],
+        itemAreas: [
+          { id: "p1", area_id: "area-1" },
+          { id: "p2", area_id: "area-2" },
+          { id: "p-visited", area_id: "area-2" },
+        ],
+      }),
+    );
+    const area1 = route.steps.find(
+      (s) => s.kind === "area" && s.id === "area-1",
+    ) as Extract<WalkStep, { kind: "area" }>;
+    const area2 = route.steps.find(
+      (s) => s.kind === "area" && s.id === "area-2",
+    ) as Extract<WalkStep, { kind: "area" }>;
+    expect(area1.watchlist.map((w) => w.name)).toEqual(["Aphid"]);
+    expect(area1.watchlist[0].affectedPlantCount).toBe(1);
+    expect(area2.watchlist.map((w) => w.name)).toEqual(["Early Blight"]);
+  });
+
+  test("no watchlist input leaves empty arrays (enrichment, never load-bearing)", () => {
+    const route = composeWalkRoute(
+      baseInput({ plants: [mkWalkPlant({ inventoryItemId: "p1" })] }),
+    );
+    const home = route.steps[0] as Extract<WalkStep, { kind: "home" }>;
+    const area = route.steps[2] as Extract<WalkStep, { kind: "area" }>;
+    expect(home.watchlist).toEqual([]);
+    expect(area.watchlist).toEqual([]);
+  });
+});
+
+describe("composeWalkRoute — Phase 3 actionable plans", () => {
+  const PLANS = [
+    {
+      id: "plan-a",
+      name: "Summer Veg Plan",
+      status: "In Progress",
+      kind: "designed",
+      staging_state: { linked_area_id: "area-1" },
+    },
+    {
+      id: "plan-b",
+      name: "Border Refresh",
+      status: "In Progress",
+      kind: "designed",
+      staging_state: {
+        linked_area_id: "area-2",
+        plants_linked: true,
+        plants_assigned: true,
+      },
+    },
+    { id: "plan-done", name: "Old", status: "Completed", staging_state: {} },
+  ];
+
+  test("home step digests every In-Progress plan (name order); Completed plans excluded", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [mkWalkPlant({ inventoryItemId: "p1" })],
+        plans: PLANS,
+      }),
+    );
+    const home = route.steps[0] as Extract<WalkStep, { kind: "home" }>;
+    expect(home.plans.map((p) => p.id)).toEqual(["plan-b", "plan-a"]);
+    expect(home.plans.find((p) => p.id === "plan-a")).toMatchObject({
+      phase: 2,
+      phaseLabel: "The Shed",
+      linkedAreaId: "area-1",
+    });
+    expect(home.plans.find((p) => p.id === "plan-b")).toMatchObject({
+      phase: 5,
+      canActivateMaintenance: true,
+    });
+  });
+
+  test("a plan banner lands ONLY on its staged area; openTaskCount counts the plan's walkable tasks", () => {
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [
+          mkWalkPlant({ inventoryItemId: "p1" }),
+          mkWalkPlant({ inventoryItemId: "p2", areaId: "area-2", areaName: "Front bed" }),
+        ],
+        plans: PLANS,
+        tasks: [
+          { ...mkRouteTask({ id: "t1", area_id: "area-1", location_id: "loc-1" }), plan_id: "plan-a" },
+          { ...mkRouteTask({ id: "t2", area_id: "area-1", location_id: "loc-1" }), plan_id: "plan-a" },
+          // Future-dated plan task is NOT walkable → not counted.
+          { ...mkRouteTask({ id: "t3", area_id: "area-1", location_id: "loc-1", due_date: "2026-08-01" }), plan_id: "plan-a" },
+        ],
+      }),
+    );
+    const area1 = route.steps.find(
+      (s) => s.kind === "area" && s.id === "area-1",
+    ) as Extract<WalkStep, { kind: "area" }>;
+    const area2 = route.steps.find(
+      (s) => s.kind === "area" && s.id === "area-2",
+    ) as Extract<WalkStep, { kind: "area" }>;
+    expect(area1.plans.map((p) => p.id)).toEqual(["plan-a"]);
+    expect(area1.plans[0].openTaskCount).toBe(2);
+    expect(area2.plans.map((p) => p.id)).toEqual(["plan-b"]);
+  });
+
+  test("plan/watchlist context never forces an empty section to render", () => {
+    // area-3 has no plants, tasks or devices — a plan staged there must
+    // not conjure a section card out of nothing (enrichment rule).
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [mkWalkPlant({ inventoryItemId: "p1" })],
+        plans: [
+          {
+            id: "plan-empty",
+            name: "Empty Bed Plan",
+            status: "In Progress",
+            staging_state: { linked_area_id: "area-3" },
+          },
+        ],
+      }),
+    );
+    expect(route.sections.map((s) => s.key)).not.toContain("area-area-3");
+    // ...but the Home digest still lists it.
+    const home = route.steps[0] as Extract<WalkStep, { kind: "home" }>;
+    expect(home.plans.map((p) => p.id)).toEqual(["plan-empty"]);
   });
 });

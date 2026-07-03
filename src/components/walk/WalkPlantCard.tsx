@@ -15,17 +15,25 @@ import {
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
-import { bandLabel, type WalkPlant } from "../../lib/gardenWalk";
+import { bandLabel, type WalkPlant, type WalkTask } from "../../lib/gardenWalk";
 import type { WalkVisitOutcome } from "../../services/walkService";
 import PhotoUploader from "../PhotoUploader";
+import WalkTaskRow from "./WalkTaskRow";
 
 interface Props {
   homeId: string;
+  userId: string;
   aiEnabled: boolean;
   plant: WalkPlant;
+  /** RHO-17 — this plant's tasks (real + ghost), actionable in-card. */
+  tasks: WalkTask[];
+  /** RHO-17 — enclosing section label for the header ("Raised Bed A"). */
+  sectionLabel?: string | null;
   progressIndex: number;   // zero-based
   progressTotal: number;
   onOutcome: (outcome: WalkVisitOutcome) => void;
+  /** RHO-17 — a task on this card was completed (summary + visit row). */
+  onTaskCompleted?: (task: WalkTask) => void;
   onStop: () => void;
 }
 
@@ -64,11 +72,15 @@ function autoSubject(prefix: string): string {
  */
 export default function WalkPlantCard({
   homeId,
+  userId,
   aiEnabled,
   plant,
+  tasks,
+  sectionLabel,
   progressIndex,
   progressTotal,
   onOutcome,
+  onTaskCompleted,
   onStop,
 }: Props) {
   const [sheet, setSheet] = useState<ActiveSheet>(null);
@@ -178,7 +190,15 @@ export default function WalkPlantCard({
           data-testid="walk-card-progress"
           className="text-[11px] font-black uppercase tracking-widest text-rhozly-on-surface/55"
         >
-          {progressIndex + 1} of {progressTotal}
+          Step {progressIndex + 1} of {progressTotal}
+          {sectionLabel && (
+            <span
+              data-testid="walk-card-section-label"
+              className="text-rhozly-on-surface/35"
+            >
+              {" "}· {sectionLabel}
+            </span>
+          )}
         </div>
         <button
           type="button"
@@ -283,6 +303,25 @@ export default function WalkPlantCard({
             </span>
           )}
         </div>
+
+        {/* Tasks — actionable in-card (RHO-17) */}
+        {tasks.length > 0 && (
+          <div data-testid="walk-card-tasks" className="mt-4 space-y-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
+              Tasks for this plant
+            </p>
+            {tasks.map((t) => (
+              <WalkTaskRow
+                key={t.id}
+                task={t}
+                homeId={homeId}
+                userId={userId}
+                plantName={plant.plantName}
+                onCompleted={onTaskCompleted}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Last note */}
         {plant.lastJournalDescription && (

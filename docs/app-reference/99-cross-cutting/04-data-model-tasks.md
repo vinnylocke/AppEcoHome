@@ -128,6 +128,17 @@ Ghost id format: `ghost-{blueprint_id}-{YYYY-MM-DD}`. Frontend can distinguish v
 
 When the user completes / postpones / edits a ghost, `materializeTask(ghost)` inserts a real `tasks` row and returns it.
 
+### Shared mutation core — `src/lib/taskActions.ts` (RHO-17)
+
+The complete / skip / postpone semantics that used to live inline in `TaskList.tsx` are extracted into `src/lib/taskActions.ts` so the Garden Walk and the task list share **one implementation**:
+
+- `completeTask(task, {homeId, userId})` — ghost → INSERT a Completed row via `buildGhostPayload`; physical → UPDATE. Fires `logEvent(task_completed)` + `maybeCreateAutoEntry` (auto journal).
+- `skipTask(task)` — ghost → Skipped tombstone INSERT; physical → UPDATE `status='Skipped'`. Fires `task_skipped`.
+- `postponeTask(task, newDate)` — ghost → tombstone + Pending at the new date; physical blueprint-linked → UPDATE Skipped + INSERT Pending; standalone → UPDATE `due_date`. Fires `task_postponed` with `delay_days`.
+- `materialiseGhost(ghost, status, overrides, select)` — the ghost INSERT with a **`unique_blueprint_date` 23505 fallback**: if the slot was already materialised from another surface (walk + task list in two tabs), it recovers by UPDATEing the existing `(blueprint_id, due_date)` row instead of failing.
+
+`TaskList.tsx` calls `materialiseGhost` (its ghost-complete branch) and `postponeTask`; its offline-queue, optimistic-UI, blueprint-shift and sowing/automation side-effects remain component-local. Any new surface adding task actions must call these functions, not re-implement the branches.
+
 ### `generate-tasks` cron
 
 Daily job that materialises upcoming task rows from recurring blueprints. Current behaviour:
@@ -169,6 +180,7 @@ Blueprints can fire daily for years. If we materialised every future occurrence,
 ## Code references for ongoing maintenance
 
 - `src/lib/taskEngine.ts` — `fetchTasksWithGhosts`, `materializeTask`, `isTaskOverdue`, `isInsideHarvestWindow`, `daysLeftInWindow` (Wave 20)
+- `src/lib/taskActions.ts` — shared complete/skip/postpone mutation core (RHO-17); `tests/unit/lib/taskActions.test.ts`
 - `src/services/blueprintService.ts`
 - `supabase/functions/generate-tasks/index.ts`
 - `supabase/migrations/*_tasks.sql`, `*_task_blueprints.sql`

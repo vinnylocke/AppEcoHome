@@ -202,6 +202,102 @@ export interface SensorSummary {
   readingAgeMin: number | null;
 }
 
+// ─── Garden Walk telemetry (RHO-17 Phase 2) ─────────────────────────────────
+
+/** Raw `devices` row shape the walk view works from. `provider` +
+ *  `metadata` are only selected for the walk view — they drive the
+ *  client-side valve-control mode (eWeLink vs custom vs read-only). */
+export interface WalkDeviceRow {
+  id: string;
+  name: string;
+  device_type: string;
+  area_id: string | null;
+  location_id: string | null;
+  battery_percent: number | null;
+  provider?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+/** One flat per-device entry in the `view: "walk"` response. Sensors get
+ *  a `sensor` summary; valves get a `valve` state plus the control
+ *  metadata the walk's valve rows need (provider / controllable /
+ *  default duration — mirrors DeviceDetailModal's ValveControlPanel
+ *  props so the walk reuses the exact same control path). */
+export interface WalkDevicePayload {
+  id: string;
+  name: string;
+  deviceType: "soil_sensor" | "water_valve";
+  areaId: string | null;
+  locationId: string | null;
+  batteryPercent: number | null;
+  sensor: SensorSummary | null;
+  valve: ValveState | null;
+  provider: string | null;
+  controllable: boolean;
+  defaultDurationSeconds: number;
+}
+
+export const DEFAULT_VALVE_DURATION_SECONDS = 1800;
+
+/**
+ * Shape EVERY active device — unassigned (home-level), location-level and
+ * area-level, including multiple sensors per area (the dashboard grid
+ * only surfaces the first per area) — into the flat `devices[]` array the
+ * Garden Walk's section cards consume. Pure: fed the same maps the grid
+ * shaping already builds. Sorted by name for a stable walk render.
+ */
+export function shapeWalkDevices(
+  devices: WalkDeviceRow[],
+  readingByDevice: Map<
+    string,
+    { data: Record<string, unknown> | null; recorded_at: string | null }
+  >,
+  eventsByDevice: Map<string, ValveEventRow[]>,
+  queueByDevice: Map<string, ValveQueueRow[]>,
+  nowMs: number,
+): WalkDevicePayload[] {
+  return devices
+    .filter(
+      (d) => d.device_type === "soil_sensor" || d.device_type === "water_valve",
+    )
+    .map((d) => {
+      const isSensor = d.device_type === "soil_sensor";
+      const reading = readingByDevice.get(d.id);
+      const meta = (d.metadata ?? {}) as Record<string, unknown>;
+      const rawDuration = meta["default_duration_seconds"];
+      return {
+        id: d.id,
+        name: d.name,
+        deviceType: d.device_type as "soil_sensor" | "water_valve",
+        areaId: d.area_id ?? null,
+        locationId: d.location_id ?? null,
+        batteryPercent: d.battery_percent ?? null,
+        sensor: isSensor
+          ? summariseSoilReading(
+            reading?.data ?? null,
+            reading?.recorded_at ?? null,
+            d.battery_percent ?? null,
+            nowMs,
+          )
+          : null,
+        valve: isSensor ? null : deriveValveState(
+          eventsByDevice.get(d.id) ?? [],
+          queueByDevice.get(d.id) ?? [],
+          nowMs,
+        ),
+        provider: d.provider ?? null,
+        controllable: meta["controllable"] === true,
+        defaultDurationSeconds:
+          typeof rawDuration === "number" &&
+            Number.isFinite(rawDuration) &&
+            rawDuration > 0
+            ? rawDuration
+            : DEFAULT_VALVE_DURATION_SECONDS,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** Summarise a soil sensor's latest reading; null-safe on every field. */
 export function summariseSoilReading(
   data: Record<string, unknown> | null,

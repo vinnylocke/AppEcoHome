@@ -1,20 +1,25 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { Loader2, AlertCircle, ArrowLeft, Footprints, RotateCcw } from "lucide-react";
 import { Logger } from "../../lib/errorHandler";
 import {
-  buildWalkList,
+  buildWalkRoute,
+  sectionForStep,
   DEFAULT_WALK_SETTINGS,
-  type WalkPlant,
+  type WalkRoute,
+  type WalkSection,
   type WalkSettings,
+  type WalkStep,
+  type WalkTask,
 } from "../../lib/gardenWalk";
 import {
   walkService,
+  EMPTY_WALK_SUMMARY,
   type WalkVisitOutcome,
   type WalkSessionSummary,
 } from "../../services/walkService";
 import WalkPlantCard from "./WalkPlantCard";
+import WalkSectionCard from "./WalkSectionCard";
 import WalkSummaryCard from "./WalkSummaryCard";
 import { recordSignal } from "../../onboarding/signals";
 import FeatureGate from "../shared/FeatureGate";
@@ -27,39 +32,41 @@ interface Props {
 
 type WalkState =
   | { kind: "loading" }
+  | { kind: "resume-prompt"; openSessionId: string }
   | { kind: "empty" }
   | { kind: "error"; message: string }
   | {
       kind: "walking";
       sessionId: string;
-      list: WalkPlant[];
+      route: WalkRoute;
       currentIndex: number;
       summary: WalkSessionSummary;
+      skippedSectionLabels: string[];
     }
   | {
       kind: "finished";
       sessionId: string;
       durationMs: number;
       summary: WalkSessionSummary;
+      skippedSectionLabels: string[];
     };
 
 type WalkAction =
-  | { type: "loaded"; sessionId: string; list: WalkPlant[] }
+  | { type: "loaded"; sessionId: string; route: WalkRoute }
+  | { type: "resume-prompt"; openSessionId: string }
   | { type: "empty" }
   | { type: "error"; message: string }
-  | { type: "outcome"; outcome: WalkVisitOutcome }
+  | { type: "plant-outcome"; outcome: WalkVisitOutcome }
+  | { type: "section-continue" }
+  | { type: "section-skip"; section: WalkSection }
+  | { type: "bump"; field: keyof WalkSessionSummary }
   | { type: "finish"; durationMs: number }
   | { type: "restart" };
 
-const EMPTY_SUMMARY: WalkSessionSummary = {
-  plantsVisited: 0,
-  photosTaken: 0,
-  notesAdded: 0,
-  tasksCompleted: 0,
-  ailmentsFlagged: 0,
-};
-
-function applyOutcome(summary: WalkSessionSummary, outcome: WalkVisitOutcome): WalkSessionSummary {
+function applyPlantOutcome(
+  summary: WalkSessionSummary,
+  outcome: WalkVisitOutcome,
+): WalkSessionSummary {
   // Skipped doesn't count as visiting — the user explicitly bypassed.
   if (outcome === "skipped") return summary;
   const next = { ...summary, plantsVisited: summary.plantsVisited + 1 };
@@ -72,22 +79,54 @@ function applyOutcome(summary: WalkSessionSummary, outcome: WalkVisitOutcome): W
 
 function reducer(state: WalkState, action: WalkAction): WalkState {
   if (action.type === "loaded") {
-    if (action.list.length === 0) return { kind: "empty" };
+    if (action.route.steps.length === 0) return { kind: "empty" };
     return {
       kind: "walking",
       sessionId: action.sessionId,
-      list: action.list,
+      route: action.route,
       currentIndex: 0,
-      summary: { ...EMPTY_SUMMARY },
+      summary: { ...EMPTY_WALK_SUMMARY },
+      skippedSectionLabels: [],
     };
+  }
+  if (action.type === "resume-prompt") {
+    return { kind: "resume-prompt", openSessionId: action.openSessionId };
   }
   if (action.type === "empty") return { kind: "empty" };
   if (action.type === "error") return { kind: "error", message: action.message };
-  if (action.type === "outcome" && state.kind === "walking") {
+  if (action.type === "plant-outcome" && state.kind === "walking") {
     return {
       ...state,
       currentIndex: state.currentIndex + 1,
-      summary: applyOutcome(state.summary, action.outcome),
+      summary: applyPlantOutcome(state.summary, action.outcome),
+    };
+  }
+  if (action.type === "section-continue" && state.kind === "walking") {
+    return {
+      ...state,
+      currentIndex: state.currentIndex + 1,
+      summary: {
+        ...state.summary,
+        sectionsVisited: state.summary.sectionsVisited + 1,
+      },
+    };
+  }
+  if (action.type === "section-skip" && state.kind === "walking") {
+    // Jump past the whole section's step range (a location section spans
+    // its areas and their plants).
+    return {
+      ...state,
+      currentIndex: action.section.stepEnd + 1,
+      skippedSectionLabels: [...state.skippedSectionLabels, action.section.label],
+    };
+  }
+  if (action.type === "bump" && state.kind === "walking") {
+    return {
+      ...state,
+      summary: {
+        ...state.summary,
+        [action.field]: state.summary[action.field] + 1,
+      },
     };
   }
   if (action.type === "finish" && state.kind === "walking") {
@@ -96,24 +135,29 @@ function reducer(state: WalkState, action: WalkAction): WalkState {
       sessionId: state.sessionId,
       durationMs: action.durationMs,
       summary: state.summary,
+      skippedSectionLabels: state.skippedSectionLabels,
     };
   }
   if (action.type === "restart") {
-    // Drop to loading; the bootstrap callback will fire again, re-query
-    // the walk list (today's same-day-visited filter naturally excludes
-    // anything already actioned), and open a fresh session.
+    // Drop to loading; the bootstrap callback will re-derive the route
+    // from visit rows (never a serialized snapshot) — anything actioned
+    // today naturally drops out, skipped sections reappear.
     return { kind: "loading" };
   }
   return state;
 }
 
 /**
- * The Garden Walk screen — a guided tour of every plant in the home.
+ * The Garden Walk screen — RHO-17 hierarchical route: Home card →
+ * per-Location cards → per-Area cards → per-area plant cards →
+ * unassigned plants → summary.
  *
  * Routed at `/walk`. Full-bleed focus mode: no top bar, no side nav.
- * The walk list is pulled once at mount; each card outcome appends to
- * `garden_walk_visits`, and the rolled-up summary lands in
- * `garden_walk_sessions` when the walk ends.
+ * The route is composed once per bootstrap; each step outcome appends
+ * to `garden_walk_visits` (plant rows or section rows), and the
+ * rolled-up summary lands in `garden_walk_sessions` when the walk ends.
+ * A same-day open session offers Resume (reusing the session id) vs
+ * Start fresh.
  */
 export default function GardenWalk(props: React.ComponentProps<typeof GardenWalkInner>) {
   return (
@@ -150,74 +194,183 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
     return DEFAULT_WALK_SETTINGS;
   });
 
-  // Bootstrap — start a session + build the walk list in parallel.
-  // Wrapped in a callback so the "Walk again" path on the summary card
-  // can re-trigger it. Today's same-day-visited filter inside
-  // buildWalkList means a second walk naturally surfaces just what's
-  // left.
+  // Bootstrap — resume-check, then session + route build in parallel.
   // Superseded-bootstrap guard: a dep change (or StrictMode dev
   // double-mount) mid-flight otherwise starts TWO walk_sessions rows and
   // the loser is orphaned with no endSession — and its slower response
-  // could win the dispatch.
+  // could win the dispatch. The guard must NOT close a *resumed* session
+  // (it wasn't created by this bootstrap), so orphan-closing only runs
+  // for sessions this call opened.
   const bootstrapGen = useRef(0);
 
-  const bootstrap = useCallback(async () => {
-    const gen = ++bootstrapGen.current;
-    dispatch({ type: "restart" });
-    setStartedAtMs(Date.now());
-    try {
-      const [session, list] = await Promise.all([
-        walkService.startSession(homeId, userId),
-        buildWalkList(homeId, userId, settings),
-      ]);
-      if (gen !== bootstrapGen.current) {
-        // A newer bootstrap superseded this one — close the orphan session.
-        walkService
-          .endSession(session.id, {
-            plantsVisited: 0,
-            photosTaken: 0,
-            notesAdded: 0,
-            tasksCompleted: 0,
-            ailmentsFlagged: 0,
-          })
-          .catch(() => {});
-        return;
+  const bootstrap = useCallback(
+    async (opts?: { resumeSessionId?: string; forceFresh?: boolean }) => {
+      const gen = ++bootstrapGen.current;
+      dispatch({ type: "restart" });
+      setStartedAtMs(Date.now());
+      try {
+        let resumeSessionId = opts?.resumeSessionId ?? null;
+
+        if (!resumeSessionId) {
+          const open = await walkService.findOpenSession(homeId, userId);
+          if (open) {
+            const startedToday =
+              new Date(open.startedAt).getTime() >=
+              new Date().setHours(0, 0, 0, 0);
+            if (!startedToday) {
+              // An open session from yesterday is not resumable — close
+              // it silently and start fresh.
+              await walkService.closeSession(open.id);
+            } else if (opts?.forceFresh) {
+              await walkService.closeSession(open.id);
+            } else {
+              if (gen === bootstrapGen.current) {
+                dispatch({ type: "resume-prompt", openSessionId: open.id });
+              }
+              return;
+            }
+          }
+        }
+
+        const [session, route] = await Promise.all([
+          resumeSessionId
+            ? Promise.resolve({ id: resumeSessionId, startedAt: "" })
+            : walkService.startSession(homeId, userId),
+          buildWalkRoute(homeId, userId, settings),
+        ]);
+        if (gen !== bootstrapGen.current) {
+          // A newer bootstrap superseded this one — close the orphan
+          // session, but never a resumed one (we didn't open it).
+          if (!resumeSessionId) {
+            walkService.closeSession(session.id).catch(() => {});
+          }
+          return;
+        }
+        dispatch({ type: "loaded", sessionId: session.id, route });
+      } catch (err: unknown) {
+        if (gen !== bootstrapGen.current) return;
+        const message = err instanceof Error ? err.message : "Couldn't start your walk.";
+        Logger.error("GardenWalk bootstrap failed", err, { homeId });
+        dispatch({ type: "error", message });
       }
-      dispatch({ type: "loaded", sessionId: session.id, list });
-    } catch (err: unknown) {
-      if (gen !== bootstrapGen.current) return;
-      const message = err instanceof Error ? err.message : "Couldn't start your walk.";
-      Logger.error("GardenWalk bootstrap failed", err, { homeId });
-      dispatch({ type: "error", message });
-    }
-  }, [homeId, userId, settings]);
+    },
+    [homeId, userId, settings],
+  );
 
   // Fire bootstrap once on mount + whenever the underlying inputs
   // change. The bootstrap itself is idempotent — calling it again from
-  // the summary card's "Walk again" button does the right thing.
+  // the summary card's "Walk again" button does the right thing (that
+  // session was just ended, so no resume prompt reappears).
   useEffect(() => {
-    bootstrap();
+    void bootstrap();
   }, [bootstrap]);
 
   // Wave 23.0001 — gate the walk walkthrough (23.0003) so it only fires
   // after a real start.
   useEffect(() => { void recordSignal("first_walk_started"); }, []);
 
-  const handleOutcome = useCallback(
+  const handlePlantOutcome = useCallback(
     (outcome: WalkVisitOutcome) => {
       if (state.kind !== "walking") return;
-      const current = state.list[state.currentIndex];
-      if (!current) return;
-      walkService.recordVisit(state.sessionId, current.inventoryItemId, outcome);
-      dispatch({ type: "outcome", outcome });
+      const current = state.route.steps[state.currentIndex];
+      if (!current || current.kind !== "plant") return;
+      walkService.recordVisit(state.sessionId, current.plant.inventoryItemId, outcome);
+      dispatch({ type: "plant-outcome", outcome });
     },
     [state],
   );
 
+  const handleSectionContinue = useCallback(
+    (section: WalkSection) => {
+      if (state.kind !== "walking") return;
+      walkService.recordSectionVisit(
+        state.sessionId,
+        section.kind,
+        section.refId,
+        "section_done",
+      );
+      dispatch({ type: "section-continue" });
+    },
+    [state],
+  );
+
+  const handleSectionSkip = useCallback(
+    (section: WalkSection) => {
+      if (state.kind !== "walking") return;
+      walkService.recordSectionVisit(
+        state.sessionId,
+        section.kind,
+        section.refId,
+        "section_skipped",
+      );
+      dispatch({ type: "section-skip", section });
+    },
+    [state],
+  );
+
+  // A task completed from any card: bump the metric and log a
+  // task_completed step-visit row — WITHOUT advancing (the user resolves
+  // the card explicitly). Plant rows mark the plant actioned-today;
+  // section task_completed rows are history only (they don't exclude the
+  // section from a same-day rebuild — only section_done does).
+  const handleTaskCompleted = useCallback(
+    (_task: WalkTask) => {
+      if (state.kind !== "walking") return;
+      const current = state.route.steps[state.currentIndex];
+      if (!current) return;
+      if (current.kind === "plant") {
+        walkService.recordVisit(
+          state.sessionId,
+          current.plant.inventoryItemId,
+          "task_completed",
+        );
+      } else {
+        const section = sectionForStep(state.route, state.currentIndex);
+        if (section) {
+          walkService.recordSectionVisit(
+            state.sessionId,
+            section.kind,
+            section.refId,
+            "task_completed",
+          );
+        }
+      }
+      dispatch({ type: "bump", field: "tasksCompleted" });
+    },
+    [state],
+  );
+
+  const handleSectionNoteSaved = useCallback(() => {
+    dispatch({ type: "bump", field: "notesAdded" });
+  }, []);
+
+  // Phase 2 — a manual soil reading saved from an area card. Record the
+  // reading_logged step-visit row (history only — like task_completed it
+  // does NOT resolve the section; Continue / Skip do) and bump the
+  // session metric. The write itself already happened inside
+  // WalkReadingSheet via areaReadingsService.logManualReading.
+  const handleReadingLogged = useCallback(
+    (section: WalkSection) => {
+      if (state.kind !== "walking") return;
+      walkService.recordSectionVisit(
+        state.sessionId,
+        section.kind,
+        section.refId,
+        "reading_logged",
+      );
+      dispatch({ type: "bump", field: "readingsLogged" });
+    },
+    [state],
+  );
+
+  const handleSectionPhotoSaved = useCallback(() => {
+    dispatch({ type: "bump", field: "photosTaken" });
+  }, []);
+
   // Detect "we just advanced past the last card" → finish.
   useEffect(() => {
     if (state.kind !== "walking") return;
-    if (state.currentIndex < state.list.length) return;
+    if (state.currentIndex < state.route.steps.length) return;
     const durationMs = Date.now() - startedAtMs;
     walkService
       .endSession(state.sessionId, state.summary)
@@ -246,6 +399,46 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
         <div className="flex items-center gap-2 text-sm font-bold text-rhozly-on-surface/60">
           <Loader2 className="animate-spin" size={18} />
           Preparing your walk…
+        </div>
+      </div>
+    );
+  }
+
+  if (state.kind === "resume-prompt") {
+    return (
+      <div
+        data-testid="garden-walk-resume"
+        className="h-full w-full flex items-center justify-center px-6"
+      >
+        <div className="max-w-md w-full rounded-3xl bg-white border border-rhozly-outline/15 p-6 text-center">
+          <Footprints className="mx-auto mb-3 text-rhozly-primary" size={24} />
+          <p className="font-display font-black text-rhozly-on-surface text-lg mb-1">
+            Pick up where you left off?
+          </p>
+          <p className="text-sm text-rhozly-on-surface/65 mb-4 leading-snug">
+            You have a walk from earlier today. Resume it — anything you already
+            covered stays covered, and skipped sections come back around.
+          </p>
+          <div className="space-y-2">
+            <button
+              type="button"
+              data-testid="walk-resume-continue"
+              onClick={() => void bootstrap({ resumeSessionId: state.openSessionId })}
+              className="w-full min-h-[48px] rounded-2xl bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2"
+            >
+              <Footprints size={14} />
+              Resume walk
+            </button>
+            <button
+              type="button"
+              data-testid="walk-resume-fresh"
+              onClick={() => void bootstrap({ forceFresh: true })}
+              className="w-full min-h-[48px] rounded-2xl bg-white border border-rhozly-outline/15 text-rhozly-on-surface/70 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2"
+            >
+              <RotateCcw size={14} />
+              Start fresh
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -309,8 +502,9 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
       <WalkSummaryCard
         durationMs={state.durationMs}
         summary={state.summary}
+        skippedSections={state.skippedSectionLabels}
         onDone={() => navigate(returnTo)}
-        onWalkAgain={bootstrap}
+        onWalkAgain={() => void bootstrap()}
       />
     );
   }
@@ -319,8 +513,8 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
   // When the user advances past the last card, `currentIndex` overshoots
   // by one tick before the finish effect dispatches. Show a tiny
   // wrapping-up placeholder for that frame instead of feeding an
-  // undefined `plant` into WalkPlantCard.
-  const current = state.list[state.currentIndex];
+  // undefined step into a card.
+  const current: WalkStep | undefined = state.route.steps[state.currentIndex];
   if (!current) {
     return (
       <div
@@ -334,19 +528,65 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
       </div>
     );
   }
+
+  const currentSection = sectionForStep(state.route, state.currentIndex);
+
+  if (current.kind === "plant") {
+    return (
+      // Keyed by plant: without it, React reuses the card instance when
+      // advancing, so the previous plant's scroll offset and in-flight
+      // upload state (snapUploading) bled into the next plant's card.
+      <WalkPlantCard
+        key={current.plant.inventoryItemId}
+        homeId={homeId}
+        userId={userId}
+        aiEnabled={aiEnabled}
+        plant={current.plant}
+        tasks={current.tasks}
+        sectionLabel={currentSection?.label ?? null}
+        progressIndex={state.currentIndex}
+        progressTotal={state.route.steps.length}
+        onOutcome={handlePlantOutcome}
+        onTaskCompleted={handleTaskCompleted}
+        onStop={handleStop}
+      />
+    );
+  }
+
+  // Section step (home / location / area). The section identity comes
+  // from the step itself, not the smallest-enclosing lookup (a location
+  // header's own section is the location, not its first area).
+  const ownSection: WalkSection =
+    state.route.sections.find(
+      (s) =>
+        s.kind === current.kind &&
+        (current.kind === "home" || s.refId === (current as { id: string }).id),
+    ) ?? {
+      key: current.kind,
+      kind: current.kind,
+      refId: current.kind === "home" ? null : (current as { id: string }).id,
+      label: current.kind === "home" ? "Home" : (current as { name: string }).name,
+      stepStart: state.currentIndex,
+      stepEnd: state.currentIndex,
+      skippedEarlier: false,
+    };
+
   return (
-    // Keyed by plant: without it, React reuses the card instance when
-    // advancing, so the previous plant's scroll offset and in-flight
-    // upload state (snapUploading) bled into the next plant's card.
-    <WalkPlantCard
-      key={current.inventoryItemId}
+    <WalkSectionCard
+      key={ownSection.key}
       homeId={homeId}
-      aiEnabled={aiEnabled}
-      plant={current}
+      userId={userId}
+      step={current}
+      section={ownSection}
       progressIndex={state.currentIndex}
-      progressTotal={state.list.length}
-      onOutcome={handleOutcome}
+      progressTotal={state.route.steps.length}
+      onContinue={() => handleSectionContinue(ownSection)}
+      onSkipSection={() => handleSectionSkip(ownSection)}
       onStop={handleStop}
+      onTaskCompleted={handleTaskCompleted}
+      onNoteSaved={handleSectionNoteSaved}
+      onPhotoSaved={handleSectionPhotoSaved}
+      onReadingLogged={() => handleReadingLogged(ownSection)}
     />
   );
 }

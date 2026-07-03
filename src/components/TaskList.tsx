@@ -37,6 +37,7 @@ import { TaskEngine } from "../lib/taskEngine";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { AutomationEngine } from "../lib/automationEngine";
 import { buildGhostPayload, hasBlockingDependencies } from "../lib/taskMutations";
+import { materialiseGhost, postponeTask } from "../lib/taskActions";
 import { scoreTaskByPlantPreferences } from "../hooks/useUserPreferences";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { logEvent, EVENT } from "../events/registry";
@@ -693,24 +694,10 @@ export default function TaskList({
     if (postponeDate === task.due_date) return setIsPostponing(false);
     setIsUpdatingTask(task.id);
     try {
-      if (task.isGhost) {
-        // Ghost: tombstone the original slot, create Pending at new date
-        await supabase.from("tasks").insert([
-          buildGhostPayload(task, "Skipped"),
-          buildGhostPayload(task, "Pending", { due_date: postponeDate }),
-        ]);
-      } else if (task.blueprint_id) {
-        // Physical blueprint task: mark in-place as Skipped (tombstone so the ghost
-        // engine won't re-generate a ghost at the now-vacated date), then insert a
-        // new Pending task at the postponed date.
-        await supabase.from("tasks").update({ status: "Skipped" }).eq("id", task.id);
-        await supabase.from("tasks").insert(
-          buildGhostPayload(task, "Pending", { due_date: postponeDate }),
-        );
-      } else {
-        // Pure one-off task (no blueprint): just move it, no ghost to worry about
-        await supabase.from("tasks").update({ due_date: postponeDate }).eq("id", task.id);
-      }
+      // Shared mutation core (src/lib/taskActions.ts) — ghost tombstone +
+      // re-insert, blueprint skip + re-insert, or standalone move. Also
+      // fires the task_postponed event.
+      await postponeTask(task, postponeDate);
       const offsetDays = Math.round(
         (new Date(postponeDate).getTime() - new Date(task.due_date).getTime()) / 86_400_000,
       );
@@ -737,12 +724,7 @@ export default function TaskList({
       }
 
       toast.success(`Task postponed to ${formatDisplayDate(postponeDate)}`);
-      logEvent(EVENT.TASK_POSTPONED, {
-        task_id: task.id,
-        task_type: task.type,
-        delay_days: offsetDays,
-        inventory_item_ids: task.inventory_item_ids ?? [],
-      });
+      // task_postponed event is logged inside postponeTask (taskActions).
       setSelectedTask(null);
       setIsPostponing(false);
       setShiftBlueprint(false);
@@ -784,19 +766,19 @@ export default function TaskList({
       if (selectedTask?.id === task.id) setSelectedTask(optimisticTask);
 
       if (task.isGhost) {
-        const { data, error } = await supabase
-          .from("tasks")
-          .insert([
-            buildGhostPayload(task, newStatus, {
-              completed_at: completedAt,
-              completed_by: newStatus === "Completed" ? currentUserId : null,
-            }),
-          ])
-          .select(
-            `*, locations(name, is_outside), areas(name), plans(ai_blueprint, name)`,
-          )
-          .single();
-        if (error) throw error;
+        // Shared mutation core (src/lib/taskActions.ts) — handles the
+        // unique_blueprint_date race by falling back to UPDATE when the
+        // slot was already materialised from another surface (e.g. the
+        // Garden Walk).
+        const data = await materialiseGhost(
+          task,
+          newStatus,
+          {
+            completed_at: completedAt,
+            completed_by: newStatus === "Completed" ? currentUserId : null,
+          },
+          `*, locations(name, is_outside), areas(name), plans(ai_blueprint, name)`,
+        );
         finalData = { ...data, isAutoCompleted: false };
       } else {
         const { error } = await supabase

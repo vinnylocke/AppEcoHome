@@ -270,3 +270,68 @@ Same data everywhere; persona changes copy + density only. Persona rendering dec
 5. **Harvest tasks in-walk** — plain complete only, with ripeness/partial-pick sheets staying in Task Detail? Or should `HarvestRipenessSheet` be reachable from the walk (adds an AI call surface to the walk)?
 6. **Unassigned tasks scope** — should the Home step include *personal-scope* tasks (`scope='personal'`, `user_id = walker`) as well as home-scope unassigned ones? Recommend yes (both), clearly labelled.
 7. **Walk length guardrail** — keep `maxPerWalk = 30` plant cap? A "full day's gardening" walk in a big garden may want a higher/no cap once sections make skipping easy.
+
+## Approved 2026-07-02 — answers to the open questions (ticket comment 10098)
+
+1. Hierarchy ordering (bands within area, attention preview on Home card): **approved**.
+2. Valves: **NOT display-only** — allow manual OPEN (with a timer/duration) and CLOSE from the walk. Reuse the existing manual valve-control path (device_commands / integrations control functions) with the dead-man's-switch countdown semantics; never invent a new control path.
+3. Plans: **actionable** phase steps in-walk (complete/advance), not read-only.
+4. **Photo capture on section cards too** (home/location/area), alongside notes — section photos attach to the unassigned/section journal entry.
+5. Harvest tasks: **full experience in-walk** — ripeness check, partial-pick/yield sheets included, not plain complete.
+6. Home step includes **personal-scope tasks** as well as unassigned home tasks: yes.
+7. Keep the 30-plant cap but make it **an easily changeable constant** (single exported const, documented).
+
+These expand Phase scope vs the original recommendation: valve control moves into Phase 2; actionable plans + harvest sheets land in Phase 3 (harvest sheet reuse may pull into Phase 1 if the existing sheet components lift cleanly).
+
+## Phase 3 — IMPLEMENTED 2026-07-03 (with Phases 1 + 2, same working tree)
+
+Watchlist weaving, actionable plans, harvest sheets in-walk and the S11 persona
+pass are implemented and fully green (typecheck, schema check, 1,137 Vitest,
+757 Deno, garden-walk 17/17 + home-main 8/8 Playwright, `npm run build`).
+
+**What landed**
+
+- `composeWalkRoute` gained `watchlist` / `ailmentLinks` / `itemAreas` / `plans`
+  inputs (all soft-fail enrichment, like devices). Home step: `watchlist` digest
+  (active ailments, first symptom, home-wide link counts) + `plans` digests;
+  area steps: per-bed ailment context + staged-plan banners. `derivePlanPhase`
+  (new pure export) mirrors PlanStaging's phase derivation exactly.
+- `WalkWatchlistPanel` (new) — home "Look out for" / area "Flagged in this bed";
+  tapping navigates to `/watchlist` (session stays open -> Resume on return).
+- `WalkPlanBanner` (new) — home digest rows; area banners with the plan's phase,
+  next action, open-task count, **Activate maintenance** (phase 5) and
+  **Open plan** (`/planner`).
+- `WalkTaskRow` — in-window `window_end_date` tasks replace the plain complete
+  with a **Harvest** strip (Harvested / Picked some / Not yet 3-5-7d / Check with
+  AI) mounting the exact Task Detail components (`HarvestRipenessSheet`,
+  `HarvestPartialPickSheet`, `HarvestEndOfLifePrompt`); new
+  `taskActions.snoozeHarvestTask` mirrors TaskModal's `snoozeFor` (ghost
+  materialise-first, `next_check_at` capped at `window_end_date`). Window-closed
+  tasks keep plain tick (= "log yield anyway") / skip (= "mark missed").
+- S11 persona pass via `usePersona()` (null => "new") inside the components:
+  guidance prose / symptom hints / expanded descriptions / reading-sheet helper
+  ranges for "new"; compact chips, Details-tap descriptions, terse copy for
+  "experienced". Summary card gains the readings-logged stat + persona framing.
+  Copy + density only — no structural differences.
+
+**Deviations from the letter of answer 3 (actionable plans)**
+
+- Phases 1–3 of a plan (link area / source plants / stage bed) require the full
+  PlanStaging UI (area pickers, plant-mapping table, procurement hand-off) and
+  cannot be lifted into a walk card safely; phase 4 can never be *current* on an
+  In-Progress plan (status In Progress => phase 4 done). So the walk exposes:
+  (a) the plan's own tasks as first-class completable rows via the shared
+  `taskActions` (the per-step "complete" of the current phase), (b) the ONE
+  cleanly liftable staging mutation — phase-5 **Activate maintenance**, reusing
+  `planStagingService.activateMaintenanceBlueprints` write-for-write (blueprint
+  inserts, status='Completed', staging_state merge, PLAN_COMPLETED event,
+  planner memory) — and (c) **Open plan** deep-links for everything else. This
+  is the fallback the implementation brief sanctioned, plus the safe lift.
+- Watchlist taps navigate to `/watchlist` (per the Phase 3 brief), superseding
+  S5.1's original "tapping does nothing in v1".
+- Plan/watchlist context never forces an otherwise-empty section to render
+  (the >=1 plant/task/device rule from S4.2 stands; unit-tested).
+
+**Docs updated:** `docs/app-reference/02-dashboard/13-garden-walk.md` (both
+roles), `docs/e2e-test-plan/29-garden-walk.md` (WALK-040..044), `TESTING.md`
+inventory counts.
