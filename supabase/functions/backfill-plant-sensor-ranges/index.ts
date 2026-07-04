@@ -35,15 +35,17 @@ Deno.serve(async (req) => {
   const system = { userId: null, homeId: null };
 
   try {
-    // 1. Library first (the canonical knowledge base).
+    // 1. Library first (the canonical knowledge base). maxRunMs keeps a single
+    //    invocation under the wall-clock limit even if BACKFILL_BATCH_SIZE is
+    //    raised — the daily sweep just picks up where it left off next run.
     const lib = await runSensorRangeBackfill(db, apiKey, {
-      table: "plant_library", limit: batchSize, aiAttribution: system,
+      table: "plant_library", limit: batchSize, aiAttribution: system, maxRunMs: 120_000,
     });
     // 2. Global plants catalogue — remaining budget.
     const remaining = Math.max(0, batchSize - lib.scanned);
     const cat = remaining > 0
-      ? await runSensorRangeBackfill(db, apiKey, { table: "plants", limit: remaining, aiAttribution: system })
-      : { scanned: 0, filled: 0, skipped: 0, failed: 0 };
+      ? await runSensorRangeBackfill(db, apiKey, { table: "plants", limit: remaining, aiAttribution: system, maxRunMs: 120_000 })
+      : { scanned: 0, filled: 0, skipped: 0, failed: 0, lastId: null };
 
     const summary = { filledLibrary: lib.filled, filledPlants: cat.filled, batchSize };
     log(FN, "complete", summary);

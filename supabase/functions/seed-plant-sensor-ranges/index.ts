@@ -8,8 +8,15 @@
 // the Plant Library Admin's Recent-runs table with live progress + cost.
 //
 // Auth: requireAuth + requireAdmin (this one spends Gemini, so it's gated
-// server-side — unlike the older seed/verify functions). Runs in the background
-// via EdgeRuntime.waitUntil and returns { run_id } immediately (202).
+// server-side — unlike the older seed/verify functions).
+//
+// Self-chaining: a single edge invocation can't fill thousands of rows before
+// the wall-clock limit kills it (an earlier version filled ~278 then got
+// abandoned). So — like seed-plant-library — each invocation processes a short,
+// time-boxed CHUNK and then POSTs itself a continuation with the remaining count
+// and a cursor (after_id). The first call is admin-gated; continuation calls
+// carry the service-role key as bearer and are guarded on it. Returns
+// { run_id } immediately (202); progress streams into plant_library_runs.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
@@ -21,6 +28,11 @@ import { runSensorRangeBackfill, type BackfillDelta } from "../_shared/sensorRan
 
 const FN = "seed-plant-sensor-ranges";
 const MAX_COUNT = 2000;
+// Wall-clock budget per invocation — well under the edge-function kill window
+// (~7 min observed). Whatever's left after this chains to a fresh invocation.
+const CHUNK_BUDGET_MS = 90_000;
+// Gentle pacing between Gemini calls for the admin bulk run (the cron uses 500).
+const CHUNK_SLEEP_MS = 200;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -87,6 +99,65 @@ async function finalizeRun(db: any, runId: string) {
     .eq("id", runId);
 }
 
+/**
+ * Fire-and-forget POST to our own URL to process the next chunk. Carries the
+ * service-role key so it passes the gateway + our continuation guard. Registered
+ * with EdgeRuntime.waitUntil so the runtime keeps the worker alive until the
+ * request lands (a bare fetch would be cancelled when this chunk settles).
+ */
+function scheduleContinuation(
+  supabaseUrl: string, serviceKey: string, runId: string,
+  remaining: number, afterId: number, triggeredBy: string | null,
+): void {
+  const url = `${supabaseUrl}/functions/v1/seed-plant-sensor-ranges`;
+  const p = fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
+    body: JSON.stringify({ run_id: runId, count: remaining, after_id: afterId, triggered_by: triggeredBy }),
+  }).catch((err) => logError(FN, "schedule_continuation_failed", { runId, remaining, error: (err as Error)?.message }));
+  // @ts-expect-error EdgeRuntime is only available at runtime.
+  EdgeRuntime.waitUntil(p);
+}
+
+/**
+ * Process one time-boxed chunk, then either chain the next invocation or
+ * finalize. Any unhandled failure marks the run failed rather than leaving it
+ * to be swept as "abandoned".
+ */
+async function processChunkAndContinue(
+  db: any, apiKey: string, supabaseUrl: string, serviceKey: string,
+  runId: string, remaining: number, afterId: number | null, triggeredBy: string | null,
+): Promise<void> {
+  try {
+    const summary = await runSensorRangeBackfill(db, apiKey, {
+      table: "plant_library",
+      limit: remaining,
+      afterId,
+      maxRunMs: CHUNK_BUDGET_MS,
+      sleepMs: CHUNK_SLEEP_MS,
+      aiAttribution: { userId: triggeredBy, homeId: null },
+      action: "care_range_admin_seed",
+      onProgress: (delta) => updateRunProgress(db, runId, delta),
+    });
+    const stillRemaining = remaining - summary.scanned;
+    // Done when this pass found no rows (ran out of missing plants), the budget
+    // is used up, or the cursor didn't advance. Otherwise chain from lastId.
+    if (summary.scanned === 0 || summary.lastId == null || stillRemaining <= 0) {
+      await finalizeRun(db, runId);
+      log(FN, "run_finished", { runId, remaining: stillRemaining });
+    } else {
+      log(FN, "scheduling_continuation", { runId, remaining: stillRemaining, after_id: summary.lastId });
+      scheduleContinuation(supabaseUrl, serviceKey, runId, stillRemaining, summary.lastId, triggeredBy);
+    }
+  } catch (e) {
+    logError(FN, "chunk_failed", { runId, message: e instanceof Error ? e.message : String(e) });
+    await db.from("plant_library_runs")
+      .update({ status: "failed", finished_at: new Date().toISOString(), error_message: (e instanceof Error ? e.message : String(e)).slice(0, 2000) })
+      .eq("id", runId);
+    await captureException(FN, e, { runId });
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -96,6 +167,24 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get("GEMINI_API_KEY")!;
     const db = createClient(supabaseUrl, serviceKey);
 
+    const body = await req.json().catch(() => ({}));
+    const runIdIn = (body as { run_id?: string }).run_id;
+
+    // ── Continuation self-call: guarded on the service-role bearer, no user
+    //    auth (it's server-to-server). Picks up the next chunk from after_id.
+    if (runIdIn) {
+      const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+      if (bearer !== serviceKey) return json({ error: "forbidden" }, 403);
+      const remaining = Math.max(0, Math.floor(Number((body as { count?: number }).count) || 0));
+      const afterIdRaw = Number((body as { after_id?: number }).after_id);
+      const afterId = Number.isFinite(afterIdRaw) ? afterIdRaw : null;
+      const triggeredBy = (body as { triggered_by?: string }).triggered_by ?? null;
+      // @ts-expect-error EdgeRuntime is only available at runtime.
+      EdgeRuntime.waitUntil(processChunkAndContinue(db, apiKey, supabaseUrl, serviceKey, runIdIn, remaining, afterId, triggeredBy));
+      return json({ run_id: runIdIn, continued: true }, 202);
+    }
+
+    // ── First call: admin-gated. Create the run row, kick off chunk 1.
     const authResult = await requireAuth(req, db);
     if (authResult instanceof Response) return authResult;
     const userId = authResult.user.id;
@@ -103,7 +192,6 @@ Deno.serve(async (req) => {
     const adminRes = await requireAdmin(db, userId, corsHeaders);
     if (adminRes) return adminRes;
 
-    const body = await req.json().catch(() => ({}));
     const rawCount = Number((body as { count?: number }).count);
     const count = Number.isFinite(rawCount) ? Math.max(1, Math.min(MAX_COUNT, Math.floor(rawCount))) : 100;
     const triggeredBy = (body as { triggered_by?: string }).triggered_by ?? userId;
@@ -117,24 +205,7 @@ Deno.serve(async (req) => {
     const runId = run.id as string;
 
     // @ts-expect-error EdgeRuntime is only available at runtime.
-    EdgeRuntime.waitUntil((async () => {
-      try {
-        await runSensorRangeBackfill(db, apiKey, {
-          table: "plant_library",
-          limit: count,
-          aiAttribution: { userId: triggeredBy, homeId: null },
-          action: "care_range_admin_seed",
-          onProgress: (delta) => updateRunProgress(db, runId, delta),
-        });
-        await finalizeRun(db, runId);
-      } catch (e) {
-        logError(FN, "run_failed", { runId, message: e instanceof Error ? e.message : String(e) });
-        await db.from("plant_library_runs")
-          .update({ status: "failed", finished_at: new Date().toISOString(), error_message: (e instanceof Error ? e.message : String(e)).slice(0, 2000) })
-          .eq("id", runId);
-        await captureException(FN, e, { runId });
-      }
-    })());
+    EdgeRuntime.waitUntil(processChunkAndContinue(db, apiKey, supabaseUrl, serviceKey, runId, count, null, triggeredBy));
 
     log(FN, "started", { runId, count });
     return json({ run_id: runId }, 202);

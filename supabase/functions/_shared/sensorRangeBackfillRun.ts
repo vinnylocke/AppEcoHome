@@ -37,6 +37,8 @@ export interface BackfillSummary {
   filled: number;
   skipped: number;
   failed: number;
+  /** Highest plant id processed this pass — the cursor for a chained continuation. */
+  lastId: number | null;
 }
 
 export interface RunSensorRangeBackfillOpts {
@@ -47,7 +49,18 @@ export interface RunSensorRangeBackfillOpts {
   action?: string;
   onProgress?: (delta: BackfillDelta) => Promise<void>;
   sleepMs?: number;
+  /** Only consider rows with id > afterId (cursor for chained continuations —
+   *  guarantees forward progress so a persistently-failing row can't be
+   *  re-selected forever). */
+  afterId?: number | null;
+  /** Stop the loop once this many ms have elapsed, so a single invocation stays
+   *  under the edge-function wall-clock limit and can chain the rest. */
+  maxRunMs?: number;
 }
+
+// Cap how many rows we pull per call regardless of `limit` — the time budget +
+// chaining handle the rest, and this keeps the in-memory row set small.
+const FETCH_CAP = 250;
 
 /**
  * Fill missing soil ranges for up to `limit` rows of `table` that have at least
@@ -60,7 +73,7 @@ export async function runSensorRangeBackfill(
   apiKey: string,
   opts: RunSensorRangeBackfillOpts,
 ): Promise<BackfillSummary> {
-  const { table, limit, aiAttribution, onProgress } = opts;
+  const { table, limit, aiAttribution, onProgress, afterId, maxRunMs } = opts;
   const sleepMs = opts.sleepMs ?? 500;
   const action = opts.action ?? "care_range_backfill";
 
@@ -69,17 +82,24 @@ export async function runSensorRangeBackfill(
     .select(`id, common_name, scientific_name, ${RANGE_COLS}`)
     .or(ANY_NULL)
     .order("id", { ascending: true })
-    .limit(Math.max(0, limit));
+    .limit(Math.min(FETCH_CAP, Math.max(0, limit)));
+  if (afterId != null) query = query.gt("id", afterId);
   if (table === "plants") {
     query = query.is("home_id", null).in("source", ["api", "ai", "verdantly"]);
   }
-  const { data: rows } = await query;
+  const { data: rows, error: queryError } = await query;
+  // supabase-js doesn't throw on query errors — surface it so the run is marked
+  // failed with a real reason instead of silently reporting zero rows.
+  if (queryError) throw new Error(`sensor-range query failed: ${queryError.message}`);
 
-  let scanned = 0, filled = 0, skipped = 0, failed = 0;
+  const startedAt = Date.now();
+  let scanned = 0, filled = 0, skipped = 0, failed = 0, lastId: number | null = null;
 
   for (const row of (rows ?? []) as Array<Record<string, unknown>>) {
+    if (maxRunMs != null && Date.now() - startedAt > maxRunMs) break;
     if (!needsRangeBackfill(row)) continue;
     scanned++;
+    lastId = row.id as number;
     const delta: BackfillDelta = { filled: 0, skipped: 0, failed: 0, usage: null };
     try {
       const prompt = buildPlantCareRangePrompt({
@@ -113,5 +133,5 @@ export async function runSensorRangeBackfill(
     await sleep(sleepMs);
   }
 
-  return { scanned, filled, skipped, failed };
+  return { scanned, filled, skipped, failed, lastId };
 }

@@ -88,3 +88,16 @@ In `plantLibraryAdminService.ts`, mirroring `triggerSeedRun`: `invoke("seed-plan
 - **O3 — Server-side admin check:** ✅ **add `requireAdmin`** to the new fn. The existing seed/verify lack it — flagged as a separate follow-up, not retrofitted here.
 - **O4 — Scope:** ✅ **library only** (`plant_library`). Confirmed the library is the shared global reference — RLS `FOR SELECT TO authenticated USING (true)` (`20260624000900_plant_library.sql:126-130`), so every signed-in user reads it and seeding it benefits all users; only edge fns (service-role) write it. The daily cron still also sweeps the global `plants` catalogue.
 - **Cost visibility:** the run row already tracks tokens + est. cost per model, so the admin sees spend per run in Recent runs — no extra work.
+
+---
+
+## Follow-up fix (2026-07-04) — self-chaining to survive the wall-clock limit
+
+**Problem found in production:** the first real admin run (`count: 2000`) filled **278** rows then stopped; the stale-sweep marked it **failed** — `error_message: "abandoned — no heartbeat for 3+ minutes (background task likely timed out or was killed)"`. Root cause: the single `EdgeRuntime.waitUntil` background tried to process all `count` rows in one invocation and hit the edge-function wall-clock limit (~7 min ≈ 278 plants). The library also turned out to have a **~93k-row backlog** missing ranges, so single-shot was never going to scale.
+
+**Fix (mirrors `seed-plant-library`):**
+- `_shared/sensorRangeBackfillRun.ts` — added `afterId` (cursor) + `maxRunMs` (time budget) options and a `FETCH_CAP` (250); the loop now stops at the time budget and returns `lastId`. Also now **checks the query `error`** and throws (previously a failed query silently reported zero rows).
+- `seed-plant-sensor-ranges/index.ts` — each invocation runs one ~90s time-boxed chunk, then **POSTs itself a continuation** (`{ run_id, count: remaining, after_id, triggered_by }`) carrying the service-role key. Continuation calls are distinguished by `run_id` and **guarded on the service-role bearer** (no user auth); first calls stay admin-gated. Chains until the requested count is met or no missing rows remain, then `finalizeRun`.
+- `backfill-plant-sensor-ranges/index.ts` — added a `maxRunMs` guard to both sweeps so a raised `BACKFILL_BATCH_SIZE` can't time the daily cron out either.
+
+**Cost note:** ~93k missing rows × one Gemini call each is a real spend. The 2000/run cap stands; the admin runs it in bursts, and the daily cron drains steadily in the background.
