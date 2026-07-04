@@ -26,8 +26,8 @@ AilmentWatchlist
 │   ├── View tabs: Active / Archived
 │   ├── Type filter (All / Pest / Disease / Invasive)
 │   ├── Search bar
-│   ├── Bulk add button → BulkAddAilmentsModal (RHO-4 Phase 2; perm `ailments.add`)
-│   └── Add Ailment button → AilmentAddModal
+│   ├── Bulk add button → BulkAddAilmentsModal (RHO-4 Phase 2; perm `ailments.add`; icon-only below sm)
+│   └── "Find an ailment" button (`watchlist-add-btn`) → AddAilmentModal
 ├── AilmentCard ×N
 │   ├── Cover image (from ailment.thumbnail_url)
 │   ├── Source badge (Manual / Library / Perenual / AI — `SOURCE_META`)
@@ -72,9 +72,20 @@ Roll up `plant_instance_ailments` into `affectedCounts: Record<ailmentId, number
 
 #### Add Ailment — tiered search (2026-06-19)
 
-`AddAilmentModal` now mirrors the plant search: **one** search box with progressive tiers
-(the old AI / Perenual tabs were removed). Source files: `AilmentWatchlist.tsx` (modal) +
-`src/services/ailmentLibraryService.ts` (`filterAilmentLibrary`, `persistAiAilmentToLibrary`).
+The header CTA is **"Find an ailment"** (`data-testid="watchlist-add-btn"`) — renamed from "Add"
+to parallel the Shed's "Find a plant". `AddAilmentModal` now mirrors the plant search: **one**
+search box with progressive tiers (the old AI / Perenual tabs were removed). Source files:
+`AilmentWatchlist.tsx` (modal) + `src/services/ailmentLibraryService.ts` (`filterAilmentLibrary`,
+`persistAiAilmentToLibrary`).
+
+**Visual parity with `BulkSearchModal`.** The modal shell is deliberately aligned to the Shed's
+"Find a plant" modal so the two read as one family: the same frame (`max-w-3xl h-[85vh]`,
+`bg-rhozly-surface-lowest`, rounded, `overflow-hidden`), the same `p-8` header (`Biohazard` icon +
+`text-3xl` title + muted uppercase subtitle), and a **Search / Manual tab bar**
+(`data-testid="ailment-tab-search"` / `ailment-tab-manual`) in the same style. The tiered
+library → databases → AI escalation lives inside the **Search** tab (deeper tiers keep their own
+"Back to Search" control); **Manual** is the tab. Only the *search engine* differs — ailments use
+the library/Perenual-pest-disease/AI-generation tiers, not the plant `<PlantSearch>` component.
 
 | Tier | Behaviour |
 |------|-----------|
@@ -125,7 +136,7 @@ Opens Plant Doctor chat with the ailment loaded as context.
 
 ### Cross-home favourites (Phase 2 — ailments)
 
-Scope pills **Home | Favourites** (`data-testid="watchlist-scope-toggle"`, buttons `watchlist-scope-home` / `watchlist-scope-favourites`). State derives from `?scope=favourites`; `switchScope` does a targeted `setSearchParams` get/set so it never clobbers `?tab=` etc. In Favourites scope the Add button, Active/Archived + type-filter pills, the search box and the library-browse button are hidden.
+Scope pills **Home | Favourites** (`data-testid="watchlist-scope-toggle"`, buttons `watchlist-scope-home` / `watchlist-scope-favourites`). State derives from `?scope=favourites`; `switchScope` does a targeted `setSearchParams` get/set so it never clobbers `?tab=` etc. In Favourites scope the "Find an ailment" button, Active/Archived + type-filter pills, the search box and the library-browse button are hidden.
 
 - **Favourite affordance (Home tab):** a heart button on each `AilmentCard` (`data-testid="favourite-ailment-<ailmentId>"`, `aria-pressed` reflects saved state). Fill is driven by `favouriteKeys` — a Set of `ailmentIdentityKey(name)` (lowercased trimmed name, mirroring `ailment_library.name_key`) because the home `ailments` row carries no stable cross-home id. `handleToggleFavourite` optimistically inserts/removes via `favouritesService`. The heart is always visible (favouriting is personal — never permission-gated), unlike the Archive/Delete buttons which stay `ailments.delete`-gated.
 - **Reference resolution.** Unlike plants (which reference an immutable `plants` id), the favourite references `ailment_library.id`, resolved **best-effort by `name_key`** at favourite time (`resolveAilmentLibraryId`) — the home `ailments` row has no library FK. Matched → the favourite renders **live** library data ("always live"); unmatched (manual / one-off ailments) → `ailment_library_id` NULL and the card renders from the jsonb `snapshot` **tombstone** with a "Saved copy" chip. E2E workers don't seed the library, so all their favourite ailments are tombstones.
@@ -172,7 +183,7 @@ None.
 
 | Permission | Effect |
 |------------|--------|
-| `ailments.add` | Add Ailment button + Bulk add button (RHO-4 Phase 2) |
+| `ailments.add` | "Find an ailment" button + Bulk add button (RHO-4 Phase 2) |
 | `ailments.delete` | Archive + Delete buttons |
 | `ailments.link` | LinkAilmentModal usage |
 
@@ -219,7 +230,7 @@ Three modes:
 
 #### 1b. Bulk add — a whole list at once (RHO-4 Phase 2)
 
-Got a list of pests and diseases to watch for — from a garden book, an RHS leaflet, or last season's notes? Tap **Bulk add** (next to the primary **Add** button) instead of typing them one at a time.
+Got a list of pests and diseases to watch for — from a garden book, an RHS leaflet, or last season's notes? Tap **Bulk add** (next to the primary **Find an ailment** button; on a phone it's the compact icon-only button) instead of typing them one at a time.
 
 - **Paste a list**: type or paste one ailment per line — `Aphids`, `Powdery mildew (white coating)`, `Black spot: yellowing, leaf drop`. On Sage/Evergreen the AI reads messy lists; on other tiers a built-in parser does its best. Rhozly guesses each one's **type** (pest / disease / invasive plant) — you can change it before saving.
 - **Upload CSV**: for spreadsheet people. **Download template** gives you a ready-made file with every column and an example row; fill it, upload it, review, save. Symptoms go in as `Sticky leaves [moderate]; Curled shoots`; prevention/remedy steps are just titles (fine-tune the timing and products in each ailment afterwards).

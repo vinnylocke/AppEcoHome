@@ -60,7 +60,9 @@ export class WatchlistPage {
   constructor(page: Page) {
     this.page = page;
     this.heading = page.getByRole("heading", { name: "Ailment Watchlist" });
-    this.addButton = page.getByRole("button", { name: "Add" }).first();
+    // Primary CTA — renamed "Add" → "Find an ailment" to parallel the Shed's
+    // "Find a plant". Target by testid so the label can evolve.
+    this.addButton = page.locator('[data-testid="watchlist-add-btn"]');
     this.activeTab = page.getByRole("button", { name: "Active" });
     this.archivedTab = page.getByRole("button", { name: "Archived" });
     this.emptyState = page.getByText(/Your watchlist is empty\.|No matching ailments\./);

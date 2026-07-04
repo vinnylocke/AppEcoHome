@@ -28,6 +28,29 @@ test.describe("Watchlist — basic render", () => {
     await expect(wl.ailmentCard("Japanese Knotweed")).toBeVisible({ timeout: 10000 });
   });
 
+  test("WL-MOBILE-001: bulk-add + primary CTA are visible on a phone-portrait viewport", async ({ authenticatedPage }) => {
+    // Regression: both were `hidden sm:flex`, so the bulk-add button vanished
+    // below 640px. It now shows icon-only on mobile.
+    await authenticatedPage.setViewportSize({ width: 390, height: 844 });
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    await expect(wl.bulkAddButton).toBeVisible({ timeout: 10000 });
+    await expect(wl.addButton).toBeVisible();
+  });
+
+  test("WL-MOBILE-002: Add modal opens with the Search / Manual tab bar (BulkSearchModal parity)", async ({ authenticatedPage }) => {
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    await wl.addButton.click();
+    await expect(wl.addModalHeading).toBeVisible({ timeout: 8000 });
+    await expect(authenticatedPage.locator('[data-testid="ailment-tab-search"]')).toBeVisible();
+    await expect(authenticatedPage.locator('[data-testid="ailment-tab-manual"]')).toBeVisible();
+  });
+
   test("WL-004: Pest ailment shows Pest type badge", async ({ authenticatedPage }) => {
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();

@@ -16,6 +16,18 @@ import { ShedPage } from "../pages/ShedPage";
 // silently breaks 7 E2E tests across two specs.
 
 test.describe("Shed — Tabs and view filters", () => {
+  test("SHED-MOBILE-001: bulk-add + Find a plant are visible on a phone-portrait viewport", async ({ authenticatedPage }) => {
+    // Regression: the bulk-add button was `hidden sm:flex` and vanished below
+    // 640px. It now shows icon-only on mobile.
+    await authenticatedPage.setViewportSize({ width: 390, height: 844 });
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await expect(shed.addButton).toBeVisible({ timeout: 10000 });
+    await expect(shed.bulkAddButton).toBeVisible();
+  });
+
   test("SHED-005: Active tab is default and shows non-archived plants", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();

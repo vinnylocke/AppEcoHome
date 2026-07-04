@@ -11,6 +11,8 @@
 |---|---|---|---|---|
 | WL-001 | ✅ | `/watchlist` → heading | — | ✅ Passing |
 | WL-002 | ✅ | Aphid, Early Blight, Japanese Knotweed cards visible | — | ✅ Passing |
+| WL-MOBILE-001 | ✅ | Phone-portrait (390×844): Bulk add + "Find an ailment" both visible (regression: bulk add was `hidden sm:flex`) | — | ✅ Passing |
+| WL-MOBILE-002 | ✅ | "Find an ailment" opens `AddAilmentModal` with the Search / Manual tab bar (BulkSearchModal parity) | — | ✅ Passing |
 | WL-003 | ✅ | Empty state — clean account → prompt | Supabase mock | ✅ Passing |
 | WL-004 | ✅ | "Pest" badge on Aphid | — | ✅ Passing |
 | WL-005 | ✅ | "Disease" badge on Early Blight | — | ✅ Passing |

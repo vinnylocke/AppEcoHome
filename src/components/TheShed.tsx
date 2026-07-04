@@ -1683,10 +1683,11 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     <button
                       data-testid="shed-bulk-paste-btn"
                       onClick={() => setShowBulkPaste(true)}
+                      aria-label="Bulk add plants"
                       title="Paste a list or upload a CSV to add plants all at once"
-                      className="hidden sm:flex items-center gap-2 px-4 py-3 bg-white border border-rhozly-outline/20 text-rhozly-primary rounded-2xl font-black text-sm hover:border-rhozly-primary/30 hover:bg-rhozly-primary/5 transition-colors"
+                      className="flex items-center gap-2 px-4 py-3 bg-white border border-rhozly-outline/20 text-rhozly-primary rounded-2xl font-black text-sm hover:border-rhozly-primary/30 hover:bg-rhozly-primary/5 transition-colors"
                     >
-                      <FileText size={16} /> Bulk add
+                      <FileText size={16} /> <span className="hidden sm:inline">Bulk add</span>
                     </button>
                   </>
                 )}

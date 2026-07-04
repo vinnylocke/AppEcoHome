@@ -848,21 +848,55 @@ function AddAilmentModal({
   const totalSelected = checkedPerenualIds.size + checkedAiIds.size;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="bg-rhozly-surface-lowest rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl border border-rhozly-outline/20">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
+      {/* Frame matches BulkSearchModal ("Find a plant") so the two search
+          modals read as one family — same size, header + tab bar. */}
+      <div className="bg-rhozly-surface-lowest w-full max-w-3xl h-[85vh] flex flex-col rounded-3xl shadow-2xl border border-rhozly-outline/20 overflow-hidden relative">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 pb-4">
+        <div className="p-8 pb-4 shrink-0 flex justify-between items-start">
           <div>
-            <h3 className="font-black text-2xl text-rhozly-on-surface">Add to Watchlist</h3>
-            <p className="text-sm font-bold text-rhozly-primary uppercase tracking-widest mt-1">Ailment Watchlist</p>
+            <h3 className="text-3xl font-black flex items-center gap-3">
+              <Biohazard className="text-rhozly-primary" /> Add to Watchlist
+            </h3>
+            <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
+              Search and add pests, diseases &amp; weeds
+            </p>
           </div>
-          <button onClick={onClose} className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform">
-            <X size={20} />
+          <button onClick={onClose} aria-label="Close modal" className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform">
+            <X size={24} />
           </button>
         </div>
 
+        {/* Tab bar — Search / Manual, mirroring BulkSearchModal. "Search"
+            covers the tiered library → databases → AI flow; deeper tiers keep
+            their own "Back to Search" control inside the search panel. */}
+        {step === "tabs" && (
+          <div className="px-8 shrink-0">
+            <div role="tablist" className="flex bg-rhozly-surface-low p-1 rounded-2xl gap-1">
+              <button
+                role="tab"
+                data-testid="ailment-tab-search"
+                aria-selected={mode !== "manual"}
+                onClick={() => setMode("search")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${mode !== "manual" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              >
+                <Search size={14} /> Search
+              </button>
+              <button
+                role="tab"
+                data-testid="ailment-tab-manual"
+                aria-selected={mode === "manual"}
+                onClick={() => setMode("manual")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${mode === "manual" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              >
+                <Edit3 size={14} /> Manual
+              </button>
+            </div>
+          </div>
+        )}
+
         {step === "tabs" && mode === "search" && (
-          <div className="mx-6 mb-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+          <div className="mx-8 mt-3 mb-1 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
             <IconAI size={16} className="text-amber-500 shrink-0 mt-0.5" />
             <p className="text-xs font-bold text-amber-700 leading-snug">
               Search the library first. Not there? Try more databases, or let Rhozly AI identify and add it.
@@ -870,9 +904,10 @@ function AddAilmentModal({
           </div>
         )}
 
-        {/* Back-to-search header for the deeper tiers + manual */}
-        {step === "tabs" && mode !== "search" && (
-          <div className="mx-6 mb-1">
+        {/* Back-to-search control for the deeper tiers (Perenual / AI). Manual
+            is reached via the tab bar, so it doesn't need this. */}
+        {step === "tabs" && mode !== "search" && mode !== "manual" && (
+          <div className="mx-8 mt-3 mb-1">
             <button
               onClick={() => setMode("search")}
               data-testid="ailment-back-to-search"
@@ -883,7 +918,7 @@ function AddAilmentModal({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto px-8 py-5 custom-scrollbar space-y-5">
 
           {/* ── Review step: combined cart ── */}
           {step === "review" && (
@@ -1457,7 +1492,7 @@ function AddAilmentModal({
 
         {/* Footer — shared selection bar (Perenual + AI tabs) */}
         {step === "tabs" && totalSelected > 0 && mode !== "manual" && (
-          <div className="shrink-0 p-4 border-t border-rhozly-outline/10 animate-in slide-in-from-bottom-2">
+          <div className="shrink-0 px-8 py-4 border-t border-rhozly-outline/10 animate-in slide-in-from-bottom-2">
             <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-2xl p-4 flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-black text-rhozly-on-surface">{totalSelected} Selected</p>
@@ -1481,7 +1516,7 @@ function AddAilmentModal({
 
         {/* Footer — review: commit */}
         {step === "review" && (
-          <div className="p-6 pt-4 border-t border-rhozly-outline/10 flex gap-3">
+          <div className="px-8 py-6 pt-4 border-t border-rhozly-outline/10 flex gap-3">
             <button
               onClick={() => setStep("tabs")}
               className="flex-1 py-3.5 rounded-2xl border-2 border-rhozly-outline/20 font-black text-sm text-rhozly-on-surface/60 hover:text-rhozly-on-surface transition-colors"
@@ -1501,7 +1536,7 @@ function AddAilmentModal({
 
         {/* Footer — Manual form */}
         {showSteps && (
-          <div className="p-6 pt-4 border-t border-rhozly-outline/10 flex gap-3">
+          <div className="px-8 py-6 pt-4 border-t border-rhozly-outline/10 flex gap-3">
             <button
               onClick={onClose}
               className="flex-1 py-3.5 rounded-2xl border-2 border-rhozly-outline/20 font-black text-sm text-rhozly-on-surface/60 hover:text-rhozly-on-surface transition-colors"
@@ -1964,16 +1999,19 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
             <button
               data-testid="watchlist-bulk-add-btn"
               onClick={() => setShowBulkAdd(true)}
+              aria-label="Bulk add ailments"
               title="Paste a list or upload a CSV to add ailments all at once"
-              className="hidden sm:flex items-center gap-2 px-4 py-3 bg-white border border-rhozly-outline/20 text-rhozly-primary rounded-2xl font-black text-sm hover:border-rhozly-primary/30 hover:bg-rhozly-primary/5 transition-colors"
+              className="flex items-center gap-2 px-4 py-3 bg-white border border-rhozly-outline/20 text-rhozly-primary rounded-2xl font-black text-sm hover:border-rhozly-primary/30 hover:bg-rhozly-primary/5 transition-colors"
             >
-              <FileText size={16} /> Bulk add
+              <FileText size={16} /> <span className="hidden sm:inline">Bulk add</span>
             </button>
             <button
+              data-testid="watchlist-add-btn"
               onClick={() => setShowAdd(true)}
+              aria-label="Find an ailment"
               className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
             >
-              <Plus size={18} /> Add
+              <Plus size={18} /> Find an ailment
             </button>
           </div>
         )}
