@@ -22,7 +22,7 @@ export interface PlantLibraryRunModelUsage {
 
 export interface PlantLibraryRun {
   id: string;
-  kind: "seed" | "verify" | "batch";
+  kind: "seed" | "verify" | "batch" | "sensor_ranges";
   triggered_by: string | null;
   count_requested: number;
   count_inserted: number;

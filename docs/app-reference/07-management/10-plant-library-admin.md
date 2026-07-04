@@ -184,7 +184,7 @@ Use case: you keep hitting Gemini quota errors on big runs. Set "50 plants × 10
 | Amended | Verified rows with `valid = false` (one or more fields were corrected; sources cited on the row) |
 | Unverified | Rows queued for the next verify pass |
 | Requested (run column) | The N requested by cron / admin |
-| Inserted / Matched (run column) | Seed runs show `count_inserted`; verify runs show `count_matched` |
+| Inserted / Matched (run column) | Verify runs show `count_matched`; seed **and Soil-ranges** runs show `count_inserted` (a `sensor_ranges` run reports the rows it filled here). The Kind cell renders `sensor_ranges` as "Soil ranges". |
 | Skipped | Seed runs only — duplicates caught by `scientific_name_key` unique index (the DB pre-filter catches most upstream; this only fires when the AI returns a scientific name that normalises to an existing key) |
 | Amended (run column) | Verify runs only — rows where AI corrected something |
 | Failed | Per-row exceptions during the run (insert error) PLUS batch-level failures (Gemini cascade exhausted, parse failures, Wikipedia returned no candidates) |

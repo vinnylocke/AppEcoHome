@@ -117,7 +117,11 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
           toast.success(`Marked ${cleared} stale run${cleared === 1 ? "" : "s"} as failed.`);
         }
       } catch (sweepErr) {
-        Logger.error("Stale run sweep failed", sweepErr);
+        // A transient network blip (TypeError: Failed to fetch) on this
+        // best-effort sweep isn't worth paging on — it retries on the next
+        // page load / refresh. Only log real failures to Sentry.
+        const msg = String((sweepErr as { message?: unknown })?.message ?? sweepErr);
+        if (!/failed to fetch/i.test(msg)) Logger.error("Stale run sweep failed", sweepErr);
       }
 
       // allSettled — one transient network blip (TypeError: Failed
@@ -1549,13 +1553,13 @@ function RunRow({ run, onStop }: { run: PlantLibraryRun; onStop: () => void }) {
           </button>
         </td>
         <td className="px-3 py-2 font-bold capitalize">
-          {run.kind}
+          {run.kind === "sensor_ranges" ? "Soil ranges" : run.kind}
         </td>
         <td className="px-3 py-2 text-right text-rhozly-on-surface/70">
           {run.count_requested.toLocaleString()}
         </td>
         <td className="px-3 py-2 text-right font-bold text-rhozly-on-surface">
-          {(run.kind === "seed" ? run.count_inserted : run.count_matched).toLocaleString()}
+          {(run.kind === "verify" ? run.count_matched : run.count_inserted).toLocaleString()}
         </td>
         <td className="px-3 py-2 text-right text-rhozly-on-surface/55">
           {run.count_skipped.toLocaleString()}
