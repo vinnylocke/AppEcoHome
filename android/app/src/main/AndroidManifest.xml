@@ -44,6 +44,18 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Push notification small icon (status bar / shade). Android renders
+             the status-bar icon from the alpha channel only, so ic_stat_rhozly
+             is a flat white Rhozly-rose silhouette; default_notification_color
+             tints it Rhozly green. Without these, FCM falls back to the launcher
+             icon and shows a solid white disc. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_rhozly" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/rhozly_notification" />
     </application>
 
     <uses-permission android:name="android.permission.INTERNET" />

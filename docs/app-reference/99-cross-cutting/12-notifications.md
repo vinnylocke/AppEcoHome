@@ -25,6 +25,17 @@ push notification       ← Firebase Cloud Messaging via Capacitor on native
 - iOS Safari requires installed PWA + user gesture to request.
 - Capacitor native: requested via Firebase plugin on app start.
 
+### Android notification small-icon (`ic_stat_rhozly`)
+
+Android renders the status-bar / shade small icon from the **alpha channel only** — a full-colour icon becomes a solid white silhouette. The native project ships `ic_stat_rhozly` (a flat white **Rhozly-rose silhouette**, power symbol + petal lines as transparent negative space) at all five density buckets (`android/app/src/main/res/drawable-{mdpi…xxxhdpi}/ic_stat_rhozly.png`, generated from `public/logo_small_rhozly.png`), wired as the FCM default via two `<meta-data>` in `AndroidManifest.xml`:
+
+```xml
+<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_rhozly" />
+<meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/rhozly_notification" />
+```
+
+`@color/rhozly_notification` = `#075737` (Rhozly green) tints the silhouette. **Without these, FCM falls back to the launcher icon and shows a solid white disc.** `push-webhook` sends no per-message `icon`/`color`, so the manifest defaults apply to every push. **Native-only + ships in the APK/AAB** — changing this needs a new Android build, not a web deploy. iOS is unaffected (shows the app icon). See [Capacitor](./23-capacitor.md).
+
 ### Push token registration
 
 | Platform | Token source |

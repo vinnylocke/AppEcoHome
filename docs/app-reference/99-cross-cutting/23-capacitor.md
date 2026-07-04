@@ -73,6 +73,8 @@ PushNotifications.addListener("registration", (token) => {
 });
 ```
 
+**Notification small-icon** (status bar / shade): `android/app/src/main/res/drawable-*/ic_stat_rhozly.png` — a flat white Rhozly-rose silhouette (Android uses the alpha channel only), tinted green via `@color/rhozly_notification` (`res/values/colors.xml`), wired as the FCM default with two `<meta-data>` in `AndroidManifest.xml`. Without it, Android shows a solid white disc (silhouette of the launcher icon). Ships in the APK/AAB — a native rebuild is required. See [Notifications](./12-notifications.md).
+
 ### Native build pipeline
 
 - `npx cap sync` after web build.

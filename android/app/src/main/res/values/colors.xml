@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Rhozly brand green. Tints the notification small icon (ic_stat_rhozly)
+         in the status bar + notification shade. Matches the app primary green. -->
+    <color name="rhozly_notification">#075737</color>
+</resources>
