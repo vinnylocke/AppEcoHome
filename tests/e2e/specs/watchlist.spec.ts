@@ -51,6 +51,25 @@ test.describe("Watchlist — basic render", () => {
     await expect(authenticatedPage.locator('[data-testid="ailment-tab-manual"]')).toBeVisible();
   });
 
+  test("WL-MODAL-003: escalation CTAs stay hidden until a query is typed (matches Find-a-plant)", async ({ authenticatedPage }) => {
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    await wl.addButton.click();
+    await expect(wl.addModalHeading).toBeVisible({ timeout: 8000 });
+
+    // Empty state: calm prompt, no loud databases/AI buttons (like the plant modal).
+    await expect(authenticatedPage.locator('[data-testid="ailment-search-prompt"]')).toBeVisible();
+    await expect(authenticatedPage.locator('[data-testid="ailment-search-databases"]')).toHaveCount(0);
+    await expect(authenticatedPage.locator('[data-testid="ailment-search-ai"]')).toHaveCount(0);
+
+    // Typing surfaces the escalation CTAs.
+    await authenticatedPage.locator('[data-testid="ailment-search-input"]').fill("aphid");
+    await expect(authenticatedPage.locator('[data-testid="ailment-search-databases"]')).toBeVisible({ timeout: 5000 });
+    await expect(authenticatedPage.locator('[data-testid="ailment-search-ai"]')).toBeVisible();
+  });
+
   test("WL-004: Pest ailment shows Pest type badge", async ({ authenticatedPage }) => {
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();

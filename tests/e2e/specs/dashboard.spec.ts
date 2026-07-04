@@ -19,7 +19,28 @@ const LOC_GARDEN_ID = `0000000${workerNum}-0000-0000-0001-000000000001`;
 // Section 02 — Weather alerts
 // ─────────────────────────────────────────────────────────────────────────────
 
-test.describe("Dashboard — weather alerts (Section 02)", () => {
+test.describe("Dashboard — view switcher (Section 02)", () => {
+  test("DASH-MOBILE-001: all five view tabs are reachable on a phone-portrait viewport, Weather included", async ({ authenticatedPage }) => {
+    // Regression: on a narrow phone the five-tab switcher clipped "Weather"
+    // off-screen with no way to reach it. It now scrolls horizontally with
+    // full labels, so every tab (incl. Weather) is present and clickable.
+    await authenticatedPage.setViewportSize({ width: 412, height: 915 });
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
+    await dashboard.waitForLoad();
+
+    const switcher = authenticatedPage.locator('[data-testid="dashboard-view-switcher"]');
+    await expect(switcher).toBeVisible({ timeout: 10000 });
+    for (const label of ["Dashboard", "Overview", "Locations", "Calendar", "Weather"]) {
+      await expect(switcher.getByRole("button", { name: label, exact: true })).toHaveCount(1);
+    }
+    // Weather is reachable + navigates (scrollIntoView handles the horizontal scroll).
+    const weather = switcher.getByRole("button", { name: "Weather", exact: true });
+    await weather.scrollIntoViewIfNeeded();
+    await weather.click();
+    await expect(authenticatedPage).toHaveURL(/view=weather/, { timeout: 8000 });
+  });
+
   test("DASH-010: Heat alert banner is visible on the dashboard", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.goto();

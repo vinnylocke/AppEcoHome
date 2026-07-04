@@ -1535,7 +1535,7 @@ function AppShell() {
                                 )}
 
                                 <div className="flex items-center justify-between px-1">
-                                  <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-2xl flex w-full">
+                                  <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-2xl flex gap-0.5 w-full overflow-x-auto sm:overflow-visible scrollbar-none">
                                     {([
                                       { v: "home", label: "Dashboard" },
                                       { v: "overview", label: "Overview" },
@@ -1548,7 +1548,11 @@ function AppShell() {
                                         onClick={() =>
                                           navigate(v === "home" ? "/dashboard" : `/dashboard?view=${v}`, { replace: true })
                                         }
-                                        className={`flex-1 px-1.5 sm:px-4 py-2 min-h-[44px] rounded-xl text-xs sm:text-sm text-center transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-normal"}`}
+                                        // On a narrow phone (Pixel 9 Pro portrait) five view labels can't
+                                        // fit the ~277px the 80px nav rail leaves, so the row scrolls
+                                        // horizontally with full, readable labels instead of clipping
+                                        // "Weather" off-screen. On sm+ it fills the width as a segmented control.
+                                        className={`shrink-0 sm:flex-1 whitespace-nowrap px-3 sm:px-4 py-2 min-h-[44px] rounded-xl text-xs sm:text-sm text-center transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-normal"}`}
                                       >
                                         {label}
                                       </button>

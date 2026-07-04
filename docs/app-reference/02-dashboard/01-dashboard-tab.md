@@ -286,6 +286,7 @@ The bulk of the page below the brief. It contains:
 #### 8. Sub-tab switcher (Dashboard / Overview / Locations / Calendar / Weather)
 
 - All five are different views of the same Dashboard tab. "Dashboard" is the new [Home view](./17-home-main.md) (the default landing); "Overview" is this page. Selection is persisted in localStorage `rhozly_dashboard_view` and remembered for next session (the persist-restore only runs once on mount, so clicking "Dashboard" from another sub-tab actually returns to the default; a legacy stored `"dashboard"` value deliberately falls through to the new Home default once).
+- **Mobile layout (`dashboard-view-switcher`):** on a phone the 80px nav rail leaves too little width for all five labels, so the strip **scrolls horizontally** (`overflow-x-auto scrollbar-none`, buttons `shrink-0 whitespace-nowrap`) with full, readable labels instead of clipping "Weather" off-screen. On `sm+` it fills the width as a segmented control (`sm:flex-1 sm:overflow-visible`).
 
 ### Information on display — what every field means
 

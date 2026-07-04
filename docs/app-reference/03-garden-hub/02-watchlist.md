@@ -78,14 +78,19 @@ search box with progressive tiers (the old AI / Perenual tabs were removed). Sou
 `AilmentWatchlist.tsx` (modal) + `src/services/ailmentLibraryService.ts` (`filterAilmentLibrary`,
 `persistAiAilmentToLibrary`).
 
-**Visual parity with `BulkSearchModal`.** The modal shell is deliberately aligned to the Shed's
-"Find a plant" modal so the two read as one family: the same frame (`max-w-3xl h-[85vh]`,
-`bg-rhozly-surface-lowest`, rounded, `overflow-hidden`), the same `p-8` header (`Biohazard` icon +
-`text-3xl` title + muted uppercase subtitle), and a **Search / Manual tab bar**
-(`data-testid="ailment-tab-search"` / `ailment-tab-manual`) in the same style. The tiered
-library → databases → AI escalation lives inside the **Search** tab (deeper tiers keep their own
-"Back to Search" control); **Manual** is the tab. Only the *search engine* differs — ailments use
-the library/Perenual-pest-disease/AI-generation tiers, not the plant `<PlantSearch>` component.
+**Visual parity with `BulkSearchModal`.** The modal is deliberately aligned to the Shed's
+"Find a plant" modal so the two read as one family:
+- **Frame:** `max-w-3xl h-[85vh]`, `bg-rhozly-surface-lowest`, rounded, `overflow-hidden`.
+- **Header:** `p-8`, `Biohazard` icon + `text-3xl` title + muted uppercase subtitle.
+- **Tabs:** a **Search / Manual** tab bar (`data-testid="ailment-tab-search"` / `ailment-tab-manual`).
+- **Search body (mirrors `PlantSearch`):** a magnifier field (`bg-white border` + leading `Search`
+  icon), a **calm empty state** — just the field + a subtle prompt (`ailment-search-prompt`), no
+  banner — and the **escalation CTAs hidden until the user types**. Once there's a query, the
+  library results render, then subtle *bordered* "Search more databases" + amber-bordered "Search
+  with Rhozly AI" + a "Add … manually" fallback (not the old amber-banner + loud-fill buttons).
+- Only the *search engine* differs — ailments use the library / Perenual-pest-disease / AI-generation
+  tiers, not the plant `<PlantSearch>` component (the deeper Perenual/AI tiers keep their own "Back
+  to Search" control; **Manual** is the tab).
 
 | Tier | Behaviour |
 |------|-----------|

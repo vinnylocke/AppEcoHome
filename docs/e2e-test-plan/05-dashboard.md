@@ -17,6 +17,7 @@ Covers the classic dashboard surface — now the **Overview** sub-tab at `/dashb
 | DASH-004 | ✅ | Full Forecast button — 7-day forecast expands or navigates | — | ✅ Passing |
 | DASH-005..009 | ✅ | Weather code icons render correctly (WMO 0 clear, 61 rain, 71 snow, 95 thunder, 45 fog) | — | ✅ Passing |
 | DASH-010..013 | ✅ | Alert badges (heat, frost, rain, wind) | — | ✅ Passing |
+| DASH-MOBILE-001 | ✅ | Phone-portrait (412×915): all five view tabs present & reachable, Weather clickable (regression: Weather clipped off-screen) | — | ✅ Passing |
 | DASH-014 | ✅ | No alerts on mild forecast | — | ✅ Passing |
 | DASH-015 | ✅ | Garden Intelligence panel renders with at least one rule heading | — | ✅ Passing |
 | DASH-016..019 | ✅ | GI rules — auto-watering, frost protection, heatwave, high wind | — | ✅ Passing |

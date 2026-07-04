@@ -895,15 +895,6 @@ function AddAilmentModal({
           </div>
         )}
 
-        {step === "tabs" && mode === "search" && (
-          <div className="mx-8 mt-3 mb-1 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-            <IconAI size={16} className="text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-xs font-bold text-amber-700 leading-snug">
-              Search the library first. Not there? Try more databases, or let Rhozly AI identify and add it.
-            </p>
-          </div>
-        )}
-
         {/* Back-to-search control for the deeper tiers (Perenual / AI). Manual
             is reached via the tab bar, so it doesn't need this. */}
         {step === "tabs" && mode !== "search" && mode !== "manual" && (
@@ -1004,27 +995,42 @@ function AddAilmentModal({
           {/* ── Tabs content ── */}
           {step === "tabs" && (
             <>
-              {/* Tiered search: library → databases → Rhozly AI */}
+              {/* Tiered search: library → databases → Rhozly AI. Styled to
+                  mirror the Shed's "Find a plant" (PlantSearch): a magnifier
+                  field, a calm empty state, and the escalation CTAs only once
+                  the user has typed. */}
               {mode === "search" && (
-                <div className="space-y-4">
-                  <input
-                    data-testid="ailment-search-input"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    autoFocus
-                    placeholder="Search pests, diseases, weeds…"
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-black text-sm border border-transparent focus:border-rhozly-primary outline-none"
-                  />
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-rhozly-on-surface/40 pointer-events-none" />
+                    <input
+                      data-testid="ailment-search-input"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      autoFocus
+                      placeholder="Search any pest, disease or weed by name…"
+                      className="w-full pl-10 pr-9 py-3 min-h-[48px] rounded-2xl bg-white border border-rhozly-outline/20 text-sm font-bold text-rhozly-on-surface placeholder:text-rhozly-on-surface/40 outline-none focus:border-rhozly-primary/50"
+                    />
+                    {libraryLoading && (
+                      <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-rhozly-on-surface/40" />
+                    )}
+                  </div>
+
+                  {/* Calm empty prompt — mirrors PlantSearch's empty state. */}
+                  {!query.trim() && (
+                    <p data-testid="ailment-search-prompt" className="text-[12px] font-bold text-rhozly-on-surface/45 px-1 leading-snug">
+                      Start typing a pest or disease — e.g. <span className="text-rhozly-primary">"aphids"</span> or <span className="text-rhozly-primary">"blight"</span>.
+                    </p>
+                  )}
 
                   {query.trim() && (
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">From the library</p>
+                    <div className="space-y-1.5">
                       {libraryLoading ? (
                         <div className="flex items-center gap-2 py-3 text-rhozly-on-surface/40">
                           <Loader2 size={14} className="animate-spin" /><span className="text-xs font-bold">Loading library…</span>
                         </div>
                       ) : libraryMatches.length === 0 ? (
-                        <p className="text-xs font-bold text-rhozly-on-surface/40 py-1">No library matches — try the databases or Rhozly AI below.</p>
+                        <p className="text-[12px] font-bold text-rhozly-on-surface/45 px-1">Nothing in our library for "{query.trim()}". Try the options below.</p>
                       ) : (
                         libraryMatches.slice(0, 12).map((lib) => {
                           const meta = TYPE_META[kindToWatchlistType(lib.kind)];
@@ -1056,29 +1062,34 @@ function AddAilmentModal({
                     </div>
                   )}
 
-                  <div className="pt-2 border-t border-rhozly-outline/10 space-y-2">
-                    <button
-                      onClick={goToDatabases}
-                      data-testid="ailment-search-databases"
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-rhozly-outline/20 font-black text-sm text-rhozly-on-surface/70 hover:border-rhozly-primary/40 hover:text-rhozly-primary transition-colors"
-                    >
-                      <IconPlantDB size={16} /> Search more databases
-                    </button>
-                    <button
-                      onClick={goToAi}
-                      data-testid="ailment-search-ai"
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-amber-500 text-white font-black text-sm hover:scale-[1.01] transition-transform"
-                    >
-                      <IconAI size={16} /> Search with Rhozly AI ✦
-                    </button>
-                    <button
-                      onClick={() => setMode("manual")}
-                      data-testid="ailment-add-manually"
-                      className="w-full text-center text-[11px] font-black uppercase tracking-widest text-rhozly-on-surface/40 hover:text-rhozly-on-surface py-1.5 transition-colors"
-                    >
-                      or add manually
-                    </button>
-                  </div>
+                  {/* Escalation CTAs — only once the user has typed, mirroring
+                      PlantSearch. Subtle bordered buttons (not a loud fill) so
+                      the modal reads the same as "Find a plant". */}
+                  {query.trim() && (
+                    <div className="space-y-2 pt-1">
+                      <button
+                        onClick={goToDatabases}
+                        data-testid="ailment-search-databases"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-rhozly-outline/20 text-xs font-black text-rhozly-on-surface/70 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
+                      >
+                        <IconPlantDB size={14} /> Search more databases
+                      </button>
+                      <button
+                        onClick={goToAi}
+                        data-testid="ailment-search-ai"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-amber-300 text-xs font-black text-amber-600 hover:bg-amber-50 transition-colors"
+                      >
+                        <IconAI size={14} /> Search with Rhozly AI
+                      </button>
+                      <button
+                        onClick={() => setMode("manual")}
+                        data-testid="ailment-add-manually"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-xs font-black text-rhozly-on-surface/55 hover:text-rhozly-on-surface hover:bg-rhozly-surface transition-colors"
+                      >
+                        <Edit3 size={13} /> Add "{query.trim()}" manually
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1980,8 +1991,8 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="font-black text-3xl text-rhozly-on-surface tracking-tight flex items-center gap-3">
             Ailment Watchlist
             {counts.all > 0 && (
@@ -1993,7 +2004,9 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">Track pests, diseases, and invasive plants</p>
         </div>
         {scope === "home" && can("ailments.add") && (
-          <div className="flex items-center gap-2">
+          // On a phone the CTAs sit on their own row below the title (matching
+          // the Shed) so "Find an ailment" no longer runs off the right edge.
+          <div className="flex items-center gap-2 shrink-0">
             {/* RHO-4 Phase 2 — bulk add (paste a list or upload a CSV). Subtle
                 styling so it doesn't compete with the primary "Add" CTA. */}
             <button
