@@ -48,30 +48,23 @@ export const usePushNotifications = () => {
         },
       );
 
-      // Listener D: THE FIX! Catch the tap event instantly
+      // Listener D: notification tapped — mark it read silently. Failures are
+      // logged (Sentry), never surfaced to the user.
       await PushNotifications.addListener(
         "pushNotificationActionPerformed",
         async (action) => {
-          const data = action.notification.data;
+          const notificationId = action.notification.data?.notification_id;
+          if (!notificationId) return;
 
-          // Visual Debugger
-          toast(`Payload received: ${JSON.stringify(data)}`, {
-            duration: 5000,
-          });
+          const { error } = await supabase
+            .from("notifications")
+            .update({ is_read: true })
+            .eq("id", notificationId);
 
-          if (data && data.notification_id) {
-            const { error } = await supabase
-              .from("notifications")
-              .update({ is_read: true })
-              .eq("id", data.notification_id);
-
-            if (error) {
-              toast.error(`DB Error: ${error.message}`);
-            } else {
-              toast.success("Successfully marked as read!");
-            }
-          } else {
-            toast.error("No ID found in payload.");
+          if (error) {
+            Logger.error("Failed to mark notification read on tap", error, {
+              notificationId,
+            });
           }
         },
       );
