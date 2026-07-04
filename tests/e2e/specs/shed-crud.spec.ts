@@ -444,6 +444,25 @@ test.describe("Shed — Plant card actions", () => {
     await expect(shed.lightTabContent).toBeVisible({ timeout: 8000 });
   });
 
+  test("SHED-SOIL-001: Soil Needs tab renders the plant's sensor requirements", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await shed.plantCard("Tomato").click();
+    await expect(authenticatedPage.getByText("Tomato").first()).toBeVisible({ timeout: 10000 });
+
+    await authenticatedPage.getByRole("button", { name: "Soil Needs", exact: true }).click();
+
+    const tab = authenticatedPage.locator('[data-testid="sensor-requirements-tab"]');
+    await expect(tab).toBeVisible({ timeout: 8000 });
+    // Either the plant already has ranges (list) or it doesn't yet (empty state)
+    // — both are valid; the tab must render exactly one of them.
+    const list = authenticatedPage.locator('[data-testid="sensor-requirements-list"]');
+    const empty = authenticatedPage.locator('[data-testid="sensor-requirements-empty"]');
+    await expect(list.or(empty)).toBeVisible({ timeout: 8000 });
+  });
+
   test("SHED-023c: Deleting a plant with instances offers keep-history vs delete-everything", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();

@@ -27,6 +27,7 @@ Lets a gardener inspect a plant's complete care information — not just the qui
   - `GrowGuideTab` — Grow Guide tab (gated on a real `plantId`).
   - `CompanionPlantsTab` — Companions tab.
   - `LightTab` — Light tab.
+  - `SensorRequirementsTab` — **Soil Needs** tab (soil moisture / EC / soil-temp requirement bands; shared with `PlantEditModal`).
 
 ### Props received
 
@@ -40,8 +41,13 @@ Lets a gardener inspect a plant's complete care information — not just the qui
 | `zIndexClassName?` | `string` | host | Defaults `z-[140]` for stacking above a host modal. |
 
 ### State (local)
-- `activeTab: "care" | "grow" | "companions" | "light"` — selected tab.
+- `activeTab: "care" | "grow" | "companions" | "light" | "soil"` — selected tab.
 - Plant resolution is delegated to `useCataloguePlantFromResult(result, homeId)` → `{ plant, ensuring, error }`.
+
+### Soil Needs tab (`SensorRequirementsTab`)
+- Shows the plant's ideal **soil moisture (%)**, **EC (µS/cm)** and **soil temperature (°C)** bands — the same authoritative `plants.soil_*` values the AI Area Coach compares live sensor readings against.
+- The `CataloguePlant` shape doesn't carry the `soil_*` columns, so the tab reads them from `plants` by id itself.
+- **Viewing is free for all tiers.** When ranges are missing it shows an empty state + a **"Generate with AI"** button, gated on `aiEnabled`; the button calls `generate-plant-sensor-ranges` (which resolves from `plant_library` first, then Gemini for the gaps, and persists to `plants`). Regenerate is offered when all three are already present.
 
 ### Data flow — read paths
 - **`useCataloguePlantFromResult`** renders an instant placeholder from `result`, then calls `ensureCataloguePlantFromSearchResult(result, { homeId })` (clones into the catalogue `plants` table; library rows via `ensureCataloguePlantFromLibrary`, dedup by scientific name — no Gemini). Resolves to a `CataloguePlant` with a positive `plantId`.
@@ -51,10 +57,10 @@ Lets a gardener inspect a plant's complete care information — not just the qui
 None directly. Inspection-only — there is **no Save**; the host (Add-to-Shed cart → import) owns adding the plant. The background catalogue clone is the only write, and it's idempotent (dedup by sci name).
 
 ### Edge functions invoked
-Indirectly via the tabs: `generate-grow-guide` (Grow Guide, Sage+), companion lookup (via `companionCache`), light analysis (Light tab). Same as `PlantPreview`.
+Indirectly via the tabs: `generate-grow-guide` (Grow Guide, Sage+), companion lookup (via `companionCache`), light analysis (Light tab), and `generate-plant-sensor-ranges` (Soil Needs tab's "Generate with AI"). Same as `PlantPreview`.
 
 ### Cron / scheduled jobs that affect this surface
-None.
+`backfill-plant-sensor-ranges` (daily 03:45 UTC) fills any missing `plants` / `plant_library` soil ranges, so the Soil Needs tab converges to showing values even without the user pressing "Generate".
 
 ### Realtime channels
 None.

@@ -19,6 +19,7 @@
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
 | SHED-MOBILE-001 | ✅ | Phone-portrait (390×844): "Find a plant" + Bulk add both visible (regression: bulk add was `hidden sm:flex`) | — | ✅ Passing |
+| SHED-SOIL-001 | ✅ | Plant edit modal → "Soil Needs" tab renders the sensor-requirements list or empty state | — | ✅ Passing |
 | SHED-005 | ✅ | Active tab default | — | ✅ Passing |
 | SHED-006 | ✅ | Archived tab shows Mint | — | ✅ Passing |
 | SHED-007 | ✅ | Active plants absent from Archived | — | ✅ Passing |

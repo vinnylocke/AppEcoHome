@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
-import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen, BookOpenCheck, Sun, Sprout, Activity, MapPin, Boxes } from "lucide-react";
+import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen, BookOpenCheck, Sun, Sprout, Activity, MapPin, Boxes, Gauge } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantScheduleTab from "./PlantScheduleTab";
@@ -10,6 +10,7 @@ import CompanionPlantsTab from "./CompanionPlantsTab";
 import GrowGuideTab from "./GrowGuideTab";
 import NurseryPacketsForPlant from "./nursery/NurseryPacketsForPlant";
 import PlantInstancesTab from "./plant/PlantInstancesTab";
+import SensorRequirementsTab from "./SensorRequirementsTab";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 import { getProviderLabel } from "../lib/verdantlyUtils";
 import { supabase } from "../lib/supabase";
@@ -429,6 +430,7 @@ export default function PlantEditModal({
     { id: "care", label: "Care Guide", icon: Droplets },
     { id: "schedules", label: "Care Plan", icon: Calendar },
     { id: "light", label: "Light", icon: Sun },
+    { id: "soil", label: "Soil Needs", icon: Gauge },
     { id: "grow_guide", label: "Grow Guide", icon: BookOpenCheck },
     { id: "guides", label: "Community", icon: BookOpen },
     { id: "companions", label: "Companions", icon: Sprout },
@@ -845,6 +847,26 @@ export default function PlantEditModal({
                 homeId={homeId}
                 aiEnabled={aiEnabled}
                 isPremium={isPremium}
+              />
+            </div>
+          ) : activeTab === "soil" ? (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <SensorRequirementsTab
+                plant={{
+                  id: plant.id,
+                  common_name: plant.common_name,
+                  soil_moisture_min: fullPlantData?.soil_moisture_min,
+                  soil_moisture_max: fullPlantData?.soil_moisture_max,
+                  soil_ec_min: fullPlantData?.soil_ec_min,
+                  soil_ec_max: fullPlantData?.soil_ec_max,
+                  soil_temp_min: fullPlantData?.soil_temp_min,
+                  soil_temp_max: fullPlantData?.soil_temp_max,
+                }}
+                homeId={homeId}
+                aiEnabled={aiEnabled}
+                onGenerated={(ranges) =>
+                  setFullPlantData((prev: any) => ({ ...prev, ...ranges }))
+                }
               />
             </div>
           ) : (

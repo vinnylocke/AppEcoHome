@@ -23,6 +23,7 @@ import {
   type PlantGrowGuide,
 } from "../_shared/growGuide.ts";
 import { generateSeasonalPicksForHome } from "../_shared/seasonalPicksHandler.ts";
+import { buildPlantCareRangePrompt, parseCareRangeResponse, CARE_RANGE_SCHEMA } from "../_shared/plantCareRangeGen.ts";
 import {
   identifyWithPlantNet,
   decideRouting,
@@ -1111,6 +1112,41 @@ Return all fields accurately. STRICT formatting rules:
         hasWikiImage: !!parsedData.plantData?.thumbnail_url,
         dbPlantId,
       });
+
+      // Chain (background): give the freshly-created AI plant its soil
+      // requirement ranges (moisture / EC / soil-temp) so the Soil Requirements
+      // tab + Area Coach have them from birth. Runs AFTER the response via
+      // waitUntil so it never adds latency to care-guide generation; best-effort.
+      if (dbPlantId) {
+        const rangePlantId = dbPlantId;
+        const rangeCommon = parsedData.plantData?.common_name ?? parsed.commonName ?? cleanName;
+        const rangeSci = parsedData.plantData?.scientific_name ?? (parsed.scientificName ? [parsed.scientificName] : []);
+        // @ts-expect-error EdgeRuntime is only available at runtime.
+        EdgeRuntime.waitUntil((async () => {
+          try {
+            const rangePrompt = buildPlantCareRangePrompt({ common_name: rangeCommon, scientific_name: rangeSci });
+            const { text: rangeText, usage: rangeUsage } = await callGeminiCascade(
+              apiKey, "plant-care-ranges", toMessages([rangePrompt]),
+              { responseSchema: CARE_RANGE_SCHEMA, responseMimeType: "application/json", temperature: 0.2, maxOutputTokens: 512, logContext: { plantId: rangePlantId } },
+            );
+            const ranges = parseCareRangeResponse(rangeText);
+            await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: "plant-care-ranges", action: "care_range_on_create", usage: rangeUsage, contextBlock: rangePrompt, prompt: rangePrompt, rawResult: rangeText });
+            if (ranges) {
+              const patch: Record<string, number> = {};
+              for (const f of ["soil_moisture_min", "soil_moisture_max", "soil_ec_min", "soil_ec_max", "soil_temp_min", "soil_temp_max"] as const) {
+                const v = ranges[f];
+                if (typeof v === "number" && Number.isFinite(v)) patch[f] = v;
+              }
+              if (Object.keys(patch).length > 0) {
+                await supabase.from("plants").update(patch).eq("id", rangePlantId);
+              }
+            }
+          } catch (e) {
+            warn(FN, "care_range_on_create_failed", { plantId: rangePlantId, error: e instanceof Error ? e.message : String(e) });
+          }
+        })());
+      }
+
       return new Response(JSON.stringify({
         ...parsedData,
         db_plant_id: dbPlantId,

@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,312 tests across 114 files
+### Unit tests — 1,319 tests across 115 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
@@ -755,6 +755,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `yieldService.test.ts` | 10 | `validateYieldValue`, `fetchYieldRecords`, `insertYieldRecord`, `deleteYieldRecord`, `updateExpectedHarvestDate` |
 | `yieldSplit.test.ts` | 7 | RHO-21 `splitYieldEvenly` — even split, remainder on last row summing to total, 3dp rounding, guards, one-part-per-instance |
 | `todaySummary.test.ts` | 5 | RHO-20 `buildTodaySummary` — done from server bucket, pending from client count, skipped/postponed passthrough, null-bucket in-flight, negative clamp |
+| `sensorRequirements.test.ts` | 7 | Plant Soil Requirements — `formatSensorRange` (band + em-dash), `buildSensorRequirementRows` (units, partial/empty), `hasAnySensorRange` / `hasAllSensorRanges` |
 | `taskOverdue.test.ts` | 44 | `isTaskOverdue`/window helpers + RHO-19 `lateCompletionDueDate` (late vs on-time, window-aware deadline, UTC-slice guard) + `completedLocalDate` |
 | `plantLightUtils.test.ts` | 16 | `getOptimalLuxRange` — full sun/partial/shade mapping, union of ranges, empty/unknown returns null; `getLightFitness` — all 5 ratings, boundary values, color/bgColor presence |
 | `achievements.test.ts` | 13 | `computeUnlocked` — early_adopter always on, per-threshold unlocks for growing/tasks/AI/planning/health/explorer, progress function bounds, all defs have unique keys |
@@ -787,7 +788,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `parseAilmentList.test.ts` | 11 | RHO-4 Phase 2 Watchlist paste regex fallback — `parseAilmentListLocal` (bare name / dash / colon / parenthesised detail → symptom titles, one-per-line, 200-row cap) + `classifyAilmentType` (pest/invasive/disease keyword classification) |
 | `favouriteIdentity.test.ts` | 50 | Cross-home favourites pure helpers — **Plants (Phase 1):** `canonicalPlantRefId` (manual/api own id, AI→global parent, orphan fallback, non-AI provenance ignored), `isSourceLockedForTier` (full source×tier matrix), `lockedSourceMessage`, `shouldForkOnEdit` (copy-on-write decision), `buildFavouriteSnapshot` (whitelist cap, null-skip, falsy-keep), `buildForkRow` (re-source manual, drop provider ids, provenance via canonical id, strip bookkeeping). **Ailments (Phase 2):** `isAilmentSourceLockedForTier` (perenual/ai/library matrix), `lockedAilmentSourceMessage`, `ailmentIdentityKey` (name_key mirror — lowercase/trim/collapse-ws), `buildAilmentSnapshot` (whitelist cap). **Seed packets (Phase 3):** `packetIdentityKey` (variety\|plant composite, casing/spacing stability, missing parts), `buildPacketSnapshot` (variety-reference whitelist — never live stock/sowings) |
 
-### Edge function tests — Deno (770 tests across 61 files)
+### Edge function tests — Deno (775 tests across 62 files)
 
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|

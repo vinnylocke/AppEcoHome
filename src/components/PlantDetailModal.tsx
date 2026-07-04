@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Loader2, Leaf, BookOpenCheck, Users as UsersIcon, Sun } from "lucide-react";
+import { X, Loader2, Leaf, BookOpenCheck, Users as UsersIcon, Sun, Droplets } from "lucide-react";
 import ManualPlantCreation from "./ManualPlantCreation";
 import GrowGuideTab from "./GrowGuideTab";
 import CompanionPlantsTab from "./CompanionPlantsTab";
 import LightTab from "./LightTab";
+import SensorRequirementsTab from "./SensorRequirementsTab";
 import { useCataloguePlantFromResult } from "../hooks/useCataloguePlantFromResult";
 import type { ProviderSearchResult } from "../lib/verdantlyUtils";
 
@@ -18,13 +19,14 @@ interface Props {
   zIndexClassName?: string;
 }
 
-type Tab = "care" | "grow" | "companions" | "light";
+type Tab = "care" | "grow" | "companions" | "light" | "soil";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "care",       label: "Care Guide", icon: <Leaf size={14} /> },
   { id: "grow",       label: "Grow Guide", icon: <BookOpenCheck size={14} /> },
   { id: "companions", label: "Companions", icon: <UsersIcon size={14} /> },
   { id: "light",      label: "Light",      icon: <Sun size={14} /> },
+  { id: "soil",       label: "Soil Needs", icon: <Droplets size={14} /> },
 ];
 
 /**
@@ -166,6 +168,15 @@ export default function PlantDetailModal({
                     homeId={homeId}
                     aiEnabled={aiEnabled}
                     isPremium={isPremium}
+                  />
+                ) : activeTab === "soil" ? (
+                  <SensorRequirementsTab
+                    plant={{
+                      id: plant.plantId,
+                      common_name: plant.details.common_name,
+                    }}
+                    homeId={homeId}
+                    aiEnabled={aiEnabled}
                   />
                 ) : (
                   <LightTab

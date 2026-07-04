@@ -287,7 +287,7 @@ The card-grid layout lets you scan visually. The status chips at the bottom of e
 
 #### 3. Tap a plant card
 
-- Opens PlantEditModal with all plant detail tabs (Schedule, Light, Guides, Companion Plants, etc.) and an at-a-glance strip showing planted count, due tasks, ailments, lux, and a "Find a spot" CTA linking to Sun Tracker.
+- Opens PlantEditModal with all plant detail tabs (Care Plan, Light, **Soil Needs**, Grow Guide, Community, Companions, Instances) and an at-a-glance strip showing planted count, due tasks, ailments, lux, and a "Find a spot" CTA linking to Sun Tracker. The **Soil Needs** tab (`SensorRequirementsTab`) shows the plant's ideal soil moisture / EC / soil-temperature bands (`plants.soil_*`) with an AI-gated "Generate with AI" action — the same shared tab used by `PlantDetailModal`.
 
 #### 4. Use the contextual chips
 
