@@ -41,7 +41,7 @@
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
 | HRV-001 | ✅ | In-window task — 4-button footer + green pill | — | ✅ Passing |
-| HRV-002 | ✅ | "Harvested" transitions footer away from harvest grid | — | ✅ Passing |
+| HRV-002 | ✅ | "Harvested" opens the yield sheet; Skip completes → footer transitions away (single instance → no toggle) | — | ✅ Passing |
 | HRV-003 | ✅ | "Not yet" opens 3 / 5 / 7-day popover | — | ✅ Passing |
 | HRV-004 | ✅ | "Not yet 3 days" snooze flow completes (modal closes) | — | ✅ Passing |
 | HRV-005 | ✅ | Pre-snoozed Strawberry NOT in today's calendar agenda (Wave 22.0024) — daily list still shows snoozed tasks, calendar agenda hides them via effective_due_date | — | ✅ Passing |
@@ -49,3 +49,5 @@
 | HRV-007 | ✅ | Window-closed footer + amber pill on Pumpkin (window_end -2d) | — | ✅ Passing |
 | HRV-008 | ✅ | "Mark missed" removes task from Pending (status='Skipped') | — | ✅ Passing |
 | HRV-009 | ✅ | "Not yet 7 days" smoke — modal closes; cap-to-window asserted elsewhere at DB level | — | ✅ Passing |
+| HRV-010 | ✅ | "Harvested" → enter a yield → complete records it + closes the harvest footer | — | ✅ Passing |
+| HRV-011 | ✅ | Multi-instance harvest (Harvest Mixed Bed, 2 instances) shows split/per-plant toggle; per-plant reveals one input per plant | TASK_HARVEST_MIXED | ✅ Passing |

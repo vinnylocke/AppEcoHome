@@ -29,6 +29,14 @@ export class TaskModalPage {
   readonly closedLogYieldButton: Locator;
   readonly closedMarkMissedButton: Locator;
 
+  // Harvest yield sheet (final mode — shown on "Harvested" / "Log yield anyway")
+  readonly yieldValueInput: Locator;
+  readonly yieldCompleteButton: Locator;
+  readonly yieldSkipButton: Locator;
+  readonly yieldModeTotal: Locator;
+  readonly yieldModePerPlant: Locator;
+  readonly yieldPerPlantList: Locator;
+
   constructor(page: Page) {
     this.page = page;
 
@@ -49,5 +57,12 @@ export class TaskModalPage {
 
     this.closedLogYieldButton = page.locator('[data-testid="harvest-closed-log-yield"]');
     this.closedMarkMissedButton = page.locator('[data-testid="harvest-closed-mark-missed"]');
+
+    this.yieldValueInput = page.locator('[data-testid="harvest-partial-value"]');
+    this.yieldCompleteButton = page.locator('[data-testid="harvest-yield-complete"]');
+    this.yieldSkipButton = page.locator('[data-testid="harvest-yield-skip"]');
+    this.yieldModeTotal = page.locator('[data-testid="harvest-yield-mode-total"]');
+    this.yieldModePerPlant = page.locator('[data-testid="harvest-yield-mode-perplant"]');
+    this.yieldPerPlantList = page.locator('[data-testid="harvest-yield-perplant-list"]');
   }
 }

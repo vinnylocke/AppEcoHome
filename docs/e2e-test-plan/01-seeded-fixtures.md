@@ -113,6 +113,7 @@ TASK_PERSONAL_ID     = 00000001-0000-0000-0006-000000000015  (Sharpen Your Secat
 # Harvest-window contract (Wave 20+):
 TASK_PUMPKIN_CLOSED  = 00000001-0000-0000-0006-000000000020  (Pumpkin Final Harvest — window closed -2d)
 TASK_STRAWBERRY_SNZ  = 00000001-0000-0000-0006-000000000021  (Strawberry Snooze Test — next_check_at +2d)
+TASK_HARVEST_MIXED   = 00000001-0000-0000-0006-000000000022  (Harvest Mixed Bed — in-window, TWO instances → yield toggle)
 ```
 
 ### Ailments — UUIDs at `0007-` (`06_ailments_watchlist.sql`)

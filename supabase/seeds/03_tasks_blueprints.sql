@@ -646,6 +646,37 @@ ON CONFLICT (id) DO UPDATE SET
   scope            = 'home',
   created_by       = '00000000-0000-0000-0000-000000000001';
 
+-- Harvesting — in-window, linked to TWO plant instances (Tomato + Basil) so
+-- the harvest yield sheet shows the split-evenly / per-plant TOGGLE. Powers
+-- HRV-011 (yield prompt toggle on completion).
+INSERT INTO public.tasks (
+  id, home_id, title, type, status, due_date,
+  window_end_date,
+  location_id, area_id, inventory_item_ids, scope, created_by
+)
+VALUES (
+  '00000000-0000-0000-0006-000000000022',
+  '00000000-0000-0000-0000-000000000002',
+  'Harvest Mixed Bed',
+  'Harvesting',
+  'Pending',
+  CURRENT_DATE,
+  CURRENT_DATE + INTERVAL '7 days',
+  '00000000-0000-0000-0001-000000000001',
+  '00000000-0000-0000-0002-000000000001',
+  ARRAY['00000000-0000-0000-0004-000000000001', '00000000-0000-0000-0004-000000000002']::uuid[],
+  'home',
+  '00000000-0000-0000-0000-000000000001'
+)
+ON CONFLICT (id) DO UPDATE SET
+  due_date         = CURRENT_DATE,
+  window_end_date  = CURRENT_DATE + INTERVAL '7 days',
+  next_check_at    = NULL,
+  status           = 'Pending',
+  inventory_item_ids = ARRAY['00000000-0000-0000-0004-000000000001', '00000000-0000-0000-0004-000000000002']::uuid[],
+  scope            = 'home',
+  created_by       = '00000000-0000-0000-0000-000000000001';
+
 -- Inspection — due today
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,

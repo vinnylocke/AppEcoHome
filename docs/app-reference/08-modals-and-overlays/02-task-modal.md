@@ -24,8 +24,8 @@ Handles ghost tasks: when you complete a ghost (virtual task from a blueprint), 
 
 When `task.type === "Harvesting"` and `task.window_end_date` is set, the standard "Mark Complete / Postpone / Delete" footer is replaced by **HarvestWindowFooter** while the user is inside the window. Four actions in a 2×2 grid plus a "picked so far" running total above them:
 
-- **🌾 Harvested** — same effect as the legacy Mark Complete (materialises the ghost, sets `status = Completed`). The *final* pick.
-- **🌾 Picked some (Wave 20.1)** — opens [`HarvestPartialPickSheet`](../../../src/components/HarvestPartialPickSheet.tsx) for a partial harvest: quantity + unit + optional notes + snooze (1/3/5/7 days). Inserts a `yield_records` row per linked instance and snoozes the task without closing it. Disabled when no `inventory_item_ids` are linked.
+- **🌾 Harvested** — the *final* pick. **Now opens the yield sheet first** (`HarvestPartialPickSheet` in `mode="final"`, via the shared [`useHarvestYieldGate`](../../../src/hooks/useHarvestYieldGate.tsx) hook): record the yield, then it materialises the ghost + sets `status = Completed`. When the task links to **>1 plant** the sheet offers a **split-evenly ↔ per-plant toggle** (rows built by [`buildHarvestYieldRows`](../../../src/lib/harvestYield.ts)); 1 plant → a single input; **Skip — nothing to log** completes without a yield; the **X** cancels. Unlinked (0 instances) harvests complete straight away with no prompt. The same gate fires on every completion surface (task modal, garden walk `WalkTaskRow`, dashboard `TaskList`); **bulk-complete skips the prompt** and toasts that no yield was recorded.
+- **🌾 Picked some (Wave 20.1)** — opens [`HarvestPartialPickSheet`](../../../src/components/HarvestPartialPickSheet.tsx) (`mode="partial"`) for a partial harvest: quantity + unit + optional notes + snooze (1/3/5/7 days), with the same split/per-plant toggle when >1 plant is linked. Inserts a `yield_records` row per linked instance and snoozes the task without closing it. Disabled when no `inventory_item_ids` are linked.
 - **🕒 Not yet** — pops a 3 / 5 / 7-day snooze popover. Picked → sets `next_check_at = today + N` (capped at `window_end_date`) so the task disappears from Today until that date.
 - **✨ Check with AI** — opens [`HarvestRipenessSheet`](../../../src/components/HarvestRipenessSheet.tsx). The sheet sends one photo through `analyse_comprehensive` with `targetPlant = inferred plant name`. The verdict either marks the task as harvested (`ripe` / `overripe`) or sets `next_check_at` to the AI's `estimated_days_until_ripe` (capped 1–28).
 
@@ -33,7 +33,7 @@ The **picked so far** total (Wave 20.1) sums `yield_records` matching this task'
 
 When the window has closed without a harvest, the footer switches again to **HarvestWindowClosedFooter**:
 
-- **🌾 Log yield anyway** — marks Completed even past the window so late harvests still log.
+- **🌾 Log yield anyway** — opens the same yield sheet (split/per-plant), then marks Completed even past the window so late harvests still log.
 - **❌ Mark missed** — sets `status = 'Skipped'`. Task disappears from active lists. (Hard to undo by design — keeps history honest.)
 
 ---

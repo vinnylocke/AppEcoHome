@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Harvests",
+    "items": [
+      "Completing a harvest task now asks for your yield — so what you picked is recorded, not lost.",
+      "When a harvest is linked to more than one plant, choose one total split evenly across them, or enter an amount per plant.",
+      "Bulk-completing harvests skips the prompt (and tells you), so you can log those yields later from each task."
+    ]
+  }
+]

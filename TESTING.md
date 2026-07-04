@@ -754,6 +754,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `plantLabels.test.ts` | 23 | `derivePlantLabels` — plant_type, cycle variants, watering variants, drought_tolerant, care_level, indoor, edible, tropical, pruning deduplication |
 | `yieldService.test.ts` | 10 | `validateYieldValue`, `fetchYieldRecords`, `insertYieldRecord`, `deleteYieldRecord`, `updateExpectedHarvestDate` |
 | `yieldSplit.test.ts` | 7 | RHO-21 `splitYieldEvenly` — even split, remainder on last row summing to total, 3dp rounding, guards, one-part-per-instance |
+| `harvestYield.test.ts` | 6 | `buildHarvestYieldRows` — total-split vs per-plant rows, sum==total, zero/blank skip, notes trim/null |
 | `todaySummary.test.ts` | 5 | RHO-20 `buildTodaySummary` — done from server bucket, pending from client count, skipped/postponed passthrough, null-bucket in-flight, negative clamp |
 | `sensorRequirements.test.ts` | 7 | Plant Soil Requirements — `formatSensorRange` (band + em-dash), `buildSensorRequirementRows` (units, partial/empty), `hasAnySensorRange` / `hasAllSensorRanges` |
 | `taskOverdue.test.ts` | 44 | `isTaskOverdue`/window helpers + RHO-19 `lateCompletionDueDate` (late vs on-time, window-aware deadline, UTC-slice guard) + `completedLocalDate` |

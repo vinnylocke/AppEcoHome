@@ -8,6 +8,7 @@ import { maybeCreateAutoEntry } from "../services/journalAutoUpdateService";
 import { shouldPromptForSowing } from "../services/sowingAutoCreateService";
 import LogSowingFromTaskModal from "./nursery/LogSowingFromTaskModal";
 import HarvestEndOfLifePrompt from "./HarvestEndOfLifePrompt";
+import { useHarvestYieldGate } from "../hooks/useHarvestYieldGate";
 import {
   CheckSquare,
   Clock,
@@ -134,6 +135,14 @@ export default function TaskList({
   const [pendingHarvestEolPrompts, setPendingHarvestEolPrompts] = useState<
     Array<{ taskId: string; taskTitle: string; inventoryItemIds: string[] }>
   >([]);
+  const { requestHarvestComplete, harvestYieldSheet } = useHarvestYieldGate(homeId);
+
+  // Queue the End-of-Life prompt for a just-completed harvest task.
+  const queueHarvestEol = (t: { id: string; title: string; inventory_item_ids?: string[] }) =>
+    setPendingHarvestEolPrompts((prev) => [
+      ...prev,
+      { taskId: t.id, taskTitle: t.title, inventoryItemIds: (t.inventory_item_ids ?? []) as string[] },
+    ]);
 
   const dateStr = getLocalDateString(targetDate || new Date());
   const todayStr = getLocalDateString(new Date());
@@ -426,6 +435,12 @@ export default function TaskList({
             inventoryItemIds: t.inventory_item_ids as string[],
           })),
         ]);
+        // Bulk complete skips the per-task yield prompt (a stack of sheets would
+        // be hostile). Tell the user so they can log yields manually if wanted.
+        toast(
+          `No yield recorded for ${harvestTasks.length} bulk-completed harvest${harvestTasks.length === 1 ? "" : "s"} — open each to log a yield.`,
+          { icon: "🌾" },
+        );
       }
 
       setIsBulkEditing(false);
@@ -906,14 +921,12 @@ export default function TaskList({
         finalData.type === "Harvesting" &&
         finalData.inventory_item_ids?.length > 0
       ) {
-        setPendingHarvestEolPrompts((prev) => [
-          ...prev,
-          {
-            taskId: finalData.id,
-            taskTitle: finalData.title,
-            inventoryItemIds: finalData.inventory_item_ids as string[],
-          },
-        ]);
+        // The task is already completed; prompt for the yield (split-evenly or
+        // per-plant), then queue the End-of-Life prompt. Any way the yield sheet
+        // closes still proceeds to End-of-Life (the harvest is already done).
+        requestHarvestComplete(finalData, () => queueHarvestEol(finalData), {
+          onDismiss: () => queueHarvestEol(finalData),
+        });
       }
       onTaskUpdated?.();
     } catch (err) {
@@ -1740,6 +1753,7 @@ export default function TaskList({
           }}
         />
       )}
+      {harvestYieldSheet}
     </>
   );
 }

@@ -25,6 +25,7 @@ import {
 import HarvestRipenessSheet from "../HarvestRipenessSheet";
 import HarvestPartialPickSheet from "../HarvestPartialPickSheet";
 import HarvestEndOfLifePrompt from "../HarvestEndOfLifePrompt";
+import { useHarvestYieldGate } from "../../hooks/useHarvestYieldGate";
 
 // One task row on a Garden Walk card (section AND plant cards) with the
 // three actions — complete / postpone / skip — backed by the shared
@@ -95,6 +96,7 @@ export default function WalkTaskRow({
   const [ripenessOpen, setRipenessOpen] = useState(false);
   const [partialOpen, setPartialOpen] = useState(false);
   const [eolTaskId, setEolTaskId] = useState<string | null>(null);
+  const { requestHarvestComplete, harvestYieldSheet } = useHarvestYieldGate(homeId);
 
   const todayIso = localDatePlus(0);
   const isHarvest = !!task.window_end_date;
@@ -132,9 +134,11 @@ export default function WalkTaskRow({
       onCompleted?.(task),
     );
 
-  // Harvested — complete via the shared path, then offer the same
-  // End-of-Life prompt TaskList queues after harvest completion.
-  const handleHarvested = () =>
+  // Harvested — first ask for the yield (split-evenly or per-plant) via the
+  // shared gate, then complete via the shared path and offer the same
+  // End-of-Life prompt TaskList queues after harvest completion. Dismissing the
+  // yield sheet (X) cancels; "Skip" completes without a yield.
+  const doHarvestComplete = () =>
     run(
       async () => {
         const finalRow = await completeTask(task, { homeId, userId });
@@ -145,6 +149,8 @@ export default function WalkTaskRow({
       "completed",
       () => onCompleted?.(task),
     );
+  const handleHarvested = () =>
+    requestHarvestComplete(task, doHarvestComplete, { plantName: plantNameGuess });
 
   const handleSnooze = (days: number) =>
     run(
@@ -487,6 +493,7 @@ export default function WalkTaskRow({
           onClose={() => setEolTaskId(null)}
         />
       )}
+      {harvestYieldSheet}
     </div>
   );
 }

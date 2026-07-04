@@ -32,6 +32,7 @@ export async function resetHarvestSeedState(): Promise<void> {
   const w = workerIndex + 1;
   const homeId = `0000000${w}-0000-0000-0000-000000000002`;
   const inventoryItemId = `0000000${w}-0000-0000-0004-000000000001`;
+  const inventoryItemId2 = `0000000${w}-0000-0000-0004-000000000002`;
 
   const today = new Date();
   const ymd = (d: Date) =>
@@ -43,7 +44,7 @@ export async function resetHarvestSeedState(): Promise<void> {
     return ymd(d);
   };
 
-  // The three target tasks (Wave 20 harvest contract test data).
+  // The harvest contract test tasks (Wave 20 + yield-prompt).
   const targets = [
     {
       id: `0000000${w}-0000-0000-0006-000000000009`,
@@ -51,6 +52,7 @@ export async function resetHarvestSeedState(): Promise<void> {
       due_date: ymd(today),
       window_end_date: addDays(7),
       next_check_at: null as string | null,
+      inventory_item_ids: [inventoryItemId],
     },
     {
       id: `0000000${w}-0000-0000-0006-000000000020`,
@@ -58,6 +60,7 @@ export async function resetHarvestSeedState(): Promise<void> {
       due_date: addDays(-9),
       window_end_date: addDays(-2),
       next_check_at: null,
+      inventory_item_ids: [inventoryItemId],
     },
     {
       id: `0000000${w}-0000-0000-0006-000000000021`,
@@ -65,6 +68,16 @@ export async function resetHarvestSeedState(): Promise<void> {
       due_date: ymd(today),
       window_end_date: addDays(4),
       next_check_at: addDays(2),
+      inventory_item_ids: [inventoryItemId],
+    },
+    {
+      // Two linked instances → the yield sheet shows the split/per-plant toggle.
+      id: `0000000${w}-0000-0000-0006-000000000022`,
+      title: "Harvest Mixed Bed",
+      due_date: ymd(today),
+      window_end_date: addDays(7),
+      next_check_at: null,
+      inventory_item_ids: [inventoryItemId, inventoryItemId2],
     },
   ];
 
@@ -80,7 +93,7 @@ export async function resetHarvestSeedState(): Promise<void> {
         home_id: homeId,
         type: "Harvesting",
         scope: "home",
-        inventory_item_ids: [inventoryItemId],
+        inventory_item_ids: t.inventory_item_ids,
       })
       .eq("id", t.id);
     if (error) {

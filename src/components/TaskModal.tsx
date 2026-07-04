@@ -39,6 +39,7 @@ import { useFocusTrap } from "../hooks/useFocusTrap";
 import PhotoUploader from "./PhotoUploader";
 import HarvestRipenessSheet from "./HarvestRipenessSheet";
 import HarvestPartialPickSheet from "./HarvestPartialPickSheet";
+import { useHarvestYieldGate } from "../hooks/useHarvestYieldGate";
 import {
   isTaskOverdue,
   isInsideHarvestWindow,
@@ -1363,6 +1364,7 @@ export default function TaskModal({
             return (
               <HarvestWindowClosedFooter
                 task={task}
+                homeId={homeId}
                 onDelete={onDelete}
                 onLogYield={onToggleComplete}
                 materializeTask={materializeTask}
@@ -1448,6 +1450,7 @@ function HarvestWindowFooter({
   const [ripenessOpen, setRipenessOpen] = useState(false);
   const [partialOpen, setPartialOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { requestHarvestComplete, harvestYieldSheet } = useHarvestYieldGate(homeId);
   // Running total picked-so-far across all linked instances for this task,
   // grouped by unit so we don't pretend "100g + 5 punnets" is comparable.
   const [yieldTotals, setYieldTotals] = useState<Record<string, number>>({});
@@ -1559,7 +1562,7 @@ function HarvestWindowFooter({
       <div className="grid grid-cols-2 gap-2">
         <button
           data-testid="harvest-action-harvested"
-          onClick={onComplete}
+          onClick={() => requestHarvestComplete(task, onComplete, { plantName: plantNameGuess })}
           disabled={busy || isUpdating}
           className="h-16 rounded-2xl bg-rhozly-primary text-white font-black flex flex-col items-center justify-center gap-1 hover:opacity-90 transition-opacity disabled:opacity-50"
         >
@@ -1631,7 +1634,7 @@ function HarvestWindowFooter({
         homeId={homeId}
         taskTitle={task.title}
         plantName={plantNameGuess}
-        onReady={onComplete}
+        onReady={() => requestHarvestComplete(task, onComplete, { plantName: plantNameGuess })}
         onSnoozeFor={(d) => snoozeFor(Math.max(1, Math.min(28, Math.round(d))))}
       />
       <HarvestPartialPickSheet
@@ -1643,6 +1646,7 @@ function HarvestWindowFooter({
         plantName={plantNameGuess}
         onLogged={(days) => snoozeFor(days)}
       />
+      {harvestYieldSheet}
     </div>
   );
 }
@@ -1654,6 +1658,7 @@ function HarvestWindowFooter({
 
 interface HarvestWindowClosedFooterProps {
   task: any;
+  homeId: string;
   onDelete: () => void;
   onLogYield: () => void;
   materializeTask: (t: any) => Promise<any>;
@@ -1664,6 +1669,7 @@ interface HarvestWindowClosedFooterProps {
 
 function HarvestWindowClosedFooter({
   task,
+  homeId,
   onDelete,
   onLogYield,
   materializeTask,
@@ -1672,6 +1678,9 @@ function HarvestWindowClosedFooter({
   isUpdating,
 }: HarvestWindowClosedFooterProps) {
   const [busy, setBusy] = useState(false);
+  const { requestHarvestComplete, harvestYieldSheet } = useHarvestYieldGate(homeId);
+  const plantNameGuess =
+    typeof task.title === "string" ? task.title.replace(/\s+harvest\s*$/i, "").trim() || null : null;
 
   const markMissed = async () => {
     setBusy(true);
@@ -1701,7 +1710,7 @@ function HarvestWindowClosedFooter({
       <div className="grid grid-cols-2 gap-2">
         <button
           data-testid="harvest-closed-log-yield"
-          onClick={onLogYield}
+          onClick={() => requestHarvestComplete(task, onLogYield, { plantName: plantNameGuess })}
           disabled={busy || isUpdating}
           className="h-14 rounded-2xl bg-rhozly-primary text-white font-black flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
         >
@@ -1724,6 +1733,7 @@ function HarvestWindowClosedFooter({
       >
         Delete task
       </button>
+      {harvestYieldSheet}
     </div>
   );
 }

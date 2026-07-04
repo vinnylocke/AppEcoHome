@@ -62,23 +62,66 @@ test.describe("Task Modal — Harvest window (Wave 20)", () => {
     await expect(modal.checkAiButton).toBeVisible();
   });
 
-  test("HRV-002: 'Harvested' transitions footer away from the harvest grid (status flips → standard footer renders)", async ({
+  test("HRV-002: 'Harvested' opens the yield sheet; Skip completes → footer transitions away", async ({
     authenticatedPage,
   }) => {
     const modal = new TaskModalPage(authenticatedPage);
     await openTaskByTitle(authenticatedPage, "Harvest Tomatoes");
     await expect(modal.harvestedButton).toBeVisible();
 
+    // Harvested now prompts for a yield before completing.
     await modal.harvestedButton.click();
+    await expect(modal.yieldCompleteButton).toBeVisible();
+    // Single linked instance → no split/per-plant toggle.
+    await expect(modal.yieldModeTotal).toBeHidden();
 
-    // After completion the row's status flips to "Completed" and the
-    // `isHarvestPending` guard in TaskModal switches the footer back to
-    // the legacy delete/postpone/complete buttons — so the four harvest
-    // actions are no longer in the DOM. Modal does NOT auto-close; user
-    // dismisses manually.
+    // Skip completes without recording a yield.
+    await modal.yieldSkipButton.click();
+
+    // After completion the `isHarvestPending` guard switches the footer back to
+    // the legacy footer — the four harvest actions leave the DOM.
     await expect(modal.harvestedButton).toBeHidden({ timeout: 8000 });
     await expect(modal.notYetButton).toBeHidden();
     await expect(modal.checkAiButton).toBeHidden();
+  });
+
+  test("HRV-010: 'Harvested' → enter a yield → complete records it and closes the harvest footer", async ({
+    authenticatedPage,
+  }) => {
+    const modal = new TaskModalPage(authenticatedPage);
+    await openTaskByTitle(authenticatedPage, "Harvest Tomatoes");
+
+    await modal.harvestedButton.click();
+    await expect(modal.yieldValueInput).toBeVisible();
+    await modal.yieldValueInput.fill("250");
+    await modal.yieldCompleteButton.click();
+
+    await expect(modal.harvestedButton).toBeHidden({ timeout: 8000 });
+  });
+
+  test("HRV-011: multi-instance harvest shows the split / per-plant toggle on completion", async ({
+    authenticatedPage,
+  }) => {
+    const modal = new TaskModalPage(authenticatedPage);
+    await openTaskByTitle(authenticatedPage, "Harvest Mixed Bed");
+
+    await modal.harvestedButton.click();
+    // Two linked plants → the entry-mode toggle is offered.
+    await expect(modal.yieldModeTotal).toBeVisible();
+    await expect(modal.yieldModePerPlant).toBeVisible();
+
+    // Per-plant mode reveals one input per plant.
+    await modal.yieldModePerPlant.click();
+    await expect(modal.yieldPerPlantList).toBeVisible();
+    await expect(modal.yieldPerPlantList.locator("input")).toHaveCount(2);
+
+    // Fill both and complete.
+    const inputs = modal.yieldPerPlantList.locator("input");
+    await inputs.nth(0).fill("100");
+    await inputs.nth(1).fill("40");
+    await modal.yieldCompleteButton.click();
+
+    await expect(modal.harvestedButton).toBeHidden({ timeout: 8000 });
   });
 
   test("HRV-003: 'Not yet' opens the 3 / 5 / 7-day snooze popover", async ({
