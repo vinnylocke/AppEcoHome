@@ -106,6 +106,13 @@ jobs:
   deploy:
     needs: build
     if: github.ref == 'refs/heads/main'
+    # Publishing the Allure report to GitHub Pages occasionally hits a transient
+    # "Deployment failed, try again later" on GitHub's side. That's cosmetic (the
+    # report just doesn't update that run) and unrelated to the test results in
+    # the build job, so it must not fail the workflow / send a false-alarm email.
+    # A flake leaves the previously published report in place; re-running the job
+    # republishes it.
+    continue-on-error: true
     runs-on: ubuntu-latest
     environment:
       name: github-pages
