@@ -1,12 +1,1 @@
-[
-  {
-    "label": "Fixes & improvements",
-    "items": [
-      "Garden Walk now fills the whole screen on tablets too — the app menu and profile buttons no longer overlap the plant's header.",
-      "Garden Walk now groups several plants of the same type in the same bed into a single card, with each plant listed inside — snap or note against whichever plant(s) you mean.",
-      "The calendar now clearly marks a task completed late on its original due day (amber tick), and shows the actual date you finished it.",
-      "The Home dashboard now reads \"X of Y done today\" with a breakdown (to do / skipped / postponed) and refreshes correctly after a Garden Walk.",
-      "Logging a partial harvest across several plants now records the amount you entered as the task total, instead of multiplying it by the number of plants."
-    ]
-  }
-]
+[]
