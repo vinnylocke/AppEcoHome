@@ -112,7 +112,11 @@ function scheduleContinuation(
   const url = `${supabaseUrl}/functions/v1/seed-plant-sensor-ranges`;
   const p = fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
+    // verify_jwt is off for this fn, so no Authorization is needed to route the
+    // self-call. The continuation is authorised by x-continuation-key — the same
+    // env value the receiver checks, so it always matches regardless of the
+    // service-key format or any gateway header handling.
+    headers: { "Content-Type": "application/json", "x-continuation-key": serviceKey },
     body: JSON.stringify({ run_id: runId, count: remaining, after_id: afterId, triggered_by: triggeredBy }),
   }).catch((err) => logError(FN, "schedule_continuation_failed", { runId, remaining, error: (err as Error)?.message }));
   // @ts-expect-error EdgeRuntime is only available at runtime.
@@ -170,11 +174,11 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const runIdIn = (body as { run_id?: string }).run_id;
 
-    // ── Continuation self-call: guarded on the service-role bearer, no user
-    //    auth (it's server-to-server). Picks up the next chunk from after_id.
+    // ── Continuation self-call: guarded on the x-continuation-key header, no
+    //    user auth (it's server-to-server). Picks up the next chunk from after_id.
     if (runIdIn) {
-      const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-      if (bearer !== serviceKey) return json({ error: "forbidden" }, 403);
+      const contKey = req.headers.get("x-continuation-key") ?? "";
+      if (contKey !== serviceKey) return json({ error: "forbidden" }, 403);
       const remaining = Math.max(0, Math.floor(Number((body as { count?: number }).count) || 0));
       const afterIdRaw = Number((body as { after_id?: number }).after_id);
       const afterId = Number.isFinite(afterIdRaw) ? afterIdRaw : null;

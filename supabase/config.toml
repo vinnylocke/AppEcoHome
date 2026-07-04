@@ -454,6 +454,14 @@ verify_jwt = false
 [functions.verify-plant-library]
 verify_jwt = false
 
+# Admin soil-requirements seed run. verify_jwt = false so the function's own
+# self-chaining continuation POST (fresh wall-clock budget per chunk) reaches it
+# without JWT minting — same pattern as seed-plant-library. The FIRST call is
+# still gated inside via requireAuth + requireAdmin; continuation calls are
+# guarded on an x-continuation-key header equal to the service-role key.
+[functions.seed-plant-sensor-ranges]
+verify_jwt = false
+
 # Planner — Garden Overhaul. Sage+ vision + Imagen image generation.
 # verify_jwt=true (default) — the edge fn uses requireAuth() to read
 # the caller's identity and gate by tier.
