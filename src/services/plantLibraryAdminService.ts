@@ -7,6 +7,8 @@ export interface PlantLibraryStats {
   amended: number;
   /** Total verified = matched + amended. Convenience. */
   verified: number;
+  /** Rows missing at least one soil range column (moisture/EC/soil-temp). */
+  missingRanges: number;
 }
 
 export interface PlantLibraryRunModelUsage {
@@ -59,6 +61,7 @@ export async function fetchPlantLibraryStats(): Promise<PlantLibraryStats> {
     unverifiedResult,
     matchedResult,
     amendedResult,
+    missingRangesResult,
   ] = await Promise.all([
     supabase
       .from("plant_library")
@@ -75,6 +78,13 @@ export async function fetchPlantLibraryStats(): Promise<PlantLibraryStats> {
       .from("plant_library")
       .select("id", { count: "exact", head: true })
       .eq("valid", false),
+    // Any of the six soil range columns null → needs seeding.
+    supabase
+      .from("plant_library")
+      .select("id", { count: "exact", head: true })
+      .or(
+        "soil_moisture_min.is.null,soil_moisture_max.is.null,soil_ec_min.is.null,soil_ec_max.is.null,soil_temp_min.is.null,soil_temp_max.is.null",
+      ),
   ]);
 
   const total = totalResult.count ?? 0;
@@ -87,6 +97,7 @@ export async function fetchPlantLibraryStats(): Promise<PlantLibraryStats> {
     matched,
     amended,
     verified: matched + amended,
+    missingRanges: missingRangesResult.count ?? 0,
   };
 }
 
@@ -417,6 +428,25 @@ export async function triggerSeedRun(
   if (error) throw error;
   const runId = (data as { run_id?: string })?.run_id;
   if (!runId) throw new Error("seed-plant-library returned no run_id");
+  return { run_id: runId };
+}
+
+/**
+ * Admin: generate soil requirement ranges (moisture / EC / soil-temp) for up to
+ * `count` library plants that are missing them. Runs in the background and
+ * records a `plant_library_runs` row (kind='sensor_ranges') so it shows in
+ * Recent runs + polls live, exactly like a seed run.
+ */
+export async function triggerSensorRangeSeedRun(
+  count: number,
+  triggeredBy: string,
+): Promise<{ run_id: string }> {
+  const { data, error } = await supabase.functions.invoke("seed-plant-sensor-ranges", {
+    body: { count, triggered_by: triggeredBy },
+  });
+  if (error) throw error;
+  const runId = (data as { run_id?: string })?.run_id;
+  if (!runId) throw new Error("seed-plant-sensor-ranges returned no run_id");
   return { run_id: runId };
 }
 

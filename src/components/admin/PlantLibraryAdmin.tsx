@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Library, Play, RefreshCw, Loader2, CheckCircle2, AlertCircle, Database,
   Sparkles, ArrowLeft, X, Search, ChevronDown, ChevronRight, CalendarClock,
-  Layers, Activity, RotateCcw,
+  Layers, Activity, RotateCcw, Droplets,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -24,6 +24,7 @@ import {
   markRunAsFailed,
   submitPlantLibraryBatch,
   triggerSeedRun,
+  triggerSensorRangeSeedRun,
   triggerVerifyRun,
   type FailedSeedInsert,
   type PlantLibraryBatch,
@@ -83,6 +84,8 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
   const [seeding, setSeeding] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [submittingBatch, setSubmittingBatch] = useState(false);
+  const [sensorCount, setSensorCount] = useState(100);
+  const [sensorSeeding, setSensorSeeding] = useState(false);
   // Per-batch inspect state — keyed by batch id. Truthy while the
   // round-trip to Gemini is in flight so we can spin the icon.
   const [inspectingBatchIds, setInspectingBatchIds] = useState<Record<string, boolean>>({});
@@ -241,6 +244,21 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
       toast.error("Couldn't start the verify run — check the function logs.");
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const handleSeedSensorRanges = async () => {
+    if (sensorSeeding) return;
+    setSensorSeeding(true);
+    try {
+      await triggerSensorRangeSeedRun(sensorCount, userId);
+      toast.success(`Generating soil requirements for up to ${sensorCount} library plants in the background.`);
+      refresh();
+    } catch (err) {
+      Logger.error("Sensor-range seed trigger failed", err);
+      toast.error("Couldn't start the soil-requirements run — check the function logs.");
+    } finally {
+      setSensorSeeding(false);
     }
   };
 
@@ -474,13 +492,14 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
       {/* Stats strip */}
       <section
         data-testid="plant-library-admin-stats"
-        className="grid grid-cols-2 sm:grid-cols-5 gap-3"
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"
       >
         <StatCard label="Total" value={stats?.total ?? 0} icon={<Database size={14} />} loading={loading} />
         <StatCard label="Verified" value={stats?.verified ?? 0} icon={<CheckCircle2 size={14} />} loading={loading} />
         <StatCard label="Matched" value={stats?.matched ?? 0} icon={<CheckCircle2 size={14} />} tone="green" loading={loading} />
         <StatCard label="Amended" value={stats?.amended ?? 0} icon={<Sparkles size={14} />} tone="amber" loading={loading} />
         <StatCard label="Unverified" value={stats?.unverified ?? 0} icon={<AlertCircle size={14} />} tone="muted" loading={loading} />
+        <StatCard label="Missing ranges" value={stats?.missingRanges ?? 0} icon={<Droplets size={14} />} tone={(stats?.missingRanges ?? 0) > 0 ? "amber" : "green"} loading={loading} />
       </section>
 
       {/* Run controls */}
@@ -520,6 +539,58 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
             intervalMinutes={verifyIntervalMinutes}
             setIntervalMinutes={setVerifyIntervalMinutes}
           />
+        </div>
+      </section>
+
+      {/* Soil requirements — generate the ideal soil moisture / EC / temp
+          ranges for library plants that don't have them yet. The daily
+          backfill cron does this automatically; this fills a batch on demand.
+          Reuses the shared range generator + records a normal Recent Run. */}
+      <section
+        data-testid="plant-library-admin-sensor-ranges"
+        className="rounded-3xl bg-white border border-rhozly-outline/15 p-5 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.08)] space-y-4"
+      >
+        <div className="flex items-start gap-3">
+          <div className="rounded-2xl bg-rhozly-primary/10 p-2 text-rhozly-primary">
+            <Droplets size={18} />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-display font-black text-rhozly-on-surface text-sm">
+              Soil requirements
+            </h2>
+            <p className="text-xs text-rhozly-on-surface/65 leading-snug">
+              Generate the ideal soil moisture / EC / temperature ranges for library plants that are missing them (only NULL columns are filled — verified values are never overwritten). The daily backfill cron drains these automatically; run a batch here to fill them now.{" "}
+              {stats != null && (
+                <span className="font-black text-amber-700">
+                  {stats.missingRanges.toLocaleString()} plant{stats.missingRanges === 1 ? "" : "s"} missing ranges.
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={1}
+            max={2000}
+            value={sensorCount}
+            data-testid="plant-library-admin-sensor-count"
+            onChange={(e) => {
+              const next = parseInt(e.target.value, 10);
+              if (Number.isFinite(next)) setSensorCount(Math.max(1, Math.min(2000, next)));
+            }}
+            className="flex-1 px-3 py-2 min-h-[40px] rounded-xl bg-white border border-rhozly-outline/20 text-sm font-bold text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary/40 focus:ring-2 focus:ring-rhozly-primary/15"
+          />
+          <button
+            type="button"
+            onClick={handleSeedSensorRanges}
+            disabled={sensorSeeding}
+            data-testid="plant-library-admin-run-sensor-ranges"
+            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl bg-rhozly-primary text-white text-[11px] font-black uppercase tracking-widest hover:opacity-95 disabled:opacity-50 whitespace-nowrap"
+          >
+            {sensorSeeding ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+            Run soil requirements
+          </button>
         </div>
       </section>
 
