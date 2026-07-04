@@ -31,14 +31,14 @@ Phases 1–3 of the new-home-dashboard plan (`docs/plans/new-home-dashboard.md`)
   - `NotificationOptInCard` (`src/components/NotificationOptInCard.tsx`) — shared by Home + Overview
   - `InstallPwaPrompt` (`src/components/InstallPwaPrompt.tsx`) — shared by Home + Overview
   - `HomeMain` (`src/components/home/HomeMain.tsx`) — the page, inside `Suspense` (lazy chunk); calls `useHomeOverview(homeId)` and builds a `telemetryByArea` map (area id → `OverviewArea`) memoised from the response
-    - `HomeStatusStrip` (`src/components/home/HomeStatusStrip.tsx`) — greeting + weather / tasks-today / overdue / frost chips
+    - `HomeStatusStrip` (`src/components/home/HomeStatusStrip.tsx`) — greeting + weather / **"X of Y done today"** headline + breakdown chips (to-do / skipped / postponed) / overdue / frost chips (RHO-20). The breakdown is built by `buildTodaySummary` (`src/lib/todaySummary.ts`): **pending** comes from the ghost-aware client `locationTaskCounts` sum, while **done / skipped / postponed** come from the server `dayStrip` today bucket (`useHomeDashboardStats`, mounted in HomeMain for **both** densities). Zero-count chips are hidden.
     - Density toggle (`home-density-toggle`, inline in HomeMain) — Simple / Detailed icon pair
     - `AttentionRow` (`src/components/home/AttentionRow.tsx`) — max-4 ranked "needs attention" cards from `home-overview`; renders `null` when the list is empty (calm garden); each card is kind-coloured + icon-matched and deep-links via its `route`
     - `GardenOverviewGrid` (`src/components/home/GardenOverviewGrid.tsx`) — 1→2 column responsive grid, only when ≥ 1 location; threads `telemetryByArea` down
       - `LocationOverviewCard` (`src/components/home/LocationOverviewCard.tsx`) — one per location; passes each area's telemetry to its row
         - `AreaRow` (`src/components/home/AreaRow.tsx`) — one per area, plus a synthetic "Not in an area yet" row for unassigned plants. Hosts the Phase 2 chips (all optional, driven by the `telemetry` prop): `SensorChip` (soil moisture band / % + temp + low-battery icon; grey when stale), `ValveChip` (Watering countdown / failed / detailed-mode next-run), and a per-area tasks chip (`home-area-tasks-chip`)
     - Empty-garden setup card (`home-empty-garden`, inline in HomeMain) — 3 CTAs when the home has no locations
-    - `QuickActionsRow` (`src/components/home/QuickActionsRow.tsx`) — up to 6 `QuickTile`s (`src/components/quick/QuickTile.tsx`, `layout="compact"`) + Customise link
+    - `QuickActionsRow` (`src/components/home/QuickActionsRow.tsx`) — up to 6 `QuickTile`s (`src/components/quick/QuickTile.tsx`, `layout="compact"`) + Customise link. The `/walk` tile launches with `state:{ from: "/dashboard" }` so the Garden Walk returns to the dashboard on finish (re-firing `fetchDashboardData` so the "done today" count refreshes) instead of the `/quick` fallback (RHO-20).
     - `TaskList` (`src/components/TaskList.tsx`) — existing component with the `compact` prop, `targetDate` = today
     - `WeekPulse` (`src/components/home/WeekPulse.tsx`) — **detailed mode only** (conditionally mounted, so simple mode never pays its fetch); compact 7-day dot strip + harvests-due/yield line reusing `useHomeDashboardStats`; the whole card taps through to `?view=overview`
     - `SeasonalPicksCard` (`src/components/seasonal/SeasonalPicksCard.tsx`, `variant="dashboard"`) — **simple mode only**
@@ -248,7 +248,9 @@ The Getting Started checklist, notification opt-in, and PWA install prompt appea
 |---------|---------|
 | "Good morning / afternoon / evening, [name]" | Time-of-day greeting (before 12:00 / before 18:00 / after) |
 | Weather chip | Current temp (rounded) + condition from the latest weather snapshot |
-| "N tasks today" chip | Sum of today's task counts across all locations |
+| "X of Y done today" headline | X = tasks done today (server `dayStrip` bucket), Y = done + remaining (ghost-aware). Moves as you complete tasks, so a static total no longer reads as "broken" (RHO-20). Reads "No tasks today" when Y = 0. |
+| "N to do" chip | Remaining tasks due today (hidden when 0) |
+| "N skipped" / "N postponed" chips | Today's skipped tombstones / snoozed-forward tasks (each hidden when 0) |
 | Red "N overdue" chip | Pending tasks past due across the **whole home** (only when > 0) |
 | Blue "Frost tonight N°" chip | Tonight's forecast minimum, shown only when ≤ 3 °C |
 | Indoors / Outdoors icon | Location's `is_outside` flag (tree = outdoors, house = indoors) |

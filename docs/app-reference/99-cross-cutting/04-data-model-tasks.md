@@ -132,7 +132,7 @@ When the user completes / postpones / edits a ghost, `materializeTask(ghost)` in
 
 The complete / skip / postpone semantics that used to live inline in `TaskList.tsx` are extracted into `src/lib/taskActions.ts` so the Garden Walk and the task list share **one implementation**:
 
-- `completeTask(task, {homeId, userId})` — ghost → INSERT a Completed row via `buildGhostPayload`; physical → UPDATE. Fires `logEvent(task_completed)` + `maybeCreateAutoEntry` (auto journal).
+- `completeTask(task, {homeId, userId})` — ghost → INSERT a Completed row via `buildGhostPayload`; physical → UPDATE. Fires `logEvent(task_completed)` + `maybeCreateAutoEntry` (auto journal). Completion **keeps `due_date`** (the task stays on its due day) and sets `completed_at=now`. "Late" is never persisted — it is derived at render time via `lateCompletionDueDate` (`src/lib/taskEngine.ts`): late ⟺ Completed AND `completed_at`'s **local** day > `window_end_date ?? due_date` (snooze/`next_check_at` ignored). The calendar (both due-day + completion-day) and any `TaskList` surface show a "Completed late — due X · done Y" chip from this predicate (RHO-19).
 - `skipTask(task)` — ghost → Skipped tombstone INSERT; physical → UPDATE `status='Skipped'`. Fires `task_skipped`.
 - `postponeTask(task, newDate)` — ghost → tombstone + Pending at the new date; physical blueprint-linked → UPDATE Skipped + INSERT Pending; standalone → UPDATE `due_date`. Fires `task_postponed` with `delay_days`.
 - `materialiseGhost(ghost, status, overrides, select)` — the ghost INSERT with a **`unique_blueprint_date` 23505 fallback**: if the slot was already materialised from another surface (walk + task list in two tabs), it recovers by UPDATEing the existing `(blueprint_id, due_date)` row instead of failing.

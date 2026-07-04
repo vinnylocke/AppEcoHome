@@ -260,7 +260,9 @@ export default function WalkSectionCard({
       <header
         data-testid="walk-section-header"
         style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))" }}
-        className="shrink-0 px-4 pb-2 flex items-center justify-between gap-2"
+        // pl-14 clears the focus-mode floating burger (top-left) now that
+        // /walk is focus-mode on every viewport (RHO-18).
+        className="shrink-0 pl-14 pr-4 pb-2 flex items-center justify-between gap-2"
       >
         <div
           data-testid="walk-card-progress"

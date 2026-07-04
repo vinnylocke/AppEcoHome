@@ -113,6 +113,49 @@ Deno.test("DASH-STATS-012: per-day overdue and pending both surface", () => {
   assertEquals(strip.find((d) => d.date === "2026-07-03")!.pending, 1);
 });
 
+// ─── RHO-20: today breakdown — skipped & postponed buckets ──────────────────
+
+Deno.test("DASH-STATS-013: a Skipped task is bucketed as skipped on its due day, not total/pending", () => {
+  const tasks: StatTask[] = [task({ id: "s", status: "Skipped", due_date: TODAY })];
+  const strip = computeDayStrip(tasks, WEEK_START, WEEK_END, TODAY);
+  const todayBucket = strip.find((d) => d.date === TODAY)!;
+  assertEquals(todayBucket.skipped, 1);
+  assertEquals(todayBucket.total, 0);
+  assertEquals(todayBucket.pending, 0);
+  assertEquals(todayBucket.overdue, 0);
+});
+
+Deno.test("DASH-STATS-014: a task snoozed forward off today is counted as postponed on today, not pending", () => {
+  const tasks: StatTask[] = [
+    task({ id: "p", due_date: TODAY, next_check_at: "2026-07-04" }), // snoozed to Sat
+  ];
+  const strip = computeDayStrip(tasks, WEEK_START, WEEK_END, TODAY);
+  const todayBucket = strip.find((d) => d.date === TODAY)!;
+  assertEquals(todayBucket.postponed, 1);
+  assertEquals(todayBucket.pending, 0); // snoozed-forward is neither pending…
+  assertEquals(todayBucket.overdue, 0); // …nor overdue for today
+  assertEquals(todayBucket.total, 0);
+});
+
+Deno.test("DASH-STATS-015: a completed task due today stays on-time and out of skipped/postponed", () => {
+  const tasks: StatTask[] = [
+    task({ id: "c", status: "Completed", due_date: TODAY, completed_at: `${TODAY}T09:00:00Z` }),
+  ];
+  const strip = computeDayStrip(tasks, WEEK_START, WEEK_END, TODAY);
+  const todayBucket = strip.find((d) => d.date === TODAY)!;
+  assertEquals(todayBucket.completedOnTime, 1);
+  assertEquals(todayBucket.skipped, 0);
+  assertEquals(todayBucket.postponed, 0);
+});
+
+Deno.test("DASH-STATS-016: a task due today NOT snoozed is pending, not postponed", () => {
+  const tasks: StatTask[] = [task({ id: "d", due_date: TODAY })];
+  const strip = computeDayStrip(tasks, WEEK_START, WEEK_END, TODAY);
+  const todayBucket = strip.find((d) => d.date === TODAY)!;
+  assertEquals(todayBucket.pending, 1);
+  assertEquals(todayBucket.postponed, 0);
+});
+
 // ─── RHO-16: Harvests Due (subject-keyed dedup) ─────────────────────────────
 
 Deno.test("DASH-STATS-020: pre-week-start window overlapping this week counts", () => {

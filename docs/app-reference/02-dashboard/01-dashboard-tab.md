@@ -85,8 +85,10 @@ Fires on:
 - Manual refresh button on the Locations sub-tab
 
 What it calls (parallel `Promise.all`):
-- `supabase.functions.invoke("home-dashboard-stats", { body: { homeId } })` — returns `{ locations, weather, alerts, location_task_counts, overdue_count }`
+- `supabase.functions.invoke("home-dashboard-stats", { body: { homeId } })` — returns `{ locations, weather, alerts, ... }` (**NOT** `location_task_counts`/`overdue_count` — see drift note below)
 - `supabase.from("user_profiles").select("...").eq("uid", userId).maybeSingle()` — refresh AI flags / preferences
+
+> **Drift correction (RHO-20):** `location_task_counts` and `overdue_count` are **not** returned by `home-dashboard-stats`. They are computed **client-side** in `App.tsx` `fetchDashboardData` (from the `homes` query + ghost projection). Ghost (unmaterialised recurring) tasks only exist client-side, so the per-location "today" count must be computed there. The `home-dashboard-stats` edge fn returns the aggregate `tasks` stats + the 7-day `dayStrip` (which now also carries `skipped` + `postponed` per day — RHO-20), sourced only from persisted rows.
 
 Output shape from `home-dashboard-stats`:
 
@@ -96,8 +98,8 @@ Output shape from `home-dashboard-stats`:
   weather:   { temp, summary, code, icon, ...derived } | null,
   rawWeather: WeatherSnapshot["data"] | null,
   alerts:    Array<{ id, severity, title, description, ... }>,
-  location_task_counts: Record<locationId, number>,
-  overdue_count: number,
+  // NB: location_task_counts / overdue_count are computed CLIENT-SIDE in
+  // App.tsx fetchDashboardData (ghost-aware), NOT returned here (RHO-20).
   home_lat: number | null,
   home_lng: number | null,
   hardiness_zone: number | null,

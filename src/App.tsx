@@ -252,11 +252,14 @@ function AppShell() {
   const isMobile = useIsMobile();
   // Mobile Quick Access Wave 6 — focus-mode shell on /quick/* mobile routes:
   // hide the top bar + persistent side nav, expose nav via an overlay drawer.
-  // Garden Walk at /walk shares the focus-mode treatment.
+  // Garden Walk at /walk is a full-screen guided surface that must be
+  // focus-mode on EVERY viewport, not just phone-width (RHO-18): on a landscape
+  // tablet isMobile was false, so the sticky app header overlapped the walk's
+  // own header. /quick stays phone/native-only focus-mode (its desktop
+  // experience is the padded dashboard).
+  const isWalk = routerLocation.pathname.startsWith("/walk");
   const isFocusMode =
-    isMobile &&
-    (routerLocation.pathname.startsWith("/quick") ||
-      routerLocation.pathname.startsWith("/walk"));
+    isWalk || (isMobile && routerLocation.pathname.startsWith("/quick"));
   const [quickDrawerOpen, setQuickDrawerOpen] = useState(false);
 
   // One-shot purge of legacy v1 dashboard cache entries on app mount.
@@ -2093,26 +2096,31 @@ function AppShell() {
                   desktop header uses — Account Settings, Routines,
                   Members, Help, Check-for-update, Log out, etc.
                   The wrapper is a bare positioning shell — no chrome —
-                  so only the avatar's own circular silhouette shows. */}
-              <div
-                className="fixed top-3 right-3 z-[105]"
-                style={{
-                  top: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
-                  right: `calc(0.75rem + env(safe-area-inset-right, 0px))`,
-                }}
-              >
-                <UserProfileDropdown
-                  displayName={profile?.display_name ?? null}
-                  firstName={profile?.first_name ?? null}
-                  email={session?.user?.email ?? null}
-                  subscriptionTier={profile?.subscription_tier ?? null}
-                  isAdmin={profile?.is_admin ?? false}
-                  canViewAudit={profile?.can_view_audit ?? false}
-                  appVersion={appVersion ?? undefined}
-                  onVersionClick={() => setReleaseNotesMode("history")}
-                  onCheckForUpdate={versionState.refresh}
-                />
-              </div>
+                  so only the avatar's own circular silhouette shows.
+                  Suppressed on /walk (RHO-18): the walk card's own top-right
+                  Stop button owns that corner, and the profile menu isn't
+                  needed mid-walk (Stop → dashboard → profile). */}
+              {!isWalk && (
+                <div
+                  className="fixed top-3 right-3 z-[105]"
+                  style={{
+                    top: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
+                    right: `calc(0.75rem + env(safe-area-inset-right, 0px))`,
+                  }}
+                >
+                  <UserProfileDropdown
+                    displayName={profile?.display_name ?? null}
+                    firstName={profile?.first_name ?? null}
+                    email={session?.user?.email ?? null}
+                    subscriptionTier={profile?.subscription_tier ?? null}
+                    isAdmin={profile?.is_admin ?? false}
+                    canViewAudit={profile?.can_view_audit ?? false}
+                    appVersion={appVersion ?? undefined}
+                    onVersionClick={() => setReleaseNotesMode("history")}
+                    onCheckForUpdate={versionState.refresh}
+                  />
+                </div>
+              )}
               {/* UX review 2026-06-15 item 7.1 — bottom thumb-zone mirror
                   was tried as a SECOND floating UserProfileDropdown on
                   /quick (in addition to the existing top-right one). User

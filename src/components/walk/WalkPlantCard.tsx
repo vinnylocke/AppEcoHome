@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Camera,
   Check,
+  ChevronDown,
   ChevronRight,
   Droplets,
+  Layers,
   Leaf,
   Loader2,
   MapPin,
@@ -15,7 +17,7 @@ import {
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
-import { bandLabel, type WalkPlant, type WalkTask } from "../../lib/gardenWalk";
+import { bandLabel, type WalkPlant, type WalkPlantInstance, type WalkTask } from "../../lib/gardenWalk";
 import type { WalkVisitOutcome } from "../../services/walkService";
 import PhotoUploader from "../PhotoUploader";
 import WalkTaskRow from "./WalkTaskRow";
@@ -64,6 +66,51 @@ function autoSubject(prefix: string): string {
 }
 
 /**
+ * RHO-18 — "which plant(s)?" selector shown in the Snap / Note sheets when a
+ * card groups several instances. Multi-select, defaulting to all — the user
+ * can narrow to one (uncheck the rest) or keep all.
+ */
+function InstancePicker({
+  instances,
+  selected,
+  onToggle,
+}: {
+  instances: WalkPlantInstance[];
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div data-testid="walk-instance-picker" className="mb-3">
+      <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/50 mb-1.5">
+        Which plant{instances.length === 1 ? "" : "s"}?
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {instances.map((inst) => {
+          const on = selected.includes(inst.inventoryItemId);
+          return (
+            <button
+              key={inst.inventoryItemId}
+              type="button"
+              data-testid={`walk-instance-pick-${inst.inventoryItemId}`}
+              aria-pressed={on}
+              onClick={() => onToggle(inst.inventoryItemId)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-black border transition ${
+                on
+                  ? "bg-rhozly-primary text-white border-rhozly-primary"
+                  : "bg-white text-rhozly-on-surface/60 border-rhozly-outline/20 hover:border-rhozly-primary/40"
+              }`}
+            >
+              {on && <Check size={12} />}
+              <span className="truncate max-w-[10rem]">{inst.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
  * One full-screen card per plant during a Garden Walk. The card shows a
  * hero photo + context strip (last note / ailments / due tasks / fresh
  * insights) + a sticky bottom action bar (Snap / Note / All good /
@@ -88,6 +135,28 @@ export default function WalkPlantCard({
   const [snapUrl, setSnapUrl] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+
+  // RHO-18 — grouped card: same-plant, same-area instances collapse into one
+  // card. Snap/Note can target one, several, or all of them (default: all).
+  const instances = plant.instances ?? [];
+  const isGroup = (plant.instanceCount ?? instances.length) > 1;
+  const [instancesOpen, setInstancesOpen] = useState(false);
+  const [captureTargets, setCaptureTargets] = useState<string[]>([]);
+
+  const openSheet = (s: Exclude<ActiveSheet, null>) => {
+    setCaptureTargets(
+      isGroup ? instances.map((i) => i.inventoryItemId) : [plant.inventoryItemId],
+    );
+    setSheet(s);
+  };
+  const toggleTarget = (id: string) =>
+    setCaptureTargets((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  // The instances a capture writes to — falls back to the representative so a
+  // non-group card (or an accidental empty selection) always writes one row.
+  const effectiveTargets = () =>
+    captureTargets.length > 0 ? captureTargets : [plant.inventoryItemId];
 
   // RHO-6: on a wide landscape screen the Snap/Note sheets mount as a
   // `fixed inset-0` overlay whose actionable content is top-aligned, so
@@ -124,14 +193,19 @@ export default function WalkPlantCard({
     if (!snapUrl) return;
     setSnapUploading(true);
     try {
-      const { error } = await supabase.from("plant_journals").insert({
-        home_id: homeId,
-        inventory_item_id: plant.inventoryItemId,
-        subject: autoSubject("Garden Walk photo"),
-        description: null,
-        image_url: snapUrl,
-        task_id: null,
-      });
+      // RHO-18 — one journal row per selected instance so a photo of a
+      // specific plant in the group files against the right inventory item.
+      const targets = effectiveTargets();
+      const { error } = await supabase.from("plant_journals").insert(
+        targets.map((inventoryItemId) => ({
+          home_id: homeId,
+          inventory_item_id: inventoryItemId,
+          subject: autoSubject("Garden Walk photo"),
+          description: null,
+          image_url: snapUrl,
+          task_id: null,
+        })),
+      );
       if (error) throw error;
       onOutcome("snapped");
       closeSheets();
@@ -150,14 +224,18 @@ export default function WalkPlantCard({
     if (!noteText.trim()) return;
     setNoteSaving(true);
     try {
-      const { error } = await supabase.from("plant_journals").insert({
-        home_id: homeId,
-        inventory_item_id: plant.inventoryItemId,
-        subject: autoSubject("Garden Walk note"),
-        description: noteText.trim(),
-        image_url: null,
-        task_id: null,
-      });
+      // RHO-18 — one journal row per selected instance (see handleSnapSave).
+      const targets = effectiveTargets();
+      const { error } = await supabase.from("plant_journals").insert(
+        targets.map((inventoryItemId) => ({
+          home_id: homeId,
+          inventory_item_id: inventoryItemId,
+          subject: autoSubject("Garden Walk note"),
+          description: noteText.trim(),
+          image_url: null,
+          task_id: null,
+        })),
+      );
       if (error) throw error;
       onOutcome("noted");
       closeSheets();
@@ -184,7 +262,9 @@ export default function WalkPlantCard({
       <header
         data-testid="walk-card-header"
         style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))" }}
-        className="shrink-0 px-4 pb-2 flex items-center justify-between gap-2"
+        // pl-14 keeps "Step N of M" clear of the focus-mode floating burger
+        // (top-left) now that /walk is focus-mode on every viewport (RHO-18).
+        className="shrink-0 pl-14 pr-4 pb-2 flex items-center justify-between gap-2"
       >
         <div
           data-testid="walk-card-progress"
@@ -251,6 +331,64 @@ export default function WalkPlantCard({
             {plant.areaName}
             {plant.locationName && (
               <span className="text-rhozly-on-surface/40">· {plant.locationName}</span>
+            )}
+          </div>
+        )}
+
+        {/* RHO-18 — grouped card: count chip + collapsible per-instance list */}
+        {isGroup && (
+          <div className="mt-3">
+            <button
+              type="button"
+              data-testid="walk-card-instances-toggle"
+              onClick={() => setInstancesOpen((o) => !o)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rhozly-primary/10 text-rhozly-primary text-[11px] font-black uppercase tracking-widest hover:bg-rhozly-primary/15 transition"
+            >
+              <Layers size={12} />
+              {plant.instanceCount ?? instances.length} plants
+              <ChevronDown
+                size={12}
+                className={`transition-transform ${instancesOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {instancesOpen && (
+              <ul
+                data-testid="walk-card-instances"
+                className="mt-2 space-y-1.5 rounded-2xl bg-white border border-rhozly-outline/15 p-2"
+              >
+                {instances.map((inst) => {
+                  const instBand = bandLabel(inst.band);
+                  return (
+                    <li
+                      key={inst.inventoryItemId}
+                      data-testid={`walk-card-instance-${inst.inventoryItemId}`}
+                      className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl bg-rhozly-surface-lowest"
+                    >
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/85 truncate">
+                        <Leaf size={12} className="shrink-0 text-rhozly-primary/60" />
+                        <span className="truncate">{inst.label}</span>
+                      </span>
+                      {instBand && (
+                        <span
+                          className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                            inst.band === "critical"
+                              ? "bg-rose-100 text-rose-700"
+                              : inst.band === "overdue"
+                              ? "bg-amber-100 text-amber-800"
+                              : inst.band === "due_today"
+                              ? "bg-sky-100 text-sky-800"
+                              : inst.band === "fresh_hit"
+                              ? "bg-violet-100 text-violet-800"
+                              : "bg-rhozly-surface-low text-rhozly-on-surface/50"
+                          }`}
+                        >
+                          {instBand}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
         )}
@@ -369,7 +507,7 @@ export default function WalkPlantCard({
           <button
             type="button"
             data-testid="walk-action-snap"
-            onClick={() => setSheet("snap")}
+            onClick={() => openSheet("snap")}
             className="flex-1 min-h-[52px] rounded-2xl bg-white border border-rhozly-outline/15 hover:border-rhozly-primary/30 flex flex-col items-center justify-center text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/70"
           >
             <Camera size={18} className="mb-0.5" />
@@ -378,7 +516,7 @@ export default function WalkPlantCard({
           <button
             type="button"
             data-testid="walk-action-note"
-            onClick={() => setSheet("note")}
+            onClick={() => openSheet("note")}
             className="flex-1 min-h-[52px] rounded-2xl bg-white border border-rhozly-outline/15 hover:border-rhozly-primary/30 flex flex-col items-center justify-center text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/70"
           >
             <NotebookPen size={18} className="mb-0.5" />
@@ -433,6 +571,13 @@ export default function WalkPlantCard({
             tabIndex={-1}
             className="flex-1 overflow-y-auto px-4 outline-none"
           >
+            {isGroup && (
+              <InstancePicker
+                instances={instances}
+                selected={captureTargets}
+                onToggle={toggleTarget}
+              />
+            )}
             <PhotoUploader
               bucket="plant-images"
               pathPrefix={`walks/${homeId}/${plant.inventoryItemId}`}
@@ -497,6 +642,13 @@ export default function WalkPlantCard({
             data-testid="walk-note-sheet-body"
             className="flex-1 overflow-y-auto px-4"
           >
+            {isGroup && (
+              <InstancePicker
+                instances={instances}
+                selected={captureTargets}
+                onToggle={toggleTarget}
+              />
+            )}
             <textarea
               data-testid="walk-note-input"
               autoFocus

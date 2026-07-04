@@ -32,6 +32,48 @@ export function isTaskOverdue(
   return task.due_date < todayStr;
 }
 
+/** True if this Completed task was finished AFTER the day it was meant to be
+ *  done (RHO-19). "Late" means: `completed_at`'s LOCAL calendar day is strictly
+ *  after the task's effective deadline.
+ *  - Only Completed tasks with a `completed_at` and a `due_date` can be late.
+ *  - Window (harvest) tasks compare against `window_end_date`, NOT `due_date` —
+ *    a harvest logged any day inside its open window is on time; only after the
+ *    window closes is it late.
+ *  - Snooze (`next_check_at`) is irrelevant: it only moves *pending* visibility,
+ *    never the deadline a completion is judged against.
+ *  Returns the effective deadline (YYYY-MM-DD) when late, else null — callers
+ *  use it for the "due N" copy without recomputing. Uses the LOCAL day of
+ *  `completed_at` (never a UTC `.slice`) so an evening completion west of UTC
+ *  isn't mis-dated by a day. */
+export function lateCompletionDueDate(
+  task: {
+    status?: string;
+    completed_at?: string | null;
+    due_date?: string | null;
+    window_end_date?: string | null;
+  },
+): string | null {
+  if (task.status !== "Completed" || !task.completed_at || !task.due_date) return null;
+  const completedLocal = String(task.completed_at).includes("T")
+    ? getLocalDateString(new Date(task.completed_at))
+    : String(task.completed_at).slice(0, 10);
+  const deadline = (task.window_end_date
+    ? String(task.window_end_date)
+    : String(task.due_date)).slice(0, 10);
+  return completedLocal > deadline ? deadline : null;
+}
+
+/** The LOCAL calendar day (YYYY-MM-DD) a task was completed on, or null.
+ *  Companion to `lateCompletionDueDate` for the "· done N" chip copy. */
+export function completedLocalDate(
+  task: { completed_at?: string | null },
+): string | null {
+  if (!task.completed_at) return null;
+  return String(task.completed_at).includes("T")
+    ? getLocalDateString(new Date(task.completed_at))
+    : String(task.completed_at).slice(0, 10);
+}
+
 /** True if the task is currently inside its harvest window — i.e. a
  *  window task whose due_date <= today <= window_end_date. */
 export function isInsideHarvestWindow(

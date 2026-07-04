@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { insertYieldRecord, validateYieldValue } from "../services/yieldService";
+import { splitYieldEvenly } from "../lib/yieldSplit";
 
 // ─── Harvest Partial Pick Sheet ────────────────────────────────────────────
 //
@@ -14,9 +15,12 @@ import { insertYieldRecord, validateYieldValue } from "../services/yieldService"
 // harvest task. After insert the parent task snoozes for `snoozeDays` so
 // it disappears from Today until the next sensible check.
 //
-// One yield_records row is inserted per linked instance, all with the same
-// value + unit + note. That keeps reporting simple (each instance has its
-// own running total) without forcing the user to apportion.
+// The entered amount is the TOTAL picked for the task. When the task is linked
+// to more than one instance the total is split EVENLY across them (one
+// yield_records row per instance carrying total/N, remainder on the last row),
+// so every downstream sum equals the entered total — not total × instanceCount
+// (RHO-21). Each instance still gets its own row so per-instance history and
+// the distinct-instances-harvested stat stay meaningful.
 
 interface Props {
   isOpen: boolean;
@@ -68,13 +72,20 @@ export default function HarvestPartialPickSheet({
     setBusy(true);
     try {
       const numericValue = parseFloat(value);
-      // Log one record per linked instance so each instance's running
-      // total stays accurate (no apportionment needed).
-      for (const instanceId of instanceIds) {
+      // The entered amount is the TOTAL for the task. Split it evenly across
+      // the linked instances so the parts sum EXACTLY to the total — one row
+      // per instance keeps per-instance history intact (RHO-21).
+      const parts = splitYieldEvenly(numericValue, instanceIds.length);
+      for (let i = 0; i < instanceIds.length; i++) {
+        const part = parts[i] ?? 0;
+        // Skip zero-value parts — `yield_records.value` has a CHECK (value > 0);
+        // only reached when the total is smaller than can spread across every
+        // instance at 0.001 granularity.
+        if (part <= 0) continue;
         await insertYieldRecord({
           home_id: homeId,
-          instance_id: instanceId,
-          value: numericValue,
+          instance_id: instanceIds[i],
+          value: part,
           unit,
           notes: notes.trim() ? notes.trim() : null,
         });

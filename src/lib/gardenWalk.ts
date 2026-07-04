@@ -59,6 +59,34 @@ export type WalkBand =
   | "stale"
   | "everything_else";
 
+/**
+ * RHO-18 — one physical plant instance inside a grouped walk card. Same-plant,
+ * same-area instances collapse into a single `WalkPlant` carrying an
+ * `instances[]` list so per-instance capture (journal / photo / visit) can
+ * still target the right inventory item.
+ */
+export interface WalkPlantInstance {
+  inventoryItemId: string;
+  /** This instance's own display name (nickname or plant name). */
+  label: string;
+  scientificName: string | null;
+  thumbnailUrl: string | null;
+  plantedAt: string | null;
+  daysSincePlanted: number | null;
+  lastJournalSubject: string | null;
+  lastJournalDescription: string | null;
+  lastJournalImageUrl: string | null;
+  lastJournalAt: string | null;
+  lastPhotoAt: string | null;
+  activeAilmentCount: number;
+  overdueTaskCount: number;
+  dueTodayTaskCount: number;
+  freshInsightCount: number;
+  lastWalkVisitedAt: string | null;
+  lastWalkOutcome: string | null;
+  band: WalkBand;
+}
+
 export interface WalkPlant {
   inventoryItemId: string;
   plantName: string;       // either the inventory_items nickname or plant_name
@@ -83,6 +111,10 @@ export interface WalkPlant {
   lastWalkVisitedAt: string | null;
   lastWalkOutcome: string | null;
   band: WalkBand;
+  /** RHO-18 — number of physical instances collapsed into this card (≥1). */
+  instanceCount?: number;
+  /** RHO-18 — the individual instances behind this card (length === instanceCount). */
+  instances?: WalkPlantInstance[];
 }
 
 /** ISO date string for "today" in the user's local timezone, YYYY-MM-DD. */
@@ -224,7 +256,31 @@ export function composeAndOrderWalk(
     );
   }
 
-  const composed: WalkPlant[] = filteredItems
+  const BAND_PRIORITY: Record<WalkBand, number> = {
+    critical: 0,
+    overdue: 1,
+    due_today: 2,
+    fresh_hit: 3,
+    stale: 4,
+    everything_else: 5,
+  };
+
+  // Build one instance record per inventory item, carrying its grouping key
+  // (RHO-18: same plant + same area collapse into one card).
+  interface InstanceWithCtx {
+    instance: WalkPlantInstance;
+    groupKey: string;
+    /** Common/plant name used for the grouped card title. */
+    groupName: string;
+    areaId: string | null;
+    areaName: string | null;
+    locationId: string | null;
+    locationName: string | null;
+    thumbnailUrl: string | null;
+    scientificName: string | null;
+  }
+
+  const instanceRecords: InstanceWithCtx[] = filteredItems
     .filter((item) => !visitedTodaySet.has(item.id))
     .map((item) => {
       const speciesIdNum = Number(item.plant_id);
@@ -268,15 +324,20 @@ export function composeAndOrderWalk(
           )
         : null;
 
-      return {
+      const label = item.nickname?.trim() || item.plant_name || "Unnamed plant";
+      const groupName = item.plant_name?.trim() || label;
+      // Group by plant identity (species id, else normalised name) + area.
+      const plantKey =
+        item.plant_id != null
+          ? `id:${item.plant_id}`
+          : `name:${(item.plant_name ?? label).trim().toLowerCase()}`;
+      const groupKey = `${plantKey}|${item.area_id ?? "none"}`;
+
+      const instance: WalkPlantInstance = {
         inventoryItemId: item.id,
-        plantName: item.nickname?.trim() || item.plant_name || "Unnamed plant",
+        label,
         scientificName: sciName,
         thumbnailUrl: species?.thumbnail_url ?? null,
-        areaId: item.area_id,
-        areaName: item.area_name,
-        locationId: item.location_id,
-        locationName: item.location_name,
         plantedAt: item.planted_at,
         daysSincePlanted,
         lastJournalSubject: journal?.subject ?? null,
@@ -284,7 +345,6 @@ export function composeAndOrderWalk(
         lastJournalImageUrl: journal?.image_url ?? null,
         lastJournalAt: journal?.created_at ?? null,
         lastPhotoAt: journal?.image_url ? journal.created_at : null,
-        lastWateredAt: null,
         activeAilmentCount: ailmentCount,
         overdueTaskCount: overdueCount,
         dueTodayTaskCount: dueTodayCount,
@@ -293,16 +353,94 @@ export function composeAndOrderWalk(
         lastWalkOutcome: lastVisit?.outcome ?? null,
         band,
       };
+
+      return {
+        instance,
+        groupKey,
+        groupName,
+        areaId: item.area_id,
+        areaName: item.area_name,
+        locationId: item.location_id,
+        locationName: item.location_name,
+        thumbnailUrl: species?.thumbnail_url ?? null,
+        scientificName: sciName,
+      };
     });
 
-  const BAND_PRIORITY: Record<WalkBand, number> = {
-    critical: 0,
-    overdue: 1,
-    due_today: 2,
-    fresh_hit: 3,
-    stale: 4,
-    everything_else: 5,
-  };
+  // Collapse instances of the same plant in the same area into one WalkPlant.
+  const groups = new Map<string, InstanceWithCtx[]>();
+  const groupOrder: string[] = [];
+  for (const rec of instanceRecords) {
+    if (!groups.has(rec.groupKey)) {
+      groups.set(rec.groupKey, []);
+      groupOrder.push(rec.groupKey);
+    }
+    groups.get(rec.groupKey)!.push(rec);
+  }
+
+  const composed: WalkPlant[] = groupOrder.map((key) => {
+    const recs = groups.get(key)!;
+    // Stable within-group order: most urgent band first, then label.
+    recs.sort((a, b) => {
+      const d = BAND_PRIORITY[a.instance.band] - BAND_PRIORITY[b.instance.band];
+      if (d !== 0) return d;
+      return a.instance.label.localeCompare(b.instance.label);
+    });
+    const rep = recs[0];
+    const instances = recs.map((r) => r.instance);
+    const isGroup = instances.length > 1;
+
+    // Card band = the most urgent instance's band so the group ranks by its
+    // sickest member (a critical instance is never buried in a healthy group).
+    const groupBand = instances.reduce<WalkBand>(
+      (best, i) => (BAND_PRIORITY[i.band] < BAND_PRIORITY[best] ? i.band : best),
+      instances[0].band,
+    );
+    const sum = (sel: (i: WalkPlantInstance) => number) =>
+      instances.reduce((n, i) => n + sel(i), 0);
+
+    // Hero / "last note" preview = the most recent journal across instances.
+    const journalled = [...instances]
+      .filter((i) => i.lastJournalAt)
+      .sort((a, b) => (b.lastJournalAt! > a.lastJournalAt! ? 1 : -1));
+    const j = journalled[0] ?? rep.instance;
+    const latestVisitAt = instances.reduce<string | null>(
+      (acc, i) =>
+        i.lastWalkVisitedAt && (!acc || i.lastWalkVisitedAt > acc)
+          ? i.lastWalkVisitedAt
+          : acc,
+      null,
+    );
+
+    return {
+      inventoryItemId: rep.instance.inventoryItemId,
+      plantName: isGroup ? rep.groupName : rep.instance.label,
+      scientificName: rep.scientificName,
+      thumbnailUrl: rep.thumbnailUrl,
+      areaId: rep.areaId,
+      areaName: rep.areaName,
+      locationId: rep.locationId,
+      locationName: rep.locationName,
+      plantedAt: rep.instance.plantedAt,
+      daysSincePlanted: rep.instance.daysSincePlanted,
+      lastJournalSubject: j.lastJournalSubject,
+      lastJournalDescription: j.lastJournalDescription,
+      lastJournalImageUrl: j.lastJournalImageUrl,
+      lastJournalAt: j.lastJournalAt,
+      lastPhotoAt: j.lastPhotoAt,
+      lastWateredAt: null,
+      activeAilmentCount: sum((i) => i.activeAilmentCount),
+      overdueTaskCount: sum((i) => i.overdueTaskCount),
+      dueTodayTaskCount: sum((i) => i.dueTodayTaskCount),
+      freshInsightCount: sum((i) => i.freshInsightCount),
+      lastWalkVisitedAt: latestVisitAt,
+      lastWalkOutcome: rep.instance.lastWalkOutcome,
+      band: groupBand,
+      instanceCount: instances.length,
+      instances,
+    };
+  });
+
   composed.sort((a, b) => {
     const ba = BAND_PRIORITY[a.band];
     const bb = BAND_PRIORITY[b.band];
@@ -312,6 +450,8 @@ export function composeAndOrderWalk(
     return a.plantName.localeCompare(b.plantName);
   });
 
+  // Cap applies to GROUPS now — a bed of 20 tomatoes is one card, so the cap
+  // reaches much further across a big garden.
   return composed.slice(0, Math.max(1, settings.maxPerWalk));
 }
 
@@ -1032,9 +1172,20 @@ export function composeWalkRoute(input: ComposeWalkRouteInput): WalkRoute {
     }
   }
   for (const p of unassignedPlants) plantOrder.push(p);
-  const plantRoutePosition = new Map(
-    plantOrder.map((p, i) => [p.inventoryItemId, i]),
-  );
+  // RHO-18 — a grouped card covers several instances. Map EVERY member
+  // instance id to its group's route slot (so a task keyed to any instance
+  // resolves to the group's step), and remember each member's representative
+  // so tasks land on the group card's key, not a raw member id.
+  const plantRoutePosition = new Map<string, number>();
+  const instanceToRepresentative = new Map<string, string>();
+  plantOrder.forEach((p, i) => {
+    plantRoutePosition.set(p.inventoryItemId, i);
+    instanceToRepresentative.set(p.inventoryItemId, p.inventoryItemId);
+    for (const inst of p.instances ?? []) {
+      plantRoutePosition.set(inst.inventoryItemId, i);
+      instanceToRepresentative.set(inst.inventoryItemId, p.inventoryItemId);
+    }
+  });
 
   // ── Assign tasks to exactly one step ───────────────────────────────
   const homeTasks: WalkTask[] = [];
@@ -1072,10 +1223,17 @@ export function composeWalkRoute(input: ComposeWalkRouteInput): WalkRoute {
         }
       }
       if (best) {
+        // Land the task on the GROUP's representative id, and count only the
+        // instances OUTSIDE this group toward "also covers N" (RHO-18) — the
+        // grouped card already represents its own members.
+        const repId = instanceToRepresentative.get(best) ?? best;
+        const coveredInGroup = itemIds.filter(
+          (id) => (instanceToRepresentative.get(id) ?? id) === repId,
+        ).length;
         pushTo(
           tasksByPlant,
-          best,
-          toWalkTask(raw, today, { alsoCoversCount: itemIds.length - 1 }),
+          repId,
+          toWalkTask(raw, today, { alsoCoversCount: itemIds.length - coveredInGroup }),
         );
         continue;
       }

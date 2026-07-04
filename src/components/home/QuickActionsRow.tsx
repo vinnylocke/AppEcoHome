@@ -67,7 +67,14 @@ export default function QuickActionsRow({ userId, homeId, persona, availabilityC
               description={dest.description}
               onClick={() => {
                 dest.onTap?.({ homeId });
-                navigate(dest.route);
+                // RHO-20: launching the Garden Walk from Home must return to
+                // /dashboard on finish (not the /quick fallback) so the status
+                // strip re-fetches and the "done today" count reflects the
+                // tasks just completed in the walk.
+                navigate(
+                  dest.route,
+                  dest.route.startsWith("/walk") ? { state: { from: "/dashboard" } } : undefined,
+                );
               }}
             />
           );

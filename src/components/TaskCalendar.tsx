@@ -26,7 +26,7 @@ import ToDoListsModal from "./todo/ToDoListsModal";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
 import TaskList from "./TaskList";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
-import { TaskEngine, collectHarvestWindowDates } from "../lib/taskEngine";
+import { TaskEngine, collectHarvestWindowDates, lateCompletionDueDate, completedLocalDate } from "../lib/taskEngine";
 import { getLocalDateString } from "../lib/dateUtils";
 
 export interface Task {
@@ -50,6 +50,9 @@ export interface Task {
   isGhost?: boolean;
   overdueCarryoverSince?: string;
   lateCompletionFrom?: string;
+  /** LOCAL calendar day the task was actually completed (for the "· done N"
+   *  copy on the "Completed late" chip — RHO-19). */
+  lateCompletedOn?: string;
 }
 
 // Canonical map — used both for the calendar legend at the bottom of
@@ -243,26 +246,34 @@ export default function TaskCalendar({
       const ft = tasks.filter(applyFilters);
       const fo = overdueTasks.filter(applyFilters);
 
+      // On-time ✓ on the completion day. Uses the LOCAL day of completed_at
+      // (never a UTC slice — RHO-19) so evening completions aren't mis-dated.
       const greenCount = ft.filter(
         (t) =>
           t.status === "Completed" &&
-          t.completed_at &&
-          t.completed_at.slice(0, 10) === dateStr &&
+          completedLocalDate(t) === dateStr &&
+          lateCompletionDueDate(t) === null &&
           t.due_date.slice(0, 10) === dateStr,
       ).length;
 
+      // Late ✓ on the COMPLETION day (window-aware via lateCompletionDueDate).
       const redCheckCount = ft.filter(
         (t) =>
           t.status === "Completed" &&
-          t.completed_at &&
-          t.completed_at.slice(0, 10) === dateStr &&
-          t.due_date.slice(0, 10) < dateStr,
+          completedLocalDate(t) === dateStr &&
+          lateCompletionDueDate(t) !== null,
+      ).length;
+
+      // Late ✓ on the DUE (deadline) day of a late completion, so the due-day
+      // cell isn't blank when a task is finished after its deadline (RHO-19).
+      const lateOriginCount = ft.filter(
+        (t) => t.status === "Completed" && lateCompletionDueDate(t) === dateStr,
       ).length;
 
       const redXCount = fo.filter((t) => t.due_date.slice(0, 10) === dateStr).length;
       const faintCount = fo.filter((t) => t.due_date.slice(0, 10) < dateStr).length;
 
-      return { greenCount, redCheckCount, redXCount, faintCount };
+      return { greenCount, redCheckCount, lateOriginCount, redXCount, faintCount };
     },
     [tasks, overdueTasks, selectedTypes, selectedLoc, selectedArea, selectedPlan],
   );
@@ -281,25 +292,44 @@ export default function TaskCalendar({
       return true;
     };
 
+    // The due (deadline) day is a completed-late task's persistent home in the
+    // calendar, but until RHO-19 it rendered with no "late" signal. Annotate any
+    // completed task in baseTasks whose deadline is the selected day so the chip
+    // shows on the due day too — not only on the completion day below.
+    const annotatedBase = baseTasks.map((t) => {
+      const lateDue = lateCompletionDueDate(t);
+      if (lateDue && lateDue === dateStr) {
+        return { ...t, lateCompletionFrom: lateDue, lateCompletedOn: completedLocalDate(t) ?? undefined };
+      }
+      return t;
+    });
+
     const carryoverTasks = overdueTasks
       .filter((t) => t.due_date.slice(0, 10) < dateStr && applyFilters(t))
       .map((t) => ({ ...t, overdueCarryoverSince: t.due_date }));
 
+    // The same late task also surfaces on its COMPLETION day (a different
+    // selected date than its due day), carrying the late chip there too.
     const lateCompletions =
-      dateStr < todayStr
+      dateStr <= todayStr
         ? tasks
-            .filter(
-              (t) =>
-                t.status === "Completed" &&
-                t.completed_at &&
-                t.completed_at.slice(0, 10) === dateStr &&
-                t.due_date.slice(0, 10) < dateStr &&
-                applyFilters(t),
-            )
-            .map((t) => ({ ...t, lateCompletionFrom: t.due_date }))
+            .filter((t) => {
+              const lateDue = lateCompletionDueDate(t);
+              return (
+                lateDue !== null &&
+                completedLocalDate(t) === dateStr &&
+                lateDue !== dateStr && // avoid duplicating the due-day copy above
+                applyFilters(t)
+              );
+            })
+            .map((t) => ({
+              ...t,
+              lateCompletionFrom: lateCompletionDueDate(t)!,
+              lateCompletedOn: dateStr,
+            }))
         : [];
 
-    return [...baseTasks, ...carryoverTasks, ...lateCompletions];
+    return [...annotatedBase, ...carryoverTasks, ...lateCompletions];
   }, [getTasksForDate, selectedDate, overdueTasks, tasks, todayStr, selectedTypes, selectedLoc, selectedArea, selectedPlan]);
 
   useEffect(() => {
@@ -1001,7 +1031,7 @@ export default function TaskCalendar({
               const isPastDay = dayDateStr < todayStr;
               const cellInd = isPastDay ? getCellIndicators(dayDateStr) : null;
               const hasAnyIndicator = cellInd
-                ? cellInd.greenCount > 0 || cellInd.redCheckCount > 0 || cellInd.redXCount > 0 || cellInd.faintCount > 0
+                ? cellInd.greenCount > 0 || cellInd.redCheckCount > 0 || cellInd.lateOriginCount > 0 || cellInd.redXCount > 0 || cellInd.faintCount > 0
                 : false;
               // Tint the cell amber when this date is inside an active
               // harvest window AND the user hasn't toggled the highlight
@@ -1051,6 +1081,16 @@ export default function TaskCalendar({
                       {cellInd!.redCheckCount > 0 && (
                         <span className={`text-[9px] font-black leading-none ${isSelected ? "text-white/80" : "text-amber-500"}`}>
                           ✓{cellInd!.redCheckCount > 1 ? cellInd!.redCheckCount : ""}
+                        </span>
+                      )}
+                      {/* Due (deadline) day of a late completion — amber ✓ so the
+                          cell isn't blank (RHO-19); reuses the "Done, but late" legend. */}
+                      {cellInd!.lateOriginCount > 0 && (
+                        <span
+                          data-late-origin={cellInd!.lateOriginCount}
+                          className={`text-[9px] font-black leading-none ${isSelected ? "text-white/80" : "text-amber-500"}`}
+                        >
+                          ✓{cellInd!.lateOriginCount > 1 ? cellInd!.lateOriginCount : ""}
                         </span>
                       )}
                       {cellInd!.redXCount > 0 && (

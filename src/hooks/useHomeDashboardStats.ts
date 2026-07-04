@@ -14,6 +14,10 @@ export interface DayStrip {
   completedLate: number;
   overdue: number;
   pending: number;
+  /** RHO-20 — tasks Skipped, bucketed on their effective due day. */
+  skipped: number;
+  /** RHO-20 — open plain tasks snoozed forward off their original due day. */
+  postponed: number;
   isPast: boolean;
   isToday: boolean;
 }

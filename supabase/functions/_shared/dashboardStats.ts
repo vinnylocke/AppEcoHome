@@ -180,6 +180,12 @@ export interface DayBucket {
   completedLate: number;
   overdue: number;
   pending: number;
+  /** RHO-20 — tasks Skipped, bucketed on their effective due day. Skipped
+   *  tasks are persisted tombstones (never ghosts), so the server sees them. */
+  skipped: number;
+  /** RHO-20 — open plain tasks snoozed forward off their ORIGINAL due day
+   *  (counted on the original due day; the effective span sits later). */
+  postponed: number;
   isPast: boolean;
   isToday: boolean;
 }
@@ -215,6 +221,8 @@ export function computeDayStrip(
     completedLate: 0,
     overdue: 0,
     pending: 0,
+    skipped: 0,
+    postponed: 0,
     isPast: ds < today,
     isToday: ds === today,
   }));
@@ -240,7 +248,26 @@ export function computeDayStrip(
   for (const ds of days) {
     const bucket = byDate.get(ds)!;
     for (const t of tasks) {
-      if (t.status === "Skipped") continue;
+      // RHO-20 — Skipped tasks are bucketed on their effective due day and
+      // tallied separately (they're set-aside, not "to do" nor "done"). They
+      // stay OUT of `total`/`pending`/`overdue` so those keep their meaning.
+      if (t.status === "Skipped") {
+        const effSkip = effectiveDueDate(t);
+        if (effSkip != null && effSkip.slice(0, 10) === ds) bucket.skipped += 1;
+        continue;
+      }
+
+      // RHO-20 — Postponed: an open plain task snoozed FORWARD off its original
+      // due day. Counted on the ORIGINAL due day (its effective span now sits
+      // later, so it isn't otherwise bucketed here). Additive: a snoozed-past-
+      // today task is neither pending nor overdue for this bucket.
+      if (!t.window_end_date && !(t.status && DONE.has(t.status))) {
+        const snooze = t.next_check_at ?? null;
+        const orig = t.due_date ? t.due_date.slice(0, 10) : null;
+        if (snooze && t.due_date && snooze > t.due_date && snooze > today && orig === ds) {
+          bucket.postponed += 1;
+        }
+      }
 
       // Harvest-window task: present on every in-window day within the week.
       if (t.window_end_date && t.due_date) {

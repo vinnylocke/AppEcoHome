@@ -1,7 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, AlertCircle, Snowflake } from "lucide-react";
+import { CheckCircle2, AlertCircle, Snowflake, SkipForward, Clock } from "lucide-react";
 import { getLocalDateString } from "../../lib/taskEngine";
+import type { TodaySummary } from "../../lib/todaySummary";
 
 /**
  * Slim single-row status header for the Home dashboard (new-home-dashboard
@@ -23,7 +24,8 @@ interface Props {
   weather: any;
   /** Raw Open-Meteo snapshot — used for the frost-tonight hint. */
   rawWeather: any;
-  todayTaskCount: number;
+  /** RHO-20 — today's task breakdown ("X of Y done today" + status chips). */
+  todaySummary: TodaySummary;
   overdueCount: number;
 }
 
@@ -31,7 +33,7 @@ export default function HomeStatusStrip({
   firstName,
   weather,
   rawWeather,
-  todayTaskCount,
+  todaySummary,
   overdueCount,
 }: Props) {
   const navigate = useNavigate();
@@ -79,10 +81,45 @@ export default function HomeStatusStrip({
         className="flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/70 bg-rhozly-primary/5 px-3 py-1.5 rounded-full hover:bg-rhozly-primary/10 transition"
       >
         <CheckCircle2 size={14} className="text-rhozly-primary" />
-        <span>
-          {todayTaskCount} task{todayTaskCount === 1 ? "" : "s"} today
+        <span data-testid="home-strip-tasks-headline">
+          {todaySummary.total === 0
+            ? "No tasks today"
+            : `${todaySummary.done} of ${todaySummary.total} done today`}
         </span>
       </button>
+
+      {/* RHO-20 — breakdown chips near the count so a static number makes
+          sense. Zero-count chips are hidden to keep the strip calm. */}
+      {todaySummary.pending > 0 && (
+        <button
+          data-testid="home-strip-pending"
+          onClick={() => navigate("/dashboard?view=calendar")}
+          className="flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/60 bg-rhozly-primary/5 px-2.5 py-1.5 rounded-full hover:bg-rhozly-primary/10 transition"
+        >
+          <Clock size={13} className="text-rhozly-primary/70" />
+          <span>{todaySummary.pending} to do</span>
+        </button>
+      )}
+
+      {todaySummary.skipped > 0 && (
+        <span
+          data-testid="home-strip-skipped"
+          className="flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/50 bg-rhozly-surface-low px-2.5 py-1.5 rounded-full"
+        >
+          <SkipForward size={13} />
+          <span>{todaySummary.skipped} skipped</span>
+        </span>
+      )}
+
+      {todaySummary.postponed > 0 && (
+        <span
+          data-testid="home-strip-postponed"
+          className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-full"
+        >
+          <Clock size={13} />
+          <span>{todaySummary.postponed} postponed</span>
+        </span>
+      )}
 
       {overdueCount > 0 && (
         <button

@@ -274,7 +274,15 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
       if (state.kind !== "walking") return;
       const current = state.route.steps[state.currentIndex];
       if (!current || current.kind !== "plant") return;
-      walkService.recordVisit(state.sessionId, current.plant.inventoryItemId, outcome);
+      // RHO-18 — a grouped card covers several instances. Resolving it writes
+      // a visit row for EVERY member instance so a same-day walk rebuild
+      // filters the whole group out (visitedTodaySet is keyed per instance).
+      const instances = current.plant.instances?.length
+        ? current.plant.instances.map((i) => i.inventoryItemId)
+        : [current.plant.inventoryItemId];
+      for (const instanceId of instances) {
+        walkService.recordVisit(state.sessionId, instanceId, outcome);
+      }
       dispatch({ type: "plant-outcome", outcome });
     },
     [state],

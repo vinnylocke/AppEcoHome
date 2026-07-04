@@ -19,9 +19,13 @@ BrowserRouter
     │    any search-result row + Seasonal Picks tiles.)
     ├── /walk              ← GardenWalk (guided card-per-plant inspection)
     │
-    │   (Wave 6: on mobile, the /quick/* AND /walk routes render in focus
-    │    mode — persistent top bar + side nav hidden; QuickAccessMenuButton +
-    │    MobileNavDrawer provide nav access on demand. Desktop unchanged.)
+    │   (Wave 6: the /quick/* routes render in focus mode on mobile —
+    │    persistent top bar + side nav hidden; QuickAccessMenuButton +
+    │    MobileNavDrawer provide nav access on demand. RHO-18: /walk is
+    │    focus-mode at EVERY viewport width (not just mobile) — it's a
+    │    full-screen guided surface; the floating profile dropdown is
+    │    suppressed on /walk so it doesn't clash with the card's Stop button.
+    │    isFocusMode = isWalk || (isMobile && /quick).)
     ├── /dashboard         ← Dashboard container (Dashboard [home] / Overview / Locations / Calendar / Weather sub-tabs via ?view=)
     ├── /shed              ← GardenHub (Shed / Watchlist / Senescence sub-tabs via ?tab=)
     ├── /schedule          ← BlueprintManager

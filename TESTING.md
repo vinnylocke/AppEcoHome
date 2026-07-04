@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,283 tests across 112 files
+### Unit tests — 1,312 tests across 114 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
@@ -747,12 +747,15 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `plantScheduleFactory.test.ts` | 17 | `buildAutoSeasonalSchedules` |
 | `automationEngine.test.ts` | 17 | `calculateSeasonalDate`, `ailmentTaskType`, `frequencyDays` |
 | `taskEngine.test.ts` | 41 | `fetchTasksWithGhosts` (ghost generation, tombstone suppression, completed task filtering, `paused_until` semantics — pre-pause occurrences suppressed permanently, post-pause occurrences emit during the pause) |
-| `gardenWalk.test.ts` | 40 | `composeAndOrderWalk` (banding, indoor filter, same-day dedupe, cap) + RHO-17 `composeWalkRoute` (home→location→area→plant ordering, empty-section omission, most-specific task assignment incl. multi-plant/personal/ghost/fallbacks, section done vs skipped filtering, unassigned section, attention preview, `MAX_PLANTS_PER_WALK`) + `sectionForStep`, `isWalkableTask` + Phase 2 telemetry (device → most-specific-step assignment with area/location/home fallbacks, device-only sections stay alive, multi-sensor areas, `areas.latest_soil_*` → `latest` strip, deviceless input keeps Phase 1 behaviour) + Phase 3 weaving (`derivePlanPhase` PlanStaging parity incl. plant-first, home watchlist digest with link counts + archived exclusion, per-area ailment context via itemAreas, In-Progress plan digests + area banners + `openTaskCount`, enrichment-never-forces-a-section rule) |
+| `gardenWalk.test.ts` | 47 | `composeAndOrderWalk` (banding, indoor filter, same-day dedupe, cap) + RHO-18 instance grouping (same-plant same-area collapse into one card, different-area separate, manual-name grouping, group band = most-urgent member, summed counts, distinct-nickname collapse, cap counts groups) + RHO-18 route (task keyed to a non-representative member resolves to the group step) + RHO-17 `composeWalkRoute` (home→location→area→plant ordering, empty-section omission, most-specific task assignment incl. multi-plant/personal/ghost/fallbacks, section done vs skipped filtering, unassigned section, attention preview, `MAX_PLANTS_PER_WALK`) + `sectionForStep`, `isWalkableTask` + Phase 2 telemetry (device → most-specific-step assignment with area/location/home fallbacks, device-only sections stay alive, multi-sensor areas, `areas.latest_soil_*` → `latest` strip, deviceless input keeps Phase 1 behaviour) + Phase 3 weaving (`derivePlanPhase` PlanStaging parity incl. plant-first, home watchlist digest with link counts + archived exclusion, per-area ailment context via itemAreas, In-Progress plan digests + area banners + `openTaskCount`, enrichment-never-forces-a-section rule) |
 | `taskActions.test.ts` | 16 | RHO-17 shared task mutation core — `completeTask`/`skipTask`/`postponeTask` ghost vs physical vs blueprint payload parity with TaskList, `unique_blueprint_date` 23505 → UPDATE fallback, event logging, `materialiseGhost` select passthrough, `snoozeHarvestTask` (today+days, window_end_date cap, ghost materialise-first, ≥1-day floor) |
 | `scheduleFromSchedulableTask.test.ts` | 28 | `scheduleFromSchedulableTask` — month-window → blueprint dates, incl. wrap-around windows (Nov–Jan) |
 | `useHomeRealtime.test.ts` | 6 | `useHomeRealtime` — callback fires on matching table, debounce, multi-subscriber, cleanup |
 | `plantLabels.test.ts` | 23 | `derivePlantLabels` — plant_type, cycle variants, watering variants, drought_tolerant, care_level, indoor, edible, tropical, pruning deduplication |
 | `yieldService.test.ts` | 10 | `validateYieldValue`, `fetchYieldRecords`, `insertYieldRecord`, `deleteYieldRecord`, `updateExpectedHarvestDate` |
+| `yieldSplit.test.ts` | 7 | RHO-21 `splitYieldEvenly` — even split, remainder on last row summing to total, 3dp rounding, guards, one-part-per-instance |
+| `todaySummary.test.ts` | 5 | RHO-20 `buildTodaySummary` — done from server bucket, pending from client count, skipped/postponed passthrough, null-bucket in-flight, negative clamp |
+| `taskOverdue.test.ts` | 44 | `isTaskOverdue`/window helpers + RHO-19 `lateCompletionDueDate` (late vs on-time, window-aware deadline, UTC-slice guard) + `completedLocalDate` |
 | `plantLightUtils.test.ts` | 16 | `getOptimalLuxRange` — full sun/partial/shade mapping, union of ranges, empty/unknown returns null; `getLightFitness` — all 5 ratings, boundary values, color/bgColor presence |
 | `achievements.test.ts` | 13 | `computeUnlocked` — early_adopter always on, per-threshold unlocks for growing/tasks/AI/planning/health/explorer, progress function bounds, all defs have unique keys |
 | `verdantlyUtils.test.ts` | 12 | `VERDANTLY_WATERING_DAYS` mapping, `VERDANTLY_SUNLIGHT_MAP` mapping, `getProviderLabel` source dispatch |
@@ -784,7 +787,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `parseAilmentList.test.ts` | 11 | RHO-4 Phase 2 Watchlist paste regex fallback — `parseAilmentListLocal` (bare name / dash / colon / parenthesised detail → symptom titles, one-per-line, 200-row cap) + `classifyAilmentType` (pest/invasive/disease keyword classification) |
 | `favouriteIdentity.test.ts` | 50 | Cross-home favourites pure helpers — **Plants (Phase 1):** `canonicalPlantRefId` (manual/api own id, AI→global parent, orphan fallback, non-AI provenance ignored), `isSourceLockedForTier` (full source×tier matrix), `lockedSourceMessage`, `shouldForkOnEdit` (copy-on-write decision), `buildFavouriteSnapshot` (whitelist cap, null-skip, falsy-keep), `buildForkRow` (re-source manual, drop provider ids, provenance via canonical id, strip bookkeeping). **Ailments (Phase 2):** `isAilmentSourceLockedForTier` (perenual/ai/library matrix), `lockedAilmentSourceMessage`, `ailmentIdentityKey` (name_key mirror — lowercase/trim/collapse-ws), `buildAilmentSnapshot` (whitelist cap). **Seed packets (Phase 3):** `packetIdentityKey` (variety\|plant composite, casing/spacing stability, missing parts), `buildPacketSnapshot` (variety-reference whitelist — never live stock/sowings) |
 
-### Edge function tests — Deno (766 tests across 61 files)
+### Edge function tests — Deno (770 tests across 61 files)
 
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|

@@ -10,6 +10,8 @@ import TaskList from "../TaskList";
 import SeasonalPicksCard from "../seasonal/SeasonalPicksCard";
 import { usePersona } from "../../hooks/usePersona";
 import { useHomeOverview, type OverviewArea } from "../../hooks/useHomeOverview";
+import { useHomeDashboardStats } from "../../hooks/useHomeDashboardStats";
+import { buildTodaySummary } from "../../lib/todaySummary";
 import type { OverviewLocation } from "./LocationOverviewCard";
 import type { QuickLauncherAvailabilityCtx } from "../../lib/quickLauncherCatalogue";
 
@@ -76,6 +78,15 @@ export default function HomeMain({
   const todayTaskCount = Object.values(locationTaskCounts).reduce((a, b) => a + b, 0);
   const hasGarden = locations.length > 0;
 
+  // RHO-20 — the "X of Y done today" breakdown. `todayTaskCount` (ghost-aware,
+  // remaining) supplies PENDING; the server dayStrip today bucket supplies the
+  // persisted DONE / SKIPPED / POSTPONED counts. Mounted in BOTH densities so
+  // the breakdown shows for simple-mode (Sprout) users too. Soft-fails: the
+  // hook returns null stats on error and the strip still renders pending.
+  const { stats: dashStats } = useHomeDashboardStats(homeId);
+  const todayBucket = dashStats?.dayStrip?.find((d) => d.isToday) ?? null;
+  const todaySummary = buildTodaySummary(todayTaskCount, todayBucket);
+
   // Phase 2 telemetry: sensor / valve / per-area task chips + attention
   // row. Soft-fails to the client-side grid when the endpoint is
   // unavailable — the page never blocks on it.
@@ -95,7 +106,7 @@ export default function HomeMain({
           firstName={firstName}
           weather={weather}
           rawWeather={rawWeather}
-          todayTaskCount={todayTaskCount}
+          todaySummary={todaySummary}
           overdueCount={overdueTaskCount}
         />
         <div

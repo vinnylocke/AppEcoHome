@@ -13,6 +13,7 @@ import {
   type RouteTaskRow,
   type WalkDevice,
   type WalkPlant,
+  type WalkPlantInstance,
   type WalkStep,
 } from "../../../src/lib/gardenWalk";
 
@@ -259,6 +260,89 @@ describe("composeAndOrderWalk", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
+// RHO-18 — composeAndOrderWalk groups same-plant, same-area instances
+// ═══════════════════════════════════════════════════════════════════
+
+describe("composeAndOrderWalk — RHO-18 instance grouping", () => {
+  const call = (items: InventoryItemRow[], ailments: { plant_instance_id: string }[] = []) =>
+    composeAndOrderWalk(
+      items, [], ailments, [], [], [], new Map(), DEFAULT_WALK_SETTINGS, "2026-05-21",
+    );
+
+  test("N instances of the same plant in the same area collapse into ONE card", () => {
+    const items = [
+      mkItem({ id: "t1", plant_id: 5, plant_name: "Tomato", area_id: "area-1" }),
+      mkItem({ id: "t2", plant_id: 5, plant_name: "Tomato", area_id: "area-1" }),
+      mkItem({ id: "t3", plant_id: 5, plant_name: "Tomato", area_id: "area-1" }),
+    ];
+    const out = call(items);
+    expect(out).toHaveLength(1);
+    expect(out[0].instanceCount).toBe(3);
+    expect(out[0].instances).toHaveLength(3);
+    expect(out[0].plantName).toBe("Tomato");
+    // Every member instance id is preserved.
+    expect(new Set(out[0].instances!.map((i) => i.inventoryItemId))).toEqual(
+      new Set(["t1", "t2", "t3"]),
+    );
+  });
+
+  test("same plant in DIFFERENT areas stays as separate cards", () => {
+    const items = [
+      mkItem({ id: "a", plant_id: 5, plant_name: "Tomato", area_id: "area-1" }),
+      mkItem({ id: "b", plant_id: 5, plant_name: "Tomato", area_id: "area-2", area_name: "Front bed" }),
+    ];
+    const out = call(items);
+    expect(out).toHaveLength(2);
+    expect(out.every((p) => (p.instanceCount ?? 1) === 1)).toBe(true);
+  });
+
+  test("manual instances (no plant_id) group by normalised name + area; different names stay apart", () => {
+    const items = [
+      mkItem({ id: "m1", plant_id: null, plant_name: "Basil", area_id: "area-1" }),
+      mkItem({ id: "m2", plant_id: null, plant_name: "basil", area_id: "area-1" }), // case-insensitive
+      mkItem({ id: "m3", plant_id: null, plant_name: "Mint", area_id: "area-1" }),
+    ];
+    const out = call(items);
+    const basil = out.find((p) => p.plantName.toLowerCase() === "basil")!;
+    expect(basil.instanceCount).toBe(2);
+    expect(out.find((p) => p.plantName === "Mint")!.instanceCount).toBe(1);
+  });
+
+  test("group band = the most urgent member's band; counts are summed", () => {
+    const items = [
+      mkItem({ id: "sick", plant_id: 7, plant_name: "Rose", area_id: "area-1" }),
+      mkItem({ id: "fine", plant_id: 7, plant_name: "Rose", area_id: "area-1" }),
+    ];
+    const out = call(items, [{ plant_instance_id: "sick" }, { plant_instance_id: "sick" }]);
+    expect(out).toHaveLength(1);
+    expect(out[0].band).toBe("critical"); // sickest member wins
+    expect(out[0].activeAilmentCount).toBe(2); // summed across the group
+  });
+
+  test("distinctly-nicknamed instances still collapse (same plant + area)", () => {
+    const items = [
+      mkItem({ id: "n1", plant_id: 9, plant_name: "Chilli", nickname: "Lefty", area_id: "area-1" }),
+      mkItem({ id: "n2", plant_id: 9, plant_name: "Chilli", nickname: "Righty", area_id: "area-1" }),
+    ];
+    const out = call(items);
+    expect(out).toHaveLength(1);
+    expect(out[0].instanceCount).toBe(2);
+    // The individual nicknames are preserved inside the group.
+    expect(out[0].instances!.map((i) => i.label).sort()).toEqual(["Lefty", "Righty"]);
+  });
+
+  test("the plant-step cap applies to GROUPS, not raw instances", () => {
+    const items = Array.from({ length: 40 }, (_, i) =>
+      mkItem({ id: `t${i}`, plant_id: 3, plant_name: "Tomato", area_id: "area-1" }),
+    );
+    const out = call(items);
+    // 40 instances of one plant in one bed = a single group, well under the cap.
+    expect(out).toHaveLength(1);
+    expect(out[0].instanceCount).toBe(40);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
 // RHO-17 — composeWalkRoute (hierarchical route)
 // ═══════════════════════════════════════════════════════════════════
 
@@ -283,6 +367,31 @@ function mkWalkPlant(
     lastJournalImageUrl: null,
     lastJournalAt: null,
     lastWateredAt: null,
+    lastPhotoAt: null,
+    activeAilmentCount: 0,
+    overdueTaskCount: 0,
+    dueTodayTaskCount: 0,
+    freshInsightCount: 0,
+    lastWalkVisitedAt: null,
+    lastWalkOutcome: null,
+    band: over.band ?? "stale",
+    instanceCount: over.instanceCount,
+    instances: over.instances,
+  };
+}
+
+function mkInstance(inventoryItemId: string, over: Partial<WalkPlantInstance> = {}): WalkPlantInstance {
+  return {
+    inventoryItemId,
+    label: over.label ?? "Plant",
+    scientificName: null,
+    thumbnailUrl: null,
+    plantedAt: null,
+    daysSincePlanted: null,
+    lastJournalSubject: null,
+    lastJournalDescription: null,
+    lastJournalImageUrl: null,
+    lastJournalAt: null,
     lastPhotoAt: null,
     activeAilmentCount: 0,
     overdueTaskCount: 0,
@@ -416,6 +525,27 @@ describe("composeWalkRoute — RHO-17 hierarchical route", () => {
     // No double counting anywhere.
     const allIds = route.steps.flatMap((s) => s.tasks.map((t) => t.id));
     expect(allIds.sort()).toEqual(["t-area", "t-home", "t-loc", "t-plant"]);
+  });
+
+  test("RHO-18: a task keyed to a NON-representative grouped instance resolves to the group step", () => {
+    const grouped = mkWalkPlant({
+      inventoryItemId: "rep",
+      plantName: "Tomato",
+      instanceCount: 2,
+      instances: [mkInstance("rep", { label: "Rep" }), mkInstance("member", { label: "Member" })],
+    });
+    const route = composeWalkRoute(
+      baseInput({
+        plants: [grouped],
+        // Task links ONLY the non-representative member instance.
+        tasks: [mkRouteTask({ id: "t-member", inventory_item_ids: ["member"], area_id: "area-1" })],
+      }),
+    );
+    const plantStep = route.steps.find((s) => s.kind === "plant") as Extract<WalkStep, { kind: "plant" }>;
+    expect(plantStep.plant.inventoryItemId).toBe("rep");
+    expect(plantStep.tasks.map((t) => t.id)).toEqual(["t-member"]);
+    // A task fully covered inside the group reports 0 "also covers".
+    expect(plantStep.tasks[0].alsoCoversCount ?? 0).toBe(0);
   });
 
   test("multi-plant task shows on the FIRST of its plants in route order, with alsoCoversCount", () => {

@@ -33,7 +33,7 @@ import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { enqueue as enqueueWrite, getQueue, remove as removeQueued } from "../lib/offlineQueue";
 import TaskModal from "./TaskModal";
-import { TaskEngine } from "../lib/taskEngine";
+import { TaskEngine, lateCompletionDueDate, completedLocalDate } from "../lib/taskEngine";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { AutomationEngine } from "../lib/automationEngine";
 import { buildGhostPayload, hasBlockingDependencies } from "../lib/taskMutations";
@@ -1113,6 +1113,12 @@ export default function TaskList({
               task.plans?.ai_blueprint?.project_overview?.title;
 
             const isCompleted = task.status === "Completed";
+            // RHO-19 — a completed-late task shows a "Completed late" chip
+            // wherever it renders (calendar agenda, Dashboard/Today list). The
+            // caller may pre-annotate (calendar agenda), otherwise derive it
+            // from the task itself so the Today list gets the chip too.
+            const lateDue = task.lateCompletionFrom ?? lateCompletionDueDate(task) ?? undefined;
+            const lateDone = task.lateCompletedOn ?? (lateDue ? completedLocalDate(task) ?? undefined : undefined);
             // Wave-20 — harvest tasks are "in window" while
             // due_date <= today <= window_end_date. They're styled green
             // and aren't overdue until the window closes.
@@ -1222,16 +1228,17 @@ export default function TaskList({
                     </h4>
 
                     {/* Chips */}
-                    {(plantName || task.areas?.name || planName || task.auto_completed_reason || task.overdueCarryoverSince || task.lateCompletionFrom) && (
+                    {(plantName || task.areas?.name || planName || task.auto_completed_reason || task.overdueCarryoverSince || lateDue) && (
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {task.overdueCarryoverSince && (
                           <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-100 text-red-700">
                             <AlertCircle size={10} /> Overdue since {formatDisplayDate(task.overdueCarryoverSince)}
                           </div>
                         )}
-                        {task.lateCompletionFrom && (
-                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700">
-                            <CheckSquare size={10} /> Completed late — due {formatDisplayDate(task.lateCompletionFrom)}
+                        {lateDue && (
+                          <div data-testid="task-late-chip" className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700">
+                            <CheckSquare size={10} /> Completed late — due {formatDisplayDate(lateDue)}
+                            {lateDone && ` · done ${formatDisplayDate(lateDone)}`}
                           </div>
                         )}
                         {plantName && (

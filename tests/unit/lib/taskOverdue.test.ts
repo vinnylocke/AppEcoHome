@@ -4,6 +4,9 @@ import {
   isInsideHarvestWindow,
   daysLeftInWindow,
   collectHarvestWindowDates,
+  lateCompletionDueDate,
+  completedLocalDate,
+  getLocalDateString,
 } from "../../../src/lib/taskEngine";
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -243,5 +246,111 @@ describe("collectHarvestWindowDates", () => {
       { status: "Pending", due_date: "2026-01-01", window_end_date: "2099-01-01" },
     ]);
     expect(set.size).toBeLessThanOrEqual(400);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// lateCompletionDueDate (RHO-19) — is a Completed task "late", and against
+// which deadline? Returns the deadline day when late, else null.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("lateCompletionDueDate", () => {
+  test("completed AFTER the due day returns the due day", () => {
+    expect(
+      lateCompletionDueDate({
+        status: "Completed",
+        due_date: "2026-07-01",
+        completed_at: "2026-07-02T09:00:00.000Z",
+      }),
+    ).toBe("2026-07-01");
+  });
+
+  test("completed ON the due day is on time → null", () => {
+    // Build a completed_at on the due day in LOCAL time so the local-day
+    // comparison is timezone-independent.
+    const dueDay = "2026-07-01";
+    const localNoon = new Date(2026, 6, 1, 12, 0, 0); // 1 Jul local, midday
+    expect(
+      lateCompletionDueDate({
+        status: "Completed",
+        due_date: dueDay,
+        completed_at: localNoon.toISOString(),
+      }),
+    ).toBeNull();
+  });
+
+  test("non-Completed task → null", () => {
+    expect(
+      lateCompletionDueDate({
+        status: "Pending",
+        due_date: "2026-07-01",
+        completed_at: "2026-07-02T09:00:00.000Z",
+      }),
+    ).toBeNull();
+  });
+
+  test("missing completed_at → null", () => {
+    expect(
+      lateCompletionDueDate({ status: "Completed", due_date: "2026-07-01", completed_at: null }),
+    ).toBeNull();
+  });
+
+  test("window task completed INSIDE the window is on time → null", () => {
+    expect(
+      lateCompletionDueDate({
+        status: "Completed",
+        due_date: "2026-07-01",
+        window_end_date: "2026-07-10",
+        completed_at: "2026-07-05T09:00:00.000Z",
+      }),
+    ).toBeNull();
+  });
+
+  test("window task completed AFTER the window returns window_end_date", () => {
+    expect(
+      lateCompletionDueDate({
+        status: "Completed",
+        due_date: "2026-07-01",
+        window_end_date: "2026-07-10",
+        completed_at: "2026-07-12T09:00:00.000Z",
+      }),
+    ).toBe("2026-07-10");
+  });
+
+  test("UTC-slice guard: evening completion same LOCAL day as due is on time", () => {
+    // A completion late in the local evening can roll to the next day in UTC.
+    // The predicate must use the LOCAL day, so this is NOT late.
+    const dueDay = "2026-07-01";
+    const localEvening = new Date(2026, 6, 1, 22, 30, 0); // 1 Jul 22:30 local
+    // Sanity: prove the local day is still the due day regardless of TZ.
+    expect(getLocalDateString(localEvening)).toBe(dueDay);
+    expect(
+      lateCompletionDueDate({
+        status: "Completed",
+        due_date: dueDay,
+        completed_at: localEvening.toISOString(),
+      }),
+    ).toBeNull();
+  });
+
+  test("date-only completed_at (no time component) is handled", () => {
+    expect(
+      lateCompletionDueDate({
+        status: "Completed",
+        due_date: "2026-07-01",
+        completed_at: "2026-07-03",
+      }),
+    ).toBe("2026-07-01");
+  });
+});
+
+describe("completedLocalDate", () => {
+  test("returns the local calendar day of completed_at", () => {
+    const local = new Date(2026, 6, 4, 8, 0, 0);
+    expect(completedLocalDate({ completed_at: local.toISOString() })).toBe("2026-07-04");
+  });
+
+  test("null completed_at → null", () => {
+    expect(completedLocalDate({ completed_at: null })).toBeNull();
   });
 });

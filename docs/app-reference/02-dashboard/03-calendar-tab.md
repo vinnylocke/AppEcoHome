@@ -242,8 +242,8 @@ The Calendar tab answers "when does what need doing?" Where the Dashboard tab te
 |---------|---------|
 | Day number | Date in the month |
 | Coloured dots in a day cell (month view) | One dot per pending task type, capped at 3 dots + "+N more" |
-| Green ✓ | Task done on this date |
-| Amber ✓ | Done, but late (completed after its original due date) |
+| Green ✓ | Task done on this date (on time) |
+| Amber ✓ | Done, but late (completed after its original due date). Shown on **both** the completion day AND the original due day, so selecting the due day no longer reads as "on time" (RHO-19). Lateness is derived at render via `lateCompletionDueDate` (`src/lib/taskEngine.ts`): late ⟺ Completed AND `completed_at`'s **local** day > `window_end_date ?? due_date` — a harvest completed inside its open window is never late. The agenda chip reads `Completed late — due 1 Jul · done 2 Jul` (actual completion date shown). |
 | Red ✗ | Overdue (pending, due date past) |
 | Faint ✕ | Missed (overdue task whose due date is older than the cell's date) |
 | Sparkles ✨ (top-right) | Day contains tasks involving plants matching your quiz preferences |

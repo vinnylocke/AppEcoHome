@@ -224,6 +224,8 @@ This means the lifecycle is a one-bit flag (`ended_at IS NULL` ↔ live; `ended_
 
 A species record + per-instance records lets you say "I have 4 Brandywine tomato plants" and track each one separately (growth state, planted date, photos, journal) while sharing the species-level care defaults.
 
+**Garden Walk display grouping (RHO-18):** the walk collapses same-plant, same-area instances into one card for review — grouped by `(plant_id ?? normalised plant_name, area_id)` in `composeAndOrderWalk` — but the underlying `inventory_items` rows are unchanged. Per-instance writes (journal/photo via the card's instance picker, `garden_walk_visits`, yields) still target individual `inventory_items.id`s.
+
 ### Common workflows
 
 - **Add to Shed:** creates a `plants` row (or reuses existing) + an `inventory_items` row.
