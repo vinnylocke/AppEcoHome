@@ -8,7 +8,7 @@ Voice was introduced in Wave 22.0001 and works everywhere the chat panel appears
 
 ## Talking to the AI (Voice In)
 
-> 📸 Screenshot: The chat input row with the microphone button highlighted on the right
+![The chat input row with the microphone button on the right](/doc-images/18-voice-in-chat-01-voice-in.webp)
 
 In any chat surface:
 
@@ -29,7 +29,7 @@ The first time you tap the mic, your browser or device will ask for microphone a
 
 Every AI reply has a small **🔊 speaker** icon at the top right of the message bubble.
 
-> 📸 Screenshot: An AI chat reply with the speaker icon visible and a faint progress line under the text while it speaks
+![An AI chat reply with the speaker (read-aloud) icon, thumbs up/down and regenerate controls beneath the message](/doc-images/18-voice-in-chat-02-voice-out.webp)
 
 | Action | What happens |
 |--------|-------------|

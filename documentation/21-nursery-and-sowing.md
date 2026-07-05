@@ -2,7 +2,7 @@
 
 The **Nursery** is where you track everything that hasn't made it into a bed yet — seed packets, active sowings, germinated seedlings, and the plant-out queue. It lives alongside [The Shed](./05-the-shed.md) under the **Garden** tab; flip between them using the Shed / Nursery toggle in the page header.
 
-> 📸 Screenshot: The Nursery tab showing a row of summary stats at the top (Total packets / Active sowings / Sow-by approaching), a grid of seed packet cards below, and the Plant Out tab at the right
+![The Nursery: summary line (packets · active sowings · sow-by approaching), Scan / Paste a list / Add packets actions, and the seed packet list below](/doc-images/21-nursery-and-sowing-01-overview.webp)
 
 ---
 
@@ -30,7 +30,7 @@ Each packet card shows:
 - **Sow-by date** if the packet has an expiry
 - **Active sowings** indicator if there's a sowing currently in progress
 
-> 📸 Screenshot: A single seed packet card with the species name, an amber "Sow by Sep 2026" pill, and a small "1 active sowing" tag in the corner
+![A seed packet card: species name, scientific name, a sow-by pill with days remaining, vendor and seed count, and a sowing-status tag (e.g. "12 sown · ready to plant out")](/doc-images/21-nursery-and-sowing-02-packet-card.webp)
 
 Tap the card to open the **packet detail** — sowings history, AI growing instructions, and the action buttons (Sow now, Edit, Delete).
 
@@ -40,7 +40,7 @@ Tap the card to open the **packet detail** — sowings history, AI growing instr
 
 When you sow seeds from a packet, tap **Sow now** on the packet detail to log the event.
 
-> 📸 Screenshot: The Sow modal with date picker, quantity stepper, area picker, and a notes field
+> 📸 *Screenshot coming with the interactive sowing release — logging screens are rolling out; sowing status shown in the Nursery today is populated during setup.*
 
 | Field | What it means |
 |-------|--------------|
@@ -63,7 +63,7 @@ When sprouts appear, tap **Mark germinated** on the active sowing — Rhozly rec
 
 When seedlings are ready for the ground, open the active sowing and tap **Plant out**.
 
-> 📸 Screenshot: The Plant Out modal with an area picker, a quantity stepper, and a "Create matching plants in The Shed?" toggle
+> 📸 *Screenshot coming with the interactive plant-out release.*
 
 The plant-out modal:
 1. Lets you pick the **area** they're going into
@@ -78,7 +78,7 @@ After planting out, the sowing is marked complete and the seedlings live their n
 
 The Nursery tab has a **Plant Out queue** sub-view showing every active sowing that's ready to go into the ground.
 
-> 📸 Screenshot: The Plant Out queue showing a list of seedling rows with species, count, and a "Plant out" button each
+> 📸 *Screenshot coming with the interactive plant-out release.*
 
 Useful when you've sown a lot at once and want a single place to work through plant-outs over a weekend.
 
