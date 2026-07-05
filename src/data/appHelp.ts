@@ -404,6 +404,18 @@ export const APP_HELP_SECTIONS: HelpSection[] = [
     route: "/lightsensor",
     summary: "The Light Sensor uses your device's camera to measure ambient lux levels and log them to a specific area.",
   },
+  {
+    id: "lightsensor-reading",
+    title: "Taking a good light reading",
+    route: "/lightsensor",
+    summary: "Hold your device flat at plant height in the exact spot you're measuring, wait for the lux value to settle, then Save to the area. Take a couple of readings through the day for a fair picture.",
+  },
+  {
+    id: "lightsensor-meaning",
+    title: "What lux values mean",
+    route: "/lightsensor",
+    summary: "Rough guide: full sun is above ~20,000 lux, partial shade ~10,000–20,000, and shade below ~10,000. Rhozly compares an area's saved reading against each plant's light needs to flag mismatches.",
+  },
 
   // ── Plant Visualiser ───────────────────────────────────────────────────────
   {
@@ -497,6 +509,48 @@ export const APP_HELP_SECTIONS: HelpSection[] = [
     title: "Understanding Achievements",
     route: "/profile",
     summary: "Achievements are earned automatically as you use Rhozly — completing tasks, logging yields, running AI scans, and more.",
+  },
+  {
+    id: "achievements-earn",
+    title: "How to earn achievements",
+    route: "/profile",
+    summary: "Awards unlock as you use Rhozly — completing tasks, logging harvests, running AI scans, and keeping streaks. Open the Awards tab in your profile; each locked card shows what's still needed to unlock it.",
+  },
+
+  // ── Garden Walk ────────────────────────────────────────────────────────────
+  {
+    id: "walk-overview",
+    title: "What is the Garden Walk?",
+    route: "/walk",
+    summary: "A guided, bed-by-bed tour of your whole garden. Start it from the dashboard and work through each area — ticking tasks, snapping photos, logging notes and checking sensors as you go.",
+  },
+  {
+    id: "walk-actions",
+    title: "The Garden Walk plant actions",
+    route: "/walk",
+    summary: "On each plant you can Snap a photo, add a Note, mark it All good, or Skip. Finish the walk for a summary of what you did; use 'Walk again' to do a fresh pass later.",
+  },
+
+  // ── Notes ──────────────────────────────────────────────────────────────────
+  {
+    id: "notes-overview",
+    title: "Using the garden notebook",
+    route: "/notes",
+    summary: "Notes are free-form, with rich text and photos. Pin the important ones to the top, and link a note to a plant, area or plan so it also appears in context on that item.",
+  },
+  {
+    id: "notes-archive",
+    title: "Archiving vs deleting a note",
+    route: "/notes",
+    summary: "Archive tucks a note out of the way but keeps it recoverable; delete removes it for good. Archived notes are hidden from the main list until you show them.",
+  },
+
+  // ── Weekly Overview ────────────────────────────────────────────────────────
+  {
+    id: "weekly-overview-help",
+    title: "Your Weekly Overview",
+    route: "/weekly",
+    summary: "A Sunday recap of the week ahead — harvest and pruning windows opening, pest risk, pollen, frost/heat/rain events, and AI tips. Sage and Evergreen can regenerate it on demand.",
   },
 ];
 
