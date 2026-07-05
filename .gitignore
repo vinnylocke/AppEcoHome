@@ -56,3 +56,7 @@ beta-invites.txt
 # Doc-screenshot capture staging (transient)
 public/doc-images/_staging/
 docs/jira-evidence/
+
+# stray audit / capture artifacts (kept locally, not tracked)
+Rhozly-Beta-Handover.pdf
+_*.mjs

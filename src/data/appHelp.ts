@@ -417,14 +417,14 @@ export const APP_HELP_SECTIONS: HelpSection[] = [
   {
     id: "home-invite",
     title: "Inviting members to your home",
-    route: "/management",
-    summary: "Go to Management → Home Settings → tap 'Invite Member' and enter their email address.",
+    route: "/home-management",
+    summary: "Open Home Management (account menu → Manage homes), pick a home, then use 'Invite member' to send an email invite or share a join link.",
   },
   {
     id: "home-roles",
     title: "Understanding member roles",
-    route: "/management",
-    summary: "Owner has full control. Manager can add/edit plants and tasks. Member can complete tasks and view data.",
+    route: "/home-management",
+    summary: "Owner has full control. Manager can add/edit plants and tasks. Member can complete tasks and view data. Set a member's role from the Members list in Home Management.",
   },
 
   // ── Achievements ───────────────────────────────────────────────────────────

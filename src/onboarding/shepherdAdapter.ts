@@ -166,8 +166,10 @@ export function buildTour(
       `<span class="shepherd-progress-dot${i === index ? " active" : ""}"></span>`
     ).join("");
 
+    // onerror hides the element so a missing/failed image never renders as a
+    // broken-image icon inside a tour step.
     const imageHtml = step.image
-      ? `<img src="${step.image}" alt="" class="shepherd-step-image" />`
+      ? `<img src="${step.image}" alt="" class="shepherd-step-image" onerror="this.style.display='none'" />`
       : "";
 
     // Per-step cleanup ref for the native advanceOn listener
