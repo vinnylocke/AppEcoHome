@@ -413,6 +413,58 @@ export const APP_HELP_SECTIONS: HelpSection[] = [
     summary: "The Visualiser lets you arrange your plants in a 2D overhead view of your garden space with drag-and-drop sprites.",
   },
 
+  // ── Garden Layout ──────────────────────────────────────────────────────────
+  {
+    id: "garden-layout-overview",
+    title: "What is the Garden Layout editor?",
+    route: "/garden-layout",
+    summary: "A scale drawing board for your plot: draw beds, planters, paths and structures on a metre grid, link them to your real areas, and read the sun and microclimate per bed. Open it from Tools → Garden Layout (best on a larger screen).",
+  },
+  {
+    id: "garden-layout-draw",
+    title: "Drawing beds and borders to scale",
+    route: "/garden-layout",
+    summary: "Pick a shape from the palette on the left (raised bed, planter, oval/L-shape bed, greenhouse, path, fence), drag it onto the grid, then drag its handles until it matches your real dimensions — the ruler shows metres. Use Draw / Edit / Look to switch between adding, adjusting and panning.",
+  },
+  {
+    id: "garden-layout-link-area",
+    title: "Linking a shape to a real area",
+    route: "/garden-layout",
+    summary: "Select a bed and link it to one of your Locations' areas. Once linked, that bed's plants, sensor readings and tasks surface on the layout — and the bed shows an 'On layout' badge back in the Location Manager.",
+  },
+  {
+    id: "garden-layout-sun",
+    title: "Reading sun, shade and microclimate",
+    route: "/garden-layout",
+    summary: "Use the Zones and Microclimate tools (top of the canvas) to group beds and see how much sun and shade each one gets through the day and across the seasons — so you can place sun-lovers and shade-tolerant plants correctly.",
+  },
+  {
+    id: "garden-layout-3d",
+    title: "Switching between 2D and 3D",
+    route: "/garden-layout",
+    summary: "Toggle 2D / 3D at the top to view your layout flat or in three dimensions. Export shares a copy of the plan, and Templates drops in ready-made bed shapes you can reuse.",
+  },
+
+  // ── Sun Tracker (AR) ───────────────────────────────────────────────────────
+  {
+    id: "sun-tracker-overview",
+    title: "What is the Sun Tracker?",
+    route: "/sun-trajectory",
+    summary: "An augmented-reality view of the sun's path and where shadows fall across the day and year. Point your phone around a spot to find the sunniest (or shadiest) place before you plant. Open it from Tools → Sun Tracker.",
+  },
+  {
+    id: "sun-tracker-permissions",
+    title: "Camera & compass permissions",
+    route: "/sun-trajectory",
+    summary: "The Sun Tracker needs camera access (to show the live view) and motion/compass access (to orient the sun path). Approve both when prompted. If you deny them, you can re-grant access in your device's privacy settings; the tool shows a retry card until they're allowed.",
+  },
+  {
+    id: "sun-tracker-scrub",
+    title: "Scrubbing through the day and seasons",
+    route: "/sun-trajectory",
+    summary: "Drag the time slider to move the sun and shadows through the day, and change the month to compare winter and summer shade. Use it to check a spot stays sunny in the season you'll be growing.",
+  },
+
   // ── Home Management ────────────────────────────────────────────────────────
   {
     id: "home-invite",
@@ -425,6 +477,18 @@ export const APP_HELP_SECTIONS: HelpSection[] = [
     title: "Understanding member roles",
     route: "/home-management",
     summary: "Owner has full control. Manager can add/edit plants and tasks. Member can complete tasks and view data. Set a member's role from the Members list in Home Management.",
+  },
+  {
+    id: "home-switch",
+    title: "Switching between homes",
+    route: "/home-management",
+    summary: "If you have more than one home (e.g. a house garden and an allotment), open Home Management to switch your active home — or use the home switcher in the header. Plants, tasks, weather and everything else follow the active home.",
+  },
+  {
+    id: "home-leave",
+    title: "Leaving or removing someone from a home",
+    route: "/home-management",
+    summary: "Use 'Leave home' in Home Management to remove yourself from a shared home. An Owner can remove other members from the Members list. Removing a member revokes their access immediately; their own data in other homes is untouched.",
   },
 
   // ── Achievements ───────────────────────────────────────────────────────────

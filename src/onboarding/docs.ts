@@ -19,6 +19,7 @@ import voiceInChat from "../../documentation/18-voice-in-chat.md?raw";
 import imageCredits from "../../documentation/19-image-credits.md?raw";
 import plantnet from "../../documentation/20-plantnet-identification.md?raw";
 import nursery from "../../documentation/21-nursery-and-sowing.md?raw";
+import homeMembers from "../../documentation/22-home-and-members.md?raw";
 
 export interface DocEntry {
   id: string;
@@ -153,5 +154,11 @@ export const DOCS: DocEntry[] = [
     title: "Nursery & Sowing",
     description: "Seed packets, sowings, germination tracking, and the plant-out queue.",
     content: nursery,
+  },
+  {
+    id: "home-members",
+    title: "Homes & Members",
+    description: "Switching between homes, inviting people, and member roles & permissions.",
+    content: homeMembers,
   },
 ];

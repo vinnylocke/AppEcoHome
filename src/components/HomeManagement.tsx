@@ -28,6 +28,7 @@ import { COUNTRIES } from "../constants/countries";
 import { resolvePermissions, ROLE_DEFAULTS, type Role, type PermissionKey } from "../lib/permissions";
 import { fetchUsdaZone } from "../lib/hardinessZone";
 import HomeLocationInsights from "./HomeLocationInsights";
+import InfoTooltip from "./InfoTooltip";
 import { logEvent, EVENT } from "../events/registry";
 
 const ALL_TIMEZONES: string[] = (() => {
@@ -1006,7 +1007,15 @@ export default function HomeManagement({
                                     <option value="member">Member</option>
                                     <option value="viewer">Viewer</option>
                                   </select>
-                                ) : (
+                                ) : null}
+                                {canManage && (
+                                  <InfoTooltip label="What the member roles mean" alwaysShow>
+                                    <span className="block mb-1"><strong>Admin</strong> — manage plants, tasks &amp; members.</span>
+                                    <span className="block mb-1"><strong>Member</strong> — complete tasks &amp; log activity (photos, notes, harvests).</span>
+                                    <span className="block"><strong>Viewer</strong> — see the garden, read-only. The home always has one <strong>Owner</strong> with full control.</span>
+                                  </InfoTooltip>
+                                )}
+                                {!canManage && (
                                   <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${member.role === "owner" ? "bg-rhozly-primary/10 text-rhozly-primary" : member.role === "admin" ? "bg-violet-100 text-violet-700" : "bg-rhozly-surface text-rhozly-on-surface/40"}`}>
                                     {member.role}
                                   </span>

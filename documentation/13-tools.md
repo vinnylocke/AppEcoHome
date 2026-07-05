@@ -171,22 +171,34 @@ The saved lux value is then used by Rhozly's AI for plant recommendations and ca
 
 ---
 
-## Garden Layout Builder
+## Garden Layout
 
-The **Garden Layout Builder** lets you create a top-down 2D map of your garden areas and plan where to place your plants.
+The **Garden Layout** editor is a scale drawing board for your whole plot. Draw beds, planters, paths and structures on a metre grid, link them to your real areas, and read the sun and microclimate for each bed. It works best on a larger screen (laptop or tablet).
 
-Access: Tools → Garden Layout (or `/layout`).
+Access: Tools → Garden Layout (or `/garden-layout`). Your saved layouts are listed here — tap one to open the editor, or **+** to start a new one.
 
-![The Garden Layouts screen — create a layout to start mapping your garden spaces](/doc-images/13-tools-11-garden-layout.webp)
+![The Garden Layouts screen — your saved layouts, with a + to start a new one](/doc-images/13-tools-11-garden-layout.webp)
 
-### How to Use It
+### Drawing your garden
 
-1. Select an **area** from your locations to start a layout for that space.
-2. **Place plants** — drag plant icons from your Shed onto the grid to position them.
-3. **Resize and adjust** the grid to match your real area dimensions.
-4. Layouts are saved per area and can be revisited at any time.
+1. **Pick a shape** from the palette on the left — raised bed, planter box, round or oval bed, L-shape bed, greenhouse, shed, path, fence, wall or gate.
+2. **Drag it onto the grid.** The ruler along the top and side is in metres, so you can size everything to your real plot.
+3. **Adjust with the handles** — drag a corner to resize, drag the middle to move. Use the **Draw / Edit / Look** toggle at the top to switch between adding shapes, adjusting them, and panning around the canvas.
+4. Undo / redo and zoom sit next to the toggle, and the layout **auto-saves** as you go.
 
-Use the Layout Builder to plan spacing before planting, check that plants fit your available space, or visualise what a new design will look like before committing to it.
+### Linking beds to real areas
+
+Select a bed and link it to one of your [Locations'](./09-locations-areas.md) areas. Once linked, that bed shows its plants, sensor readings and tasks on the layout — and the area gains an **"On layout"** badge back in the Location Manager. This is what turns a drawing into a live map of your garden.
+
+### Zones, microclimate & sun
+
+- **Zones** group beds together (e.g. a single watering zone) so you can reason about them as a unit.
+- **Microclimate** reads how much sun and shade each bed gets through the day and across the seasons — so you can place sun-lovers and shade-tolerant plants in the right spots.
+- **Templates** drops in ready-made bed shapes you can reuse; **Export** shares a copy of the plan.
+
+### 2D and 3D
+
+Toggle **2D / 3D** at the top to view your layout flat or in three dimensions — handy for picturing how tall structures and planting will actually sit in the space.
 
 ---
 
@@ -217,6 +229,15 @@ The **Sun Tracker** is an augmented reality tool that shows you the sun's path a
 Access: Tools → Sun Tracker (or `/sun-trajectory`).
 
 > 📸 Screenshot: The Sun Tracker AR view showing the camera feed with a yellow arc overlaid representing the sun's trajectory
+
+### Permissions
+
+The Sun Tracker needs two device permissions:
+
+- **Camera** — to show the live view the sun path is drawn over.
+- **Motion & orientation (compass)** — to know which way your phone is pointing so the arc lines up with the real sky.
+
+Approve both when prompted the first time. If you deny either, the tool shows a retry card explaining what's needed; you can re-grant access under your device's privacy settings. On desktop (no camera/compass) the tracker falls back to a plain sun-path diagram.
 
 ### How to Use It
 
