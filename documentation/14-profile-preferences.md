@@ -43,7 +43,7 @@ When complete:
 - The "Set up your Home Profile" card on the Dashboard is dismissed
 - The app immediately starts using your profile for personalisation
 
-> 📸 Screenshot: The completed quiz status showing a green tick and the completion date
+![The completed quiz status showing a green tick and the completion date](/doc-images/14-profile-preferences-06-quiz-complete.webp)
 
 ### Retaking the Quiz
 

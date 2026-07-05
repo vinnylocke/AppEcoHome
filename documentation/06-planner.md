@@ -20,7 +20,7 @@ You describe your goals and Rhozly's AI produces a structured plan with plant re
 
 Plans are displayed as cards, filterable by **All / Active / Completed / Archived**.
 
-> 📸 Screenshot: Plan cards in the "Pending" section showing titles, subtitles, plant counts, and an options menu button
+![Plan cards in the "Pending" section showing titles, subtitles, plant counts, and an options menu button](/doc-images/06-planner-02-plan-cards.webp)
 
 Each card shows:
 - **Plan title** and description

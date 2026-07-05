@@ -130,7 +130,7 @@ Tap **Assign to plant** to link the diagnosis to a specific plant in your Shed. 
 
 All past Plant Doctor sessions are saved and accessible from the **History** tab.
 
-> 📸 Screenshot: The History tab showing a list of past session cards with date, thumbnail, and detected entity
+![The History tab showing a list of past session cards with date, thumbnail, and detected entity](/doc-images/08-plant-doctor-02-history.webp)
 
 Each session card shows:
 - **Date** of the analysis

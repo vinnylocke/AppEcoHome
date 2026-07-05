@@ -66,7 +66,7 @@ To unlink, tap the **×** on any attached chip in the editor.
 
 Tap the **📌 Pin** icon on any note card (or in the editor) to keep it at the top of the Notes page. Pinned notes appear in a dedicated row above the regular feed.
 
-> 📸 Screenshot: The Notes page with a row of pinned notes above the regular feed
+![The Notes page with a row of pinned notes above the regular feed](/doc-images/16-notes-03-pinned.webp)
 
 Useful for: standing reminders ("Frost dates 2026"), recurring observations ("Lawn problem zones"), or your gardening rules of thumb.
 

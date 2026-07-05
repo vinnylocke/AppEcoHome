@@ -31,7 +31,7 @@ The **Plant Visualiser** lets you preview how plants will look in your physical 
 
 Access: Tools → Plant Visualiser (or `/visualiser`).
 
-> 📸 Screenshot: The Plant Visualiser home screen showing a grid of plant options to select from
+![The Plant Visualiser home screen showing a grid of plant options to select from](/doc-images/13-tools-02-visualiser-home.webp)
 
 ### Step 1: Select Plants
 
@@ -121,7 +121,7 @@ The **Light Sensor** measures the actual light level (in **lux**) at any point i
 
 Access: Tools → Light Sensor (or `/lightsensor`).
 
-> 📸 Screenshot: The Light Sensor screen showing a large lux readout, a light category label, and the area assignment controls at the bottom
+![The Light Sensor screen showing a large lux readout, a light category label, and the area assignment controls at the bottom](/doc-images/13-tools-03-light-sensor.webp)
 
 ### Measuring Light
 

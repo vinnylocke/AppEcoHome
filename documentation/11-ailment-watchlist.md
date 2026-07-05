@@ -22,7 +22,7 @@ An ailment is any recurring threat to your garden plants:
 
 Each tracked ailment appears as a card.
 
-> 📸 Screenshot: A single ailment card showing the name, type badge, severity badge, affected plants, and expand button
+![A single ailment card showing the name, type badge, severity badge, affected plants, and expand button](/doc-images/11-ailment-watchlist-02-card.webp)
 
 | Element | Description |
 |---------|-------------|

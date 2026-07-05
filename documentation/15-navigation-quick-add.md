@@ -119,7 +119,7 @@ When you open Rhozly on mobile to a `/quick/*` URL — for example via a notific
 
 Tap the **👤 Name ▾** button on the right of the header.
 
-> 📸 Screenshot: The profile dropdown showing the user's name, email, subscription badge, and a Log Out button
+![The profile dropdown showing the user's name, email, subscription badge, and a Log Out button](/doc-images/15-navigation-quick-add-71-profile-dropdown.webp)
 
 | Element | Description |
 |---------|-------------|
