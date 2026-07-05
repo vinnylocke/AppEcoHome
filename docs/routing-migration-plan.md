@@ -1,5 +1,7 @@
 # Routing Migration Plan — Option B (Full React Router)
 
+> **Status (reviewed 2026-07-05): ✅ Shipped.** The full React Router migration is complete — `BrowserRouter` is live in `src/App.tsx` with the routes table documented in CLAUDE.md. Kept for historical reference.
+
 ## Overview
 
 Replace the `activeTab` state-based navigation in `App.tsx` with proper React Router

@@ -1,5 +1,7 @@
 # E2E Test Parallelisation Plan
 
+> **Status (reviewed 2026-07-05): ✅ Shipped.** Per-worker account isolation (test1–test4@rhozly.com via `PLAYWRIGHT_WORKER_INDEX`) is live — see CLAUDE.md § "E2E test seed data". Kept for historical reference.
+
 Two improvements to the E2E suite: per-worker account isolation (enables full
 parallel execution) and timeout reduction (removes unnecessary wait padding).
 

@@ -1,73 +1,107 @@
-# React + TypeScript + Vite
+# Rhozly
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Rhozly** is a plant-care and garden-management Progressive Web App (PWA) with a native mobile wrapper. It helps gardeners manage their plants, schedule care tasks, diagnose plant problems with AI, and get weather-aware gardening insights.
 
-Currently, two official plugins are available:
+Live app: **[rhozly.com](https://rhozly.com)**
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## What it does
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **The Shed** — your plant inventory, with a 10,000+ species database, AI identification, and per-plant care guides.
+- **Tasks & Schedules** — one-off tasks plus recurring "blueprints" that auto-generate weather-aware tasks.
+- **Plant Lens** — camera-first AI: identify a plant, diagnose disease/pests, and get suggested care tasks.
+- **Planner, Watchlist, Nursery, Shopping** — plan projects, track ailments, log sowings, and build shopping lists.
+- **Garden Layout & Visualiser** — draw your plot to scale, link beds to real areas, and read sun/microclimate per bed.
+- **Smart-home integrations** — connect soil sensors and smart valves (Ecowitt, eWeLink, custom webhooks) and automate watering.
+- **Head Gardener** — a proactive AI assistant that learns your habits and briefs you on the week ahead.
 
-## Expanding the ESLint configuration
+The four subscription tiers (**Sprout → Botanist → Sage → Evergreen**) gate the species database and the AI features — see [`src/constants/tiers.ts`](src/constants/tiers.ts).
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Tech stack
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+| Layer | Tech |
+|-------|------|
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS, React Router v6 |
+| Backend | Supabase — Postgres, Auth, Storage, Edge Functions (Deno/TypeScript) |
+| AI | Google Gemini (via Supabase Edge Functions only — never from the browser) |
+| Mobile | Capacitor (iOS/Android wrapper over the PWA) |
+| Weather / plants | Open-Meteo, Perenual, Verdantly, Pl@ntNet, Unsplash |
+| Notifications | Firebase (push) |
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+---
+
+## Getting started
+
+```bash
+npm install --legacy-peer-deps
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Create a `.env` with your Supabase project details (and API keys for the services you use):
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_PUBLISHABLE_KEY=...
+# server-side / tooling
+SUPABASE_PROD_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Run the dev server:
+
+```bash
+npm run dev
+```
+
+For local backend work, use the Supabase CLI (`supabase start`, `supabase migration up`). See [`docs/deployment.md`](docs/deployment.md).
+
+---
+
+## Testing
+
+Three tiers — see [`TESTING.md`](TESTING.md) for the full guide.
+
+```bash
+npm run test:unit        # Vitest — src/lib pure functions & hooks
+npm run test:functions   # Deno — edge-function shared logic
+npm run test:e2e         # Playwright — browser E2E (seeded Supabase)
+npm run test:all         # all three
+npm run typecheck        # real type check (tsconfig.app.json)
+```
+
+---
+
+## Building & deploying
+
+```bash
+npm run build            # production build
+npm run deploy           # maintenance ON → migrations → Vercel → maintenance OFF
+```
+
+Always deploy with `npm run deploy` — it runs the type/schema gates, pushes DB migrations and edge functions, and manages maintenance mode. Never deploy by pushing to GitHub alone. Full process: [`docs/deployment.md`](docs/deployment.md).
+
+---
+
+## Where to look next
+
+| Doc | Purpose |
+|-----|---------|
+| [`CLAUDE.md`](CLAUDE.md) | Project conventions, directory structure, and working practices |
+| [`docs/app-reference/00-INDEX.md`](docs/app-reference/00-INDEX.md) | The master reference — every UI surface and cross-cutting concern |
+| [`TESTING.md`](TESTING.md) | The three-tier testing framework |
+| [`docs/deployment.md`](docs/deployment.md) | Deployment pipeline & rollback |
+| [`documentation/`](documentation/) | End-user help guides (also shown in the in-app Help Center) |
+
+---
+
+## Repository layout
+
+```
+src/               React app — components, lib, hooks, services, context
+supabase/          Postgres migrations + Deno edge functions
+documentation/     End-user help guides (rendered in-app)
+docs/              Technical docs — app-reference, plans, testing, deployment
+tests/             Vitest unit + Playwright E2E
 ```
