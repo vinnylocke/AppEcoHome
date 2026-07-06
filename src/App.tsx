@@ -127,6 +127,7 @@ const AuditPage           = lazy(() => import("./components/AuditPage"));
 import { extractCurrentWeather } from "./lib/clientCache";
 import { getLocalDateString } from "./lib/taskEngine";
 import { isTaskOverdueToday } from "./lib/taskFilters";
+import { buildLocationTaskCounts } from "./lib/locationTaskCounts";
 
 // Service worker update checks + background-time reload safety net.
 if ("serviceWorker" in navigator) {
@@ -805,16 +806,18 @@ function AppShell() {
               // multi-day heatwave/frost doesn't drop off after day one.
               .gte("ends_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
               .order("starts_at", { ascending: true }),
-            // Skipped rows stay in this fetch: a Skipped task is a tombstone
-            // that must suppress the ghost count for its blueprint (the list
-            // hides it — the chip must not count it back in). It's excluded
-            // from the visible count in the loop below instead.
+            // Skipped AND Completed rows stay in this fetch: each is a
+            // tombstone that must suppress the ghost count for its blueprint
+            // (the list hides them — the chip must not count them back in).
+            // They're excluded from the visible count in buildLocationTaskCounts
+            // instead. Dropping Completed here previously let completed
+            // recurring tasks regenerate a ghost that was double-counted as
+            // pending against the server's `done` count.
             supabase
               .from("tasks")
               .select("id, blueprint_id, location_id, status")
               .in("location_id", locationIds)
-              .eq("due_date", todayStr)
-              .neq("status", "Completed"),
+              .eq("due_date", todayStr),
             supabase
               .from("task_blueprints")
               .select("id, location_id, start_date, created_at, end_date, frequency_days, task_type, paused_until")
@@ -828,47 +831,15 @@ function AppShell() {
           snapshotAlerts = alertResult.data || [];
           setAlerts(snapshotAlerts as any[]);
 
-          // Compute today's task count per location (physical + ghosts)
-          const todayMs = new Date(todayStr).getTime();
-          const counts: Record<string, number> = {};
-          locationIds.forEach((id: string) => { counts[id] = 0; });
-
-          const existingByLocation: Record<string, Set<string>> = {};
-          (todayTasksResult.data || []).forEach((t: any) => {
-            if (t.location_id) {
-              // Skipped rows suppress the ghost (below) but aren't visible
-              // tasks — the list hides them, so the chip must too.
-              if (t.status !== "Skipped") {
-                counts[t.location_id] = (counts[t.location_id] || 0) + 1;
-              }
-              if (t.blueprint_id) {
-                if (!existingByLocation[t.location_id]) existingByLocation[t.location_id] = new Set();
-                existingByLocation[t.location_id].add(t.blueprint_id);
-              }
-            }
-          });
-
-          (bpResult.data || []).forEach((bp: any) => {
-            if (!bp.location_id || !bp.frequency_days) return;
-            // Mirror the TaskEngine pause rule: occurrences before
-            // paused_until never count.
-            if (bp.paused_until && todayStr < String(bp.paused_until).split("T")[0]) return;
-            const anchorStr = (bp.start_date || bp.created_at || new Date().toISOString()).split("T")[0];
-            const anchorMs = new Date(anchorStr).getTime();
-            if (todayMs < anchorMs) return;
-            if (bp.end_date && todayMs > new Date(bp.end_date).getTime()) return;
-            const existing = existingByLocation[bp.location_id];
-            if (existing?.has(bp.id)) return;
-            // Windowed harvest blueprints emit ONE window task active across
-            // [start_date, end_date] — counting them on every freq-aligned
-            // day multiplied them. In-window (checked above) counts once.
-            const isHarvestWindow =
-              (bp.task_type === "Harvesting" || bp.task_type === "Harvest") && bp.end_date;
-            const diffDays = Math.round((todayMs - anchorMs) / (1000 * 60 * 60 * 24));
-            if (isHarvestWindow || diffDays % bp.frequency_days === 0) {
-              counts[bp.location_id] = (counts[bp.location_id] || 0) + 1;
-            }
-          });
+          // Compute today's REMAINING task count per location (physical +
+          // ghosts). Completed / Skipped rows suppress their blueprint's ghost
+          // but aren't counted — see lib/locationTaskCounts.ts.
+          const counts = buildLocationTaskCounts(
+            locationIds,
+            (todayTasksResult.data || []) as any[],
+            (bpResult.data || []) as any[],
+            todayStr,
+          );
 
           snapshotLocationTaskCounts = counts;
           setLocationTaskCounts(counts);

@@ -57,7 +57,7 @@ The quiz-prompt card, `DailyBriefCard`, `HeadGardenerCard`, `AssistantCard` and 
 | `weather` | `any` | App's extracted current weather (`{ temp, description, Icon }`) | Weather chip |
 | `rawWeather` | `any` | Latest `weather_snapshots.data` JSONB | Frost-tonight derivation |
 | `locations` | `OverviewLocation[]` | App's `locations` state (homes query) | The grid |
-| `locationTaskCounts` | `Record<string, number>` | App's per-location today counts | Per-card task chip + summed for the strip |
+| `locationTaskCounts` | `Record<string, number>` | App's per-location **remaining-today** counts (ghost-aware). Built by `buildLocationTaskCounts` (`src/lib/locationTaskCounts.ts`): counts persisted pending rows + un-acted blueprint ghosts; Completed **and** Skipped rows are excluded from the count but kept as tombstones that suppress their blueprint's ghost — mirroring `TaskEngine`. | Per-card task chip + summed for the strip |
 | `overdueTaskCount` | `number` | App's home-scoped overdue count (RHO-3) | Overdue chip |
 | `aiEnabled` | `boolean` | `profile.ai_enabled` | SeasonalPicksCard AI branch |
 | `isPremium` | `boolean` | `profile.enable_perenual` | SeasonalPicksCard |
@@ -248,7 +248,7 @@ The Getting Started checklist, notification opt-in, and PWA install prompt appea
 |---------|---------|
 | "Good morning / afternoon / evening, [name]" | Time-of-day greeting (before 12:00 / before 18:00 / after) |
 | Weather chip | Current temp (rounded) + condition from the latest weather snapshot |
-| "X of Y done today" headline | X = tasks done today (server `dayStrip` bucket), Y = done + remaining (ghost-aware). Moves as you complete tasks, so a static total no longer reads as "broken" (RHO-20). Reads "No tasks today" when Y = 0. |
+| "X of Y done today" headline | X = tasks done today (server `dayStrip` bucket), Y = done + remaining (ghost-aware). **Remaining excludes completed rows** — a completed recurring task suppresses its own ghost rather than regenerating one, so Y never double-counts it against X (a completed task previously inflated Y, e.g. "3 of 6" for 3 all-done tasks). Moves as you complete tasks, so a static total no longer reads as "broken" (RHO-20). Reads "No tasks today" when Y = 0. |
 | "N to do" chip | Remaining tasks due today (hidden when 0) |
 | "N skipped" / "N postponed" chips | Today's skipped tombstones / snoozed-forward tasks (each hidden when 0) |
 | Red "N overdue" chip | Pending tasks past due across the **whole home** (only when > 0) |

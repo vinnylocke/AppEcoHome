@@ -21,3 +21,4 @@ Key selectors: `home-main`, `dashboard-view-switcher`, `home-status-strip`, `hom
 | HOME-006 | ✅ | Density toggle persists the choice to localStorage `rhozly:home:density` (`"detailed"`) | — | ✅ Passing |
 | HOME-007 | ✅ | Today's tasks section is visible and "See all →" navigates to `?view=calendar` | — | ✅ Passing |
 | HOME-008 | ✅ | Phase 2 telemetry: sensor chip, valve chip ("Watering" running state) and `soil_dry` attention card render from a mocked `home-overview` payload | Mock: `home-overview` (via `mockEdgeFunction`) | ✅ Passing |
+| HOME-009 | unit | Status-strip "X of Y done today" never double-counts a completed recurring task: with all of today's tasks complete the total (Y) equals done (X), not `done + a regenerated ghost`. Completed rows suppress their blueprint's ghost instead of being counted as pending. | — | ✅ Covered by `tests/unit/lib/locationTaskCounts.test.ts` (all-completed → 0 remaining); E2E assertion on `home-strip-tasks-headline` planned |
