@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Fixes",
-    "items": [
-      "Dashboard: the \"X of Y done today\" task count no longer double-counts completed recurring tasks. Once you've finished today's tasks it correctly reads all-done instead of showing a phantom higher total (e.g. \"3 of 6\" for 3 tasks all done)."
-    ]
-  }
-]
+[]
