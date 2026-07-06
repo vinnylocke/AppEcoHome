@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,335 tests across 117 files
+### Unit tests — 1,343 tests across 118 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
@@ -757,6 +757,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `harvestYield.test.ts` | 6 | `buildHarvestYieldRows` — total-split vs per-plant rows, sum==total, zero/blank skip, notes trim/null |
 | `todaySummary.test.ts` | 5 | RHO-20 `buildTodaySummary` — done from server bucket, pending from client count, skipped/postponed passthrough, null-bucket in-flight, negative clamp |
 | `locationTaskCounts.test.ts` | 10 | `buildLocationTaskCounts` — remaining-today per location; all-completed → 0 (completed-ghost double-count regression), un-acted → one ghost per due blueprint, partial completion, Skipped/Completed suppress-but-don't-count, standalone completed ignored, per-location 0 seeding, freq-alignment, harvest-window counts once, paused/future/ended excluded |
+| `plantNames.test.ts` | 8 | `normalizePlantName` (crab apple = crabapple = Crab-Apple, punctuation/digits, nullish) + `formatOtherNames` (string[]/jsonb-string/comma/null shapes, dedupe vs common+scientific spacing-insensitively) — plant-search "other names" + intuitive matching |
 | `sensorRequirements.test.ts` | 7 | Plant Soil Requirements — `formatSensorRange` (band + em-dash), `buildSensorRequirementRows` (units, partial/empty), `hasAnySensorRange` / `hasAllSensorRanges` |
 | `taskOverdue.test.ts` | 44 | `isTaskOverdue`/window helpers + RHO-19 `lateCompletionDueDate` (late vs on-time, window-aware deadline, UTC-slice guard) + `completedLocalDate` |
 | `plantLightUtils.test.ts` | 16 | `getOptimalLuxRange` — full sun/partial/shade mapping, union of ranges, empty/unknown returns null; `getLightFitness` — all 5 ratings, boundary values, color/bgColor presence |

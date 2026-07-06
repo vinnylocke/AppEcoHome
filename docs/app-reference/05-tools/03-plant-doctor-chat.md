@@ -178,6 +178,8 @@ None.
 | Image too large | Service compresses before send |
 | No connectivity | Toast; pending message can be resent |
 
+> **Knowledge grounding (never refuses for lack of data):** the `agent-chat` system prompt (`supabase/functions/agent-chat/rules.ts`, `AGENT_RULES`) requires the assistant to answer general horticultural questions — harvest timing, ripeness, pruning, spacing — from its own expertise **even when the plant isn't in the user's Shed or the plant catalogue**. A named plant that's absent from the Shed triggers only an *additive* "want me to add it?" offer, never a refusal; a `search_plant_database` result of 0 means "no catalogue entry to add", not "unknown plant". This is what stops the chat replying "I can't find any information about X in my database" while the image path (`plant-doctor-ai`) answers freely (regression guarded by `supabase/tests/agentChatRules.test.ts`).
+
 ### Performance
 
 - Chat lazy-renders only when `isOpen === true`.

@@ -27,6 +27,8 @@ plants (species)
 
 ### `plants` columns (subset)
 
+**Catalogue search (2026-09-06):** `plant_library` has two generated search columns — `search_text` (lowercased `common_name + scientific_name + other_names`) and `search_norm` (`search_text` collapsed to lowercase alphanumerics). Together they make catalogue search match **alternate names** (`other_names`) and be **spacing/punctuation-insensitive** ("crab apple" = "crabapple"). Both the `search_plant_library_relevance` / `_fuzzy` RPCs and the agent-chat `search_plant_database` tool query these; the JS side mirrors the collapse in `src/lib/plantNames.ts`. Migration `20260906000000_plant_library_other_names_search.sql`. See [Plant Providers](./25-plant-providers.md).
+
 **Care ranges (2026-06-18):** `plants` + `plant_library` gained `soil_moisture_min/max` (%), `soil_ec_min/max` (µS/cm), `soil_temp_min/max` (°C) — ideal stable care ranges per species, populated by the plant-library AI seeder (`_shared/plantSeedPrompt.ts`). The **AI Area Coach** reads these as **authoritative** target ranges, so its moisture/EC/temp targets stop drifting between runs. Migration `20260729000000_plant_care_ranges.sql`.
 
 **Library enrichment (Batch D, 2026-06-18):** in practice `plants.soil_*` is rarely populated (only `plant_library` is seeded), which left the Coach estimating — and drifting. `area-sensor-analysis` now **fills each plant's missing ranges from the matching `plant_library` row** (matched by `scientific_name_key` = lowercased first scientific name / common name) via the pure `_shared/careRanges.ts` (`mergeCareRanges` per-field coalesce: plant value wins → library fills → null → model estimate). Any library-covered plant gets a fixed range every run. No migration.

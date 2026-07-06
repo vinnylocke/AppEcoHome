@@ -303,27 +303,38 @@ export async function exec_search_plant_database(
   if (!query) {
     return { payload: [], summary: "Provide a search term." };
   }
+  // Space/punctuation-insensitive query, mirroring the SQL `search_norm`
+  // column so "crab apple" matches "crabapple" (and other_names is covered).
+  const qnorm = query.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  if (!qnorm) {
+    return { payload: [], summary: "Provide a search term with letters or numbers." };
+  }
   const limit = clampLimit(args.limit, 8, 20);
 
   // Phase 1 search hits the plant_library table directly — it's the
   // home-grown AI-built catalogue with care fields ready to use.
   // Full multi-provider search (Perenual + Verdantly + AI cascade) is
   // a Phase 2 enhancement.
-  // search_text is the generated, trigram-indexed column concatenating
-  // common + scientific names. sunlight (jsonb) is the sun column —
-  // there is no `sun` or `scientific_name_text` column.
+  // search_norm is the generated, trigram-indexed column that concatenates
+  // common + scientific + other_names and collapses to alphanumerics — so a
+  // normalised query matches alternate names AND is spacing-insensitive
+  // ("crab apple" = "crabapple"). sunlight (jsonb) is the sun column — there
+  // is no `sun` or `scientific_name_text` column.
   let q = ctx.db
     .from("plant_library")
-    .select("id, common_name, scientific_name, is_edible, sunlight, watering, hardiness_min, hardiness_max")
-    .ilike("search_text", `%${query}%`)
+    .select("id, common_name, scientific_name, other_names, is_edible, sunlight, watering, hardiness_min, hardiness_max")
+    .ilike("search_norm", `%${qnorm}%`)
     .limit(limit);
   if (args.edible === true) q = q.eq("is_edible", true);
 
   const { data, error } = await q;
   if (error) throw error;
+  const n = data?.length ?? 0;
   return {
     payload: data ?? [],
-    summary: `Found ${data?.length ?? 0} matching plant${data?.length === 1 ? "" : "s"} in the database.`,
+    summary: n > 0
+      ? `Found ${n} matching plant${n === 1 ? "" : "s"} in the catalogue.`
+      : `No catalogue entry for "${query}" to add — this does NOT limit your knowledge. Answer the user's question from your own horticultural expertise, and if it's a plant they grow, offer to add it as a manual plant.`,
   };
 }
 

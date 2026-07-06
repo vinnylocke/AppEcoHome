@@ -18,6 +18,7 @@ import type { PlantLibraryRow } from "../../services/plantLibraryAdminService";
 import type { ProviderSearchResult, PlantDetails } from "../../lib/verdantlyUtils";
 import { getProviderPlantDetails } from "../../lib/plantProvider";
 import { libraryRowToPlantDetails } from "../../lib/plantCatalogue";
+import { formatOtherNames } from "../../lib/plantNames";
 import { Logger } from "../../lib/errorHandler";
 import PlantInfoPanel from "../PlantInfoPanel";
 import PlantResultThumb from "../PlantResultThumb";
@@ -485,6 +486,7 @@ export default function PlantSearch({
                   testId={rowKey}
                   name={row.common_name}
                   sub={Array.isArray(row.scientific_name) ? row.scientific_name[0] : undefined}
+                  other={formatOtherNames((row as any).other_names, [row.common_name, Array.isArray(row.scientific_name) ? row.scientific_name[0] : undefined])}
                   thumb={row.thumbnail_url ?? row.image_url ?? null}
                   credit={(row as any).image_credit ?? null}
                   source="library"
@@ -519,6 +521,7 @@ export default function PlantSearch({
                     testId={rowKey}
                     name={r.common_name}
                     sub={r.scientific_name?.[0]}
+                    other={formatOtherNames((r as any).other_names, [r.common_name, r.scientific_name?.[0]])}
                     thumb={r.thumbnail_url ?? null}
                     credit={(r as any).image_credit ?? null}
                     source={r._provider}
@@ -610,12 +613,14 @@ export default function PlantSearch({
 }
 
 function ResultRow({
-  testId, name, sub, thumb, credit, source, onClick, multiSelect = false, selected = false,
+  testId, name, sub, other, thumb, credit, source, onClick, multiSelect = false, selected = false,
   allowPreview = false, onInfo, infoActive = false, infoLoading = false, preview = null,
 }: {
   testId: string;
   name: string;
   sub?: string;
+  /** Alternate / "also known as" names (deduped vs common + scientific). */
+  other?: string[];
   thumb: string | null;
   /** Wave 22.0005 — forwarded to PlantResultThumb so the credit badge
    *  renders on the 44px tile when the row carries provider metadata. */
@@ -651,6 +656,14 @@ function ResultRow({
             <div className="flex-1 min-w-0">
               <p className="font-black text-rhozly-on-surface text-sm leading-tight truncate">{name}</p>
               {sub && <p className="text-[11px] font-bold italic text-rhozly-on-surface/45 truncate">{sub}</p>}
+              {other && other.length > 0 && (
+                <p
+                  data-testid={`${testId}-other-names`}
+                  className="text-[10px] font-semibold text-rhozly-on-surface/40 truncate"
+                >
+                  Also known as: {other.slice(0, 3).join(", ")}
+                </p>
+              )}
               <span className={`inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md ${badge.className}`}>
                 {badge.label}
               </span>

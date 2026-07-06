@@ -110,6 +110,15 @@ Normalises an AI care-guide response into `PlantDetails`.
 
 Ailment (Watchlist) sources mirror this with **no Verdantly** (`availableAilmentSources`). When several providers return results, ranking favours AI for Sage+ (tuned to the user's prefs), then Perenual, then Verdantly.
 
+### Library search matching — names + normalisation
+
+The `plant_library` catalogue search (both the `search_plant_library_relevance` / `search_plant_library_fuzzy` RPCs used by `PlantSearch.tsx`, and the agent-chat `search_plant_database` tool) matches across **common name + scientific name + `other_names`**, and is **spacing/punctuation-insensitive** — "crab apple", "crabapple" and "crab-apple" are equivalent. Two generated columns back this (migration `20260906000000_plant_library_other_names_search.sql`):
+
+- `search_text` — lowercased `common_name + scientific_name + other_names` (trigram similarity + ILIKE).
+- `search_norm` — `search_text` collapsed to lowercase alphanumerics; the RPCs normalise the query the same way (mirrored in `src/lib/plantNames.ts` `normalizePlantName`, so the agent-chat JS query matches the SQL). Ranking: normalised common-name exact → prefix → `search_norm` contains (covers other names) → trigram similarity.
+
+Result rows show all three name fields — common (title), scientific (subtitle) and **"Also known as: …"** for `other_names` (`ResultRow`, `PlantInfoPanel`, `PlantDetailModal`), built via `src/lib/plantNames.ts` `formatOtherNames` (dedupes vs common/scientific).
+
 ---
 
 ## Role 2 — Expert Gardener's Guide

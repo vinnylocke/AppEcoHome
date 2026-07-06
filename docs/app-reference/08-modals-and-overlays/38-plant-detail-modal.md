@@ -49,6 +49,9 @@ Lets a gardener inspect a plant's complete care information — not just the qui
 - The `CataloguePlant` shape doesn't carry the `soil_*` columns, so the tab reads them from `plants` by id itself.
 - **Viewing is free for all tiers.** When ranges are missing it shows an empty state + a **"Generate with AI"** button, gated on `aiEnabled`; the button calls `generate-plant-sensor-ranges` (which resolves from `plant_library` first, then Gemini for the gaps, and persists to `plants`). Regenerate is offered when all three are already present.
 
+### Header
+- Shows **common name** (title) + **scientific name** (italic subtitle) + an **"Also known as: …"** line listing `other_names` when present (`testid=plant-detail-other-names`), built via `src/lib/plantNames.ts` `formatOtherNames` (dedupes vs common/scientific). Mirrors the `ResultRow` + `PlantInfoPanel` name display. See [Plant Providers § Library search matching](../99-cross-cutting/25-plant-providers.md).
+
 ### Data flow — read paths
 - **`useCataloguePlantFromResult`** renders an instant placeholder from `result`, then calls `ensureCataloguePlantFromSearchResult(result, { homeId })` (clones into the catalogue `plants` table; library rows via `ensureCataloguePlantFromLibrary`, dedup by scientific name — no Gemini). Resolves to a `CataloguePlant` with a positive `plantId`.
 - **Grow Guide / Companions / Light** tabs fire their own edge-fn / cache reads once `plant.plantId > 0` (identical to `PlantPreview`). Until then they show a "Preparing the plant…" placeholder.

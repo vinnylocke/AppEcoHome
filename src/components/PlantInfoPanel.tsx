@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Sun, Droplets, Leaf, TriangleAlert, Bird } from "lucide-react";
 import type { PlantDetails } from "../lib/verdantlyUtils";
+import { formatOtherNames } from "../lib/plantNames";
 import { supabase } from "../lib/supabase";
 // Wave 22.0005 — reuse the canonical Lightbox so plant gallery thumbs
 // enlarge in-app (with prev/next + arrow keys + per-image attribution)
@@ -117,8 +118,18 @@ export default function PlantInfoPanel({ details, loading, plantName }: Props) {
     ? desc
     : desc.slice(0, DESCRIPTION_LIMIT) + "…";
 
+  const otherNames = formatOtherNames(details.other_names, [
+    details.common_name,
+    ...(Array.isArray(details.scientific_name) ? details.scientific_name : []),
+  ]);
+
   return (
     <div className="p-3 space-y-2.5">
+      {otherNames.length > 0 && (
+        <p data-testid="plant-info-other-names" className="text-[11px] font-semibold text-rhozly-on-surface/45">
+          <span className="font-black text-rhozly-on-surface/35">Also known as:</span> {otherNames.join(", ")}
+        </p>
+      )}
       {/* Pills row */}
       <div className="flex flex-wrap gap-1.5">
         {sunDisplay && (

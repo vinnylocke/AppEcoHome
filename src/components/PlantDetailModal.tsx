@@ -8,6 +8,7 @@ import LightTab from "./LightTab";
 import SensorRequirementsTab from "./SensorRequirementsTab";
 import { useCataloguePlantFromResult } from "../hooks/useCataloguePlantFromResult";
 import type { ProviderSearchResult } from "../lib/verdantlyUtils";
+import { formatOtherNames } from "../lib/plantNames";
 
 interface Props {
   result: ProviderSearchResult;
@@ -93,6 +94,24 @@ export default function PlantDetailModal({
                 {sciLine}
               </p>
             )}
+            {(() => {
+              const others = formatOtherNames(
+                plant?.details.other_names ?? (result as any).other_names,
+                [
+                  plant?.details.common_name ?? result.common_name,
+                  ...(Array.isArray(plant?.details.scientific_name) ? plant!.details.scientific_name : []),
+                  ...(Array.isArray((result as any).scientific_name) ? (result as any).scientific_name : []),
+                ],
+              );
+              return others.length > 0 ? (
+                <p
+                  data-testid="plant-detail-other-names"
+                  className="text-[11px] font-semibold text-rhozly-on-surface/45 mt-1"
+                >
+                  Also known as: {others.join(", ")}
+                </p>
+              ) : null;
+            })()}
           </div>
           <button
             onClick={onClose}
