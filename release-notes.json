@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Garden AI improvements",
+    "items": [
+      "The assistant now takes action decisively — ask it to set up a schedule, add a plant, or link an ailment and it stages the change ready for you to confirm, instead of only describing it.",
+      "It looks up your beds, devices and schedules itself instead of asking you for names or IDs, diagnoses plant problems directly, and no longer offers to add plants you already have.",
+      "Answers now follow a consistent, easy-to-scan format, and plant care-detail lookups return real data every time."
+    ]
+  }
+]

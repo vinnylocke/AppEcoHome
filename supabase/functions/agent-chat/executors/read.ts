@@ -353,11 +353,20 @@ export async function exec_get_plant_details(
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
-  if (!data) return { payload: null, summary: `No plant found with id ${id}.` };
-  return {
-    payload: data,
-    summary: `Details for ${data.common_name}.`,
-  };
+  if (data) return { payload: data, summary: `Details for ${data.common_name}.` };
+
+  // Fallback: search_plant_database returns plant_library (catalogue) ids, not
+  // plants ids — so a details lookup after a catalogue search would otherwise
+  // miss. Resolve the id against the catalogue too (incl. soil_* care ranges).
+  const { data: lib, error: libErr } = await ctx.db
+    .from("plant_library")
+    .select("id, common_name, scientific_name, cycle, sunlight, watering, hardiness_min, hardiness_max, description, soil_moisture_min, soil_moisture_max, soil_ec_min, soil_ec_max, soil_temp_min, soil_temp_max")
+    .eq("id", id)
+    .maybeSingle();
+  if (libErr) throw libErr;
+  if (lib) return { payload: { ...lib, source: "library" }, summary: `Catalogue details for ${lib.common_name}.` };
+
+  return { payload: null, summary: `No plant found with id ${id}.` };
 }
 
 // ─── get_weather_now ───────────────────────────────────────────────────

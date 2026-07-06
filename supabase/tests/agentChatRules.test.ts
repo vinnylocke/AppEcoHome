@@ -34,4 +34,31 @@ Deno.test("agent rules — the Shed check is additive (an offer), never a gate t
     !/does NOT make this a knowledge question/i.test(RULES),
     "the old gating phrasing ('does NOT make this a knowledge question') must be removed",
   );
+  // N20 regression — must not offer to add a plant that's already in the Shed.
+  assert(
+    /already in the SHED, do NOT offer/i.test(RULES),
+    "must not offer to add a plant that's already in the Shed",
+  );
+});
+
+// ── Eval-driven fixes (docs/ai-chat-eval) ────────────────────────────────────
+
+Deno.test("agent rules — stage the confirm card when intent is explicit (not just describe it)", () => {
+  assert(/STAGE THE ACTION/i.test(RULES), "missing the stage-the-action rule");
+  assert(/do NOT merely describe/i.test(RULES) && /same turn/i.test(RULES), "must require staging the tool in the same turn");
+});
+
+Deno.test("agent rules — resolve ids via list_* itself instead of asking the user", () => {
+  assert(/RESOLVE IDS YOURSELF/i.test(RULES), "missing the resolve-ids rule");
+  assert(/list_devices/.test(RULES) && /list_areas/.test(RULES), "must point at the list_* lookups");
+});
+
+Deno.test("agent rules — don't over-act (no unrequested mutation cards)", () => {
+  assert(/DON'T OVER-ACT/i.test(RULES), "missing the don't-over-act rule");
+  assert(/did NOT request/i.test(RULES) || /unrequested confirm card/i.test(RULES), "must forbid unrequested mutations");
+});
+
+Deno.test("agent rules — a consistent house answer format is specified", () => {
+  assert(/ANSWER FORMAT/i.test(RULES), "missing the answer-format rule");
+  assert(/bottom-line/i.test(RULES) && /bullet/i.test(RULES), "format rule must define bottom-line-first + bullets");
 });

@@ -1,0 +1,1575 @@
+{
+  "meta": {
+    "runAt": "2026-07-06T21:59:23.273Z",
+    "appVersion": "35.0009",
+    "label": "baseline (pre-fix)",
+    "conversations": 46,
+    "turns": 58
+  },
+  "results": [
+    {
+      "id": "N01",
+      "persona": "New / Beginner",
+      "cat": "Getting started",
+      "expect": [],
+      "turns": [
+        {
+          "q": "I'm brand new to gardening and feeling a bit overwhelmed. Where do I even start?",
+          "reply": "It's completely normal to feel that way when you're starting out! Gardening is a journey, and the best way to begin is by focusing on a few key things.\n\nFirst, let's get a sense of your space. What kind of area are you working with? Do you have a balcony, a small yard, or a larger garden? Knowing this will help us decide what kind of plants will thrive.\n\nSecond, think about what you'd like to grow. Are you interested in vegetables, flowers, herbs, or a mix of everything?\n\nOnce we have a better idea of your space and interests, I can help you choose some beginner-friendly plants and suggest a simple plan to get you started. We can also set up some basic tasks to help you stay on track.\n\nFor now, would you like me to create a general \"Getting Started\" plan for you? It can be a simple project to help you organize your thoughts and initial steps.",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "I only have a small balcony that gets afternoon sun — what's easy to grow there?",
+          "reply": "A balcony with afternoon sun is a great spot for many plants! Afternoon sun is usually quite intense, so we'll want to choose plants that can handle that.\n\nHere are a few easy-to-grow options that do well in containers on balconies with afternoon sun:\n\n**Herbs:**\n*   **Basil:** Loves sun and warmth. You can snip leaves as you need them for cooking.\n*   **Rosemary:** Drought-tolerant once established and thrives in full sun.\n*   **Thyme:** Another sun-lover that's very low-maintenance.\n*   **Mint:** While it can be invasive, growing it in a pot on your balcony is a great way to enjoy it without it taking over your garden. Just be sure it's in its own container!\n\n**Vegetables:**\n*   **Cherry Tomatoes:** Many varieties are well-suited for containers and will produce abundantly with good sun.\n*   **Peppers (Bell or Chili):** They love heat and sun, making them perfect for your balcony.\n*   **Lettuce and Spinach:** You can grow these in containers, especially if you provide some partial shade during the hottest part of the afternoon, or choose heat-tolerant varieties. They also grow relatively quickly.\n*   **Bush Beans:** Compact varieties are great for pots and will produce a good harvest.\n\n**Flowers:**\n*   **Marigolds:** Cheerful, easy to grow, and can even help deter some pests.\n*   **Petunias:** Prolific bloomers that love the sun.\n*   **Zinnias:** Come in a wide range of colors and are very rewarding to grow from seed.\n\nTo help you get started, I can add some of these to your \"Getting Started\" plan. Would you like to add any of these to your plan, or would you like me to create a new plan specifically for your balcony garden?\n\nAlso, would you like me to add a task to remind you to check the watering needs of your new plants? Balcony containers can dry out quickly in the sun.",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 4,
+        "toolVerdict": "na",
+        "toolNote": "Open-ended getting-started question — correctly used no tool and asked clarifying questions before offering to create a plan.",
+        "highlight": "Warm, welcoming tone that meets an overwhelmed beginner where they are and asks the right scoping questions.",
+        "concern": "Balcony plant list is solid but slightly long for a first reply; could feel like a lot at once for a nervous newbie."
+      }
+    },
+    {
+      "id": "N02",
+      "persona": "New / Beginner",
+      "cat": "Daily guidance",
+      "expect": [
+        "get_overdue_summary",
+        "list_tasks"
+      ],
+      "turns": [
+        {
+          "q": "What should I be doing in my garden today?",
+          "reply": "Here's what needs your attention in the garden today:\n\n**Overdue Tasks:**\n*   Clear weeds (Maintenance)\n*   Check seedlings (Inspection)\n*   Deadhead the dahlias (Pruning)\n*   Aphid treatment (Pest Control)\n*   Harvest tomatoes (Harvesting)\n*   Water the greenhouse (Watering)\n*   Harvest courgettes (Harvesting)\n*   Daily Greenhouse Check (Maintenance)\n\n**Active Ailments:**\n*   Powdery Mildew (disease)\n*   Early Blight (disease)\n*   Bacterial Spot (disease)\n*   Black Spot of Rose (disease)\n*   Blossom End Rot (disease)\n*   Aphid (pest)\n*   Slugs & Snails (pest)\n*   Aphids (pest)\n*   Cabbage Worms (pest)\n\n**Weather Alerts:**\n*   Heatwave ahead — up to 33°C. Your outdoor plants will need extra water.\n\nWould you like me to help you with any of these, like creating a task to address an ailment or rescheduling a task?",
+          "tools": [
+            {
+              "tool": "get_overdue_summary",
+              "summary": "8 overdue tasks, 9 active ailments, 3 weather alerts"
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "Correctly ran get_overdue_summary to answer 'what should I do today' with real overdue tasks, ailments and weather alerts.",
+        "highlight": "Pulled a genuinely personalised, actionable snapshot of the user's actual garden and offered to help act on it.",
+        "concern": "Dumps all 8 tasks + 9 ailments flat with no prioritisation — a beginner asked what to do 'today' and gets an undifferentiated list."
+      }
+    },
+    {
+      "id": "N03",
+      "persona": "New / Beginner",
+      "cat": "Care knowledge",
+      "expect": [
+        "add_plant_to_shed"
+      ],
+      "turns": [
+        {
+          "q": "How often should I water a peace lily?",
+          "reply": "Peace lilies prefer consistently moist soil, but not waterlogged. Water them when the top inch of soil feels dry to the touch. This usually means watering about once a week, but it can vary depending on the temperature and humidity.\n\nWould you like me to add a recurring task to remind you to check the soil moisture for your peace lily?",
+          "tools": [
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 1 matching plant in the catalogue."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 3,
+        "toolVerdict": "correct",
+        "toolNote": "Answered peace lily watering from knowledge and offered a recurring reminder task; peace lily isn't in Shed so an add_plant_to_shed offer would have been ideal but the answer was still correct.",
+        "highlight": "Concise, accurate care advice with a well-judged offer to set up a soil-moisture check reminder.",
+        "concern": "Missed the chance to offer add_plant_to_shed for the peace lily as the design intent suggests for a not-owned plant."
+      }
+    },
+    {
+      "id": "N04",
+      "persona": "New / Beginner",
+      "cat": "Diagnosis",
+      "expect": [],
+      "turns": [
+        {
+          "q": "My tomato leaves are turning yellow — what's wrong?",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 8 matching plants in the catalogue."
+            },
+            {
+              "tool": "list_plants",
+              "summary": "Found 3 plants in the Shed."
+            }
+          ],
+          "pending": [
+            {
+              "tool": "add_ailment",
+              "preview": "Add disease \"Yellow Leaves\" to your Watchlist"
+            }
+          ],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "How do I fix it?",
+          "reply": "It sounds like your tomato plant might be suffering from a few different issues. Yellowing leaves can be a sign of overwatering, underwatering, or a nutrient deficiency.\n\nTo help me diagnose the problem, could you tell me more about your watering habits? How often do you water your tomatoes, and how much water do you give them each time? Also, have you fertilized them recently?\n\nIn the meantime, here's some general advice:\n\n*   **Overwatering:** If the soil is constantly soggy, this could be the issue. Try letting the soil dry out a bit between waterings. Ensure good drainage.\n*   **Underwatering:** If the soil is dry and the leaves are also wilting, this could be the problem. Water thoroughly when the top inch of soil feels dry.\n*   **Nutrient Deficiency:** Tomatoes are heavy feeders. If you haven't fertilized in a while, a lack of nitrogen or magnesium could be causing the yellowing. A balanced fertilizer or one specifically for tomatoes can help.\n\nLet me know more about your watering and feeding routine, and I can give you more specific advice!\n",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 2,
+        "detail": 2,
+        "toolVerdict": "overused",
+        "toolNote": "Jumped straight to a confusing add_ailment confirm ('Yellow Leaves' as a disease) for a diagnostic question that should have been answered/clarified first.",
+        "highlight": "The second-turn answer gives a sound overwatering/underwatering/nutrient breakdown and asks good diagnostic questions.",
+        "concern": "First turn was near-useless ('I need a quick confirmation...') and proposed a nonsensical 'Yellow Leaves' ailment instead of actually diagnosing."
+      }
+    },
+    {
+      "id": "N05",
+      "persona": "New / Beginner",
+      "cat": "Plant not owned",
+      "expect": [
+        "add_plant_to_shed",
+        "create_one_off_task"
+      ],
+      "turns": [
+        {
+          "q": "We have a crab apple tree, when should we harvest the apples?",
+          "reply": "The crab apple harvest season typically runs from late summer through autumn, depending on the variety and your specific climate. For your location in the Northern Hemisphere, with a cool temperate climate and a last frost date of April 30th, you're likely looking at a harvest window from **late August to October**.\n\nTo determine ripeness, look for these signs:\n*   **Color:** The apples should have developed their mature color. Crab apples come in various shades of red, yellow, and green, so know what color your specific variety should be when ripe.\n*   **Size:** While crab apples are small by nature, they should have reached their typical mature size for the variety.\n*   **Firmness:** They should be firm but yield slightly to gentle pressure. Avoid apples that are too soft or mushy.\n*   **Ease of Picking:** Ripe crab apples will detach easily from the branch with a slight twist. If you have to pull hard, they likely need more time.\n*   **Taste:** The best test is to taste one! Ripe crab apples will be tart, but they shouldn't be overwhelmingly sour or astringent. Some varieties are even sweet enough for fresh eating, while others are best for jellies and preserves.\n\nI notice crab apple isn't in your Shed yet — want me to add it?",
+          "tools": [
+            {
+              "tool": "search_plant_database",
+              "summary": "No catalogue entry for \"crab apple tree\" to add — this does NOT limit your knowledge. Answer the user's question from your own horticultural expertise, and if it's a plant they grow, offer to add it as a manual plant."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "Can you add it to my shed and remind me to check them in September?",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [],
+          "pending": [
+            {
+              "tool": "add_plant_to_shed",
+              "preview": "Add Crab Apple to the Shed"
+            },
+            {
+              "tool": "create_one_off_task",
+              "preview": "Create task \"Check crab apples for ripeness\" due 2026-09-15 (Inspection)"
+            }
+          ],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 5,
+        "toolVerdict": "correct",
+        "toolNote": "Answered crab-apple harvest timing from knowledge, then on request proposed both add_plant_to_shed and a dated create_one_off_task — exactly the intended flow.",
+        "highlight": "Excellent location-aware harvest guidance plus a clean two-action confirm when the user asked to add and remind.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "N06",
+      "persona": "New / Beginner",
+      "cat": "See a plant",
+      "expect": [
+        "show_plant_images"
+      ],
+      "turns": [
+        {
+          "q": "What does a runner bean plant actually look like?",
+          "reply": "Here's what a runner bean plant looks like 🌱.",
+          "tools": [],
+          "pending": [],
+          "plants": [
+            "Runner Bean"
+          ],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 2,
+        "toolVerdict": "correct",
+        "toolNote": "Correctly surfaced runner-bean images via the plants/show_plant_images path for a 'what does it look like' question.",
+        "highlight": "Directly satisfied a visual request by showing an actual runner bean plant image.",
+        "concern": "Reply text is bare — a sentence describing the plant's key visual features (climbing vines, red flowers) would have added value alongside the image."
+      }
+    },
+    {
+      "id": "N07",
+      "persona": "New / Beginner",
+      "cat": "Add plant",
+      "expect": [
+        "add_plant_to_shed",
+        "search_plant_database"
+      ],
+      "turns": [
+        {
+          "q": "Can you add basil to my shed?",
+          "reply": "What variety of basil is it? And do you have a specific name for it, like \"Genovese Basil\" or \"Sweet Basil\"?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "Actually make it Thai basil instead.",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [],
+          "pending": [
+            {
+              "tool": "add_plant_to_shed",
+              "preview": "Add Thai Basil to the Shed"
+            }
+          ],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 3,
+        "toolVerdict": "correct",
+        "toolNote": "Sensibly asked for variety first, then proposed add_plant_to_shed for Thai Basil after the user changed their mind.",
+        "highlight": "Handled the mid-request change ('make it Thai basil instead') cleanly and produced the right add confirm.",
+        "concern": "Asking for the variety before adding is reasonable but a touch fussy for a beginner who just said 'add basil'."
+      }
+    },
+    {
+      "id": "N08",
+      "persona": "New / Beginner",
+      "cat": "Create task",
+      "expect": [
+        "create_one_off_task"
+      ],
+      "turns": [
+        {
+          "q": "Remind me to water my plants this Saturday.",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [],
+          "pending": [
+            {
+              "tool": "create_one_off_task",
+              "preview": "Create task \"Water plants\" due 2026-07-11 (Watering)"
+            }
+          ],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "Actually can you make that every week instead?",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [],
+          "pending": [
+            {
+              "tool": "create_blueprint",
+              "preview": "Schedule \"Water plants\" every 7 days. Next: 2026-07-11, 2026-07-18, 2026-07-25…."
+            }
+          ],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 3,
+        "toolVerdict": "correct",
+        "toolNote": "Proposed create_one_off_task for Saturday, then correctly switched to create_blueprint when the user asked to make it weekly.",
+        "highlight": "Nailed the one-off-to-recurring transition, converting the Saturday task into a 7-day blueprint with a preview of upcoming dates.",
+        "concern": "Replies are just the confirm-card stub text with no conversational acknowledgement of the change."
+      }
+    },
+    {
+      "id": "N09",
+      "persona": "New / Beginner",
+      "cat": "Weather",
+      "expect": [
+        "get_weather_now"
+      ],
+      "turns": [
+        {
+          "q": "What's the weather looking like for my garden this week?",
+          "reply": "The weather forecast for your garden this week is:\n\n**Today (July 5th):** High of 28.8°C, low of 17.3°C. Mostly sunny with a slight chance of rain in the evening.\n**Tomorrow (July 6th):** High of 32.7°C, low of 18.8°C. Sunny and hot.\n**July 7th:** High of 30.8°C, low of 19.2°C. Sunny and hot.\n**July 8th:** High of 28.8°C, low of 20.1°C. Sunny.\n**July 9th:** High of 30.6°C, low of 23°C. Sunny and hot.\n**July 10th:** High of 30.7°C, low of 21.4°C. Sunny.\n**July 11th:** High of 30.5°C, low of 21.3°C. Sunny.\n**July 12th:** High of 26.2°C, low of 17.1°C. Sunny.\n\nThere are heatwave alerts in effect until July 11th, with temperatures potentially reaching up to 33°C. Please ensure your outdoor plants have adequate water.",
+          "tools": [
+            {
+              "tool": "get_weather_now",
+              "summary": "Weather snapshot loaded. 3 active alerts."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "Ran get_weather_now and returned a clear multi-day forecast with the heatwave alert.",
+        "highlight": "Clean day-by-day forecast with an actionable watering warning tied to the heatwave alerts.",
+        "concern": "Header says 'this week' but lists eight days starting 'Today (July 5th)' while the session date is later — minor date drift."
+      }
+    },
+    {
+      "id": "N10",
+      "persona": "New / Beginner",
+      "cat": "Seasonal",
+      "expect": [],
+      "turns": [
+        {
+          "q": "Is it too late to plant carrots?",
+          "reply": "Carrots can be sown in succession from early spring until mid-summer. Given that it's currently July 6th, you're still within the window for planting carrots, especially if you choose varieties that mature relatively quickly. The weather forecast shows warm temperatures with a heatwave warning until July 11th, with highs reaching up to 33°C. After that, temperatures will remain warm, in the high 20s to low 30s, with minimal chance of rain. This means you'll need to ensure the soil stays consistently moist for germination and young seedlings.\n\nWould you like me to add a task to remind you to sow carrot seeds? If so, please specify the area you'd like to plant them in.",
+          "tools": [
+            {
+              "tool": "get_weather_now",
+              "summary": "Weather snapshot loaded. 3 active alerts."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "Used get_weather_now to ground a seasonal carrot-sowing answer and offered a sowing reminder task.",
+        "highlight": "Blended seasonal timing with the actual heatwave forecast to give practical germination-moisture advice.",
+        "concern": "Could have proactively offered add_plant_to_shed/log_sowing for carrots, but the offer to create a task was appropriate."
+      }
+    },
+    {
+      "id": "N11",
+      "persona": "New / Beginner",
+      "cat": "List plants",
+      "expect": [
+        "list_plants"
+      ],
+      "turns": [
+        {
+          "q": "What plants do I actually have saved?",
+          "reply": "You have 27 plants in your Shed. Here's a list of them:\n\n**Unplanted:**\n* Tomato (TOM-001)\n* Rose (ROS-004)\n* Strawberry (STR-007)\n* Mint (MIN-010)\n* Chilli (CHI-013)\n* Russet Burbank Potato (LIB-001)\n* Northern Highbush Blueberry (LIB-004)\n* Dahlia (LIB-007)\n\n**Planted:**\n* Tomato (TOM-001B) in Raised Bed A (Back Garden)\n* Basil (BAS-002) in Veg Patch (Front Garden)\n* Basil (BAS-002B) in Veg Patch (Front Garden)\n* Lavender (LAV-003) in Raised Bed B (Greenhouse)\n* Lavender (LAV-003B) in Raised Bed B (Greenhouse)\n* Rose (ROS-004B) in Herb Spiral (Back Garden)\n* Carrot (CAR-005) in South Border (Front Garden)\n* Lettuce (LET-006) in Greenhouse Bench (Greenhouse)\n* Courgette (COU-008) in Veg Patch (Front Garden)\n* Apple (APP-009) in Raised Bed B (Greenhouse)\n* Sunflower (SUN-011) in South Border (Front Garden)\n* Sage (SAG-012) in Greenhouse Bench (Greenhouse)\n* Blueberry (BLU-014) in Veg Patch (Front Garden)\n* Cherry Tomato (LIB-002) in Veg Patch (Front Garden)\n* Lowbush Blueberry (LIB-003) in Raised Bed B (Greenhouse)\n* Velvetleaf Blueberry (LIB-005) in South Border (Front Garden)\n* English Lavender (LIB-006) in Greenhouse Bench (Greenhouse)\n* Blue Jacket Hyacinth (LIB-008) in Veg Patch (Front Garden)\n\n**Archived:**\n* Hosta (HOS-015)\n\nWould you like to know more about any of these plants?",
+          "tools": [
+            {
+              "tool": "list_plants",
+              "summary": "Found 27 plants in the Shed."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 5,
+        "toolVerdict": "correct",
+        "toolNote": "Ran list_plants and returned the full Shed grouped by planted/unplanted/archived with locations.",
+        "highlight": "Well-organised, grouped inventory with area context that directly answers 'what do I have saved'.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "N12",
+      "persona": "New / Beginner",
+      "cat": "Recurring help",
+      "expect": [
+        "create_blueprint"
+      ],
+      "turns": [
+        {
+          "q": "I keep forgetting to water things. Can you help me stay on top of it?",
+          "reply": "Yes, you can set up recurring watering schedules for different areas or plants. Would you like to create a new schedule, or would you like me to list your existing ones?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 3,
+        "detail": 2,
+        "toolVerdict": "partial",
+        "toolNote": "For a clear 'help me remember to water' request it only offered to create a schedule rather than proposing a create_blueprint (or first checking existing ones), leaving the user to do more work.",
+        "highlight": "Correctly identified recurring watering schedules as the solution and offered to list existing ones.",
+        "concern": "Too passive — a beginner asking for help got a menu question instead of a concrete blueprint proposal to confirm."
+      }
+    },
+    {
+      "id": "N13",
+      "persona": "New / Beginner",
+      "cat": "Harvest knowledge",
+      "expect": [],
+      "turns": [
+        {
+          "q": "How do I know when my strawberries are ripe?",
+          "reply": "Strawberries are typically ready to harvest when they are fully red, plump, and have a sweet aroma. Gently tug on the fruit; if it detaches easily from the stem, it's likely ripe. Avoid picking berries that are still white or green, as they won't ripen further off the plant.\n\nWould you like me to add a recurring task to remind you to check your strawberries for ripeness?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "Pure ripeness knowledge with an apt offer of a recurring check task; no tool needed and none forced.",
+        "highlight": "Concise, accurate ripeness cues (colour, plumpness, aroma, easy detachment) plus a sensible follow-up offer.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "N14",
+      "persona": "New / Beginner",
+      "cat": "Recommendation",
+      "expect": [],
+      "turns": [
+        {
+          "q": "What's an easy houseplant that's really hard to kill?",
+          "reply": "The Snake Plant (Dracaena trifasciata) and ZZ plant (Zamioculcas zamiifolia) are both excellent choices for a nearly indestructible houseplant. They tolerate low light and infrequent watering very well. Spider plants (Chlorophytum comosum) are also quite forgiving and easy to care for, though they prefer slightly more light and consistent watering than the other two.\n\nWould you like me to add any of these to your Shed?",
+          "tools": [
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 1 matching plant in the catalogue."
+            },
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 1 matching plant in the catalogue."
+            },
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 1 matching plant in the catalogue."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "Answered from knowledge and ran search_plant_database to back the add offer — appropriate, non-intrusive.",
+        "highlight": "Correctly nuanced the three picks (snake/ZZ vs spider's higher light needs) rather than a flat list.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "N15",
+      "persona": "New / Beginner",
+      "cat": "Prune knowledge",
+      "expect": [
+        "create_one_off_task"
+      ],
+      "turns": [
+        {
+          "q": "Do I need to prune my lavender? I've never done it before.",
+          "reply": "Lavender benefits from pruning to maintain its shape and encourage flowering. For established plants, a light trim after the main flowering period (usually late summer) is best. You can also do a harder prune in early spring to remove any dead or woody stems and to shape the plant. Avoid pruning into old wood, as it may not regrow.\n\nWould you like me to add a task to your schedule to prune the lavender in early spring?",
+          "tools": [
+            {
+              "tool": "list_plants",
+              "summary": "Found 3 plants in the Shed."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 4,
+        "toolVerdict": "partial",
+        "toolNote": "Offered a spring pruning task but only offered it — never surfaced create_one_off_task as a pending confirm card.",
+        "highlight": "Correctly warns against cutting into old wood, the key beginner lavender pitfall.",
+        "concern": "Advice offer stops short of the actionable confirm card the expect list anticipates."
+      }
+    },
+    {
+      "id": "N16",
+      "persona": "New / Beginner",
+      "cat": "Feature help",
+      "expect": [],
+      "turns": [
+        {
+          "q": "What is the Watchlist for and should I be using it?",
+          "reply": "The Watchlist is where you keep track of pests, diseases, and invasive plants that you're concerned about. It helps you monitor potential problems in your garden.\n\nYou should use it if you notice any signs of pests or diseases on your plants, or if you're worried about a particular weed taking over. It's a good way to stay on top of garden health!\n\nI see you're already tracking \"Aphids\", \"Slugs & Snails\", \"Powdery Mildew\", \"Early Blight\", \"Bacterial Spot\", \"Black Spot of Rose\", \"Blossom End Rot\", \"Cabbage Worms\", and \"Aphid\" (which seems to be a duplicate entry). Would you like me to remove the duplicate \"Aphid\" entry?",
+          "tools": [
+            {
+              "tool": "list_ailments",
+              "summary": "Found 9 ailments on the Watchlist."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "list_ailments was the right read to ground the personalised answer about what they already track.",
+        "highlight": "Grounded the feature explanation in the user's own Watchlist and spotted a likely duplicate entry.",
+        "concern": "Offering to delete the 'Aphid' duplicate is slightly presumptuous for a beginner who only asked what the feature is."
+      }
+    },
+    {
+      "id": "N17",
+      "persona": "New / Beginner",
+      "cat": "Add ailment",
+      "expect": [
+        "add_ailment"
+      ],
+      "turns": [
+        {
+          "q": "Add slugs to my watchlist — they're eating everything.",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [],
+          "pending": [
+            {
+              "tool": "add_ailment",
+              "preview": "Add pest \"slugs\" to your Watchlist"
+            }
+          ],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 3,
+        "toolVerdict": "correct",
+        "toolNote": "Correctly proposed add_ailment as a pest confirm card — exactly the expected action.",
+        "highlight": "Clean, direct mapping of the request straight to a confirm card without over-explaining.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "N18",
+      "persona": "New / Beginner",
+      "cat": "Feeding",
+      "expect": [
+        "create_blueprint"
+      ],
+      "turns": [
+        {
+          "q": "What should I feed my tomatoes and how often?",
+          "reply": "Tomatoes generally benefit from a balanced fertilizer, rich in phosphorus and potassium, especially once they start flowering and fruiting. A good rule of thumb is to feed them every 2-4 weeks with a fertilizer formulated for tomatoes or vegetables. Look for an N-P-K ratio where the middle number (phosphorus) and the last number (potassium) are relatively high.\n\nWould you like me to set up a recurring task to remind you to feed your tomatoes?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 4,
+        "toolVerdict": "partial",
+        "toolNote": "Good feeding cadence but only offered a recurring reminder verbally; no create_blueprint pending card was proposed.",
+        "highlight": "Explains the N-P-K reasoning (high P and K for flowering/fruiting) rather than just naming a product.",
+        "concern": "Falls short of proactively surfacing the blueprint the design intent (and expect) calls for after care advice."
+      }
+    },
+    {
+      "id": "N19",
+      "persona": "New / Beginner",
+      "cat": "Companions",
+      "expect": [],
+      "turns": [
+        {
+          "q": "I want to grow some herbs together — which ones go well side by side?",
+          "reply": "Many herbs make excellent companions! For a cottage garden feel, consider planting basil, chives, and parsley together. They all have similar watering needs and enjoy a sunny spot. If you have a bit more space and want to attract pollinators, lavender and rosemary are wonderful choices, and they thrive in well-drained soil.\n\nWould you like me to check if you have any of these herbs already in your Shed, or perhaps add them if you don't? I can also help you set up a planting schedule if you're planning to sow seeds or transplant seedlings soon.",
+          "tools": [
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 8 matching plants in the catalogue."
+            },
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 8 matching plants in the catalogue."
+            },
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 8 matching plants in the catalogue."
+            },
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 3 matching plants in the catalogue."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 4,
+        "toolVerdict": "overused",
+        "toolNote": "Four search_plant_database calls to underpin a general companion-planting answer where no lookup was needed.",
+        "highlight": "Practical groupings (basil/chives/parsley by shared water/sun; lavender/rosemary for drainage and pollinators).",
+        "concern": "Redundant repeated catalogue searches add nothing to a knowledge answer."
+      }
+    },
+    {
+      "id": "N20",
+      "persona": "New / Beginner",
+      "cat": "Sunlight",
+      "expect": [],
+      "turns": [
+        {
+          "q": "How much sun does a tomato plant actually need?",
+          "reply": "Tomatoes thrive in full sun, meaning they need at least 6-8 hours of direct sunlight per day. This is crucial for their growth, flowering, and fruit production.\n\nI notice tomatoes aren't in your Shed yet. Would you like me to add them?",
+          "tools": [
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 8 matching plants in the catalogue."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 3,
+        "detail": 3,
+        "toolVerdict": "partial",
+        "toolNote": "search_plant_database ran but the reply then claims tomatoes aren't in the Shed and offers to add them.",
+        "highlight": "Correct core answer: 6-8 hours of direct sun for growth, flowering and fruiting.",
+        "concern": "Factually wrong add offer — the user already has multiple Tomato instances in the Shed, so the prompt is misleading."
+      }
+    },
+    {
+      "id": "N21",
+      "persona": "New / Beginner",
+      "cat": "Holiday cover",
+      "expect": [],
+      "turns": [
+        {
+          "q": "I'm going away for two weeks in summer — what do I do about watering?",
+          "reply": "The weather forecast for your upcoming two-week holiday shows a heatwave from July 5th to July 11th, with temperatures reaching up to 33°C. Following that, the temperatures will remain warm, around 26-30°C, with very little chance of rain.\n\nHere's what you can do to prepare your garden:\n\n**During the heatwave (July 5th-11th):**\n*   **Water deeply:** Ensure all plants, especially those in containers or newly planted, are thoroughly watered before you leave.\n*   **Mulch:** Apply a thick layer of mulch around your plants to help retain soil moisture.\n*   **Move containers:** If possible, move potted plants to a shadier spot to reduce water loss.\n*   **Self-watering solutions:** Consider using self-watering globes or setting up a temporary drip irrigation system if you have one.\n\n**For the rest of your holiday (July 12th-19th):**\n*   **Check existing watering systems:** If you have an automated watering system, ensure it's functioning correctly and set to water adequately for the warm conditions.\n*   **Ask a neighbor:** If you have a trusted neighbor, ask them to check on your plants and water them if necessary, especially any that look stressed.\n\nGiven the high temperatures and lack of rain, I recommend setting up a watering schedule that accounts for this. Would you like me to help you create a plan for this? For example, I can set up a recurring task to remind you to water specific areas before you leave, or help you create a blueprint for a neighbor to follow.",
+          "tools": [
+            {
+              "tool": "get_weather_now",
+              "summary": "Weather snapshot loaded. 3 active alerts."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "Could the app handle that watering for me automatically?",
+          "reply": "Yes, the app can help automate your garden's watering! To do this effectively, I need a bit more information.\n\nCould you tell me which areas of your garden you'd like to automate watering for? For example, \"Front Garden,\" \"Back Garden,\" or specific beds like \"Raised Bed A.\"\n\nAlso, do you have any smart watering devices installed, such as soil moisture sensors or smart valves? Knowing this will help me set up the most efficient and tailored watering automation for your garden.",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "get_weather_now grounded the holiday plan in the actual heatwave forecast; automation offer teed up next turn.",
+        "highlight": "Split the two-week plan into heatwave vs after phases and used the real forecast to justify each step.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "N22",
+      "persona": "New / Beginner",
+      "cat": "Myth check",
+      "expect": [],
+      "turns": [
+        {
+          "q": "Are coffee grounds actually good for my plants?",
+          "reply": "Yes, coffee grounds can be beneficial for plants when used correctly. They are a good source of nitrogen, and also contain other nutrients like potassium and phosphorus. Coffee grounds can help to improve soil structure, making it more aerated and better at retaining moisture. They can also help to encourage the growth of beneficial microorganisms in the soil.\n\nHowever, it's important to use them in moderation. Too many coffee grounds can make the soil too acidic, which can be harmful to some plants. It's generally recommended to use them as a top dressing or to compost them before adding them to the soil.\n\nWould you like me to add a task to remind you to add coffee grounds to your compost? Or perhaps you'd like to add them to a specific area?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 4,
+        "toolVerdict": "na",
+        "toolNote": "Pure horticultural myth-check answered from knowledge with correctly no tool invoked.",
+        "highlight": "Balanced answer — benefits plus the moderation/acidity caveat and the compost-first recommendation.",
+        "concern": "The trailing offer to add coffee grounds to a compost area is a slightly forced upsell on a knowledge question."
+      }
+    },
+    {
+      "id": "E01",
+      "persona": "Experienced",
+      "cat": "Triage",
+      "expect": [
+        "get_overdue_summary"
+      ],
+      "turns": [
+        {
+          "q": "Give me a full rundown of everything that needs attention across my whole garden right now.",
+          "reply": "There are 8 overdue tasks, 9 active ailments, and 3 weather alerts that need your attention.\n\n**Overdue Tasks:**\n*   Clear weeds (Maintenance) - due 2026-06-28\n*   Check seedlings (Inspection) - due 2026-07-04\n*   Deadhead the dahlias (Pruning) - due 2026-07-04\n*   Aphid treatment (Pest Control) - due 2026-07-04\n*   Harvest tomatoes (Harvesting) - due 2026-07-04\n*   Water the greenhouse (Watering) - due 2026-07-04\n*   Harvest courgettes (Harvesting) - due 2026-07-05\n*   Daily Greenhouse Check (Maintenance) - due 2026-07-05\n\n**Active Ailments:**\n*   Powdery Mildew (disease)\n*   Early Blight (disease)\n*   Bacterial Spot (disease)\n*   Black Spot of Rose (disease)\n*   Blossom End Rot (disease)\n*   Aphid (pest)\n*   Slugs & Snails (pest)\n*   Aphids (pest)\n*   Cabbage Worms (pest)\n\n**Weather Alerts:**\n*   A heatwave is expected, with temperatures up to 33°C. Your outdoor plants will require extra watering. This alert has been issued three times.\n\nWould you like me to help you address any of these issues? For example, I can help you complete tasks, add new tasks, or provide information on the ailments.",
+          "tools": [
+            {
+              "tool": "get_overdue_summary",
+              "summary": "8 overdue tasks, 9 active ailments, 3 weather alerts"
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "get_overdue_summary is exactly the right tool for a whole-garden rundown, and the reply adds due dates on tasks.",
+        "highlight": "Clean, scannable triage with dated tasks, grouped ailments, and a weather alert plus a natural follow-up offer.",
+        "concern": "Notes the heatwave 'has been issued three times' rather than deduping it, which reads slightly oddly."
+      }
+    },
+    {
+      "id": "E02",
+      "persona": "Experienced",
+      "cat": "Create schedule",
+      "expect": [
+        "create_blueprint",
+        "list_areas"
+      ],
+      "turns": [
+        {
+          "q": "Set up a watering schedule for my raised beds every 3 days.",
+          "reply": "I can help with that! What are the names of your raised beds?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "Can you make it every 2 days over summer?",
+          "reply": "I can set up a recurring watering schedule for your raised beds. To do this, I need to know which specific raised beds you're referring to. Could you please list them?\n\nAlso, you mentioned \"every 2 days over summer.\" Could you please specify the start and end dates for this summer schedule?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 3,
+        "detail": 2,
+        "toolVerdict": "missed",
+        "toolNote": "Never called list_areas to discover the raised beds, so it re-asked for names it could have looked up itself.",
+        "highlight": "Correctly held back on creating the blueprint until the ambiguous scope and summer dates were pinned down.",
+        "concern": "Second turn forgets it already asked, repeats the bed question, and could have listed areas instead of stalling twice."
+      }
+    },
+    {
+      "id": "E03",
+      "persona": "Experienced",
+      "cat": "Automation",
+      "expect": [
+        "create_automation",
+        "list_devices"
+      ],
+      "turns": [
+        {
+          "q": "Create an automation that opens the valve on the South Border when soil moisture drops below 30%.",
+          "reply": "I can do that. What is the device ID of the valve you would like to control?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "Also make it only run in the mornings.",
+          "reply": "I can do that. What is the device ID of the valve you would like to control?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 2,
+        "detail": 2,
+        "toolVerdict": "missed",
+        "toolNote": "Asked for a device ID instead of calling list_devices to find the South Border valve itself, and never staged create_automation.",
+        "highlight": "Recognised it needed the specific valve before creating the automation.",
+        "concern": "Repeats the identical device-ID question after the morning-only refinement, ignoring the new constraint entirely."
+      }
+    },
+    {
+      "id": "E04",
+      "persona": "Experienced",
+      "cat": "Run now",
+      "expect": [
+        "run_automation",
+        "list_automations",
+        "list_devices"
+      ],
+      "turns": [
+        {
+          "q": "Water Raised Bed A right now.",
+          "reply": "I can't water Raised Bed A directly as there are no valves associated with it. I can only control watering if there's a valve present.",
+          "tools": [
+            {
+              "tool": "list_areas",
+              "summary": "Found 2 areas."
+            },
+            {
+              "tool": "list_devices",
+              "summary": "Found 1 device (valves + sensors)."
+            },
+            {
+              "tool": "list_devices",
+              "summary": "Found 0 devices (valves + sensors)."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 3,
+        "toolVerdict": "correct",
+        "toolNote": "Checked list_areas and list_devices before concluding no valve serves Raised Bed A, which is the right investigation.",
+        "highlight": "Correctly refused to fabricate a watering action and explained the missing-valve reason clearly.",
+        "concern": "Could have offered a next step, e.g. adding a valve device or a manual watering task, rather than a flat dead end."
+      }
+    },
+    {
+      "id": "E05",
+      "persona": "Experienced",
+      "cat": "Neglect check",
+      "expect": [
+        "get_overdue_summary",
+        "list_plants"
+      ],
+      "turns": [
+        {
+          "q": "Which of my plants haven't been watered in a while?",
+          "reply": "The following tasks are overdue:\n- \"Overdue: clear weeds\" (no area specified)\n- \"Check seedlings\" (no area specified)\n- \"Deadhead the dahlias\" in Raised Bed A\n- \"Aphid treatment\" (no area specified)\n- \"Harvest tomatoes\" in Raised Bed A\n- \"Water the greenhouse\" (no area specified)\n- \"Harvest courgettes\" (no area specified)\n- \"Daily Greenhouse Check\" (no area specified)\n\nIt looks like you have a watering task for the greenhouse that is overdue. Would you like me to mark it as complete, or would you like to reschedule it?",
+          "tools": [
+            {
+              "tool": "list_tasks",
+              "summary": "Found 8 tasks."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 2,
+        "detail": 2,
+        "toolVerdict": "partial",
+        "toolNote": "Used list_tasks but skipped list_plants/get_overdue_summary, so it answered a watering-neglect question with a generic overdue-task dump.",
+        "highlight": "Surfaced the overdue greenhouse watering task and offered to complete or reschedule it.",
+        "concern": "Question was about which plants lack recent watering; the reply lists unrelated tasks (weeds, deadheading, harvest) and never maps to plants."
+      }
+    },
+    {
+      "id": "E06",
+      "persona": "Experienced",
+      "cat": "Bulk reschedule",
+      "expect": [
+        "bulk_reschedule"
+      ],
+      "turns": [
+        {
+          "q": "It's been raining all week — push all my watering tasks back by 3 days.",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [],
+          "pending": [
+            {
+              "tool": "bulk_reschedule",
+              "preview": "Reschedule 2 tasks by +3 days: \"Water the greenhouse\", \"Weekly Watering Round\""
+            }
+          ],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "Actually only the ones in the greenhouse.",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [
+            {
+              "tool": "list_locations",
+              "summary": "Found 3 locations."
+            },
+            {
+              "tool": "list_areas",
+              "summary": "Found 2 areas."
+            }
+          ],
+          "pending": [
+            {
+              "tool": "bulk_reschedule",
+              "preview": "No tasks match that filter."
+            }
+          ],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 3,
+        "detail": 3,
+        "toolVerdict": "partial",
+        "toolNote": "bulk_reschedule staged correctly first turn, but the greenhouse refinement resolved to 'No tasks match' despite an overdue greenhouse watering task existing elsewhere.",
+        "highlight": "First turn cleanly identified the two watering tasks and staged a +3 day reschedule via confirm card.",
+        "concern": "The greenhouse filter returning zero matches contradicts other conversations showing a 'Water the greenhouse' overdue task, suggesting a filtering bug."
+      }
+    },
+    {
+      "id": "E07",
+      "persona": "Experienced",
+      "cat": "Bulk complete",
+      "expect": [
+        "bulk_complete_tasks"
+      ],
+      "turns": [
+        {
+          "q": "Mark all of this week's tasks in the veg patch as done.",
+          "reply": "I can help with that! Could you please specify which day this week you'd like me to consider as the cutoff for \"this week's tasks\"?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 3,
+        "detail": 2,
+        "toolVerdict": "partial",
+        "toolNote": "Reasonably paused for clarification but never listed veg-patch tasks, so it couldn't show what would be completed.",
+        "highlight": "Avoided a blind bulk-complete by asking for the week cutoff first.",
+        "concern": "'This week' is not really ambiguous; it could have listed the matching veg-patch tasks and confirmed, rather than asking for a cutoff day."
+      }
+    },
+    {
+      "id": "E08",
+      "persona": "Experienced",
+      "cat": "Optimise",
+      "expect": [
+        "optimise_area_schedule",
+        "list_areas"
+      ],
+      "turns": [
+        {
+          "q": "I think I've got redundant waterings on Raised Bed A — can you optimise its schedule?",
+          "reply": "The system has identified two potential optimizations for Raised Bed A:\n\n1.  **New Watering Blueprint:** It suggests creating a new watering blueprint for tomatoes, likely due to recent heat warnings.\n2.  **New Maintenance Blueprint:** It also recommends creating a maintenance blueprint to manage aphids on tomatoes.\n\nYou can review and apply these suggestions in the \"Optimise\" tab.",
+          "tools": [
+            {
+              "tool": "optimise_area_schedule",
+              "summary": "Found 2 optimisation suggestions. Open the Optimise tab to apply."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 3,
+        "toolVerdict": "correct",
+        "toolNote": "optimise_area_schedule is exactly right and returned two suggestions for Raised Bed A.",
+        "highlight": "Summarised both optimisation suggestions with their rationale (heat-driven watering, aphid maintenance).",
+        "concern": "Punts the user to the Optimise tab rather than offering to apply the suggestions in chat."
+      }
+    },
+    {
+      "id": "E09",
+      "persona": "Experienced",
+      "cat": "Sensor read",
+      "expect": [
+        "list_devices"
+      ],
+      "turns": [
+        {
+          "q": "What's my soil moisture reading right now?",
+          "reply": "I need to know which area or device you're interested in. Could you please specify which soil sensor or area you'd like me to check?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "Is that too dry for my tomatoes?",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [
+            {
+              "tool": "list_devices",
+              "summary": "Found 1 device (valves + sensors)."
+            },
+            {
+              "tool": "list_plants",
+              "summary": "Found 3 plants in the Shed."
+            }
+          ],
+          "pending": [
+            {
+              "tool": "create_automation",
+              "preview": "Create automation \"Tomato Watering Automation\": WHEN moisture < 30% → open valve (30 min)."
+            }
+          ],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 2,
+        "detail": 2,
+        "toolVerdict": "partial",
+        "toolNote": "list_devices and list_plants ran, but the reply never states the actual moisture reading and jumps to staging an unrequested automation.",
+        "highlight": "Gathered the sensor device and tomato plant data needed to reason about dryness.",
+        "concern": "User asked a yes/no dryness question; instead of giving the reading and answer it proposed creating a watering automation nobody asked for."
+      }
+    },
+    {
+      "id": "E10",
+      "persona": "Experienced",
+      "cat": "Automation audit",
+      "expect": [
+        "list_automations"
+      ],
+      "turns": [
+        {
+          "q": "List my automations and tell me if any of them overlap or conflict.",
+          "reply": "The two automations are:\n\n1.  **\"Dry soil alert — Raised Bed A\"**: This automation is currently active and will send a notification if the soil moisture in Raised Bed A drops below 30%. It has a cooldown of 120 minutes and a run limit of 4 times per 24 hours.\n2.  **\"Morning watering reminder\"**: This automation is currently inactive. If activated, it would send a notification and complete a task between 7:00-7:30 AM on Mondays, Wednesdays, and Fridays. It has a 60-minute cooldown and no run limit.\n\nThere are no direct overlaps or conflicts between these two automations as they are triggered by different conditions (soil moisture vs. time) and one is currently inactive. The \"Morning watering reminder\" could potentially conflict with other watering tasks if it were active and its \"complete_task\" action was not carefully managed, but as it stands, there is no conflict.",
+          "tools": [
+            {
+              "tool": "list_automations",
+              "summary": "Found 2 automations."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "list_automations alone is the right call, and it reasoned about conflicts across trigger type and active state.",
+        "highlight": "Clear per-automation breakdown plus a genuine conflict analysis noting the inactive one poses no current clash.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "E11",
+      "persona": "Experienced",
+      "cat": "Create plan",
+      "expect": [
+        "create_plan",
+        "add_plant_to_plan"
+      ],
+      "turns": [
+        {
+          "q": "I'm planning a three-sisters bed. Can you set up a plan for it?",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [],
+          "pending": [
+            {
+              "tool": "create_plan",
+              "preview": "Create plan \"Three Sisters Bed\" (Draft)"
+            }
+          ],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "Add sweetcorn, climbing beans and squash to that plan.",
+          "reply": "I can't add those to a plan because I haven't created one yet. Would you like me to create a plan for your three sisters bed?",
+          "tools": [
+            {
+              "tool": "list_plans",
+              "summary": "Found 0 plans."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 3,
+        "detail": 2,
+        "toolVerdict": "partial",
+        "toolNote": "create_plan staged correctly, but the second turn couldn't add plants because the plan wasn't confirmed yet and it didn't stage add_plant_to_plan alongside.",
+        "highlight": "First turn immediately proposed the Three Sisters plan via a confirm card.",
+        "concern": "Add-plants turn dead-ends with 'I haven't created one yet' instead of staging the plan plus the three crops together, forcing the user to restart."
+      }
+    },
+    {
+      "id": "E12",
+      "persona": "Experienced",
+      "cat": "Care ranges",
+      "expect": [],
+      "turns": [
+        {
+          "q": "What's the ideal soil EC and moisture range for tomatoes?",
+          "reply": "I cannot provide specific EC and moisture ranges for tomatoes as that data is not available in my current resources. However, I can tell you that tomatoes generally prefer consistently moist soil and do not like to dry out completely between waterings. They also thrive in well-draining soil.\n\nWould you like me to add a general task to water your tomatoes regularly?",
+          "tools": [
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 8 matching plants in the catalogue."
+            },
+            {
+              "tool": "get_plant_details",
+              "summary": "No plant found with id 454."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 3,
+        "detail": 3,
+        "toolVerdict": "partial",
+        "toolNote": "Searched the catalogue then a get_plant_details lookup errored (id 454), so it fell back to vague generalities instead of usable EC/moisture ranges.",
+        "highlight": "Honestly admitted it lacked specific EC data rather than inventing numbers.",
+        "concern": "An experienced grower asking for EC/moisture ranges deserved concrete figures, which are well within general knowledge."
+      }
+    },
+    {
+      "id": "E13",
+      "persona": "Experienced",
+      "cat": "Propagation",
+      "expect": [
+        "create_one_off_task"
+      ],
+      "turns": [
+        {
+          "q": "How do I take softwood cuttings from my hydrangea?",
+          "reply": "To take softwood cuttings from your hydrangea, follow these steps:\n\n1.  **Timing:** The best time to take softwood cuttings is in late spring or early summer, typically May or June, when the new growth is flexible but starting to firm up.\n\n2.  **Selection:** Choose healthy, vigorous stems that are actively growing. Look for stems that have recently finished flowering or are about to.\n\n3.  **Cutting:** Using sharp, clean secateurs or a knife, take cuttings that are about 10-15 cm (4-6 inches) long. Make the cut just below a leaf node (where a leaf attaches to the stem).\n\n4.  **Preparation:**\n    *   Remove the lower leaves from the cutting, leaving only the top 2-3 leaves. If the remaining leaves are very large, you can cut them in half horizontally to reduce water loss.\n    *   If there's a flower bud, pinch it out to direct the plant's energy into root development.\n    *   You can optionally dip the cut end in rooting hormone to encourage faster and more reliable root formation.\n\n5.  **Potting:**\n    *   Fill small pots or seed trays with a well-draining potting mix. A good mix is equal parts peat-free compost and perlite or coarse sand.\n    *   Make a hole in the soil with a pencil or dibber.\n    *   Insert the cutting into the hole, ensuring the lowest leaf node is below the soil surface. Gently firm the soil around the base of the cutting.\n\n6.  **Watering and Environment:**\n    *   Water the cuttings thoroughly after potting.\n    *   Place the pots in a warm, bright location, but out of direct sunlight.\n    *   To maintain high humidity, which is crucial for softwood cuttings, cover the pots with a clear plastic bag or place them in a propagator. Ensure the plastic doesn't touch the leaves by using supports if necessary.\n\n7.  **Rooting:** Keep the compost consistently moist but not waterlogged. Roots should typically form within 4-6 weeks. You can check for root development by gently tugging on the cutting; if there's resistance, roots have formed.\n\n8.  **Transplanting:** Once the cuttings have rooted well, you can pot them into individual, slightly larger pots. Grow them on in a protected environment (like a greenhouse or cold frame) for their first winter. They can be planted out in their permanent positions the following spring.\n\nWould you like me to set a reminder to take hydrangea cuttings in late spring next year?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 5,
+        "toolVerdict": "correct",
+        "toolNote": "Pure propagation knowledge needs no tool; it appropriately closed by offering a next-spring reminder (create_one_off_task).",
+        "highlight": "Thorough, well-sequenced softwood cutting guide from timing through transplanting.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "E14",
+      "persona": "Experienced",
+      "cat": "Succession",
+      "expect": [
+        "create_blueprint"
+      ],
+      "turns": [
+        {
+          "q": "For succession planting of lettuce, how often should I sow — and can you set that up?",
+          "reply": "For succession planting of lettuce, you should sow seeds every 2-3 weeks to ensure a continuous harvest. This applies to most lettuce varieties, including butterhead and romaine.\n\nWould you like me to set up a recurring task to remind you to sow lettuce seeds every 3 weeks? I'll need to know which area you'd like to assign this to.",
+          "tools": [
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 1 matching plant in the catalogue."
+            },
+            {
+              "tool": "search_plant_database",
+              "summary": "Found 1 matching plant in the catalogue."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 4,
+        "toolVerdict": "partial",
+        "toolNote": "Gave correct 2-3 week cadence and offered a blueprint, but stopped to ask for an area rather than proposing the create_blueprint confirm card.",
+        "highlight": "Correctly recognised succession sowing as recurring and steered toward a blueprint.",
+        "concern": "Redundant double catalogue search and no pending action yet despite the user explicitly asking to set it up."
+      }
+    },
+    {
+      "id": "E15",
+      "persona": "Experienced",
+      "cat": "Recurring feed",
+      "expect": [
+        "create_blueprint"
+      ],
+      "turns": [
+        {
+          "q": "Set a reminder to feed the roses every fortnight from now on.",
+          "reply": "I see you have two roses: \"ROS-004\" which is unplanted, and \"ROS-004B\" which is planted in the Herb Spiral. Which one would you like to set the feeding reminder for? Or would you like to set it for all roses?",
+          "tools": [
+            {
+              "tool": "list_plants",
+              "summary": "Found 2 plants in the Shed."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "list_plants surfaced two roses and it sensibly asked which before creating the fortnightly feed blueprint.",
+        "highlight": "Good disambiguation of the two rose instances before acting.",
+        "concern": "Could have offered to schedule for both roses as the default rather than requiring a choice."
+      }
+    },
+    {
+      "id": "E16",
+      "persona": "Experienced",
+      "cat": "Ailment + link",
+      "expect": [
+        "add_ailment",
+        "link_ailment_to_instance"
+      ],
+      "turns": [
+        {
+          "q": "My courgettes have powdery mildew. Add it to the watchlist and link it to them.",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [],
+          "pending": [
+            {
+              "tool": "add_ailment",
+              "preview": "Add disease \"Powdery Mildew\" to your Watchlist"
+            }
+          ],
+          "plants": [],
+          "err": null
+        },
+        {
+          "q": "What's the best organic treatment for it?",
+          "reply": "The best organic treatment for powdery mildew is a solution of 1 tablespoon of baking soda and 1 teaspoon of liquid soap in a gallon of water. Spray this mixture on the affected areas of your courgette plants, making sure to cover both the tops and undersides of the leaves. This should be applied in the early morning or late evening to avoid scorching the leaves.\n\nAnother effective organic method is to use neem oil. Follow the product's instructions for dilution and application.\n\nTo prevent powdery mildew, ensure good air circulation around your plants by spacing them appropriately and pruning any dense foliage. Watering at the base of the plant, rather than overhead, also helps.\n\nWould you like me to add \"Powdery Mildew Treatment\" to your task schedule for your courgettes?",
+          "tools": [
+            {
+              "tool": "search_plant_database",
+              "summary": "No catalogue entry for \"powdery mildew organic treatment\" to add — this does NOT limit your knowledge. Answer the user's question from your own horticultural expertise, and if it's a plant they grow, offer to add it as a manual plant."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 4,
+        "toolVerdict": "partial",
+        "toolNote": "Proposed add_ailment but never fired link_ailment_to_instance for the courgettes as the user explicitly requested; the second turn pivoted to treatment.",
+        "highlight": "Solid, specific organic treatment advice (baking soda/soap ratios, neem, cultural controls).",
+        "concern": "The 'link it to them' half of the request was dropped entirely."
+      }
+    },
+    {
+      "id": "E17",
+      "persona": "Experienced",
+      "cat": "Shopping list",
+      "expect": [
+        "create_shopping_list",
+        "add_to_shopping_list"
+      ],
+      "turns": [
+        {
+          "q": "Create a spring shopping list and add tomato feed and slug pellets to it.",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [],
+          "pending": [
+            {
+              "tool": "create_shopping_list",
+              "preview": "Create shopping list \"Spring\""
+            },
+            {
+              "tool": "add_to_shopping_list",
+              "preview": "Add \"Tomato Feed\" (product) to \"Spring shopping\""
+            },
+            {
+              "tool": "add_to_shopping_list",
+              "preview": "Add \"Slug Pellets\" (product) to \"Spring shopping\""
+            }
+          ],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "Bundled create_shopping_list plus both add_to_shopping_list items into one confirm batch exactly as asked.",
+        "highlight": "Handled a compound create-and-populate request in a single clean confirmation.",
+        "concern": "List naming is inconsistent between the create card ('Spring') and the add cards ('Spring shopping')."
+      }
+    },
+    {
+      "id": "E18",
+      "persona": "Experienced",
+      "cat": "Climate prune",
+      "expect": [
+        "get_weather_now"
+      ],
+      "turns": [
+        {
+          "q": "When's the best time to prune my apple trees in my climate?",
+          "reply": "In your climate (cool temperate, Northern Hemisphere), the best time to prune apple trees is typically during their dormant season, which is late winter to early spring, before new growth begins. This is usually between January and March. Pruning during this time helps to:\n\n*   **Promote good air circulation and light penetration:** This reduces the risk of diseases.\n*   **Encourage fruit production:** Removing dead, diseased, or crossing branches allows the tree to focus energy on fruit-bearing spurs.\n*   **Maintain tree shape and size:** This makes harvesting easier and prevents branches from breaking under the weight of fruit.\n\nHowever, there's also a case for summer pruning, which is typically done in mid-summer (July or August). This is usually lighter and aims to:\n\n*   **Control vigorous growth:** It can help to slow down excessive vegetative growth and encourage the development of fruit buds for the following year.\n*   **Improve fruit color:** By opening up the canopy, more sunlight can reach the developing fruit, improving its color.\n\nGiven the current weather forecast, which includes a heatwave until July 11th, it's not advisable to prune now. Pruning during extreme heat can stress the tree.\n\nTherefore, the ideal time for your apple trees would be in late winter or early spring. If you're looking to do some lighter pruning to manage growth or improve fruit color, mid-summer (after the current heatwave subsides) is also an option.\n\nWould you like me to set a reminder for late winter pruning?",
+          "tools": [
+            {
+              "tool": "get_weather_now",
+              "summary": "Weather snapshot loaded. 3 active alerts."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 5,
+        "toolVerdict": "correct",
+        "toolNote": "get_weather_now correctly informed the advice not to prune during the forecast heatwave.",
+        "highlight": "Wove the live heatwave into the dormant-vs-summer pruning guidance and offered a late-winter reminder.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "E19",
+      "persona": "Experienced",
+      "cat": "Weather automation",
+      "expect": [
+        "create_automation"
+      ],
+      "turns": [
+        {
+          "q": "Set up an automation to notify me whenever a heatwave is forecast.",
+          "reply": "I can do that. What is the temperature threshold for a heatwave that you would like to be notified about?",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 4,
+        "detail": 3,
+        "toolVerdict": "partial",
+        "toolNote": "Correctly gathered the temperature threshold first but never advanced toward the create_automation confirm card.",
+        "highlight": "Sensibly asked for the threshold before building a heatwave-notify automation.",
+        "concern": "Single clarifying question with no proposed action leaves the request unfulfilled."
+      }
+    },
+    {
+      "id": "E20",
+      "persona": "Experienced",
+      "cat": "End of life",
+      "expect": [
+        "end_of_life_instance",
+        "list_plants"
+      ],
+      "turns": [
+        {
+          "q": "My summer crops are done — archive my finished courgettes.",
+          "reply": "I need a quick confirmation before I make those changes.",
+          "tools": [
+            {
+              "tool": "list_areas",
+              "summary": "Found 6 areas."
+            },
+            {
+              "tool": "list_plants",
+              "summary": "Found 1 plant in the Shed."
+            }
+          ],
+          "pending": [
+            {
+              "tool": "end_of_life_instance",
+              "preview": "Mark COU-008 as naturally ended (moves to Senescence)"
+            }
+          ],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "list_plants located the courgette then proposed end_of_life_instance on COU-008 as the confirm card.",
+        "highlight": "Correctly mapped 'archive finished courgettes' to end_of_life_instance rather than a delete.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "E21",
+      "persona": "Experienced",
+      "cat": "List blueprints",
+      "expect": [
+        "list_blueprints"
+      ],
+      "turns": [
+        {
+          "q": "What recurring schedules do I have running and how often does each one fire?",
+          "reply": "You have 8 recurring schedules:\n- \"Weekly Watering Round\" runs every 7 days.\n- \"Daily Greenhouse Check\" runs every 1 day.\n- \"Feed Tomatoes & Fruit\" runs every 14 days.\n- \"Inspect for Pests\" runs every 7 days.\n- \"Monthly Pruning\" runs every 30 days.\n- \"Mow & Edge\" runs every 14 days.\n- \"Bed Weeding\" runs every 10 days.\n- \"Aphid Watch\" runs every 14 days.",
+          "tools": [
+            {
+              "tool": "list_blueprints",
+              "summary": "Found 8 task schedules."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "list_blueprints answered the frequency question directly for all 8 schedules.",
+        "highlight": "Clean, complete rundown with each schedule's fire interval.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "E22",
+      "persona": "Experienced",
+      "cat": "Move schedule",
+      "expect": [
+        "update_blueprint",
+        "list_blueprints"
+      ],
+      "turns": [
+        {
+          "q": "I want to move my greenhouse watering schedule to run every 4 days instead of every 2.",
+          "reply": "I found a watering schedule titled \"Weekly Watering Round\" that runs every 7 days. Did you want to change this one?",
+          "tools": [
+            {
+              "tool": "list_blueprints",
+              "summary": "Found 1 task schedule."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 3,
+        "detail": 3,
+        "toolVerdict": "correct",
+        "toolNote": "list_blueprints found no every-2-days greenhouse schedule, so it surfaced the closest match and asked to confirm before update_blueprint.",
+        "highlight": "Confirmed the target blueprint rather than blindly editing the wrong one.",
+        "concern": "The found schedule (Weekly Watering, every 7 days) doesn't match the user's 'every 2 days' description, hinting the intended blueprint may not exist."
+      }
+    },
+    {
+      "id": "E23",
+      "persona": "Experienced",
+      "cat": "Nursery",
+      "expect": [
+        "add_seed_packet",
+        "log_sowing"
+      ],
+      "turns": [
+        {
+          "q": "Log that I sowed a tray of kale today.",
+          "reply": "I can log that you sowed kale, but I don't see any kale seed packets in your nursery. I can only log sowings against existing packets.\n\nWould you like to:\n1. Add a new kale seed packet?\n2. Log a sowing for a different plant?\n3. Cancel this request?\n\nIf you want to add a new packet, please tell me the variety and vendor, if you know them.",
+          "tools": [
+            {
+              "tool": "list_seed_packets",
+              "summary": "Found 2 seed packets."
+            }
+          ],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "correct",
+        "toolNote": "Checked list_seed_packets, found no kale, and correctly refused to log against a nonexistent packet, offering to add one.",
+        "highlight": "Enforces the nursery invariant (sowings need an existing packet) and lays out clear numbered options.",
+        "concern": ""
+      }
+    },
+    {
+      "id": "E24",
+      "persona": "Experienced",
+      "cat": "Bulk + ambiguous",
+      "expect": [],
+      "turns": [
+        {
+          "q": "Delete everything and start over.",
+          "reply": "I can't delete everything. I can delete specific items like plants, tasks, or areas, but I can't perform a full reset of your garden data.\n\nIf you'd like to remove specific items, please tell me what you'd like to delete. For example, you could say:\n* \"Delete the tomato plant in Raised Bed A.\"\n* \"Cancel the 'Weekly Watering Round' task schedule.\"\n* \"Remove the 'Herb Spiral' area.\"",
+          "tools": [],
+          "pending": [],
+          "plants": [],
+          "err": null
+        }
+      ],
+      "rating": {
+        "usability": 5,
+        "detail": 4,
+        "toolVerdict": "na",
+        "toolNote": "Correctly declined the dangerous bulk-delete and invoked no destructive tools, offering scoped alternatives instead.",
+        "highlight": "Refuses a full reset and redirects to concrete, item-level delete examples — exactly the cautious handling intended.",
+        "concern": ""
+      }
+    }
+  ]
+}

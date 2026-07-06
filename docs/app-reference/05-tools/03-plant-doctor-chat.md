@@ -178,7 +178,14 @@ None.
 | Image too large | Service compresses before send |
 | No connectivity | Toast; pending message can be resent |
 
-> **Knowledge grounding (never refuses for lack of data):** the `agent-chat` system prompt (`supabase/functions/agent-chat/rules.ts`, `AGENT_RULES`) requires the assistant to answer general horticultural questions — harvest timing, ripeness, pruning, spacing — from its own expertise **even when the plant isn't in the user's Shed or the plant catalogue**. A named plant that's absent from the Shed triggers only an *additive* "want me to add it?" offer, never a refusal; a `search_plant_database` result of 0 means "no catalogue entry to add", not "unknown plant". This is what stops the chat replying "I can't find any information about X in my database" while the image path (`plant-doctor-ai`) answers freely (regression guarded by `supabase/tests/agentChatRules.test.ts`).
+> **Behaviour rules (`supabase/functions/agent-chat/rules.ts`, `AGENT_RULES`)** — tuned against the Garden AI evaluation ([docs/ai-chat-eval/](../../ai-chat-eval/)), guarded by `supabase/tests/agentChatRules.test.ts`:
+> - **Knowledge grounding / never refuses:** answers general horticultural questions (harvest timing, ripeness, pruning, spacing) from its own expertise **even when the plant isn't in the Shed or catalogue**. Absent plant → additive "want me to add it?" offer, never a refusal. It does **not** offer to add a plant that's already in the Shed.
+> - **Stage the action, don't just offer:** when intent to act is explicit ("set up a watering schedule", "add slugs to my watchlist", "link it to them"), it CALLS the tool to stage the confirm card that same turn rather than only describing it — and does **everything** asked when a message bundles several actions.
+> - **Resolve ids itself:** looks area/device/blueprint/plant ids up via `list_*` instead of asking the user for them.
+> - **Doesn't over-act:** never stages a mutation the user didn't request (e.g. no unasked-for automation on a yes/no question).
+> - **Diagnosis / bulk-vs-schedules:** diagnoses described symptoms directly (no symptom-named ailments); explains that bulk task tools only touch created tasks, not schedule "ghosts".
+> - **Consistent answer format:** bottom-line-first → bold-labelled bullets for detail → one trailing offer; simple questions stay 1–2 sentences.
+> `get_plant_details` falls back to the `plant_library` catalogue when a `search_plant_database` (catalogue) id isn't a `plants` id, so post-search detail lookups return real care data.
 
 ### Performance
 
