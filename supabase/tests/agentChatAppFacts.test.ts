@@ -36,7 +36,7 @@ Deno.test("app facts — the sensor integration list is closed", () => {
 
 Deno.test("app facts — non-features are honestly listed", () => {
   assert(/NOT AVAILABLE/i.test(FACTS), "missing the not-available section");
-  assert(/CSV\/data export, a public API, and printing don'?t exist/i.test(FACTS), "export/API/printing must be denied (RE10/RE12/E34/E43)");
+  assert(/CSV\/data export, a public API, and printing do(n'?t| not) exist/i.test(FACTS), "export/API/printing must be denied (RE10/RE12/E34/E43)");
 });
 
 Deno.test("app facts — frost automation triggers vs native alerts distinction is kept", () => {
@@ -56,7 +56,7 @@ Deno.test("app facts — weather effect on tasks is stated precisely (no 'reshap
 });
 
 Deno.test("app facts — plans do not auto-build shopping lists", () => {
-  assert(/adding a plan'?s needs to a list is currently a manual step/i.test(FACTS), "manual plan→list step must be stated");
+  assert(/adding a plan'?s needs to a list is a manual step/i.test(FACTS), "manual plan→list step must be stated");
   assert(/don'?t claim plans auto-build shopping lists/i.test(FACTS), "the auto-build overclaim must be banned");
   assert(!/with linked shopping lists/i.test(FACTS), "the old 'linked shopping lists' phrasing must be gone");
 });
@@ -64,6 +64,14 @@ Deno.test("app facts — plans do not auto-build shopping lists", () => {
 Deno.test("app facts — area conditions are the real fields (no soil type/notes)", () => {
   assert(/growing medium & texture/i.test(FACTS), "growing medium/texture must be stated");
   assert(!/soil type\/notes/i.test(FACTS), "the nonexistent soil type/notes field must be gone");
+});
+
+Deno.test("app facts — no roadmap talk (user report: AI implied features were coming soon)", () => {
+  assert(/NO ROADMAP TALK/i.test(FACTS), "missing the no-roadmap rule");
+  assert(/Never say a missing feature is "coming soon"/i.test(FACTS), "coming-soon promises must be banned");
+  assert(/hedge with "yet"/i.test(FACTS), "the yet/at-the-moment hedges must be banned");
+  assert(!/don'?t exist yet/i.test(FACTS), "the old 'don't exist yet' phrasing must be gone");
+  assert(!/currently a manual step/i.test(FACTS), "the 'currently' hedge must be gone");
 });
 
 Deno.test("app facts — Contact Support path is the avatar menu Help section", () => {
