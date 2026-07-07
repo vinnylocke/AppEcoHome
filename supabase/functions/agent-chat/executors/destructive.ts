@@ -392,12 +392,17 @@ function addDaysIso(iso: string, days: number): string {
 
 export const bulk_reschedule: MutationExecutor = {
   async preview(ctx, args) {
+    // Throw (not return) on bad/empty filters so the agent loop's preview-
+    // failure bounce fires — a staged "No tasks match" card is a confirmable
+    // no-op while the prose claims success (eval E06).
     if (!args.shift_days && !args.new_date) {
-      return "Provide either shift_days or new_date.";
+      throw new Error("Provide either shift_days or new_date.");
     }
     const { data } = await buildTaskFilter(ctx, args);
     const count = data?.length ?? 0;
-    if (count === 0) return "No tasks match that filter.";
+    if (count === 0) {
+      throw new Error("No tasks match that filter — nothing would be rescheduled.");
+    }
     const target = args.new_date
       ? `to ${args.new_date}`
       : `by ${args.shift_days > 0 ? "+" : ""}${args.shift_days} day${args.shift_days === 1 || args.shift_days === -1 ? "" : "s"}`;
@@ -460,7 +465,9 @@ export const bulk_complete_tasks: MutationExecutor = {
   async preview(ctx, args) {
     const { data } = await buildTaskFilter(ctx, args);
     const count = data?.length ?? 0;
-    if (count === 0) return "No tasks match that filter.";
+    if (count === 0) {
+      throw new Error("No tasks match that filter — nothing would be completed.");
+    }
     const sample = (data ?? []).slice(0, 3).map((t: any) => `"${t.title}"`).join(", ");
     const more = count > 3 ? ` (+${count - 3} more)` : "";
     return `Mark ${count} task${count === 1 ? "" : "s"} complete: ${sample}${more}`;

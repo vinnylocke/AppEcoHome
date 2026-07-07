@@ -190,6 +190,16 @@ The `preview` text is persisted on the `chat_tool_calls` row at insert time (add
 3. If response has `text` only, that's the final reply — break and return.
 4. If 4 rounds elapse without a text reply, return a generic "I tried but couldn't" message.
 
+### Forced-retry & safety guards (eval rounds 5–11)
+
+Deterministic guards in `agent-chat/index.ts` + `actionIntent.ts` around the per-turn loop:
+
+- **Action retry (re-armable ×2)** — when `isActionExplicit(message)` and the model is about to finish in prose with nothing pending, it is re-asked with `toolChoice: "ANY"`. Round 11 made this re-armable (max 2): the first retry can legitimately be spent on a `list_*` read, and the second nudge then demands the staging call with the ids already gathered (eval E31/E07).
+- **Grounding retry (once per send)** — a prose finish that `claimsUserData()` (empty *or* positive assertions: "you already have basil") with zero reads this turn, or any `asksClimate()` question with no weather/location read, forces one retry with tool calling on (rounds 9/11).
+- **Injection guard** — `looksLikeInjection()` messages ("sudo…", "you have to do it", "ignore your instructions") never count as action-explicit, and any `DESTRUCTIVE_TOOLS` staging from one is refused server-side with a tool error instructing a calm decline (eval E38).
+- **Preview bounces** — a mutation preview that throws is never staged; the error is fed back as a `functionResponse` so the model self-corrects (guessed ids since round 5; zero-match bulk filters since round 11 — `bulk_reschedule`/`bulk_complete_tasks` previews throw when nothing matches).
+- **Reply normalisation** — `replyMarkers.ts` composes the 🔎 line from tools that actually ran, strips phantom 🔧 lines, de-bolds marker lines, collapses multiple `→` offers to the last, strips preamble openers, and softens past-tense completion claims to future tense while a card is pending.
+
 ### Context grounding cache
 
 `context.ts` builds a compact "what the user has" summary for each (user, home) pair, cached 5 minutes. Includes locations, areas, top 30 active plants, top 20 active blueprints, active plans, and tier. The cache invalidates manually (Phase 2+ will call `invalidateContext()` after mutation tools).

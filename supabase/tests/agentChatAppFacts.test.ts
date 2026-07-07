@@ -78,3 +78,25 @@ Deno.test("app facts — Contact Support path is the avatar menu Help section", 
   assert(/avatar menu \(top right\) under Help → Contact Support/i.test(FACTS), "correct support path must be stated");
   assert(!/Account menu → Contact Support/i.test(FACTS), "the wrong Account-menu path must be gone");
 });
+
+// ── Round-11 sweep (docs/plans/garden-ai-eval-round11-global-sweep.md) ───────
+
+Deno.test("app facts — navigation truths exist and invented paths are banned (RE21/N36/RB19)", () => {
+  assert(/NAVIGATION/i.test(FACTS), "missing the navigation section");
+  assert(/NEVER invent a menu path/i.test(FACTS), "path invention must be banned");
+  assert(/Yield \(its harvest history/i.test(FACTS), "harvest history must point at the Yield tab");
+  assert(/there is NO separate "Harvest Log" screen/i.test(FACTS), "the invented Harvest Log screen must be denied");
+  assert(/tabs include Alerts/i.test(FACTS), "the Alerts tab location must be stated");
+});
+
+Deno.test("app facts — offline support is stated precisely (RB13: only task completion queues)", () => {
+  assert(/tasks you complete while offline queue/i.test(FACTS), "task-completion queueing must be stated");
+  assert(/other edits and all AI features .*need a connection/i.test(FACTS), "the connection requirement must be stated");
+  assert(!/changes queue to sync —/i.test(FACTS), "the broad 'changes queue' overclaim must be gone");
+  assert(/Don'?t claim every change queues offline/i.test(FACTS), "the overclaim must be explicitly banned");
+});
+
+Deno.test("app facts — trust questions get the grounding explanation (RB20/RE14)", () => {
+  assert(/how you know something or whether to trust you/i.test(FACTS), "trust-question trigger must exist");
+  assert(/every change is a card THEY confirm/i.test(FACTS), "confirm-card grounding must be stated");
+});

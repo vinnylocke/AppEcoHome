@@ -63,6 +63,50 @@ export interface NormaliseOutput {
 
 const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+// ── Round-11 polish transforms (docs/plans/garden-ai-eval-round11-global-sweep.md) ──
+
+/**
+ * Preamble openers that soften bottom-line-first (N01/E01/E13/RE03). Stripped
+ * only at the very start of the reply; the sentence that follows is the real
+ * bottom line. Deliberately a short fixed list — anything cleverer risks
+ * eating content.
+ */
+const PREAMBLE_OPENERS =
+  /^(of course|certainly|sure thing|sure|absolutely|great question|good question|happy to help)[.!,]\s*/i;
+
+export function stripPreamble(reply: string): string {
+  return (reply ?? "").replace(PREAMBLE_OPENERS, "");
+}
+
+/**
+ * Past-tense completion phrasing before the card is confirmed ("I've set up a
+ * reminder" + 🔧) overstates what happened (N04/N08/E03/E41/E45). With cards
+ * pending, the first such phrase near the top of the reply becomes future
+ * tense. Fixed verb map so the rewrite stays grammatical.
+ */
+const PAST_TO_FUTURE: Record<string, string> = {
+  "set up": "set up",
+  added: "add",
+  created: "create",
+  updated: "update",
+  marked: "mark",
+  scheduled: "schedule",
+  archived: "archive",
+  removed: "remove",
+  rescheduled: "reschedule",
+};
+const PAST_CLAIM_RE =
+  /\bI('ve| have) (set up|added|created|updated|marked|scheduled|archived|removed|rescheduled)\b/i;
+
+export function softenPastClaims(reply: string, pending: boolean): string {
+  if (!pending) return reply ?? "";
+  const text = reply ?? "";
+  const m = PAST_CLAIM_RE.exec(text);
+  if (!m || m.index > 200) return text; // only the opening claim, not deep prose
+  const future = PAST_TO_FUTURE[m[2].toLowerCase()];
+  return text.slice(0, m.index) + `I'll ${future}` + text.slice(m.index + m[0].length);
+}
+
 /** Compose a 🔧 line from card previews (used when the model omitted its own). */
 export function buildActionLine(pendingPreviews: string[]): string | null {
   const parts = pendingPreviews
@@ -78,13 +122,21 @@ export function buildActionLine(pendingPreviews: string[]): string | null {
  */
 export function normaliseReplyMarkers(reply: string, input: NormaliseInput): NormaliseOutput {
   const pending = input.pendingPreviews.length > 0;
-  const lines = (reply ?? "").split("\n");
+  const prepared = softenPastClaims(stripPreamble(reply ?? ""), pending);
+  const lines = prepared.split("\n");
 
   const bodyLines: string[] = [];
   let modelActionLine: string | null = null;
   let phantomStripped = false;
+  let trailingOffer: string | null = null;
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    // De-bold marker lines — "**🔧 Ready to confirm:**" and "**→ offer**"
+    // render off-template (E19). Only marker lines are touched.
+    const isMarkerish =
+      rawLine.includes("🔎") || rawLine.includes("🔧") || /^\s*\**\s*→/.test(rawLine);
+    const line = isMarkerish ? rawLine.replace(/\*\*/g, "") : rawLine;
+
     if (line.includes("🔎")) continue; // always replaced by the canonical line
     if (line.includes("🔧")) {
       if (pending) {
@@ -95,16 +147,16 @@ export function normaliseReplyMarkers(reply: string, input: NormaliseInput): Nor
       }
       continue;
     }
+    // The template allows exactly ONE `→` next step (N05/N14/RB22 stacked
+    // several). Keep the LAST — it's usually the most refined offer.
+    if (line.trim().startsWith("→")) {
+      trailingOffer = line.trim();
+      continue;
+    }
     bodyLines.push(line);
   }
 
-  // Pull a trailing `→` offer out of the body so it can go back at the very end.
-  let trailingOffer: string | null = null;
   while (bodyLines.length && bodyLines[bodyLines.length - 1].trim() === "") bodyLines.pop();
-  if (bodyLines.length && bodyLines[bodyLines.length - 1].trim().startsWith("→")) {
-    trailingOffer = bodyLines.pop()!.trim();
-    while (bodyLines.length && bodyLines[bodyLines.length - 1].trim() === "") bodyLines.pop();
-  }
 
   const checkedLine = buildCheckedLine(input.readTools);
   const actionLine = pending ? (modelActionLine ?? buildActionLine(input.pendingPreviews)) : null;

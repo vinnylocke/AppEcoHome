@@ -92,7 +92,7 @@ Deno.test("agent rules — refinements of a staged action are re-staged immediat
 Deno.test("agent rules — attention/optimise/sensor questions route to the right tools", () => {
   assert(/ATTENTION QUESTIONS/i.test(RULES) && /get_overdue_summary/.test(RULES), "attention → get_overdue_summary");
   assert(/OPTIMISE REQUESTS/i.test(RULES) && /optimise_area_schedule/.test(RULES), "optimise → optimise_area_schedule");
-  assert(/SENSOR QUESTIONS/i.test(RULES) && /latest reading/i.test(RULES), "sensors → list_devices latest readings");
+  assert(/SENSOR & DEVICE-HEALTH QUESTIONS/i.test(RULES) && /latest reading/i.test(RULES), "sensors → list_devices latest readings");
   assert(/TOOL HYGIENE/i.test(RULES), "must forbid search_plant_database for general-knowledge facts");
 });
 
@@ -147,4 +147,38 @@ Deno.test("agent rules — data facts require a tool call behind them (round 9)"
 Deno.test("agent rules — a worked template example is included", () => {
   assert(/TEMPLATE EXAMPLE/i.test(RULES), "missing the worked example");
   assert(/\*\*When:\*\*/.test(RULES) && /→ Want me to add a pruning reminder/i.test(RULES), "example must demonstrate bullets + →");
+});
+
+// ── Round 11 (docs/plans/garden-ai-eval-round11-global-sweep.md) ──
+
+Deno.test("agent rules — multi-action requests are counted and never silently dropped (E17/E32)", () => {
+  assert(/COUNT the distinct requests/i.test(RULES), "must require counting the requests");
+  assert(/NEVER silently dropped/i.test(RULES), "silent drops must be banned");
+});
+
+Deno.test("agent rules — no add-to-Shed offer for plants just declared unreal (N31)", () => {
+  assert(/never offer to add a plant you just told the user is NOT a recognised species/i.test(RULES),
+    "fictional-plant offer must be banned");
+});
+
+Deno.test("agent rules — device health, water-now valve routing and near-match schedules (E44/E04/E22)", () => {
+  assert(/battery/i.test(RULES) && /quote the actual values/i.test(RULES), "battery questions must quote real values");
+  assert(/IMMEDIATE WATERING/i.test(RULES) && /not a to-do card asking the human/i.test(RULES),
+    "water-now must prefer the valve/automation");
+  assert(/near-match/i.test(RULES) && /instead of creating a duplicate/i.test(RULES),
+    "near-match schedules must be surfaced");
+});
+
+Deno.test("agent rules — overdue backlogs get reschedule, never bulk-complete (E36)", () => {
+  assert(/never suggest bulk-completing tasks that weren't actually done/i.test(RULES),
+    "bulk-complete-as-cleanup must be banned");
+  assert(/falsifies their garden history/i.test(RULES), "the why must be stated");
+});
+
+Deno.test("agent rules — numbers/codes/images hygiene (RB07/RB09/RE15/RE20)", () => {
+  assert(/NUMBERS, CODES & IMAGES/i.test(RULES), "missing the hygiene block");
+  assert(/never show internal ids or codes/i.test(RULES), "internal codes must be banned");
+  assert(/state the scope window/i.test(RULES), "counts must carry their scope");
+  assert(/never as an unrequested opener/i.test(RULES), "unsolicited images must be banned");
+  assert(/drifts a day across leap years/i.test(RULES), "annual drift must be disclosed");
 });

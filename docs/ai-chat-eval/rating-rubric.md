@@ -1,4 +1,4 @@
-# Garden AI evaluation — rating rubric (v1.3, frozen)
+# Garden AI evaluation — rating rubric (v1.4, frozen)
 
 The single versioned exam every run is scored against. Rating agents READ this file and
 `reply-template.md` and apply them verbatim — do not paraphrase, loosen, or harden them.
@@ -18,6 +18,11 @@ cross-run comparability breaks are explicit.
 > Gemini-AI-generated and verified against Wikipedia/GBIF; Perenual/Verdantly are separate
 > premium API sources, and Rhozly AI generates care data on the fly — claiming the core library
 > "comes from" the external APIs is an accuracy failure (RE18's run-35.0018 answer did this).
+> **v1.4 (corrections, round 10):** rain auto-completing watering tasks IS a real feature —
+> heavy rain can auto-complete watering tasks and skip automated watering (verified in the
+> appFacts audit). A reply stating this is CORRECT; RE06's run-35.0022 rating was initially
+> docked for it and was corrected before the merge. Also reaffirmed: announce-after-confirm
+> for dependent actions (E11-style) remains correct behaviour, not a miss.
 
 ## What you are rating
 
