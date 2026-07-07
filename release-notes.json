@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Garden AI improvements",
+    "items": [
+      "The Garden AI assistant now runs on Google's most capable Gemini Pro model, for noticeably smarter answers, better multi-step actions and more accurate use of your garden data."
+    ]
+  }
+]

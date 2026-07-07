@@ -49,6 +49,19 @@ import { normaliseReplyMarkers } from "./replyMarkers.ts";
 
 const FN = "agent-chat";
 
+// Quality-first model cascade (round 7 — docs/plans/garden-ai-eval-round7-pro-
+// model.md). The shared DEFAULT_MODELS cascade is cost-first and tops out at
+// flash-lite; a 55-tool agentic chat is the one surface where model quality is
+// the binding constraint (usability plateaued ~3.75 across four eval rounds on
+// flash-lite). Pro first, flash rungs as availability fallbacks. Both Pro ids
+// smoke-tested with function calling before rollout.
+const CHAT_MODELS = [
+  "gemini-3.1-pro-preview",
+  "gemini-2.5-pro",
+  "gemini-3-flash-preview",
+  "gemini-2.5-flash",
+];
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -286,6 +299,7 @@ async function handleSendMessage(
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     let resp = await callGeminiWithTools(apiKey, FN, messages, tools, {
+      models: CHAT_MODELS,
       systemPrompt: fullPrompt,
       toolChoice: "AUTO",
       logContext: { round, userId },
@@ -301,6 +315,7 @@ async function handleSendMessage(
       forcedRetryUsed = true;
       log(FN, "forced_action_retry", { userId, round });
       const forced = await callGeminiWithTools(apiKey, FN, messages, tools, {
+        models: CHAT_MODELS,
         systemPrompt:
           `${fullPrompt}\n\nThe user's message asks you to ACT and nothing is staged yet. You MUST call the single most appropriate tool now — ` +
           `if you already gathered the data you need (ids from list_* results above), stage the action itself with those ids; ` +
@@ -463,6 +478,7 @@ async function handleSendMessage(
     // instead of a canned "I ran the tools…" line.
     try {
       const fallback = await callGeminiWithTools(apiKey, FN, originalMessages, [], {
+        models: CHAT_MODELS,
         systemPrompt: `${fullPrompt}\n\nAnswer the user's last message directly and conversationally as a knowledgeable gardener. Do not mention tools or apologise for not using them.`,
         toolChoice: "NONE",
         logContext: { round: "knowledge_fallback", userId },
