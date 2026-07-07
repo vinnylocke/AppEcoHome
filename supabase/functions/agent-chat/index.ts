@@ -44,6 +44,7 @@ const ALL_MUTATION_EXECUTORS = {
   ...GAP_EXECUTORS,
 };
 import { buildHomeContext, invalidateContext } from "./context.ts";
+import { isActionExplicit } from "./actionIntent.ts";
 
 const FN = "agent-chat";
 
@@ -266,13 +267,41 @@ async function handleSendMessage(
   const imageRule = "IMAGES: You CAN show plants. When the user asks to see a plant or what something looks like, CALL the show_plant_images tool with the plant name(s) — the app then displays a real licensed photo for each. After calling it, reply with ONE short friendly caption (e.g. \"Here's what a runner bean looks like 🌱\"). NEVER tell the user you can't show images or can't help with this — you can, via the tool. NEVER write code, code blocks, ```tool_code```, or otherwise describe/print the tool call in your text reply. NEVER use markdown image syntax (![...](...)) or paste image URLs — only the tool.";
   const fullPrompt = `${datePrefix}\n\n${context.prompt}\n\n${imageRule}`;
 
+  // Forced tool-choice retry (docs/plans/garden-ai-eval-round3…): when the
+  // user's message clearly asks us to ACT, prose with zero tool calls is a
+  // failure mode three prompt iterations couldn't eliminate — so detect the
+  // intent up front and, if the first model round calls nothing, re-ask once
+  // with function calling FORCED.
+  const actionExplicit = isActionExplicit(
+    typeof message === "string" ? message : "",
+    Array.isArray(history) ? history : [],
+  );
+
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const resp = await callGeminiWithTools(apiKey, FN, messages, tools, {
+    let resp = await callGeminiWithTools(apiKey, FN, messages, tools, {
       systemPrompt: fullPrompt,
       toolChoice: "AUTO",
       logContext: { round, userId },
     });
     totalTokensSpent += resp.usage.totalTokenCount;
+
+    if (
+      round === 0 &&
+      actionExplicit &&
+      (!resp.functionCalls || resp.functionCalls.length === 0)
+    ) {
+      log(FN, "forced_action_retry", { userId });
+      const forced = await callGeminiWithTools(apiKey, FN, messages, tools, {
+        systemPrompt:
+          `${fullPrompt}\n\nThe user's message asks you to ACT. You MUST call the single most appropriate tool now — ` +
+          `a list_* lookup first if you still need an id, otherwise stage the action itself. ` +
+          `If the request is dangerously broad or ambiguous, call a read tool (list_*) to survey scope instead of staging a destructive change.`,
+        toolChoice: "ANY",
+        logContext: { round: "forced_action_retry", userId },
+      });
+      totalTokensSpent += forced.usage.totalTokenCount;
+      if (forced.functionCalls && forced.functionCalls.length > 0) resp = forced;
+    }
 
     // No tool calls → done.
     if (!resp.functionCalls || resp.functionCalls.length === 0) {
