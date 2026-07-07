@@ -48,7 +48,10 @@ export const NEW = [
 export const EXP = [
   { id: "E01", cat: "Triage", expect: ["get_overdue_summary"], turns: ["Give me a full rundown of everything that needs attention across my whole garden right now."] },
   { id: "E02", cat: "Create schedule", expect: ["create_blueprint", "list_areas"], turns: ["Set up a watering schedule for my raised beds every 3 days.", "Can you make it every 2 days over summer?"] },
-  { id: "E03", cat: "Automation", expect: ["create_automation", "list_devices"], turns: ["Create an automation that opens the valve on the South Border when soil moisture drops below 30%.", "Also make it only run in the mornings."] },
+  // E03 reworded in round 3: it said "South Border", an area the demo home doesn't
+  // have, making it unachievable. Now targets Raised Bed A, where the seeded valve
+  // + sensor live (comparability with pre-round-3 runs is broken for E03 only).
+  { id: "E03", cat: "Automation", expect: ["create_automation", "list_devices"], turns: ["Create an automation that opens the valve on Raised Bed A when soil moisture drops below 30%.", "Also make it only run in the mornings."] },
   { id: "E04", cat: "Run now", expect: ["run_automation", "list_automations", "list_devices"], turns: ["Water Raised Bed A right now."] },
   { id: "E05", cat: "Neglect check", expect: ["get_overdue_summary", "list_plants"], turns: ["Which of my plants haven't been watered in a while?"] },
   { id: "E06", cat: "Bulk reschedule", expect: ["bulk_reschedule"], turns: ["It's been raining all week — push all my watering tasks back by 3 days.", "Actually only the ones in the greenhouse."] },

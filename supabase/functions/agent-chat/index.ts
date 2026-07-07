@@ -446,6 +446,24 @@ async function handleSendMessage(
     }
   }
 
+  // Phantom-🔧 guard: the reply may only claim an action is staged when a
+  // confirm card actually exists this turn. The model occasionally imitates
+  // the template's "🔧 Ready to confirm" line without calling the tool —
+  // strip such lines so the user is never told something is queued when
+  // nothing is (docs/plans/garden-ai-eval-round3-phantom-guard-and-rubric.md).
+  if (pendingToolCalls.length === 0 && finalReply.includes("🔧")) {
+    warn(FN, "phantom_action_line_stripped", { userId });
+    finalReply = finalReply
+      .split("\n")
+      .filter((line) => !line.includes("🔧"))
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    if (!finalReply) {
+      finalReply = "I haven't staged anything yet — tell me to go ahead and I'll set it up for you to confirm.";
+    }
+  }
+
   // Plants the model asked to SHOW (via show_plant_images) → rendered as
   // licensed photo cards by the client (no web-image scraping).
   const suggestedPlants = toolResults

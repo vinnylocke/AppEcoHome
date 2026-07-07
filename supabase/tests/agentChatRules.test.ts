@@ -95,3 +95,18 @@ Deno.test("agent rules — attention/optimise/sensor questions route to the righ
   assert(/SENSOR QUESTIONS/i.test(RULES) && /latest reading/i.test(RULES), "sensors → list_devices latest readings");
   assert(/TOOL HYGIENE/i.test(RULES), "must forbid search_plant_database for general-knowledge facts");
 });
+
+// ── Round 3 (docs/plans/garden-ai-eval-round3-phantom-guard-and-rubric.md) ──
+
+Deno.test("agent rules — the 🔧 line only describes a real tool call (phantom-🔧 ban)", () => {
+  assert(/DESCRIBES a confirm card created by a tool you actually CALLED/i.test(RULES), "🔧 must be tied to an actual call");
+  assert(/MUST NOT write a 🔧 line/i.test(RULES), "must forbid writing 🔧 without staging");
+});
+
+Deno.test("agent rules — climate questions use location/weather context, never an assumed climate", () => {
+  assert(/CLIMATE QUESTIONS/i.test(RULES) && /never assume a climate/i.test(RULES), "climate → weather/location context");
+});
+
+Deno.test("agent rules — never stage an empty-match bulk card", () => {
+  assert(/Never stage a bulk card whose preview says nothing matches/i.test(RULES), "empty bulk cards banned");
+});

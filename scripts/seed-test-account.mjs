@@ -752,6 +752,19 @@ async function seedSmartHome(homeId, uid, bed, loc, blueprints) {
     id: randomUUID(), device_id: sensorId, home_id: homeId, recorded_at: isoTs(-d),
     data: { soil_moisture: 50 - d, soil_temp: 18 + d * 0.3, soil_ec: 1100 + d * 20, battery: 82 },
   })));
+  // A water valve on the same bed so valve automations are demo-able ("open the
+  // valve on Raised Bed A when soil moisture drops below 30%"). custom_http
+  // isn't polled and nothing auto-fires it — it exists to be referenced.
+  const valveId = randomUUID();
+  await insert("devices", [{
+    id: valveId, integration_id: integrationId, home_id: homeId, location_id: loc.id, area_id: bed.id,
+    external_device_id: "demo-valve-01", name: `${bed.name} Water Valve`, device_type: "water_valve",
+    provider: "custom_http", metadata: { model: "Demo-WFC01" }, is_active: true, last_seen_at: isoTs(0),
+  }]);
+  await insert("device_readings", [{
+    id: randomUUID(), device_id: valveId, home_id: homeId, recorded_at: isoTs(0),
+    data: { state: "off" },
+  }]);
   // A week of area sensor readings → populates the sensor charts + light data.
   const m = [], tp = [], ec = [], lux = [];
   for (let d = 7; d >= 0; d--) {
