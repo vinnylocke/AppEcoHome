@@ -37,8 +37,8 @@ interface ShedPlantOption {
  * quantity, notes). Save inserts into `seed_packets` and fires the
  * onCreated callback so the Nursery list refreshes.
  *
- * Catalogue-aware search (Perenual / Verdantly / AI) lands in a later
- * wave with the bulk-paste parser. For Wave 2 we lean on the Shed.
+ * Plant linking leans on the Shed — packets link to plants the user
+ * already owns (or store variety text only, linkable later via Edit).
  */
 export default function AddSeedPacketModal({ homeId, onClose, onCreated }: Props) {
   const trapRef = useFocusTrap<HTMLDivElement>(true);

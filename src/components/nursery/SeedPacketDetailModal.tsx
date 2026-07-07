@@ -63,9 +63,9 @@ const STATUS_ICON: Record<SeedSowing["status"], typeof Sprout> = {
 /**
  * Hub view for a single packet. Shows packet metadata + the full
  * sowings list with per-row actions (Observe / Discard / Plant out).
- * Plant Out wires up in Wave 3 — this wave ships the lifecycle through
- * `germinated` and exposes the action buttons as disabled with a
- * "Coming next update" tooltip.
+ * Plant Out is live: it promotes a germinated sowing into an area,
+ * and is disabled with a guidance tooltip until the packet is linked
+ * to a Shed plant.
  */
 export default function SeedPacketDetailModal({
   homeId,

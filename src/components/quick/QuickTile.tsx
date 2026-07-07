@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronRight, Clock } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 /**
  * Accent keys.
@@ -30,12 +30,6 @@ interface Props {
   title: string;
   description: string;
   testId: string;
-  /**
-   * Live tile → renders as a tappable button. Disabled tile → renders as a
-   * subdued tile with a "Coming soon" badge; tap fires `onClick` so the
-   * parent can show a toast pointing the user to the existing equivalent.
-   */
-  variant?: "live" | "coming-soon";
   /**
    * Colour accent. See `QuickTileAccent`.
    */
@@ -220,13 +214,11 @@ export default function QuickTile({
   title,
   description,
   testId,
-  variant = "live",
   accent = "primary",
   layout = "row",
   dense = false,
   onClick,
 }: Props) {
-  const isLive = variant === "live";
   const isCompact = layout === "compact";
 
   // ────────────────────────────────────────────────────────────────────────
@@ -241,14 +233,10 @@ export default function QuickTile({
         type="button"
         onClick={onClick}
         data-testid={testId}
-        data-accent={isLive ? accent : "disabled"}
+        data-accent={accent}
         data-layout={layout}
         aria-label={`${title} — ${description}`}
-        className={`group relative w-full h-full rounded-2xl text-left transition-all duration-200 active:scale-[0.98] border ${
-          isLive
-            ? `${soft.bg} ${soft.border} ${soft.hoverBorder} hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 ${soft.ring}`
-            : "bg-rhozly-surface-low/70 border-rhozly-outline/20 opacity-70"
-        }`}
+        className={`group relative w-full h-full rounded-2xl text-left transition-all duration-200 active:scale-[0.98] border ${soft.bg} ${soft.border} ${soft.hoverBorder} hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 ${soft.ring}`}
       >
         <div className={`h-full flex flex-col ${dense ? "p-2 gap-1 items-center text-center" : "p-3 gap-1.5"}`}>
           {/* Icon medallion — small coloured square holding the lucide
@@ -256,9 +244,7 @@ export default function QuickTile({
           <div
             className={`shrink-0 inline-flex items-center justify-center rounded-xl ${
               dense ? "w-8 h-8" : "w-9 h-9"
-            } ${
-              isLive ? `${soft.iconBg} ${soft.iconText}` : "bg-rhozly-on-surface/5 text-rhozly-on-surface/40"
-            }`}
+            } ${soft.iconBg} ${soft.iconText}`}
             aria-hidden
           >
             <div className={dense ? "[&>svg]:w-4 [&>svg]:h-4" : "[&>svg]:w-5 [&>svg]:h-5"}>
@@ -270,29 +256,14 @@ export default function QuickTile({
             <h2
               className={`font-display font-black tracking-tight leading-tight ${
                 dense ? "text-[11px]" : "text-sm"
-              } ${
-                isLive ? soft.titleText : "text-rhozly-on-surface/60"
-              }`}
+              } ${soft.titleText}`}
             >
               {title}
             </h2>
-            {!isLive && !dense && (
-              <span
-                data-testid={`${testId}-coming-soon`}
-                className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest"
-              >
-                <Clock size={9} />
-                Soon
-              </span>
-            )}
           </div>
 
           {!dense && (
-            <p
-              className={`text-[11px] leading-snug line-clamp-2 ${
-                isLive ? soft.descText : "text-rhozly-on-surface/45"
-              }`}
-            >
+            <p className={`text-[11px] leading-snug line-clamp-2 ${soft.descText}`}>
               {description}
             </p>
           )}
@@ -316,66 +287,37 @@ export default function QuickTile({
       type="button"
       onClick={onClick}
       data-testid={testId}
-      data-accent={isLive ? rowAccentKey : "disabled"}
+      data-accent={rowAccentKey}
       data-layout={layout}
-      className={`group relative w-full flex items-center gap-4 p-5 min-h-[120px] rounded-3xl border text-left overflow-hidden transition-all duration-200 active:scale-[0.99] ${
-        isLive
-          ? `bg-white border-rhozly-primary/15 shadow-[0_2px_8px_-2px_rgba(7,87,55,0.08),0_8px_24px_-12px_rgba(7,87,55,0.06)] hover:shadow-[0_4px_12px_-2px_rgba(7,87,55,0.12),0_16px_32px_-16px_rgba(7,87,55,0.10)] ${a.hoverBorder} hover:-translate-y-0.5`
-          : "bg-rhozly-surface-low/60 border-rhozly-primary/10 opacity-70 hover:opacity-90"
-      }`}
+      className={`group relative w-full flex items-center gap-4 p-5 min-h-[120px] rounded-3xl border text-left overflow-hidden transition-all duration-200 active:scale-[0.99] bg-white border-rhozly-primary/15 shadow-[0_2px_8px_-2px_rgba(7,87,55,0.08),0_8px_24px_-12px_rgba(7,87,55,0.06)] hover:shadow-[0_4px_12px_-2px_rgba(7,87,55,0.12),0_16px_32px_-16px_rgba(7,87,55,0.10)] ${a.hoverBorder} hover:-translate-y-0.5`}
     >
-      {isLive && (
-        <span
-          aria-hidden
-          data-testid={`${testId}-glow`}
-          className={`pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b ${a.topGlow} to-transparent`}
-        />
-      )}
+      <span
+        aria-hidden
+        data-testid={`${testId}-glow`}
+        className={`pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b ${a.topGlow} to-transparent`}
+      />
 
       <div
-        className={`relative shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-200 ${
-          isLive
-            ? `${a.iconBg} ${a.iconText} ${a.iconHoverBg}`
-            : "bg-rhozly-on-surface/5 text-rhozly-on-surface/40"
-        }`}
+        className={`relative shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-200 ${a.iconBg} ${a.iconText} ${a.iconHoverBg}`}
       >
         {icon}
       </div>
 
       <div className="relative flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <h2
-            className={`font-display font-black text-base sm:text-lg tracking-tight ${
-              isLive ? "text-rhozly-on-surface" : "text-rhozly-on-surface/60"
-            }`}
-          >
+          <h2 className="font-display font-black text-base sm:text-lg tracking-tight text-rhozly-on-surface">
             {title}
           </h2>
-          {!isLive && (
-            <span
-              data-testid={`${testId}-coming-soon`}
-              className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest"
-            >
-              <Clock size={10} />
-              Coming soon
-            </span>
-          )}
         </div>
-        <p
-          className={`text-sm leading-snug ${
-            isLive ? "text-rhozly-on-surface/65" : "text-rhozly-on-surface/45"
-          }`}
-        >
+        <p className="text-sm leading-snug text-rhozly-on-surface/65">
           {description}
         </p>
       </div>
 
-      {isLive && (
-        <ChevronRight
-          size={20}
-          className={`relative shrink-0 text-rhozly-on-surface/25 transition-colors ${a.chevronHover}`}
-        />
-      )}
+      <ChevronRight
+        size={20}
+        className={`relative shrink-0 text-rhozly-on-surface/25 transition-colors ${a.chevronHover}`}
+      />
     </button>
   );
 }

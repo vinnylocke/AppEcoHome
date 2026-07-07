@@ -201,7 +201,6 @@ It's not a replacement for the full app — it's a fast path to the three things
 |---------|---------|
 | Hero title "What can I help with?" | The screen's question to you — pick a tile or open the dashboard |
 | Visual Lens tile description | One-line summary of what Analyse does |
-| "Coming soon" badge | This surface ships in a later wave; tap shows the closest equivalent today |
 | Mobile shortcut banner | Shown only on desktop — explains this is the mobile home page and links back to `/dashboard` |
 | "Open full dashboard →" link | Direct route to the full Dashboard |
 
@@ -224,7 +223,6 @@ No difference.
 
 ### Common mistakes / pitfalls
 
-- **Tapping a "Coming soon" tile expecting it to do something.** The toast tells you where to find the closest equivalent today.
 - **Missing the side nav on small phones.** It collapses to icon-only; tap the hamburger to expand.
 - **Thinking Quick Access replaces the dashboard.** It doesn't — it's just the new front door for phones. Everything you already had is one nav tap away.
 
@@ -237,7 +235,6 @@ No difference.
 ### What to do if something looks wrong
 
 - **Quick Access showed up on my desktop browser:** that's fine — the redirect from `/` only fires for narrow viewports + native. You can bookmark `/dashboard` if you don't want to see it.
-- **Toast on a "Coming soon" tile didn't appear:** check `react-hot-toast` is mounted globally (it is, in `App.tsx`).
 - **"Quick" missing from side nav on desktop:** intentional — it's only shown on mobile.
 
 ---

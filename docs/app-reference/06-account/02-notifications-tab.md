@@ -98,7 +98,7 @@ The save inspects the returned `{ error }` and reverts the optimistic state (wit
 
 ### Edge functions invoked
 
-None directly. Push delivery is handled by `daily-batch-notifications` cron which (in the wired-up future) will read these prefs.
+None directly. Push delivery is handled by the `daily-batch-notifications` cron, which reads these prefs (via `_shared/notificationPrefs.ts`) to filter per-category delivery.
 
 ### Cron / scheduled jobs that affect this surface
 
@@ -158,8 +158,7 @@ If you're tired of every notification or want to silence specific categories (wa
 
 #### 3. Per-category toggles
 
-- Tick/untick. Persists immediately.
-- Some categories are marked "Coming soon" — they save your preference but don't actually filter delivery yet.
+- Tick/untick. Persists immediately. Every category is wired to delivery.
 
 #### 4. Read AI replies aloud (Voice)
 
@@ -173,8 +172,7 @@ If you're tired of every notification or want to silence specific categories (wa
 |-------|---------|
 | Browser permission pill | Status of OS-level notifications |
 | Master switch | Global on/off |
-| Category toggles | Per-type opt-in |
-| Coming soon badge | Toggle persists but isn't wired to delivery yet |
+| Category toggles | Per-type opt-in — all categories are wired to delivery |
 
 ### Tier-by-tier experience
 
@@ -184,7 +182,6 @@ Same for every tier.
 
 - **Disabling notifications + complaining about missing reminders.** Re-enable master + the relevant category.
 - **Granting browser permission but disabling master.** OS won't ping you. Both must be on.
-- **Toggling "Coming soon" categories thinking they're live.** They'll save but not influence delivery yet.
 
 ### Recommended workflows
 
@@ -194,7 +191,7 @@ Same for every tier.
 ### What to do if something looks wrong
 
 - **No notifications at all:** master off, or browser denied, or you're on Capacitor native without push setup.
-- **Reminder fired despite toggle off:** check `daily-batch-notifications` — wired filters may not include this category yet.
+- **Reminder fired despite toggle off:** check the category filter in `daily-batch-notifications` (`_shared/notificationPrefs.ts`) against the toggle key.
 
 ---
 

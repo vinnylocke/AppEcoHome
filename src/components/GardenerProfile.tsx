@@ -167,16 +167,15 @@ function NotificationsTab({ userId }: { userId: string }) {
     label: string;
     sub: string;
     icon: React.ReactNode;
-    wired: boolean;
   }> = [
-    { key: "watering",       label: "Watering reminders",     sub: "When a watering task is due",                                          icon: <Droplets size={14} className="text-sky-500" />,    wired: true  },
-    { key: "harvesting",     label: "Harvest reminders",      sub: "When a fruit / veg / herb is ready",                                   icon: <Wheat size={14} className="text-amber-500" />,     wired: true  },
-    { key: "pruning",        label: "Pruning reminders",      sub: "When a pruning task is due",                                           icon: <Scissors size={14} className="text-rose-500" />,   wired: true  },
-    { key: "weatherAlerts",  label: "Weather alerts",         sub: "Frost · heatwave · heavy rain · strong wind",                          icon: <Cloud size={14} className="text-indigo-500" />,    wired: true  },
-    { key: "goldenHour",     label: "Golden hour reminders",  sub: "A photo nudge before sunset",                                          icon: <Sun size={14} className="text-orange-500" />,      wired: true  },
-    { key: "optimiseDigest", label: "Weekly optimise digest", sub: "A summary of suggested schedule improvements",                         icon: <Sparkles size={14} className="text-violet-500" />, wired: true  },
-    { key: "weeklyOverview", label: "Weekly garden overview", sub: "Sunday morning summary of your week ahead",                            icon: <CalendarIcon size={14} className="text-rhozly-primary" />, wired: true  },
-    { key: "betaPrompts",    label: "Beta feedback prompts",  sub: "Occasional in-app surveys on new features",                            icon: <MessageSquare size={14} className="text-emerald-500" />, wired: true },
+    { key: "watering",       label: "Watering reminders",     sub: "When a watering task is due",                                          icon: <Droplets size={14} className="text-sky-500" /> },
+    { key: "harvesting",     label: "Harvest reminders",      sub: "When a fruit / veg / herb is ready",                                   icon: <Wheat size={14} className="text-amber-500" /> },
+    { key: "pruning",        label: "Pruning reminders",      sub: "When a pruning task is due",                                           icon: <Scissors size={14} className="text-rose-500" /> },
+    { key: "weatherAlerts",  label: "Weather alerts",         sub: "Frost · heatwave · heavy rain · strong wind",                          icon: <Cloud size={14} className="text-indigo-500" /> },
+    { key: "goldenHour",     label: "Golden hour reminders",  sub: "A photo nudge before sunset",                                          icon: <Sun size={14} className="text-orange-500" /> },
+    { key: "optimiseDigest", label: "Weekly optimise digest", sub: "A summary of suggested schedule improvements",                         icon: <Sparkles size={14} className="text-violet-500" /> },
+    { key: "weeklyOverview", label: "Weekly garden overview", sub: "Sunday morning summary of your week ahead",                            icon: <CalendarIcon size={14} className="text-rhozly-primary" /> },
+    { key: "betaPrompts",    label: "Beta feedback prompts",  sub: "Occasional in-app surveys on new features",                            icon: <MessageSquare size={14} className="text-emerald-500" /> },
   ];
 
   return (
@@ -252,11 +251,6 @@ function NotificationsTab({ userId }: { userId: string }) {
               <div className="min-w-0">
                 <p className="text-xs font-black text-rhozly-on-surface flex items-center gap-1.5">
                   {cat.label}
-                  {!cat.wired && (
-                    <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                      Coming soon
-                    </span>
-                  )}
                 </p>
                 <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug">{cat.sub}</p>
               </div>

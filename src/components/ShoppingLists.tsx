@@ -265,7 +265,7 @@ function ShoppingListsInner({ homeId, aiEnabled, perenualEnabled }: Props) {
                 {activePlanCount} active plan{activePlanCount !== 1 ? "s" : ""} — pull plant + supply items in?
               </p>
               <p className="text-[11px] font-bold text-violet-700/80 mt-0.5 leading-snug">
-                Browse your plans for plants to add to a shopping list. Auto-add coming soon.
+                Browse your plans for plants to add to a shopping list.
               </p>
             </div>
             <div className="flex items-center gap-1 shrink-0">

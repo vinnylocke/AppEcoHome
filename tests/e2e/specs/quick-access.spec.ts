@@ -1,13 +1,11 @@
 import { expect } from "@playwright/test";
 import { test } from "../fixtures/auth";
 
-// Mobile Quick Access (Wave 2) — routing + nav visibility.
+// Mobile Quick Access — routing + nav visibility.
 //
 // Covers:
 //  - Phone viewport → `/` redirects to `/quick`
-//  - `/quick` renders the three Quick Access tiles
-//  - Tapping the Visual Lens tile lands the user on `/quick/lens`
-//  - "Coming soon" tiles show a toast and do NOT navigate
+//  - `/quick` renders the default launcher pins (Wave 16 customisable launcher)
 //  - Desktop viewport → `/` redirects to `/dashboard` (unchanged)
 //  - Desktop visit to `/quick` shows the "mobile shortcut" banner
 
@@ -23,35 +21,22 @@ test.describe("Quick Access — mobile routing", () => {
     await expect(authenticatedPage.getByTestId("quick-access-home")).toBeVisible();
   });
 
-  test("QUICK-002: /quick renders all three tiles", async ({ authenticatedPage }) => {
+  test("QUICK-002: /quick renders the default launcher pins", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/quick");
-    await expect(authenticatedPage.getByTestId("quick-tile-lens")).toBeVisible();
-    await expect(authenticatedPage.getByTestId("quick-tile-calendar")).toBeVisible();
-    await expect(authenticatedPage.getByTestId("quick-tile-journal")).toBeVisible();
+    // Default pins from DEFAULT_QUICK_LAUNCHER_PINS (quickLauncherCatalogue.ts).
+    await expect(authenticatedPage.getByTestId("quick-tile-doctor")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("quick-tile-today")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("quick-tile-capture")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("quick-tile-shed")).toBeVisible();
   });
 
   // QUICK-003 retired: /quick/lens removed; the equivalent of the Lens is
   // the full Plant Lens at /doctor (default-pinned as the "doctor" tile).
 
-  test("QUICK-004: Calendar tile shows toast and stays on /quick", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/quick");
-    await authenticatedPage.getByTestId("quick-tile-calendar").click();
-    // Toast appears
-    await expect(
-      authenticatedPage.getByText(/Coming soon — for now, view today's tasks on the Dashboard/i),
-    ).toBeVisible({ timeout: 5000 });
-    // Still on /quick
-    await expect(authenticatedPage).toHaveURL(/\/quick$/);
-  });
-
-  test("QUICK-005: Journal tile shows toast and stays on /quick", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/quick");
-    await authenticatedPage.getByTestId("quick-tile-journal").click();
-    await expect(
-      authenticatedPage.getByText(/Coming soon — for now, open a plant's Journal tab/i),
-    ).toBeVisible({ timeout: 5000 });
-    await expect(authenticatedPage).toHaveURL(/\/quick$/);
-  });
+  // QUICK-004 / QUICK-005 retired: the "Coming soon" tiles + toasts were
+  // removed — the Wave-16 launcher only renders live, navigating tiles, and
+  // the never-promise sweep (docs/plans/remove-app-promise-strings.md)
+  // deleted the coming-soon variant from QuickTile entirely.
 
   test("QUICK-006: 'Open full dashboard' link routes to /dashboard", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/quick");

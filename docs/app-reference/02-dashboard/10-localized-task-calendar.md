@@ -229,7 +229,6 @@ No difference.
 
 - **"Frost dates unavailable" amber banner**: the AI returned data that failed server-side validation (e.g. impossible date for the hemisphere). The cache stays untouched; next visit triggers a fresh attempt. The rest of the screen still works.
 - **Rain advice shows "0 mm forecast" but it's clearly going to rain**: the weather snapshot may be stale. `sync-weather` cron runs hourly; manually refresh from the full Dashboard's weather tab to force an update.
-- **"Coming soon" message instead of the calendar**: not applicable — Wave 3 makes this surface live.
 
 ---
 

@@ -4,6 +4,10 @@ import React from "react";
 
 import QuickTile from "../../../src/components/quick/QuickTile";
 
+// The "coming-soon" variant (subdued tile + amber badge) was removed in the
+// never-promise sweep (docs/plans/remove-app-promise-strings.md) — every tile
+// is live and navigates. Tests for that variant were retired with it.
+
 describe("QuickTile", () => {
   test("renders title and description", () => {
     render(
@@ -19,7 +23,7 @@ describe("QuickTile", () => {
     expect(screen.getByText("Analyse a plant from a photo")).toBeTruthy();
   });
 
-  test("live variant — no 'Coming soon' badge, click fires handler", () => {
+  test("no 'Coming soon' badge is ever rendered, click fires handler", () => {
     const onClick = vi.fn();
     render(
       React.createElement(QuickTile, {
@@ -32,38 +36,6 @@ describe("QuickTile", () => {
     );
     expect(screen.queryByTestId("quick-tile-lens-coming-soon")).toBeNull();
     fireEvent.click(screen.getByTestId("quick-tile-lens"));
-    expect(onClick).toHaveBeenCalledTimes(1);
-  });
-
-  test("coming-soon variant shows the badge", () => {
-    render(
-      React.createElement(QuickTile, {
-        icon: React.createElement("span", null, "📅"),
-        title: "Today",
-        description: "Tasks and rain forecast",
-        testId: "quick-tile-calendar",
-        variant: "coming-soon",
-        onClick: () => {},
-      }),
-    );
-    const badge = screen.getByTestId("quick-tile-calendar-coming-soon");
-    expect(badge).toBeTruthy();
-    expect(badge.textContent).toContain("Coming soon");
-  });
-
-  test("coming-soon variant — click still fires handler so parent can toast", () => {
-    const onClick = vi.fn();
-    render(
-      React.createElement(QuickTile, {
-        icon: React.createElement("span", null, "📝"),
-        title: "Quick Capture",
-        description: "Snap and write a note",
-        testId: "quick-tile-journal",
-        variant: "coming-soon",
-        onClick,
-      }),
-    );
-    fireEvent.click(screen.getByTestId("quick-tile-journal"));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
@@ -117,21 +89,21 @@ describe("QuickTile", () => {
     expect(glow.className).toContain("rhozly-primary-container");
   });
 
-  test("coming-soon tiles have data-accent='disabled' and no glow", () => {
+  test("compact layout renders the launcher tile with its accent", () => {
     render(
       React.createElement(QuickTile, {
-        icon: React.createElement("span", null, "🧪"),
-        title: "Future",
-        description: "Not ready yet",
-        testId: "quick-tile-future",
-        variant: "coming-soon",
-        accent: "tertiary",
+        icon: React.createElement("span", null, "🩺"),
+        title: "Plant Lens",
+        description: "Identify and diagnose",
+        testId: "quick-tile-doctor",
+        accent: "green",
+        layout: "compact",
         onClick: () => {},
       }),
     );
-    expect(
-      screen.getByTestId("quick-tile-future").getAttribute("data-accent"),
-    ).toBe("disabled");
-    expect(screen.queryByTestId("quick-tile-future-glow")).toBeNull();
+    const tile = screen.getByTestId("quick-tile-doctor");
+    expect(tile.getAttribute("data-layout")).toBe("compact");
+    expect(tile.getAttribute("data-accent")).toBe("green");
+    expect(screen.queryByTestId("quick-tile-doctor-coming-soon")).toBeNull();
   });
 });
