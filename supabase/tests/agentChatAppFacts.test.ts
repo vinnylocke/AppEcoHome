@@ -46,3 +46,27 @@ Deno.test("app facts — frost automation triggers vs native alerts distinction 
 Deno.test("app facts — never-guess instruction bookends the list", () => {
   assert(/never guess in either direction/i.test(FACTS), "must forbid guessing about capabilities");
 });
+
+// ── Deep-audit corrections (docs/plans/… round 9; 6-agent verification pass) ──
+
+Deno.test("app facts — weather effect on tasks is stated precisely (no 'reshapes timing')", () => {
+  assert(/auto-complete watering tasks/i.test(FACTS), "rain auto-complete must be stated");
+  assert(/does NOT reschedule task due dates/i.test(FACTS), "the reschedule overclaim must be banned");
+  assert(!/reshapes timing/i.test(FACTS), "the old 'reshapes timing' phrasing must be gone");
+});
+
+Deno.test("app facts — plans do not auto-build shopping lists", () => {
+  assert(/adding a plan'?s needs to a list is currently a manual step/i.test(FACTS), "manual plan→list step must be stated");
+  assert(/don'?t claim plans auto-build shopping lists/i.test(FACTS), "the auto-build overclaim must be banned");
+  assert(!/with linked shopping lists/i.test(FACTS), "the old 'linked shopping lists' phrasing must be gone");
+});
+
+Deno.test("app facts — area conditions are the real fields (no soil type/notes)", () => {
+  assert(/growing medium & texture/i.test(FACTS), "growing medium/texture must be stated");
+  assert(!/soil type\/notes/i.test(FACTS), "the nonexistent soil type/notes field must be gone");
+});
+
+Deno.test("app facts — Contact Support path is the avatar menu Help section", () => {
+  assert(/avatar menu \(top right\) under Help → Contact Support/i.test(FACTS), "correct support path must be stated");
+  assert(!/Account menu → Contact Support/i.test(FACTS), "the wrong Account-menu path must be gone");
+});
