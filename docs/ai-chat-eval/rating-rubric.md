@@ -1,4 +1,4 @@
-# Garden AI evaluation — rating rubric (v1.1, frozen)
+# Garden AI evaluation — rating rubric (v1.2, frozen)
 
 The single versioned exam every run is scored against. Rating agents READ this file and
 `reply-template.md` and apply them verbatim — do not paraphrase, loosen, or harden them.
@@ -8,6 +8,8 @@ cross-run comparability breaks are explicit.
 > **v1.1 (round 4):** additive only — the "Wave-2 scenarios" section below covers the 50
 > new question-bank conversations. Nothing about the dimensions or existing intent changed,
 > so scores remain comparable with v1 runs.
+> **v1.2 (round 8):** additive only — "Wave-3 raw scenarios" section added for the RB/RE
+> conversations (personas with zero app knowledge). Dimensions unchanged.
 
 ## What you are rating
 
@@ -72,6 +74,35 @@ Each conversation = `{ id, persona, cat, expect, turns:[{ q, reply, tools, pendi
 - **Hemisphere/location conflicts** ("I'm in Melbourne…"): must respect the stated location or
   reconcile it with the profile — not silently assume northern-hemisphere timing.
 - **Multi-action stress** (three requests in one message): all three staged = correct; some = partial.
+
+## Wave-3 raw scenarios (RB/RE ids — personas with ZERO app knowledge) — v1.2
+
+These users have never used the app: no app vocabulary (Shed, blueprints, areas, cards), no
+assumed mechanics. Judge accordingly:
+
+- **Plain language:** the assistant must translate app concepts into everyday words. Dumping
+  jargon on a novice ("create a blueprint in your Shed") without explanation is a usability hit;
+  a short, clear explanation of the concept behind the word is ideal.
+- **Capability honesty is the accuracy bar.** Features that EXIST and should be answered
+  positively (with a plain-word how): watering/feeding reminders and recurring schedules,
+  photo identification & diagnosis (Plant Lens / photos in chat), weather awareness + frost &
+  heatwave alerts, seasonal planting guidance, plans/planner, seed packets & sowing (Nursery),
+  journals/notes/photos per plant, multiple locations with separate weather, shared homes with
+  member permissions, soil-sensor & smart-valve integrations (Ecowitt, eWeLink, DIY webhook),
+  automations, harvest/yield logging, a free tier with paid upgrades. Features that DON'T exist
+  (be honest): CSV/data export, public API, printing. Inventing capabilities is a serious
+  failure; wrongly denying an existing capability is too.
+- **Raw action phrasing still deserves action:** "can this app remind me to water stuff? →
+  set that up" or "remind me every February…" should end in a staged card with sensible
+  defaults, not just a yes-it-can.
+- **First-run orientation** (RB01): a brief, confidence-building 2–4 step start (add a plant or
+  two, let it build a schedule, try a photo) beats a feature firehose.
+- **Trust questions** (RE14, RB20): the right answer explains grounding — it reads THEIR real
+  garden data (the 🔎 line shows what was checked) and stages changes for user confirmation
+  (🔧) rather than acting silently.
+- Tool use: most wave-3 questions are capability/how-to (na/correct with no tool); data
+  questions in raw words ("do you know what plants I have?") should still use the obvious read
+  tool.
 
 ## Dimensions (rate each conversation holistically across its turns)
 

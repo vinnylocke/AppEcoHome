@@ -138,10 +138,69 @@ export const EXP2 = [
   { id: "E49", cat: "Challenge handling", expect: [], turns: ["When should I prune my lavender?", "Are you sure? I read you should never cut into old wood in autumn."] },
 ];
 
+// ─── Wave 3 (round 8) — RAW questions, zero app knowledge ───────────────────
+// Both personas as if they've never used the app: no app vocabulary (Shed,
+// blueprints, areas, cards), no assumed mechanics. Probes plain-language
+// concept translation, honest capability answers ("can it…?"), first-run
+// orientation, offline/privacy/data honesty, and raw action requests.
+// First run: OS 35.0017 — wave-3 ids have no earlier-run comparisons.
+
+export const RAW_NEW = [
+  { id: "RB01", cat: "First open", expect: [], turns: ["I just downloaded this app, what do I do first?"] },
+  { id: "RB02", cat: "Adding plants (raw)", expect: [], turns: ["How do I put my plants into the app?", "I don't know what my plant is called though."] },
+  { id: "RB03", cat: "Reminders (raw ask)", expect: ["create_blueprint", "list_plants"], turns: ["Can this app remind me when to water stuff?", "Ok can you set that up for my plants?"] },
+  { id: "RB04", cat: "Pricing honesty", expect: [], turns: ["Is this app free or do I have to pay for things?"] },
+  { id: "RB05", cat: "Weather awareness", expect: ["get_weather_now"], turns: ["Does the app know what the weather is like where I live?"] },
+  { id: "RB06", cat: "Photo ID (raw)", expect: [], turns: ["Can I take a picture of a plant and find out what it is?"] },
+  { id: "RB07", cat: "Find my plants", expect: [], turns: ["Where do I see all the plants I've added?"] },
+  { id: "RB08", cat: "Concept confusion", expect: [], turns: ["What's the difference between a location and an area? I'm confused."] },
+  { id: "RB09", cat: "Overdue confusion", expect: ["get_overdue_summary", "list_tasks"], turns: ["The app says I have 6 overdue tasks, what does that mean and what do I do?"] },
+  { id: "RB10", cat: "Data awareness", expect: ["list_plants"], turns: ["Do you know what plants I have?"] },
+  { id: "RB11", cat: "Houseplants scope", expect: [], turns: ["Can I use this app for my houseplants or is it just for gardens?"] },
+  { id: "RB12", cat: "Undo a mistake", expect: [], turns: ["How do I delete a plant I added by mistake?"] },
+  { id: "RB13", cat: "Offline honesty", expect: [], turns: ["Will the app work when I'm out in the garden with no signal?"] },
+  { id: "RB14", cat: "Location privacy", expect: [], turns: ["Why does the app want my location?"] },
+  { id: "RB15", cat: "Sharing (raw)", expect: [], turns: ["Can my husband use the app too so we both see the same garden?"] },
+  { id: "RB16", cat: "Watchlist (raw)", expect: [], turns: ["What is the watchlist thing for?"] },
+  { id: "RB17", cat: "When to plant", expect: [], turns: ["Can the app tell me when to plant vegetables?"] },
+  { id: "RB18", cat: "Seeds (raw)", expect: ["add_seed_packet"], turns: ["I bought some seeds, does the app do anything with seeds?"] },
+  { id: "RB19", cat: "Notification fatigue", expect: [], turns: ["How do I stop the app sending me so many notifications?"] },
+  { id: "RB20", cat: "Trust the AI", expect: [], turns: ["If I tell you my plant looks ill can you actually help or do I need a real gardener?"] },
+  { id: "RB21", cat: "Self-awareness", expect: [], turns: ["What's the green chat button for?"] },
+  { id: "RB22", cat: "Automation (raw)", expect: [], turns: ["Can you do anything automatically or do I have to do everything myself?"] },
+];
+
+export const RAW_EXP = [
+  { id: "RE01", cat: "Journal replacement", expect: [], turns: ["I've kept a paper gardening journal for 20 years. Can this app replace it?"] },
+  { id: "RE02", cat: "Bulk entry honesty", expect: [], turns: ["I have about 80 plants. Do I have to type them all in one by one?"] },
+  { id: "RE03", cat: "Rotation knowledge", expect: [], turns: ["Does this app understand crop rotation?"] },
+  { id: "RE04", cat: "Winter planning (raw)", expect: ["create_plan"], turns: ["Can I plan next spring's beds in this app over the winter?"] },
+  { id: "RE05", cat: "Advice off, records on", expect: [], turns: ["I already know when to water everything — can I turn off the app's advice and just use it as a record?"] },
+  { id: "RE06", cat: "Timer or thinking?", expect: [], turns: ["How does the app decide when to tell me to water? Is it just a timer or does it actually think?"] },
+  { id: "RE07", cat: "Greenhouse zones", expect: [], turns: ["I run a greenhouse with heaters. Can the app track inside and outside conditions separately?"] },
+  { id: "RE08", cat: "Soil profile", expect: [], turns: ["My soil is heavy clay over chalk. Can I tell the app that so its advice fits?"] },
+  { id: "RE09", cat: "Sensor compatibility", expect: [], turns: ["What soil sensors does this actually work with? I'm not buying junk."] },
+  { id: "RE10", cat: "Print/export honesty", expect: [], turns: ["Can I get my planting calendar out of the app and print it?"] },
+  { id: "RE11", cat: "Succession (raw)", expect: ["create_blueprint"], turns: ["I sow successionally every fortnight through spring. Can the app handle that or will it fight me?", "Set one up for lettuce then."] },
+  { id: "RE12", cat: "Data ownership", expect: [], turns: ["Who owns the data I put in? Can I get it out again if I quit?"] },
+  { id: "RE13", cat: "Frost dates", expect: ["get_weather_now"], turns: ["Does the app know my frost dates or do I need to tell it?"] },
+  { id: "RE14", cat: "AI trust / grounding", expect: [], turns: ["I don't want AI making things up about my garden. How do I know what it tells me is real?"] },
+  { id: "RE15", cat: "Frost warning (raw)", expect: [], turns: ["Can it warn me before a frost so I can protect the dahlias?"] },
+  { id: "RE16", cat: "Holiday month", expect: [], turns: ["What happens to all my tasks if I go on holiday for a month?"] },
+  { id: "RE17", cat: "Per-tree history", expect: [], turns: ["I graft fruit trees. Is there anywhere to keep notes and photos per tree over the years?"] },
+  { id: "RE18", cat: "Data provenance", expect: [], turns: ["Is the plant information in here actually reliable? Where does it come from?"] },
+  { id: "RE19", cat: "Two sites", expect: [], turns: ["My allotment is 10 minutes from home — different weather. Can the app cope with two sites?"] },
+  { id: "RE20", cat: "Yearly reminder (raw)", expect: ["create_blueprint"], turns: ["Remind me every year in February to chit my potatoes."] },
+  { id: "RE21", cat: "Harvest history", expect: [], turns: ["Can I see everything I harvested this year in one place?"] },
+  { id: "RE22", cat: "The sceptic", expect: [], turns: ["I'm sceptical of apps. Give me one genuinely good reason to use this instead of my notebook."] },
+];
+
 /** Combined bank with persona attached. Extend by adding to the arrays above. */
 export const CONVERSATIONS = [
   ...NEW.map((c) => ({ ...c, persona: "New / Beginner" })),
   ...NEW2.map((c) => ({ ...c, persona: "New / Beginner" })),
+  ...RAW_NEW.map((c) => ({ ...c, persona: "New / Beginner" })),
   ...EXP.map((c) => ({ ...c, persona: "Experienced" })),
   ...EXP2.map((c) => ({ ...c, persona: "Experienced" })),
+  ...RAW_EXP.map((c) => ({ ...c, persona: "Experienced" })),
 ];
