@@ -36,6 +36,30 @@ const nl2br = (s) => esc(s).replace(/\n/g, "<br>");
 const avg = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
 const nums = (arr, f) => arr.map(f).filter((n) => typeof n === "number");
 
+// ── Reply template (canonical: reply-template.md — the consistency rubric) ───
+// Tiny markdown→HTML for that one known file (headings, bold, bullets, hr).
+function templatePanel() {
+  let md;
+  try { md = readFileSync(resolve(HERE, "reply-template.md"), "utf8"); } catch { return ""; }
+  const inline = (s) => esc(s).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>");
+  const lines = md.split(/\r?\n/);
+  let html = "", inList = false;
+  for (const line of lines) {
+    if (/^#\s/.test(line)) continue;                       // page h1 → panel has its own heading
+    if (/^###\s/.test(line)) { if (inList) { html += "</ul>"; inList = false; } html += `<h3 style="font-size:13px;margin:14px 0 4px">${inline(line.replace(/^###\s/, ""))}</h3>`; continue; }
+    if (/^---/.test(line)) { if (inList) { html += "</ul>"; inList = false; } html += `<div style="height:1px;background:var(--outline);margin:12px 0"></div>`; continue; }
+    if (/^-\s/.test(line)) { if (!inList) { html += `<ul style="margin:4px 0 8px 18px;font-size:12px;line-height:1.65">`; inList = true; } html += `<li>${inline(line.replace(/^-\s/, ""))}</li>`; continue; }
+    if (inList) { html += "</ul>"; inList = false; }
+    if (line.trim()) html += `<p style="font-size:12px;line-height:1.6;margin:6px 0">${inline(line)}</p>`;
+  }
+  if (inList) html += "</ul>";
+  return `<div class="panel">
+    <div class="eyebrow">The Rhozly reply template — what "consistency" is judged against</div>
+    <p class="meta" style="margin:6px 0 8px">Baked into the assistant's system prompt (<span class="mono">agent-chat/rules.ts</span>); canonical copy in <span class="mono">reply-template.md</span>.</p>
+    ${html}
+  </div>`;
+}
+
 // ── Load runs ────────────────────────────────────────────────────────────────
 let runFiles = [];
 try { runFiles = readdirSync(RUNS).filter((f) => f.endsWith(".json")); } catch { runFiles = []; }
@@ -185,6 +209,8 @@ const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>
     <div class="kpi"><div class="n">${cur.a.verdicts.correct||0}/${cur.a.rated}</div><div class="l">Tool use correct</div></div>
   </div>
 </div>
+
+${templatePanel()}
 
 <div class="panel">
   <div class="eyebrow">Run history</div>

@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Garden AI improvements",
+    "items": [
+      "Every answer now follows a clear, consistent layout — the direct answer first, labelled bullet points for detail, then what was checked (🔎), what's ready to confirm (🔧) and one suggested next step (→).",
+      "Ask it to set something up and it fills in sensible defaults from your garden instead of quizzing you, chains multi-step requests properly, and refining a pending action ('actually only the greenhouse ones') just works.",
+      "Sensor questions now quote your actual soil readings, and staged actions always explain themselves — no more bare \"I need a quick confirmation\" replies or broken confirmation cards."
+    ]
+  }
+]

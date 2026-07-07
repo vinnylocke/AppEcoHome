@@ -352,8 +352,21 @@ async function handleSendMessage(
       try {
         previewText = await mutation.preview({ db, userId, homeId }, call.args);
       } catch (err: any) {
+        // A failed preview almost always means bad args (typically a guessed
+        // id — "Automation not found"). Don't stage a broken card the user
+        // could confirm into a no-op: feed the failure back to the model as a
+        // tool error so the agent loop can self-correct (look the id up via
+        // the matching list_* tool) or explain what's missing.
         warn(FN, "preview_failed", { tool: call.name, error: err.message });
-        previewText = `Run ${call.name} (preview unavailable: ${err.message})`;
+        toolResponseParts.push({
+          functionResponse: {
+            name: call.name,
+            response: {
+              error: `Cannot stage ${call.name}: ${err.message} Resolve the correct id via the matching list_* tool and retry, or tell the user what doesn't exist.`,
+            },
+          },
+        });
+        continue;
       }
 
       const { data: callRow, error: insertErr } = await db
@@ -391,9 +404,22 @@ async function handleSendMessage(
     }
 
     // If any tool was deferred for confirmation, break the loop here.
-    // The model's text reply (if any) is what we return to the user.
+    // The model's text reply (if any) is what we return to the user. When the
+    // model staged cards without any text (common), compose an informative
+    // reply from the previews instead of a bare canned sentence — the reply
+    // template requires every staged turn to say WHAT is ready to confirm.
     if (anyDeferred) {
-      finalReply = resp.text ?? "I need a quick confirmation before I make those changes.";
+      if (resp.text?.trim()) {
+        finalReply = resp.text;
+      } else {
+        const staged = pendingToolCalls
+          .map((p) => (p.preview ?? "").replace(/\s+/g, " ").trim())
+          .filter(Boolean)
+          .map((s) => (s.length > 140 ? `${s.slice(0, 137)}…` : s));
+        finalReply = staged.length
+          ? `🔧 Ready to confirm: ${staged.join(" · ")}\n\nReview the card${staged.length > 1 ? "s" : ""} below and tap Confirm to apply.`
+          : "I need a quick confirmation before I make those changes.";
+      }
       break;
     }
   }

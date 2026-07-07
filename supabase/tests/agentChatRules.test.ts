@@ -58,7 +58,40 @@ Deno.test("agent rules — don't over-act (no unrequested mutation cards)", () =
   assert(/did NOT request/i.test(RULES) || /unrequested confirm card/i.test(RULES), "must forbid unrequested mutations");
 });
 
-Deno.test("agent rules — a consistent house answer format is specified", () => {
-  assert(/ANSWER FORMAT/i.test(RULES), "missing the answer-format rule");
-  assert(/bottom-line/i.test(RULES) && /bullet/i.test(RULES), "format rule must define bottom-line-first + bullets");
+Deno.test("agent rules — the Rhozly reply template is specified with its fixed markers", () => {
+  assert(/REPLY TEMPLATE/i.test(RULES), "missing the reply-template rule");
+  assert(/BOTTOM LINE/i.test(RULES) && /DETAIL BULLETS/i.test(RULES), "template must define bottom-line + bullets");
+  assert(RULES.includes("🔎 Checked:"), "template must define the 🔎 garden line");
+  assert(RULES.includes("🔧 Ready to confirm:"), "template must define the 🔧 action line");
+  assert(/NEXT STEP/i.test(RULES) && RULES.includes("→"), "template must define the single → next step");
+  assert(/NEVER reply with only "I need a quick confirmation"/i.test(RULES), "bare confirmation-only replies must be banned");
+});
+
+// ── Round 2 (post-fix eval, docs/plans/garden-ai-eval-round2-template-and-fixes.md) ──
+
+Deno.test("agent rules — defaults, not interrogation (resolve place + sensible cadence, stage editable card)", () => {
+  assert(/DEFAULTS, NOT INTERROGATION/i.test(RULES), "missing the defaults rule");
+  assert(/AT MOST one clarifying question/i.test(RULES), "must cap clarifying questions at one");
+});
+
+Deno.test("agent rules — never stage a guessed id", () => {
+  assert(/NEVER stage a mutation with a guessed or made-up id/i.test(RULES), "must forbid staging invented ids");
+  assert(/MUST come from a list_\*\/search result/i.test(RULES), "ids must come from earlier lookups");
+});
+
+Deno.test("agent rules — dependent-action chains are staged across turns, never dead-ended", () => {
+  assert(/DEPENDENT ACTIONS/i.test(RULES), "missing the dependent-actions rule");
+  assert(/NEVER tell the user something they just asked you to create "doesn't exist"/i.test(RULES), "must ban the 'doesn't exist' dead-end");
+});
+
+Deno.test("agent rules — refinements of a staged action are re-staged immediately", () => {
+  assert(/REFINEMENTS/i.test(RULES), "missing the refinements rule");
+  assert(/Never answer a refinement with "could you rephrase"/i.test(RULES), "must ban the rephrase fallback for refinements");
+});
+
+Deno.test("agent rules — attention/optimise/sensor questions route to the right tools", () => {
+  assert(/ATTENTION QUESTIONS/i.test(RULES) && /get_overdue_summary/.test(RULES), "attention → get_overdue_summary");
+  assert(/OPTIMISE REQUESTS/i.test(RULES) && /optimise_area_schedule/.test(RULES), "optimise → optimise_area_schedule");
+  assert(/SENSOR QUESTIONS/i.test(RULES) && /latest reading/i.test(RULES), "sensors → list_devices latest readings");
+  assert(/TOOL HYGIENE/i.test(RULES), "must forbid search_plant_database for general-knowledge facts");
 });

@@ -534,9 +534,28 @@ export async function exec_list_devices(
   if (args.area_id) q = q.eq("area_id", args.area_id);
   const { data, error } = await q;
   if (error) throw error;
+
+  // Attach each device's newest reading (soil sensors: soil_moisture /
+  // soil_temp / soil_ec; valves: state) so the assistant can quote live values
+  // instead of claiming it has no sensor access. Homes have a handful of
+  // devices at most, so per-device lookups are fine.
+  const devices = await Promise.all((data ?? []).map(async (d: Record<string, unknown>) => {
+    const { data: r } = await ctx.db
+      .from("device_readings")
+      .select("recorded_at, data")
+      .eq("device_id", d.id)
+      .order("recorded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return r
+      ? { ...d, latest_reading: r.data, reading_recorded_at: r.recorded_at }
+      : { ...d, latest_reading: null, reading_recorded_at: null };
+  }));
+
+  const withReading = devices.filter((d) => d.latest_reading).length;
   return {
-    payload: data ?? [],
-    summary: `Found ${data?.length ?? 0} device${data?.length === 1 ? "" : "s"} (valves + sensors).`,
+    payload: devices,
+    summary: `Found ${devices.length} device${devices.length === 1 ? "" : "s"} (valves + sensors), ${withReading} with a latest reading attached.`,
   };
 }
 
