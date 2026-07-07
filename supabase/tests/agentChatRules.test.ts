@@ -127,3 +127,19 @@ Deno.test("agent rules — the SHED is the source of truth for ownership", () =>
   assert(/SOURCE OF TRUTH for what they own/i.test(RULES), "shed-ownership truth clause missing");
   assert(/never claim a plant "isn't in your Shed" based on a catalogue search miss/i.test(RULES), "catalogue-miss inference must be banned");
 });
+
+// ── Round 6 (docs/plans/garden-ai-eval-round6-mechanical-template.md) ──
+
+Deno.test("agent rules — the app writes the 🔎 line; the model is told not to", () => {
+  assert(/app appends `🔎 Checked:/i.test(RULES), "must state the app appends the 🔎 line");
+  assert(/do NOT write a 🔎 line yourself/i.test(RULES), "model must be told not to write 🔎");
+});
+
+Deno.test("agent rules — prose completion claims are banned alongside phantom 🔧", () => {
+  assert(/never claim in prose that you've set something up/i.test(RULES), "prose-claim ban missing");
+});
+
+Deno.test("agent rules — a worked template example is included", () => {
+  assert(/TEMPLATE EXAMPLE/i.test(RULES), "missing the worked example");
+  assert(/\*\*When:\*\*/.test(RULES) && /→ Want me to add a pruning reminder/i.test(RULES), "example must demonstrate bullets + →");
+});

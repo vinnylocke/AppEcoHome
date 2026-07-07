@@ -45,6 +45,7 @@ const ALL_MUTATION_EXECUTORS = {
 };
 import { buildHomeContext, invalidateContext } from "./context.ts";
 import { isActionExplicit } from "./actionIntent.ts";
+import { normaliseReplyMarkers } from "./replyMarkers.ts";
 
 const FN = "agent-chat";
 
@@ -442,22 +443,14 @@ async function handleSendMessage(
     }
 
     // If any tool was deferred for confirmation, break the loop here.
-    // The model's text reply (if any) is what we return to the user. When the
-    // model staged cards without any text (common), compose an informative
-    // reply from the previews instead of a bare canned sentence — the reply
-    // template requires every staged turn to say WHAT is ready to confirm.
+    // The model's text reply (if any) is what we return to the user; when the
+    // model staged cards without any text (common), a template-compliant
+    // bottom line stands in — the 🔧 line itself is appended deterministically
+    // by normaliseReplyMarkers below.
     if (anyDeferred) {
-      if (resp.text?.trim()) {
-        finalReply = resp.text;
-      } else {
-        const staged = pendingToolCalls
-          .map((p) => (p.preview ?? "").replace(/\s+/g, " ").trim())
-          .filter(Boolean)
-          .map((s) => (s.length > 140 ? `${s.slice(0, 137)}…` : s));
-        finalReply = staged.length
-          ? `🔧 Ready to confirm: ${staged.join(" · ")}\n\nReview the card${staged.length > 1 ? "s" : ""} below and tap Confirm to apply.`
-          : "I need a quick confirmation before I make those changes.";
-      }
+      finalReply = resp.text?.trim()
+        ? resp.text
+        : "I've prepared that for you — review the card below and tap Confirm to apply.";
       break;
     }
   }
@@ -484,22 +477,20 @@ async function handleSendMessage(
     }
   }
 
-  // Phantom-🔧 guard: the reply may only claim an action is staged when a
-  // confirm card actually exists this turn. The model occasionally imitates
-  // the template's "🔧 Ready to confirm" line without calling the tool —
-  // strip such lines so the user is never told something is queued when
-  // nothing is (docs/plans/garden-ai-eval-round3-phantom-guard-and-rubric.md).
-  if (pendingToolCalls.length === 0 && finalReply.includes("🔧")) {
-    warn(FN, "phantom_action_line_stripped", { userId });
-    finalReply = finalReply
-      .split("\n")
-      .filter((line) => !line.includes("🔧"))
-      .join("\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-    if (!finalReply) {
-      finalReply = "I haven't staged anything yet — tell me to go ahead and I'll set it up for you to confirm.";
-    }
+  // Deterministic template markers (round 6 — docs/plans/garden-ai-eval-
+  // round6-mechanical-template.md): the server writes the `🔎 Checked:` line
+  // from the read tools that actually ran, guarantees a truthful `🔧` line
+  // (model's own wording kept when present, composed from the card previews
+  // when omitted, stripped entirely when nothing is pending — the phantom
+  // guard), and keeps the tail order canonical (body → 🔎 → 🔧 → →).
+  const normalised = normaliseReplyMarkers(finalReply, {
+    readTools: toolResults.map((t) => t.tool),
+    pendingPreviews: pendingToolCalls.map((p) => p.preview ?? ""),
+  });
+  if (normalised.phantomStripped) warn(FN, "phantom_action_line_stripped", { userId });
+  finalReply = normalised.reply;
+  if (!finalReply) {
+    finalReply = "I haven't staged anything yet — tell me to go ahead and I'll set it up for you to confirm.";
   }
 
   // Plants the model asked to SHOW (via show_plant_images) → rendered as
