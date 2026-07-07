@@ -36,7 +36,16 @@ Deno.test("app facts — the sensor integration list is closed", () => {
 
 Deno.test("app facts — non-features are honestly listed", () => {
   assert(/NOT AVAILABLE/i.test(FACTS), "missing the not-available section");
-  assert(/CSV\/data export, a public API, and printing do(n'?t| not) exist/i.test(FACTS), "export/API/printing must be denied (RE10/RE12/E34/E43)");
+  assert(/CSV export, a public API, and printing do(n'?t| not) exist/i.test(FACTS), "CSV/API/printing must be denied (RE10/E34/E43)");
+});
+
+Deno.test("app facts — the GDPR JSON export is affirmed (round-11 correction: it EXISTS)", () => {
+  // Batch-L rater caught the drift: docs/app-reference/06-account/07-data-export.md +
+  // supabase/functions/export-user-data ship a real "Download my data" JSON export.
+  // The old blanket "CSV/data export does not exist" denial was misinformation.
+  assert(/full JSON export/i.test(FACTS) && /"Download my data"/i.test(FACTS), "the JSON export must be affirmed");
+  assert(/Account Settings \(GDPR export\)/i.test(FACTS), "its location must be stated");
+  assert(!/CSV\/data export, a public API, and printing do(n'?t| not) exist/i.test(FACTS), "the old blanket export denial must be gone");
 });
 
 Deno.test("app facts — frost automation triggers vs native alerts distinction is kept", () => {

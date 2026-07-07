@@ -1,4 +1,4 @@
-# Garden AI evaluation — rating rubric (v1.4, frozen)
+# Garden AI evaluation — rating rubric (v1.5, frozen)
 
 The single versioned exam every run is scored against. Rating agents READ this file and
 `reply-template.md` and apply them verbatim — do not paraphrase, loosen, or harden them.
@@ -23,6 +23,13 @@ cross-run comparability breaks are explicit.
 > appFacts audit). A reply stating this is CORRECT; RE06's run-35.0022 rating was initially
 > docked for it and was corrected before the merge. Also reaffirmed: announce-after-confirm
 > for dependent actions (E11-style) remains correct behaviour, not a miss.
+> **v1.5 (correction, round 11 — rater-caught drift):** a full-account **JSON data export
+> EXISTS** — the GDPR "Download my data" button in Account Settings calls the
+> `export-user-data` edge function (docs/app-reference/06-account/07-data-export.md). The
+> earlier "CSV/data export does not exist" truth was too broad: **CSV export, printing and a
+> public API still don't exist**, but flatly denying any data export (RE12/RE01-style) is a
+> wrong-denial accuracy failure. RE12/RE01 in run-35.0023 were graded against the stale truth
+> — read those two ratings with that caveat.
 
 ## What you are rating
 
