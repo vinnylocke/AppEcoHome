@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Garden AI improvements",
-    "items": [
-      "Corrected the assistant's knowledge on two points: weather is tracked per home (a second site with different weather works best as its own home), and it now correctly explains where Rhozly's plant information comes from."
-    ]
-  }
-]
+[]
