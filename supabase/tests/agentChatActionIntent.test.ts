@@ -1,5 +1,5 @@
 import { assert } from "@std/assert";
-import { isActionExplicit } from "../functions/agent-chat/actionIntent.ts";
+import { isActionExplicit, claimsUserData } from "../functions/agent-chat/actionIntent.ts";
 
 // The predicate behind the forced tool-choice retry. Fixtures are the REAL
 // question-bank phrasings (docs/ai-chat-eval/question-bank.mjs): the stuck
@@ -68,4 +68,27 @@ Deno.test("actionIntent — empty/gibberish is not action-explicit", () => {
   assert(!isActionExplicit("", []));
   assert(!isActionExplicit("???", []));
   assert(!isActionExplicit("thanks, you've been really helpful!", []));
+});
+
+// ── claimsUserData (round 9 — ungrounded data-claim guard) ──────────────────
+
+Deno.test("claimsUserData — the wave-3 fabrications are detected", () => {
+  for (const s of [
+    "Your Watchlist is currently empty, so there's nothing to track.",           // RB16
+    "You have no planting tasks scheduled at the moment.",                       // RE10
+    "You don't have any seed packets in the Nursery yet.",
+    "There are no automations in your home right now.",
+    "I can't see any sensors in your garden.",
+    "Nothing is scheduled for you this week.",
+  ]) assert(claimsUserData(s), `should detect: ${s}`);
+});
+
+Deno.test("claimsUserData — knowledge answers and grounded phrasing are NOT flagged", () => {
+  for (const s of [
+    "Blueberries like acidic soil around pH 4.5–5.5.",
+    "Lavender is best pruned in late summer, right after flowering.",
+    "A heatwave is forecast, so your outdoor plants will need extra water.",
+    "If your watering can is empty, refill it before feeding.",
+    "",
+  ]) assert(!claimsUserData(s), `should NOT detect: ${s}`);
 });

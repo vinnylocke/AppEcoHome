@@ -139,6 +139,11 @@ Deno.test("agent rules — prose completion claims are banned alongside phantom 
   assert(/never claim in prose that you've set something up/i.test(RULES), "prose-claim ban missing");
 });
 
+Deno.test("agent rules — data facts require a tool call behind them (round 9)", () => {
+  assert(/NEVER CLAIM THEIR DATA UNREAD/i.test(RULES), "missing the grounding rule");
+  assert(/without a tool call behind it THIS turn/i.test(RULES), "must require same-turn grounding");
+});
+
 Deno.test("agent rules — a worked template example is included", () => {
   assert(/TEMPLATE EXAMPLE/i.test(RULES), "missing the worked example");
   assert(/\*\*When:\*\*/.test(RULES) && /→ Want me to add a pruning reminder/i.test(RULES), "example must demonstrate bullets + →");

@@ -44,7 +44,7 @@ const ALL_MUTATION_EXECUTORS = {
   ...GAP_EXECUTORS,
 };
 import { buildHomeContext, invalidateContext } from "./context.ts";
-import { isActionExplicit } from "./actionIntent.ts";
+import { isActionExplicit, claimsUserData } from "./actionIntent.ts";
 import { normaliseReplyMarkers } from "./replyMarkers.ts";
 import { modelsForTier } from "./chatModels.ts";
 
@@ -297,23 +297,33 @@ async function handleSendMessage(
     });
     totalTokensSpent += resp.usage.totalTokenCount;
 
+    // Two once-per-send forced-retry triggers, same machinery:
+    //  (a) action-explicit request finishing in prose with nothing staged;
+    //  (b) round 9 — a reply that CLAIMS facts about the user's data ("your
+    //      watchlist is empty") when ZERO read tools ran this turn. Ground it.
+    const aboutToFinishProse = !resp.functionCalls || resp.functionCalls.length === 0;
+    const ungroundedClaim =
+      aboutToFinishProse && toolResults.length === 0 && claimsUserData(resp.text ?? "");
     if (
       !forcedRetryUsed &&
-      actionExplicit &&
+      aboutToFinishProse &&
       pendingToolCalls.length === 0 &&
-      (!resp.functionCalls || resp.functionCalls.length === 0)
+      (actionExplicit || ungroundedClaim)
     ) {
       forcedRetryUsed = true;
-      log(FN, "forced_action_retry", { userId, round });
-      const forced = await callGeminiWithTools(apiKey, FN, messages, tools, {
-        models: chatModels,
-        systemPrompt:
-          `${fullPrompt}\n\nThe user's message asks you to ACT and nothing is staged yet. You MUST call the single most appropriate tool now — ` +
+      log(FN, actionExplicit ? "forced_action_retry" : "forced_grounding_retry", { userId, round });
+      const nudge = actionExplicit
+        ? `The user's message asks you to ACT and nothing is staged yet. You MUST call the single most appropriate tool now — ` +
           `if you already gathered the data you need (ids from list_* results above), stage the action itself with those ids; ` +
           `otherwise a list_* lookup first. ` +
-          `If the request is dangerously broad or ambiguous, call a read tool (list_*) to survey scope instead of staging a destructive change.`,
+          `If the request is dangerously broad or ambiguous, call a read tool (list_*) to survey scope instead of staging a destructive change.`
+        : `You were about to state facts about the user's garden data without having read anything this turn. ` +
+          `Call the appropriate read tool(s) now (list_* / get_*) to ground your answer in their real data before replying.`;
+      const forced = await callGeminiWithTools(apiKey, FN, messages, tools, {
+        models: chatModels,
+        systemPrompt: `${fullPrompt}\n\n${nudge}`,
         toolChoice: "ANY",
-        logContext: { round: "forced_action_retry", userId },
+        logContext: { round: "forced_retry", userId },
       });
       totalTokensSpent += forced.usage.totalTokenCount;
       if (forced.functionCalls && forced.functionCalls.length > 0) resp = forced;

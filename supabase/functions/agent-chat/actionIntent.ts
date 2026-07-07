@@ -51,6 +51,28 @@ export interface HistoryTurn {
   parts?: Array<{ text?: string }>;
 }
 
+// ── Ungrounded data-claim detection (round 9) ────────────────────────────────
+// Wave-3 showed the model asserting "your watchlist is empty" / "you have no
+// planting tasks" with ZERO tool calls behind it. When a reply matches these
+// patterns and no read tool ran this turn, agent-chat forces one retry with
+// tool calling ON so the claim gets grounded. Conservative on purpose: it only
+// fires when nothing was read, so a false positive costs one harmless lookup.
+const DATA_CLAIM_PATTERNS: RegExp[] = [
+  /\byour \w+( list)?( is| are)( currently)? empty\b/i,
+  /\byou (currently )?(have|'ve got) no\b/i,
+  /\byou don'?t (currently )?have any\b/i,
+  /\bthere (are|is) no(thing)? \w+ (in|on) your\b/i,
+  /\bI (can'?t|couldn'?t|don'?t) see any \w+ (in|on) your\b/i,
+  /\bnothing (is )?(scheduled|planned|overdue|logged) (for you|in your)\b/i,
+];
+
+/** True when reply text asserts facts about the user's data (empty lists, counts). */
+export function claimsUserData(reply: string): boolean {
+  const text = (reply ?? "").trim();
+  if (!text) return false;
+  return DATA_CLAIM_PATTERNS.some((re) => re.test(text));
+}
+
 /** True when `message` clearly asks the assistant to perform an action. */
 export function isActionExplicit(message: string, history: HistoryTurn[] = []): boolean {
   const msg = (message ?? "").trim();

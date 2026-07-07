@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 import { AGENT_RULES } from "./rules.ts";
+import { APP_FACTS } from "./appFacts.ts";
 
 interface CachedContext {
   prompt: string;
@@ -172,6 +173,8 @@ export async function buildHomeContext(
   lines.push("");
   lines.push("RULES:");
   lines.push(...AGENT_RULES);
+  lines.push("");
+  lines.push(...APP_FACTS);
 
   // Enrich with environment (location / climate / season / weather), gardener
   // preferences, and 30-day behaviour so the assistant is seasonal + personal,
