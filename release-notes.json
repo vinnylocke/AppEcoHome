@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Garden AI improvements",
-    "items": [
-      "The assistant can no longer tell you an action is ready to confirm unless it genuinely is — a new safeguard removes any misleading \"ready to confirm\" lines when nothing was actually staged.",
-      "Its instructions were streamlined so it acts more reliably: filling in sensible defaults instead of quizzing you, quoting your real sensor readings, and using your actual local climate for timing advice."
-    ]
-  }
-]
+[]
