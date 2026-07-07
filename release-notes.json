@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Garden AI improvements",
+    "items": [
+      "The assistant now follows through: after looking up your beds, devices or schedules it completes the action you asked for instead of stopping halfway, and it understands more phrasings like \"open the valve\" or \"change my alert to 25%\".",
+      "Answers stick to the question — no more surprise automation suggestions on a simple \"is that bad?\", and when it checks your sensors or schedules it quotes the actual values it found."
+    ]
+  }
+]

@@ -7,6 +7,11 @@ import { isActionExplicit } from "../functions/agent-chat/actionIntent.ts";
 // positive forces a tool call onto a knowledge answer = over-acting).
 
 const ACTION = [
+  // Wave-2 verbs (round 5)
+  "Open the Raised Bed A valve for 10 minutes.",                                      // E31
+  "Change my dry soil alert to trigger at 25% instead of 30%.",                       // E45
+  "Plan a winter brassica rotation for Raised Bed B and add whatever seeds I need to a shopping list.", // E35
+  "Turn off all my automations for the winter.",                                      // E29
   "Set up a watering schedule for my raised beds every 3 days.",                    // E02
   "For succession planting of lettuce, how often should I sow — and can you set that up?", // E14
   "My courgettes have powdery mildew. Add it to the watchlist and link it to them.", // E16
@@ -24,6 +29,12 @@ const ACTION = [
 ];
 
 const KNOWLEDGE = [
+  // Wave-2 over-use victims (round 5) — the model over-acted here; the DETECTOR must not force it
+  "Is monstera poisonous to cats?",                                          // N30
+  "My greenhouse hit 95 degrees today, is that bad?",                        // N33
+  "My soil EC is reading 2400 µS/cm in the veg bed — is that too high for lettuce?", // E33
+  "Should I water deeply twice a week or lightly every day? Justify it.",    // E46
+  "How do I turn on dark mode in the app?",                                  // N37 — app-settings, not a garden action
   "How often should I water a peace lily?",                       // N03
   "How do I know when my strawberries are ripe?",                 // N13
   "What's an easy houseplant that's really hard to kill?",        // N14

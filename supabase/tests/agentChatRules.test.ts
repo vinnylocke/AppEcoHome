@@ -110,3 +110,20 @@ Deno.test("agent rules — climate questions use location/weather context, never
 Deno.test("agent rules — never stage an empty-match bulk card", () => {
   assert(/Never stage a bulk card whose preview says nothing matches/i.test(RULES), "empty bulk cards banned");
 });
+
+// ── Round 5 (docs/plans/garden-ai-eval-round5-read-stall-and-overuse.md) ──
+
+Deno.test("agent rules — use what you read (payload must shape the reply; no needless tools)", () => {
+  assert(/USE WHAT YOU READ/i.test(RULES), "missing the use-what-you-read rule");
+  assert(/Never call a tool and then answer as if you hadn't/i.test(RULES), "must ban ignoring fetched payloads");
+  assert(/need NO tool at all/i.test(RULES), "must ban needless tool calls for pure knowledge");
+});
+
+Deno.test("agent rules — over-act examples cover the unrequested-automation case", () => {
+  assert(/NOT an unrequested heatwave automation/i.test(RULES), "N33-style unrequested automation must be named");
+});
+
+Deno.test("agent rules — the SHED is the source of truth for ownership", () => {
+  assert(/SOURCE OF TRUTH for what they own/i.test(RULES), "shed-ownership truth clause missing");
+  assert(/never claim a plant "isn't in your Shed" based on a catalogue search miss/i.test(RULES), "catalogue-miss inference must be banned");
+});

@@ -276,6 +276,12 @@ async function handleSendMessage(
     typeof message === "string" ? message : "",
     Array.isArray(history) ? history : [],
   );
+  // Once per send. Round 5 widened this beyond round 0: the residual stall
+  // shape was "run a list_* read, then finish in prose with nothing staged" —
+  // so the retry now fires whenever the model is about to end with prose while
+  // an action-explicit request has nothing pending. At that point the read
+  // results are already in `messages`, so the forced call stages with real ids.
+  let forcedRetryUsed = false;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     let resp = await callGeminiWithTools(apiKey, FN, messages, tools, {
@@ -286,15 +292,18 @@ async function handleSendMessage(
     totalTokensSpent += resp.usage.totalTokenCount;
 
     if (
-      round === 0 &&
+      !forcedRetryUsed &&
       actionExplicit &&
+      pendingToolCalls.length === 0 &&
       (!resp.functionCalls || resp.functionCalls.length === 0)
     ) {
-      log(FN, "forced_action_retry", { userId });
+      forcedRetryUsed = true;
+      log(FN, "forced_action_retry", { userId, round });
       const forced = await callGeminiWithTools(apiKey, FN, messages, tools, {
         systemPrompt:
-          `${fullPrompt}\n\nThe user's message asks you to ACT. You MUST call the single most appropriate tool now — ` +
-          `a list_* lookup first if you still need an id, otherwise stage the action itself. ` +
+          `${fullPrompt}\n\nThe user's message asks you to ACT and nothing is staged yet. You MUST call the single most appropriate tool now — ` +
+          `if you already gathered the data you need (ids from list_* results above), stage the action itself with those ids; ` +
+          `otherwise a list_* lookup first. ` +
           `If the request is dangerously broad or ambiguous, call a read tool (list_*) to survey scope instead of staging a destructive change.`,
         toolChoice: "ANY",
         logContext: { round: "forced_action_retry", userId },

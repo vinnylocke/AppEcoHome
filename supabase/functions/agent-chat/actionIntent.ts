@@ -30,9 +30,15 @@ const ACTION_PATTERNS: RegExp[] = [
   /\b(reschedule|postpone|snooze|move)\b[^.?!]{0,30}\b(task|tasks|schedule|watering|everything)\b/i,
   /\bwater\b[^.?!]{0,30}\b(now|right now|immediately)\b/i,
   /\brun\b[^.?!]{0,30}\bautomation\b/i,
-  /\bturn (on|off)\b/i,
+  // Constrained to garden hardware/automation objects — a bare "turn on" also
+  // matches app-settings questions ("turn on dark mode"), which must not force.
+  /\bturn (on|off)\b[^.?!]{0,40}\b(valve|automation|automations|watering|irrigation|device|sensor|alert)s?\b/i,
   /\bhelp me (stay on top|keep track|keep on top|remember)\b/i,
   /\blink (it|them|that|this)\b/i,
+  // Wave-2 verbs (round 5 — docs/plans/garden-ai-eval-round5-read-stall-and-overuse.md)
+  /\b(open|close|shut)\b[^.?!]{0,30}\bvalve\b/i,                                       // E31 "Open the Raised Bed A valve"
+  /\b(change|adjust|update|amend|edit)\b[^.?!]{0,40}\b(alert|automation|schedule|reminder|blueprint|threshold)\b/i, // E45
+  /^\s*plan\b[^.?!]{0,60}\b(and add|rotation)\b/i,                                     // E35 "Plan a … rotation … and add …"
 ];
 
 // A refinement of a just-staged action ("actually only the greenhouse ones",
