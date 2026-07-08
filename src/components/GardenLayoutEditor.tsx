@@ -6,6 +6,7 @@ import GardenLayout3D from "./GardenLayout3D";
 import GardenCompass from "./GardenCompass";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
+import { fitStageToCanvas } from "../lib/layoutViewport";
 import toast from "react-hot-toast";
 import GardenRuler from "./GardenRuler";
 import GardenScaleBar from "./GardenScaleBar";
@@ -74,6 +75,10 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" && window.innerWidth < 768);
   const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
+  // Phones get a READ-ONLY viewer (docs/plans/garden-layout-fixes-and-mobile-
+  // readonly.md): the editor's tools don't fit small screens, so mobile users
+  // look, pan, zoom and inspect — editing needs a tablet or desktop.
+  const viewOnly = isMobile;
   const [settingName, setSettingName] = useState("");
   const [settingW, setSettingW] = useState(30);
   const [settingH, setSettingH] = useState(20);
@@ -307,15 +312,22 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       }
 
       if (!isMod && (e.key === "f" || e.key === "F")) {
-        // Fit canvas to view — reset zoom and centre
-        setZoom(1);
-        setStagePos({ x: 32, y: 32 });
+        // Fit canvas to view — same math as the initial fit.
+        const el = containerRef.current;
+        if (layout && el) {
+          const fit = fitStageToCanvas(layout.canvas_w_m, layout.canvas_h_m, el.clientWidth, el.clientHeight, BASE_PX);
+          setZoom(fit.zoom);
+          setStagePos({ x: fit.x, y: fit.y });
+        } else {
+          setZoom(1);
+          setStagePos({ x: 32, y: 32 });
+        }
         return;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tool, selectedId, extraSelection]);
+  }, [tool, selectedId, extraSelection, layout]);
 
   // Container resize
   useEffect(() => {
@@ -327,6 +339,24 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     obs.observe(containerRef.current);
     return () => obs.disconnect();
   }, []);
+
+  // Initial fit-to-canvas: once the layout and a real container size are
+  // known, pick a zoom that shows the WHOLE canvas centred (phones used to
+  // open on a corner of empty grid at zoom 1). One-shot — after that the
+  // user's pan/zoom is theirs.
+  const didInitialFit = useRef(false);
+  useEffect(() => {
+    if (didInitialFit.current || !layout || containerSize.w < 50 || containerSize.h < 50) return;
+    didInitialFit.current = true;
+    const fit = fitStageToCanvas(layout.canvas_w_m, layout.canvas_h_m, containerSize.w, containerSize.h, BASE_PX);
+    setZoom(fit.zoom);
+    setStagePos({ x: fit.x, y: fit.y });
+  }, [layout, containerSize]);
+
+  // View-only forces LOOK mode — no draw/move, no selection-based mutation.
+  useEffect(() => {
+    if (viewOnly) setInteractionMode("rotate");
+  }, [viewOnly]);
 
   // Mobile breakpoint
   useEffect(() => {
@@ -541,13 +571,13 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   useEffect(() => {
     if (!transformerRef.current || !stageRef.current) return;
     const sel = shapes.find(s => s.id === selectedId);
-    if (!sel || sel.shape_type === "polygon") {
+    if (!sel || sel.shape_type === "polygon" || viewOnly) {
       transformerRef.current.nodes([]);
       return;
     }
     const node = stageRef.current.findOne(`#${selectedId}`);
     transformerRef.current.nodes(node ? [node] : []);
-  }, [selectedId, shapes]);
+  }, [selectedId, shapes, viewOnly]);
 
   // Push current shape state to undo history. Called before each user mutation.
   // MUST be declared before updateShape/deleteShape/reorder/commitDraw so their
@@ -1077,6 +1107,13 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     const isExtra = extraSelection.has(shape.id);
     const dimmedByFilter = activePlanFilter !== null && shape.plan_id !== activePlanFilter;
     const shapeClick = (e: any) => {
+      if (viewOnly) {
+        // Read-only viewer: a tap selects the shape for the info card only.
+        e.cancelBubble = true;
+        setSelectedId(shape.id);
+        setExtraSelection(new Set());
+        return;
+      }
       if (interactionMode === "rotate") return; // no selection while navigating
       if (dimmedByFilter) return; // suppress selection while a different plan is filtered
       e.cancelBubble = true;
@@ -1630,7 +1667,8 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         layout={layout}
         homeId={homeId}
         saveState={saveState}
-        canEdit={canEdit}
+        canEdit={canEdit && !viewOnly}
+        viewOnly={viewOnly}
         isMobile={isMobile}
         interactionMode={interactionMode}
         onModeChange={handleModeChange}
@@ -1987,8 +2025,42 @@ export default function GardenLayoutEditor({ homeId }: Props) {
             </button>
           )}
 
+          {/* Read-only viewer: shape info card (tap a shape) + view-only note */}
+          {viewOnly && selectedShape && (
+            <div
+              data-testid="viewonly-shape-card"
+              className="absolute inset-x-3 z-30 bg-white rounded-2xl shadow-xl border border-rhozly-outline/20 p-4 flex items-start gap-3"
+              style={{ bottom: "calc(12px + env(safe-area-inset-bottom, 0px))" }}
+            >
+              <span
+                className="w-4 h-4 rounded-md shrink-0 mt-0.5 border border-black/10"
+                style={{ backgroundColor: selectedShape.color }}
+                aria-hidden
+              />
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-rhozly-on-surface text-sm truncate">{selectedShape.label || "Unnamed shape"}</p>
+                <p className="text-xs font-bold text-rhozly-on-surface/50">
+                  {selectedShape.shape_type === "circle"
+                    ? `Circle · ${(selectedShape.radius_m ?? 0) * 2}m across`
+                    : selectedShape.shape_type === "polygon"
+                      ? "Custom shape"
+                      : `${selectedShape.width_m ?? "?"}m × ${selectedShape.height_m ?? "?"}m`}
+                  {selectedShape.area_id ? " · linked to an area" : ""}
+                </p>
+              </div>
+              <button
+                data-testid="viewonly-shape-card-close"
+                onClick={() => setSelectedId(null)}
+                aria-label="Close shape info"
+                className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:bg-rhozly-surface-low"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
           {/* First-shape coach mark — only when canvas is empty (Wave 4C) */}
-          {viewMode === "2d" && canEdit && shapes.length === 0 && tool === "select" && !pendingPreset && (
+          {viewMode === "2d" && canEdit && !viewOnly && shapes.length === 0 && tool === "select" && !pendingPreset && (
             <div
               data-testid="first-shape-coach"
               className="absolute inset-x-0 top-1/3 z-10 pointer-events-none flex justify-center animate-in fade-in slide-in-from-top-2 duration-700"
@@ -2065,8 +2137,8 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         )}
       </div>
 
-      {/* Mobile: shape panel at bottom */}
-      {isMobile && canEdit && (
+      {/* Mobile: shape panel at bottom — never in the read-only viewer */}
+      {isMobile && canEdit && !viewOnly && (
         <GardenShapePanel
           tool={tool}
           viewMode={viewMode}
@@ -2078,8 +2150,9 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         />
       )}
 
-      {/* Mobile: properties sheet when shape selected — expandable via drag handle */}
-      {isMobile && selectedShape && (
+      {/* Mobile: properties sheet when shape selected — the read-only viewer
+          shows its own info card instead */}
+      {isMobile && !viewOnly && selectedShape && (
         <div
           data-testid="properties-mobile-sheet"
           className="fixed inset-x-0 bottom-0 z-50 bg-white border-t border-rhozly-outline/20 shadow-2xl rounded-t-3xl overflow-hidden flex flex-col transition-[max-height] duration-200 animate-in slide-in-from-bottom-4 fade-in duration-300"

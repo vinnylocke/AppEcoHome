@@ -164,6 +164,16 @@ None.
 - Wizard modal lazy-renders only when `wizardMode !== null`.
 - Inline rename editor avoids a separate modal.
 
+### Card layout — responsive actions (2026-07-08)
+
+The whole card body (icon + name + dimensions) is ONE navigation button
+(`open-layout-<id>`). Rename/duplicate/delete render inline (`rename-layout-*`
+etc.) only at `sm:`+; below that they collapse into a kebab menu
+(`layout-menu-<id>` → `layout-menu-rename/duplicate/delete-<id>`). Before this,
+four fixed 44px icon buttons left ~50px of tappable title at 390px and card
+taps landed on Rename — phones could not open the editor at all
+(docs/plans/garden-layout-fixes-and-mobile-readonly.md).
+
 ---
 
 ## Role 2 — Expert Gardener's Guide
@@ -222,6 +232,7 @@ The wizard's first screen offers three buttons with growing levels of guidance:
 - **Picking T-shape / trapezoid expecting per-edge borders.** The wizard skips that step for these shapes (geometry too complex). You can still add borders in the editor.
 - **Confusing canvas size with garden size.** Canvas is the drawing area — make it larger than your garden so you have padding to draw boundary borders.
 - **Duplicating then forgetting which is "live".** Duplicates inherit "(Copy)" suffix. Rename one to be authoritative.
+- **Looking for rename/delete on a phone.** They live behind the ⋮ menu on each card — tapping the card itself opens the layout.
 
 ### Recommended workflows
 

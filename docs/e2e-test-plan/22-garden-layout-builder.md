@@ -31,13 +31,18 @@ The most surface-rich section in the suite. Tests are bucketed by Wave (1A throu
 | GLB-010 | ✅ | Rail has Beds / Structures / Hardscape / Features sections | — | ✅ Passing |
 | GLB-011 | ✅ | Known presets render in their sections (raised-bed, greenhouse, path, pond) | — | ✅ Passing |
 
-## Stage 4 — Mobile toolbar + floating bubble (Wave 1A)
+## Stage 4 — Phone READ-ONLY viewer (2026-07-08, was: mobile toolbar Wave 1A)
+
+Phones (<768px) get a view-only layout viewer — no draw/edit tools
+(docs/plans/garden-layout-fixes-and-mobile-readonly.md).
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| GLB-012 | ✅ | Mobile toolbar renders two rows + floating bubble at 390×844 | — | ✅ Passing |
-| GLB-013 | ✅ | Floating bubble has view + zoom + settings buttons in 2D | — | ✅ Passing |
-| GLB-014 | ✅ | Shape rail at bottom is horizontally scrollable with section labels | — | ✅ Passing |
+| GLB-012 | ✅ | Mobile viewer renders two rows + floating bubble; row 2 is the view-only banner | — | ✅ Passing |
+| GLB-013 | ✅ | Floating bubble keeps view + zoom, hides settings (read-only) | — | ✅ Passing |
+| GLB-014 | ✅ | No shape rail and no mode strip on the phone viewer | — | ✅ Passing |
+| GLB-017 | ✅ | List card body tap opens the layout viewer (not rename) at 390×844 | — | ✅ Passing |
+| GLB-018 | ✅ | Kebab menu holds rename / duplicate / delete on phones; inline icons hidden | — | ✅ Passing |
 
 ## Stage 5 — Properties tabs (Wave 1C)
 

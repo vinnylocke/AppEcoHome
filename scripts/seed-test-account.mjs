@@ -622,13 +622,13 @@ async function seedHome(homeId, uid, homeIndex, allocId) {
   const colors = ["#4ade80", "#60a5fa", "#f59e0b", "#a78bfa", "#34d399"];
   areas.slice(0, 6).forEach((a, i) => {
     shapes.push({
-      id: randomUUID(), layout_id: layoutId, area_id: a.id, shape_type: "rectangle",
+      id: randomUUID(), layout_id: layoutId, area_id: a.id, shape_type: "rect",
       label: a.name, color: colors[i % colors.length],
       x_m: 1 + (i % 3) * 7, y_m: 1 + Math.floor(i / 3) * 6, width_m: 5, height_m: 4, z_index: i,
     });
   });
   // a path + a lawn for flavour
-  shapes.push({ id: randomUUID(), layout_id: layoutId, shape_type: "rectangle", label: "Path", color: "#d6d3d1", x_m: 0, y_m: 7, width_m: 24, height_m: 1.2, z_index: 10 });
+  shapes.push({ id: randomUUID(), layout_id: layoutId, shape_type: "rect", label: "Path", color: "#d6d3d1", x_m: 0, y_m: 7, width_m: 24, height_m: 1.2, z_index: 10 });
   shapes.push({ id: randomUUID(), layout_id: layoutId, shape_type: "circle", label: "Lawn", color: "#86efac", x_m: 17, y_m: 10, radius_m: 3, z_index: 0 });
   await insert("garden_shapes", shapes);
 

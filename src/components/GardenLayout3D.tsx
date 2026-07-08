@@ -209,7 +209,12 @@ function GardenLayout3DInner({
     <div style={{ position: "absolute", inset: 0, cursor: cursorStyle }}>
       <Canvas
         shadows="percentage"
-        camera={{ position: [canvasW / 2, 20, canvasH + 15], fov: 45 }}
+        // Position scales with the canvas and the camera is AIMED at the
+        // canvas centre on creation — without the lookAt, the default camera
+        // stares at the origin (the corner) until OrbitControls mounts, and
+        // in draw/move modes the garden sat squashed in the viewport corner.
+        camera={{ position: [canvasW / 2, maxDim * 0.75, canvasH / 2 + maxDim * 0.9], fov: 45 }}
+        onCreated={({ camera }) => camera.lookAt(canvasW / 2, 0, canvasH / 2)}
         style={{ width: "100%", height: "100%" }}
       >
         <color attach="background" args={[skyColor]} />

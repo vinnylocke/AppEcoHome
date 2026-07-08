@@ -22,6 +22,8 @@ interface Props {
   homeId: string;
   saveState: "saved" | "saving" | "unsaved";
   canEdit: boolean;
+  /** Phone read-only viewer — LOOK only, no mode strip / settings. */
+  viewOnly?: boolean;
   isMobile: boolean;
 
   interactionMode: InteractionMode;
@@ -401,7 +403,7 @@ function LocationPrompt({
 
 export default function GardenEditorToolbar(props: Props) {
   const {
-    layout, homeId, saveState, canEdit, isMobile,
+    layout, homeId, saveState, canEdit, viewOnly = false, isMobile,
     interactionMode, onModeChange,
     viewMode, setViewMode,
     homeLatLng, setHomeLatLng,
@@ -442,15 +444,23 @@ export default function GardenEditorToolbar(props: Props) {
           <SaveIndicator state={saveState} compact />
         </div>
 
-        {/* Row 2 — full-width mode strip + active mode hint */}
+        {/* Row 2 — full-width mode strip + active mode hint, or the view-only note */}
         <div
           data-testid="editor-toolbar-mobile-row-2"
           className="px-3 py-2 bg-white border-b border-rhozly-outline/20 shrink-0 space-y-1.5"
         >
-          <ModeStrip canEdit={canEdit} interactionMode={interactionMode} onModeChange={onModeChange} full />
-          <p className="text-[10px] font-bold text-rhozly-on-surface/50 text-center px-2">
-            {MODE_META[interactionMode].hint}
-          </p>
+          {viewOnly ? (
+            <p data-testid="viewonly-banner" className="text-[11px] font-bold text-rhozly-on-surface/60 text-center px-2 py-1.5 bg-rhozly-surface-low rounded-xl">
+              👀 View-only on this screen size — pan, zoom and tap shapes for details. Edit on a tablet or computer.
+            </p>
+          ) : (
+            <>
+              <ModeStrip canEdit={canEdit} interactionMode={interactionMode} onModeChange={onModeChange} full />
+              <p className="text-[10px] font-bold text-rhozly-on-surface/50 text-center px-2">
+                {MODE_META[interactionMode].hint}
+              </p>
+            </>
+          )}
         </div>
 
         {/* Floating action bubble — bottom-right of canvas, above shape rail */}
@@ -548,14 +558,16 @@ export default function GardenEditorToolbar(props: Props) {
             {viewMode === "3d" && !homeLatLng && (
               <LocationPrompt setHomeLatLng={setHomeLatLng} homeId={homeId} />
             )}
-            <button
-              data-testid="canvas-settings-btn"
-              onClick={onOpenSettings}
-              aria-label="Canvas settings"
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/60 hover:bg-rhozly-surface transition-colors"
-            >
-              <Settings size={18} />
-            </button>
+            {!viewOnly && (
+              <button
+                data-testid="canvas-settings-btn"
+                onClick={onOpenSettings}
+                aria-label="Canvas settings"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/60 hover:bg-rhozly-surface transition-colors"
+              >
+                <Settings size={18} />
+              </button>
+            )}
           </div>
         </div>
       </>
@@ -566,7 +578,10 @@ export default function GardenEditorToolbar(props: Props) {
   return (
     <div
       data-testid="editor-toolbar-desktop"
-      className="flex items-center gap-3 px-4 py-2.5 bg-white border-b border-rhozly-outline/20 shrink-0"
+      // flex-wrap: in 3D the sun + layer controls exceed ~1280px and used to
+      // clip off-screen / crush the name block — overflow now wraps to a
+      // second tidy row instead.
+      className="flex items-center flex-wrap gap-x-3 gap-y-1.5 px-4 py-2.5 bg-white border-b border-rhozly-outline/20 shrink-0"
     >
       <button
         data-testid="back-to-layouts-btn"
@@ -577,9 +592,9 @@ export default function GardenEditorToolbar(props: Props) {
         <ArrowLeft size={18} />
       </button>
 
-      <div className="min-w-0 max-w-[280px]">
+      <div className="shrink-0 min-w-[120px] max-w-[280px]">
         <p className="font-black text-rhozly-on-surface text-sm truncate">{layout.name}</p>
-        <p className="text-[10px] font-bold text-rhozly-on-surface/40">{layout.canvas_w_m}m × {layout.canvas_h_m}m</p>
+        <p className="text-[10px] font-bold text-rhozly-on-surface/40 whitespace-nowrap">{layout.canvas_w_m}m × {layout.canvas_h_m}m</p>
       </div>
 
       <SaveIndicator state={saveState} compact={false} />

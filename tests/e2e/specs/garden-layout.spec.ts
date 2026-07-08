@@ -93,7 +93,7 @@ test.describe("Garden Layout — shape rail sections (Section 20 Stage 2 — Wav
   });
 });
 
-test.describe("Garden Layout — mobile toolbar (Wave 1A)", () => {
+test.describe("Garden Layout — phone READ-ONLY viewer (garden-layout-fixes-and-mobile-readonly)", () => {
   test.beforeEach(async ({ authenticatedPage }) => {
     await authenticatedPage.setViewportSize({ width: 390, height: 844 });
     await authenticatedPage.goto("/garden-layout");
@@ -104,23 +104,51 @@ test.describe("Garden Layout — mobile toolbar (Wave 1A)", () => {
     await expect(authenticatedPage).toHaveURL(/\/garden-layout\/.+/, { timeout: 10000 });
   });
 
-  test("GLB-012: mobile toolbar renders two rows + floating bubble", async ({ authenticatedPage }) => {
+  test("GLB-012: mobile viewer renders two rows + floating bubble, row 2 is the view-only banner", async ({ authenticatedPage }) => {
     await expect(authenticatedPage.getByTestId("editor-toolbar-mobile-row-1")).toBeVisible();
     await expect(authenticatedPage.getByTestId("editor-toolbar-mobile-row-2")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("viewonly-banner")).toBeVisible();
     await expect(authenticatedPage.getByTestId("editor-floating-bubble")).toBeVisible();
   });
 
-  test("GLB-013: floating bubble has view + zoom + settings buttons in 2D", async ({ authenticatedPage }) => {
+  test("GLB-013: floating bubble keeps view + zoom, hides settings (read-only)", async ({ authenticatedPage }) => {
     const bubble = authenticatedPage.getByTestId("editor-floating-bubble");
     await expect(bubble.getByTestId("bubble-view-btn")).toBeVisible();
     await expect(bubble.getByTestId("zoom-in-btn")).toBeVisible();
     await expect(bubble.getByTestId("zoom-out-btn")).toBeVisible();
-    await expect(bubble.getByTestId("canvas-settings-btn")).toBeVisible();
+    await expect(bubble.getByTestId("canvas-settings-btn")).toHaveCount(0);
   });
 
-  test("GLB-014: shape rail at bottom is horizontally scrollable with section labels", async ({ authenticatedPage }) => {
-    await expect(authenticatedPage.getByTestId("shape-rail-mobile")).toBeVisible();
-    await expect(authenticatedPage.getByTestId("rail-section-beds")).toBeVisible();
+  test("GLB-014: no shape rail and no mode strip on the phone viewer", async ({ authenticatedPage }) => {
+    await expect(authenticatedPage.getByTestId("shape-rail-mobile")).toHaveCount(0);
+    await expect(authenticatedPage.getByTestId("mode-draw-btn")).toHaveCount(0);
+  });
+});
+
+test.describe("Garden Layout — phone list card actions (kebab)", () => {
+  test.beforeEach(async ({ authenticatedPage }) => {
+    await authenticatedPage.setViewportSize({ width: 390, height: 844 });
+    await authenticatedPage.goto("/garden-layout");
+  });
+
+  test("GLB-017: card body tap opens the layout (not rename)", async ({ authenticatedPage }) => {
+    const openBtn = authenticatedPage.locator('[data-testid^="open-layout-"]').first();
+    await openBtn.waitFor({ state: "visible", timeout: 15000 });
+    await openBtn.click();
+    await expect(authenticatedPage).toHaveURL(/\/garden-layout\/.+/, { timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("viewonly-banner")).toBeVisible({ timeout: 15000 });
+  });
+
+  test("GLB-018: kebab menu holds rename / duplicate / delete on phones", async ({ authenticatedPage }) => {
+    const kebab = authenticatedPage.locator('[data-testid^="layout-menu-"]').first();
+    await kebab.waitFor({ state: "visible", timeout: 15000 });
+    const id = (await kebab.getAttribute("data-testid"))!.replace("layout-menu-", "");
+    await kebab.click();
+    await expect(authenticatedPage.getByTestId(`layout-menu-rename-${id}`)).toBeVisible();
+    await expect(authenticatedPage.getByTestId(`layout-menu-duplicate-${id}`)).toBeVisible();
+    await expect(authenticatedPage.getByTestId(`layout-menu-delete-${id}`)).toBeVisible();
+    // Inline desktop action buttons are hidden at this width.
+    await expect(authenticatedPage.getByTestId(`rename-layout-${id}`)).not.toBeVisible();
   });
 });
 

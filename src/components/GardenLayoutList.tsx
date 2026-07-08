@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Pencil, Trash2, ChevronRight, Loader2, Wand2, SquareDashed, ArrowLeft, Sprout, Copy } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronRight, Loader2, Wand2, SquareDashed, ArrowLeft, Sprout, Copy, MoreVertical } from "lucide-react";
 import { IconLayout } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
@@ -132,6 +132,9 @@ function GardenLayoutListInner({ homeId }: Props) {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  // Mobile card actions live behind a kebab — at 390px four inline 44px icon
+  // buttons left ~50px for the title, so card taps landed on Rename.
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
@@ -547,7 +550,7 @@ function GardenLayoutListInner({ homeId }: Props) {
             <div
               key={layout.id}
               data-testid={`layout-card-${layout.id}`}
-              className="bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 overflow-hidden"
+              className="bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 relative"
             >
               {renamingId === layout.id ? (
                 <div className="p-4 space-y-3">
@@ -565,45 +568,94 @@ function GardenLayoutListInner({ homeId }: Props) {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-3 p-4">
-                  <div className="w-10 h-10 bg-rhozly-primary/10 rounded-2xl flex items-center justify-center shrink-0">
-                    <IconLayout size={18} className="text-rhozly-primary" />
+                <div className="flex items-center gap-1 sm:gap-3 p-4">
+                  {/* Card body IS the open affordance — icon + name + size in one button. */}
+                  <button
+                    data-testid={`open-layout-${layout.id}`}
+                    onClick={() => navigate(`/garden-layout/${layout.id}`)}
+                    className="flex-1 min-w-0 flex items-center gap-3 text-left"
+                  >
+                    <div className="w-10 h-10 bg-rhozly-primary/10 rounded-2xl flex items-center justify-center shrink-0">
+                      <IconLayout size={18} className="text-rhozly-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-black text-rhozly-on-surface text-sm truncate">{layout.name}</p>
+                      <p className="text-xs font-bold text-rhozly-on-surface/40">{layout.canvas_w_m}m × {layout.canvas_h_m}m</p>
+                    </div>
+                  </button>
+                  {/* Inline actions — ≥sm only; phones get the kebab below. */}
+                  <div className="hidden sm:flex items-center gap-1">
+                    <button
+                      data-testid={`rename-layout-${layout.id}`}
+                      onClick={() => { setRenamingId(layout.id); setRenameValue(layout.name); }}
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors"
+                      aria-label="Rename layout"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button
+                      data-testid={`duplicate-layout-${layout.id}`}
+                      onClick={() => handleDuplicate(layout.id, layout.name)}
+                      disabled={duplicatingId === layout.id}
+                      aria-label="Duplicate layout"
+                      title="Duplicate this layout"
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors disabled:opacity-40"
+                    >
+                      {duplicatingId === layout.id ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />}
+                    </button>
+                    <button
+                      data-testid={`delete-layout-${layout.id}`}
+                      onClick={() => handleDelete(layout.id)}
+                      disabled={deletingId === layout.id}
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
+                      aria-label="Delete layout"
+                    >
+                      {deletingId === layout.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                    </button>
                   </div>
-                  <button onClick={() => navigate(`/garden-layout/${layout.id}`)} className="flex-1 text-left min-w-0">
-                    <p className="font-black text-rhozly-on-surface text-sm truncate">{layout.name}</p>
-                    <p className="text-xs font-bold text-rhozly-on-surface/40">{layout.canvas_w_m}m × {layout.canvas_h_m}m</p>
-                  </button>
-                  <button
-                    data-testid={`rename-layout-${layout.id}`}
-                    onClick={() => { setRenamingId(layout.id); setRenameValue(layout.name); }}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors"
-                    aria-label="Rename layout"
-                  >
-                    <Pencil size={16} />
-                  </button>
-                  <button
-                    data-testid={`duplicate-layout-${layout.id}`}
-                    onClick={() => handleDuplicate(layout.id, layout.name)}
-                    disabled={duplicatingId === layout.id}
-                    aria-label="Duplicate layout"
-                    title="Duplicate this layout"
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors disabled:opacity-40"
-                  >
-                    {duplicatingId === layout.id ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />}
-                  </button>
-                  <button
-                    data-testid={`delete-layout-${layout.id}`}
-                    onClick={() => handleDelete(layout.id)}
-                    disabled={deletingId === layout.id}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
-                    aria-label="Delete layout"
-                  >
-                    {deletingId === layout.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                  </button>
+                  {/* Mobile kebab — rename/duplicate/delete without crowding the tap area. */}
+                  <div className="sm:hidden relative">
+                    <button
+                      data-testid={`layout-menu-${layout.id}`}
+                      onClick={() => setMenuOpenId(menuOpenId === layout.id ? null : layout.id)}
+                      aria-label="Layout actions"
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors"
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+                    {menuOpenId === layout.id && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setMenuOpenId(null)} aria-hidden />
+                        <div className="absolute right-0 top-full mt-1 z-20 bg-rhozly-surface rounded-2xl border border-rhozly-outline/20 shadow-lg py-1 w-44">
+                          <button
+                            data-testid={`layout-menu-rename-${layout.id}`}
+                            onClick={() => { setMenuOpenId(null); setRenamingId(layout.id); setRenameValue(layout.name); }}
+                            className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-black text-rhozly-on-surface hover:bg-rhozly-surface-low text-left"
+                          >
+                            <Pencil size={14} /> Rename
+                          </button>
+                          <button
+                            data-testid={`layout-menu-duplicate-${layout.id}`}
+                            onClick={() => { setMenuOpenId(null); handleDuplicate(layout.id, layout.name); }}
+                            className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-black text-rhozly-on-surface hover:bg-rhozly-surface-low text-left"
+                          >
+                            <Copy size={14} /> Duplicate
+                          </button>
+                          <button
+                            data-testid={`layout-menu-delete-${layout.id}`}
+                            onClick={() => { setMenuOpenId(null); handleDelete(layout.id); }}
+                            className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-black text-red-600 hover:bg-red-50 text-left"
+                          >
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <button
                     onClick={() => navigate(`/garden-layout/${layout.id}`)}
                     aria-label="Open layout"
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60"
+                    className="hidden sm:flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60"
                   >
                     <ChevronRight size={18} />
                   </button>

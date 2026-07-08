@@ -157,6 +157,35 @@ Some Wave-12 features (Bed Templates Sheet, Zone Sheet) ship behind beta flags d
 
 None — shapes are vector geometry stored as DB rows.
 
+### Phone read-only viewer + viewport fixes (2026-07-08)
+
+Per docs/plans/garden-layout-fixes-and-mobile-readonly.md:
+
+- **`viewOnly` mode** — `viewOnly = isMobile` (<768px): the editor becomes a
+  viewer. Interaction is forced to LOOK, the toolbar's Row 2 shows a
+  view-only banner (`viewonly-banner`), the shape rail / mode strip /
+  settings / undo-redo / snap / transformer / properties sheet are all
+  hidden, and tapping a shape opens a read-only info card
+  (`viewonly-shape-card`: label, size, area link). Pan, zoom, 2D/3D toggle
+  and overlay layers stay available.
+- **Initial fit-to-canvas (2D)** — `fitStageToCanvas` (`src/lib/layoutViewport.ts`,
+  Vitest-covered) picks the zoom/offset that shows the whole canvas centred;
+  also powers the `F` shortcut. Previously zoom 1 / (32,32) regardless of
+  viewport — phones opened onto a corner of empty grid.
+- **3D camera aim** — the Canvas camera is `lookAt`-ed at the canvas centre
+  in `onCreated` (position scales with `maxDim`). Without it the default
+  camera stared at the ORIGIN until OrbitControls mounted, so in draw/move
+  modes the garden sat squashed in the viewport corner.
+- **Toolbar wrap** — the desktop toolbar row is `flex-wrap`; in 3D the sun +
+  layer controls used to exceed ~1280px and clip off-screen / crush the
+  name block (which is now `shrink-0`).
+- **`shape_type` CHECK constraint** (migration `20260708120000`) — the
+  renderers silently DROP unknown `shape_type` values; the test-account
+  seed script wrote `'rectangle'` (not `'rect'`) and every seeded layout
+  rendered as an empty 2D canvas while 3D still showed ground + plant
+  tokens ("2D doesn't match 3D"). Data repaired + constrained to
+  `rect/path/circle/ellipse/polygon`.
+
 ---
 
 ## Role 2 — Expert Gardener's Guide
@@ -257,6 +286,7 @@ Multiple overlays can stack but compete for the same tint slot — last enabled 
 - **Drawing the canvas way bigger than the garden.** Wastes space — canvas dimensions live in Settings and can be re-sized.
 - **Overlay stacking confusion.** Two overlays mean only the last one tints. Use one at a time.
 - **Forgetting to save before closing.** Save state stays `unsaved` if the debounce is in flight — wait for `Saved` before navigating.
+- **Trying to edit on a phone.** Phones show the layout view-only — pan, zoom, switch 2D/3D and tap shapes for details, but drawing and editing need a tablet or computer (the tools genuinely don't fit a small screen).
 
 ### Recommended workflows
 
