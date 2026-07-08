@@ -329,7 +329,10 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [tool, selectedId, extraSelection, layout]);
 
-  // Container resize
+  // Container resize. Depends on `loading`: the component early-returns a
+  // spinner until the layout loads, so on first run containerRef is null and
+  // a []-dep effect would NEVER attach the observer — the stage sat at the
+  // 800×600 default on every screen size (latent since the observer landed).
   const containerMeasured = useRef(false);
   useEffect(() => {
     if (!containerRef.current) return;
@@ -340,7 +343,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     });
     obs.observe(containerRef.current);
     return () => obs.disconnect();
-  }, []);
+  }, [loading]);
 
   // Initial fit-to-canvas: once the layout and a MEASURED container size are
   // known, pick a zoom that shows the WHOLE canvas centred (phones used to
