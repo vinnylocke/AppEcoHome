@@ -11,6 +11,9 @@ import { supabase } from "./supabase";
 import { getHemisphere, normalizePeriods } from "./seasonal";
 import { buildAutoSeasonalSchedules } from "./plantScheduleFactory";
 import { derivePlantLabels } from "./plantLabels";
+import { isOffline } from "../hooks/useOnline";
+import { insertOrQueue } from "./queuedWrite";
+import { readDashboardCache } from "./dashboardCache";
 
 export interface SaveToShedSkeleton {
   common_name: string;
@@ -74,6 +77,49 @@ export async function saveToShed(
     if (!row.sunlight && (fullCareData as any)?.sunlight?.length) {
       row.sunlight = (fullCareData as any).sunlight;
     }
+  }
+
+  // Offline-first Phase 4: a manual plant's integer id is generated
+  // client-side (see generatePlantId), so nothing here needs a server id
+  // round-trip. Queue the plant + its auto-seasonal schedules and return
+  // the client-known id; both replay idempotently on reconnect. The
+  // hemisphere comes from the cached home coordinates (latitude is
+  // authoritative in getHemisphere) so the schedule windows still land in
+  // the right months without a network read.
+  if (isOffline()) {
+    await insertOrQueue("plants", row, "New plant");
+
+    const cachedLat = readDashboardCache(homeId)?.snapshot?.homeLatLng?.lat ?? null;
+    const offlineHemisphere = getHemisphere(undefined, undefined, cachedLat);
+    const offlineSchedules = buildAutoSeasonalSchedules({
+      plantId: row.id as number,
+      homeId,
+      hemisphere: offlineHemisphere,
+      harvestPeriods: normalizePeriods(
+        (fullCareData as any)?.harvest_season || (skeleton as any).harvest_season,
+      ),
+      pruningPeriods: normalizePeriods(
+        (fullCareData as any)?.pruning_month || (skeleton as any).pruning_month,
+      ),
+      wateringMinDays:
+        (fullCareData as any)?.watering_min_days ||
+        (skeleton as any)?.watering_min_days ||
+        3,
+      wateringMaxDays:
+        (fullCareData as any)?.watering_max_days ||
+        (skeleton as any)?.watering_max_days ||
+        14,
+    });
+    for (const s of offlineSchedules) {
+      // plant_schedules.id is a uuid — generate it client-side so the
+      // queued upsert is idempotent across a double-replay.
+      await insertOrQueue(
+        "plant_schedules",
+        { id: crypto.randomUUID(), ...s },
+        "Plant schedule",
+      );
+    }
+    return { plantId: row.id as number, row };
   }
 
   const { data: savedPlant, error } = await supabase

@@ -128,9 +128,43 @@ export function useCachedShed(homeId: string) {
 
   const mutate = useCallback(() => fetchShedData(true), [fetchShedData]);
 
+  // Offline-first Phase 4: paint a newly-added plant immediately AND persist
+  // it into the shed cache, so an offline add survives a reopen while its
+  // insert waits in the offline queue. Reconnect refetch reconciles it with
+  // the server row.
+  const optimisticAddPlant = useCallback(
+    (plant: any) => {
+      setPlants((prev) => {
+        const next = [
+          {
+            ...plant,
+            // Server defaults these; set them so the plant shows in the
+            // active (non-archived) view and sorts newest-first offline.
+            is_archived: plant.is_archived ?? false,
+            created_at: plant.created_at ?? new Date().toISOString(),
+            instance_count: plant.instance_count ?? 0,
+          },
+          ...prev,
+        ];
+        try {
+          const raw = localStorage.getItem(`${CACHE_KEY}_${homeId}`);
+          const parsed = raw ? JSON.parse(raw) : { plants: [], locations: [] };
+          localStorage.setItem(
+            `${CACHE_KEY}_${homeId}`,
+            JSON.stringify({ ...parsed, plants: next }),
+          );
+        } catch {
+          /* quota or disabled — React state still updated */
+        }
+        return next;
+      });
+    },
+    [homeId],
+  );
+
   useHomeRealtime("plants", mutate);
   useHomeRealtime("inventory_items", mutate);
 
-  return { plants, setPlants, locations, isInitialLoading, isBackgroundSyncing, isError, mutate };
+  return { plants, setPlants, locations, isInitialLoading, isBackgroundSyncing, isError, mutate, optimisticAddPlant };
 
 }

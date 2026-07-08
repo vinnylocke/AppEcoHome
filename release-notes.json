@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Add plants offline",
+    "items": [
+      "You can now add a manual plant to your shed with no connection — it (and its auto-created seasonal watering schedules) saves on your device and syncs the moment you're back online.",
+      "Saving an automation now tells you clearly when it needs a connection, instead of failing silently — automations control live hardware, so they still need you to be online."
+    ]
+  }
+]

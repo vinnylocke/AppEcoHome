@@ -48,6 +48,7 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 import SmartImage from "./SmartImage";
 import MultiImageGallery from "./MultiImageGallery";
 import { useCachedShed } from "../hooks/useCachedShed";
+import { isOffline } from "../hooks/useOnline";
 import { useAiPlantFreshness } from "../hooks/useAiPlantFreshness";
 import UpdatedChip from "./aiPlants/UpdatedChip";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
@@ -127,6 +128,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     isError: shedFetchError,
     mutate: refreshShed, // Renamed to refreshShed for clarity in action handlers
     setPlants,
+    optimisticAddPlant,
   } = useCachedShed(homeId);
 
   // Wave 5 — AI catalogue freshness state, keyed by shed plant id. Resolves
@@ -1255,26 +1257,49 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const handleManualSave = async (plantData: any) => {
     setActionLoading(true);
     try {
-      const { data: existing } = await supabase
-        .from("plants")
-        .select("id")
-        .eq("home_id", homeId)
-        .ilike("common_name", plantData.common_name)
-        .limit(1);
-      if (existing && existing.length > 0) {
-        toast.error(`"${plantData.common_name}" is already in your shed.`);
-        setActionLoading(false);
-        return;
+      // Duplicate check. Offline we can't query, so check the cached shed
+      // list already in memory; online we hit the DB for the authoritative
+      // answer.
+      if (isOffline()) {
+        const dup = plants.find(
+          (p) =>
+            (p.common_name || "").toLowerCase() ===
+            plantData.common_name.trim().toLowerCase(),
+        );
+        if (dup) {
+          toast.error(`"${plantData.common_name}" is already in your shed.`);
+          setActionLoading(false);
+          return;
+        }
+      } else {
+        const { data: existing } = await supabase
+          .from("plants")
+          .select("id")
+          .eq("home_id", homeId)
+          .ilike("common_name", plantData.common_name)
+          .limit(1);
+        if (existing && existing.length > 0) {
+          toast.error(`"${plantData.common_name}" is already in your shed.`);
+          setActionLoading(false);
+          return;
+        }
       }
-      await savePlantToDB(
+      const savedRow = await savePlantToDB(
         { ...plantData, source: "manual", perenual_id: null },
         plantData,
       );
-      toast.success(`${plantData.common_name} added to shed!`);
       requestFeedback("add_plant", { source: "manual" });
       logEvent(EVENT.PLANT_ADDED, { plant_name: plantData.common_name, source: "manual" });
       handleCloseModals();
-      refreshShed(); // 🚀 BACKGROUND SYNC
+      if (isOffline()) {
+        // Paint + persist the new plant now; its insert waits in the queue
+        // and syncs on reconnect.
+        optimisticAddPlant(savedRow);
+        toast.success(`${plantData.common_name} saved — syncs when you're back online`);
+      } else {
+        toast.success(`${plantData.common_name} added to shed!`);
+        refreshShed(); // 🚀 BACKGROUND SYNC
+      }
     } catch (err: any) {
       Logger.error("Failed to save plant to shed", err, {}, "Could not save plant — please check your connection and try again.");
     } finally {

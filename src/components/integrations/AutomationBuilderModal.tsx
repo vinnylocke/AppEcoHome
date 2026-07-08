@@ -12,6 +12,7 @@ import { newLeaf, summariseTree, type ConditionNode } from "../../lib/conditionT
 import { filterPickerItems, shouldShowPickerSearch } from "../../lib/pickerFilter";
 import { AUTOMATION_TEMPLATES, type AutomationTemplate } from "../../lib/automationTemplates";
 import { scopeDevicesToArea } from "../../lib/automationDeviceScope";
+import { requireOnline } from "../../lib/requireOnline";
 import { hemisphereForHome } from "../../lib/dateRangeLeaf";
 import type { Hemisphere } from "../../lib/seasonal";
 import ConditionNodeEditor, { type BuilderCtx } from "./ConditionNodeEditor";
@@ -177,6 +178,9 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
 
   const save = async () => {
     if (!name.trim()) { toast.error("Give the automation a name"); return; }
+    // Automations drive live valve hardware and reference paired devices, so
+    // creating/editing one needs a connection — gate rather than queue.
+    if (!requireOnline("Saving an automation")) return;
     setSaving(true);
     try {
       const payload = {
