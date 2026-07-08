@@ -18,18 +18,19 @@ describe("fitStageToCanvas", () => {
     expect(16 * BASE_PX * fit.zoom).toBeLessThanOrEqual(700 - 32);
   });
 
-  test("zoom is capped at 1 — small canvases centre instead of zooming in", () => {
+  test("zoom is capped at 1 — small canvases centre horizontally, top-aligned", () => {
     const fit = fitStageToCanvas(6, 4, 1200, 800, BASE_PX);
     expect(fit.zoom).toBe(1);
-    // Centred: x = (1200 - 300)/2 = 450, y = (800 - 200)/2 = 300.
+    // Horizontally centred: x = (1200 - 300)/2 = 450; vertically top-aligned
+    // (the editor container can extend below the fold).
     expect(fit.x).toBe(450);
-    expect(fit.y).toBe(300);
+    expect(fit.y).toBe(32);
   });
 
   test("offsets never collapse below the padding", () => {
     const fit = fitStageToCanvas(24, 16, 390, 700, BASE_PX);
     expect(fit.x).toBeGreaterThanOrEqual(32);
-    expect(fit.y).toBeGreaterThanOrEqual(32);
+    expect(fit.y).toBe(32);
   });
 
   test("degenerate viewports can't produce zoom 0", () => {

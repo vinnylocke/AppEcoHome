@@ -17,8 +17,10 @@ export interface StageFit {
 /**
  * Zoom + stage offset that fits a canvas_w_m × canvas_h_m layout into a
  * viewW × viewH viewport with `padding` px on every side. Zoom is capped at
- * 1 (never zoom IN past 1:1 — small canvases sit centred instead) and
- * floored at 0.05 so a degenerate viewport can't produce zoom 0.
+ * 1 (never zoom IN past 1:1) and floored at 0.05 so a degenerate viewport
+ * can't produce zoom 0. Horizontally centred, vertically TOP-aligned — the
+ * editor's container can extend below the fold (especially on phones), so
+ * vertical centring parked the canvas half-way down the page.
  */
 export function fitStageToCanvas(
   canvasWm: number,
@@ -36,6 +38,6 @@ export function fitStageToCanvas(
   return {
     zoom,
     x: Math.max(padding, (viewW - wPx * zoom) / 2),
-    y: Math.max(padding, (viewH - hPx * zoom) / 2),
+    y: padding,
   };
 }
