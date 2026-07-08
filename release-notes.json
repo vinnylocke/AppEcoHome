@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Garden Layout",
+    "items": [
+      "The layout viewer now opens perfectly fitted to your canvas on phones."
+    ]
+  }
+]

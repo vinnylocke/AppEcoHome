@@ -330,23 +330,27 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   }, [tool, selectedId, extraSelection, layout]);
 
   // Container resize
+  const containerMeasured = useRef(false);
   useEffect(() => {
     if (!containerRef.current) return;
     const obs = new ResizeObserver(entries => {
       const { width, height } = entries[0].contentRect;
+      containerMeasured.current = true;
       setContainerSize({ w: width, h: height });
     });
     obs.observe(containerRef.current);
     return () => obs.disconnect();
   }, []);
 
-  // Initial fit-to-canvas: once the layout and a real container size are
+  // Initial fit-to-canvas: once the layout and a MEASURED container size are
   // known, pick a zoom that shows the WHOLE canvas centred (phones used to
-  // open on a corner of empty grid at zoom 1). One-shot — after that the
-  // user's pan/zoom is theirs.
+  // open on a corner of empty grid at zoom 1). Gated on the ResizeObserver
+  // having reported — the default 800×600 state produced an oversized fit on
+  // phones. One-shot — after that the user's pan/zoom is theirs.
   const didInitialFit = useRef(false);
   useEffect(() => {
-    if (didInitialFit.current || !layout || containerSize.w < 50 || containerSize.h < 50) return;
+    if (didInitialFit.current || !layout || !containerMeasured.current) return;
+    if (containerSize.w < 50 || containerSize.h < 50) return;
     didInitialFit.current = true;
     const fit = fitStageToCanvas(layout.canvas_w_m, layout.canvas_h_m, containerSize.w, containerSize.h, BASE_PX);
     setZoom(fit.zoom);
