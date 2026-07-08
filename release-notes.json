@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Offline",
+    "items": [
+      "The app now opens and keeps working with no signal — your dashboard and plants load from your last saved data instead of an error screen.",
+      "A clearer offline bar shows when you're offline and how many changes are waiting, and there's a new \"Sync now\" option in your profile menu. Everything syncs automatically when you reconnect."
+    ]
+  }
+]

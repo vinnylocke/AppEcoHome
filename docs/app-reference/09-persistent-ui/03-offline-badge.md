@@ -1,14 +1,22 @@
-# Offline Badge
+# Offline Banner (was: Offline Badge)
 
-> A small amber chip in the header that shows when the browser is offline. Listens to `online` / `offline` events and self-hides when connectivity returns.
+> A full-width strip below the header (offline-first Phase 0, 2026-07-08) that replaced the tiny "Offline" chip. Tells the user in plain words they can keep working offline, shows how many changes are waiting to sync, and offers a manual "Sync now". Self-hides when online with an empty queue.
 
-**Source file:** `src/components/OfflineBadge.tsx`
+**Source file:** `src/components/OfflineBanner.tsx` (replaced `OfflineBadge.tsx`, deleted). Connectivity via the shared `useOnline()` hook (`src/hooks/useOnline.ts`); queue count/flush via `useOfflineQueue()`.
 
 ---
 
 ## Quick Summary
 
-`navigator.onLine` + window `online`/`offline` events drive the visibility. When offline, a `<WifiOff>` icon + "Offline" pill appears. When connectivity comes back, hides automatically.
+Three states: (1) **offline** — amber strip, "keep working; changes sync when you reconnect" (+ queued count); (2) **back online with pending items** — sky strip with a "Sync now" button (`flushQueue`); (3) **booted from cache** — slate strip "showing your last saved data — refreshing…". Renders `null` when online, synced, and not showing stale cache.
+
+### Boot-offline keystone (Phase 0)
+
+The app now **boots offline**. `src/lib/profileCache.ts` caches the (non-secret) `user_profiles` row per-user on every successful load; `App.tsx`'s boot chain paints from that cache IMMEDIATELY when present (then refreshes in the background), because `loadProfile` uses `withRetry` which *waits for online* rather than throwing — so a catch-based fallback would hang. Without the cache, a no-signal cold-open hit the 8s profile-load error screen. Cleared on sign-out alongside the other caches.
+
+### Sync now
+
+`App.tsx` `handleSyncNow` (wired to the banner button AND a "Sync now" item in `UserProfileDropdown`, modelled on "Check for update") flushes the write queue then refetches profile + dashboard. Reconnect (`online` event) auto-triggers the read refetch; the write queue already auto-flushes on `online` via `bootstrapOfflineQueue`.
 
 ---
 

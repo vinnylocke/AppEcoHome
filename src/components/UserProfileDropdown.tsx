@@ -54,6 +54,11 @@ interface Props {
    * pending so the dropdown can paint an appropriate toast.
    */
   onCheckForUpdate?: () => Promise<{ updateAvailable: boolean }>;
+  /**
+   * Offline-first Phase 0: "Sync now" — pushes queued offline writes and
+   * pulls fresh data. Resolves when the sync attempt completes.
+   */
+  onSyncNow?: () => Promise<void>;
 }
 
 interface DropdownItem {
@@ -87,15 +92,34 @@ function SectionLabel({ label }: { label: string }) {
   );
 }
 
-export default function UserProfileDropdown({ displayName, firstName, email, subscriptionTier, isAdmin, canViewAudit, appVersion, onVersionClick, onCheckForUpdate }: Props) {
+export default function UserProfileDropdown({ displayName, firstName, email, subscriptionTier, isAdmin, canViewAudit, appVersion, onVersionClick, onCheckForUpdate, onSyncNow }: Props) {
   const tierLabel = subscriptionTier ? TIER_LABEL[subscriptionTier] : "Sprout (Free)";
   const nameLabel = displayName || firstName || email?.split("@")[0] || tierLabel;
   const [open, setOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [whatsNewVersion, setWhatsNewVersion] = useState<string | null>(null);
   const [isCheckingForUpdate, setIsCheckingForUpdate] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  const handleSyncNow = async () => {
+    if (!onSyncNow || isSyncing) return;
+    setIsSyncing(true);
+    try {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        toast.error("You're offline — reconnect to sync.");
+        return;
+      }
+      await onSyncNow();
+      toast.success("Synced with the server.");
+      setOpen(false);
+    } catch {
+      toast.error("Couldn't sync — try again.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleCheckForUpdate = async () => {
     if (!onCheckForUpdate || isCheckingForUpdate) return;
@@ -355,6 +379,19 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                 <span className="flex-1 text-left">Credits &amp; sources</span>
                 <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
               </button>
+              {onSyncNow && (
+                <button
+                  data-testid="user-profile-sync-now"
+                  onClick={(e) => { e.stopPropagation(); handleSyncNow(); }}
+                  disabled={isSyncing}
+                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group disabled:opacity-60 disabled:cursor-wait"
+                >
+                  <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
+                    {isSyncing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                  </span>
+                  <span className="flex-1 text-left">{isSyncing ? "Syncing…" : "Sync now"}</span>
+                </button>
+              )}
               {onCheckForUpdate && (
                 <button
                   data-testid="user-profile-check-for-update"

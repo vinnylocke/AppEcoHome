@@ -42,8 +42,9 @@ import {
   purgeLegacyV1DashboardCaches,
 } from "./lib/dashboardCache";
 import { clearLocalPins as clearQuickLauncherPins } from "./lib/quickLauncherPrefs";
-import { clearQueue as clearOfflineQueue } from "./lib/offlineQueue";
+import { clearQueue as clearOfflineQueue, flushQueue } from "./lib/offlineQueue";
 import { clearAllShedCaches } from "./hooks/useCachedShed";
+import { writeProfileCache, readProfileCache, clearAllProfileCaches, type CachedProfile } from "./lib/profileCache";
 import { invalidateEntitlements } from "./hooks/useEntitlements";
 import * as Sentry from "@sentry/react";
 import WeatherForecast from "./components/WeatherForecast";
@@ -62,8 +63,8 @@ import { type TierId } from "./constants/tiers";
 import UserProfileDropdown from "./components/UserProfileDropdown";
 import GlobalQuickAdd from "./components/GlobalQuickAdd";
 import GlobalSearch from "./components/GlobalSearch";
-import OfflineBadge from "./components/OfflineBadge";
 import QueuedActionsBadge from "./components/QueuedActionsBadge";
+import OfflineBanner from "./components/OfflineBanner";
 import NavItem from "./components/NavItem";
 import UpdateBanner from "./components/UpdateBanner";
 import MaintenanceScreen from "./components/MaintenanceScreen";
@@ -292,6 +293,9 @@ function AppShell() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoadError, setProfileLoadError] = useState(false);
+  // True when boot hydrated the profile from cache because the live fetch
+  // failed (offline). Cleared once a fresh profile load succeeds.
+  const [bootedFromProfileCache, setBootedFromProfileCache] = useState(false);
   const [isAddingHome, setIsAddingHome] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
   const [weather, setWeather] = useState<any>(null);
@@ -1003,6 +1007,12 @@ function AppShell() {
       profileData.home_id = fallbackId;
     }
     setProfile(profileData as UserProfile | null);
+    if (profileData) {
+      // Cache the (non-secret) profile so a later offline cold-open can boot
+      // from it instead of erroring (offline-first Phase 0).
+      writeProfileCache(userId, profileData as unknown as CachedProfile);
+      setBootedFromProfileCache(false); // live data now — drop the stale flag
+    }
     if (profileData?.onboarding_state) {
       setOnboardingState(profileData.onboarding_state);
     }
@@ -1021,6 +1031,16 @@ function AppShell() {
     if (!s?.user) return Promise.resolve();
     return loadProfile(s.user.id);
   };
+
+  // Offline-first Phase 0: "Sync now" (avatar dropdown + banner button) and
+  // the reconnect handler both push queued writes AND pull fresh reads, so
+  // the screen reflects the true server state after a spell offline.
+  const handleSyncNow = useCallback(async () => {
+    await flushQueue();
+    await refreshProfile();
+    await fetchDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchDashboardData]);
 
   const handleManualRefresh = async () => {
     if (!profile?.home_id) return;
@@ -1109,7 +1129,25 @@ function AppShell() {
           setLoading(false);
           return;
         }
-        // Start profile fetch immediately — no extra effect cycle needed
+        // Offline-first Phase 0: paint from the cached profile IMMEDIATELY if
+        // we have one, so a no-signal cold-open boots straight into the app
+        // instead of the 8s error screen. `loadProfile` uses `withRetry`,
+        // which *waits for online* when offline (it won't throw) — so a
+        // catch-based fallback would hang forever. Cache-first paint, then a
+        // background refresh that supersedes it when connectivity allows.
+        const cached = readProfileCache(session.user.id);
+        if (cached) {
+          setProfile(cached as unknown as UserProfile);
+          if (cached.onboarding_state) setOnboardingState(cached.onboarding_state as any);
+          setBootedFromProfileCache(true);
+          setLoading(false);
+          loadProfile(session.user.id).catch((err) =>
+            Logger.warn("Background profile refresh failed (staying on cache)", err),
+          );
+          return;
+        }
+        // No cache — must fetch (first-ever load or post-clear). Errors here
+        // still show the error screen since we have nothing to fall back to.
         try {
           await loadProfile(session.user.id);
         } catch (err) {
@@ -1152,6 +1190,7 @@ function AppShell() {
         // or replays — the previous user's data.
         clearAllDashboardCaches();
         clearAllShedCaches();
+        clearAllProfileCaches();
         clearQuickLauncherPins();
         clearOfflineQueue();
         invalidateEntitlements();
@@ -1172,6 +1211,20 @@ function AppShell() {
 
   useEffect(() => {
     fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Offline-first Phase 0: when connectivity returns, pull fresh reads (the
+  // write queue already auto-flushes on `online` via bootstrapOfflineQueue).
+  // Without this, a user who worked offline keeps seeing stale cached data
+  // until they manually navigate or refresh.
+  useEffect(() => {
+    const onReconnect = () => {
+      void refreshProfile();
+      void fetchDashboardData();
+    };
+    window.addEventListener("online", onReconnect);
+    return () => window.removeEventListener("online", onReconnect);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchDashboardData]);
 
   // Refresh dashboard data whenever the user navigates to /dashboard.
@@ -1319,7 +1372,6 @@ function AppShell() {
                     onAddNewHome={() => setIsAddingHome(true)}
                     onHomeListChanged={refreshProfile}
                   />
-                  <OfflineBadge />
                   <QueuedActionsBadge />
                   <GlobalSearch homeId={profile?.home_id ?? null} />
                   <GlobalQuickAdd />
@@ -1335,9 +1387,11 @@ function AppShell() {
                 appVersion={appVersion ?? undefined}
                 onVersionClick={() => setReleaseNotesMode("history")}
                 onCheckForUpdate={versionState.refresh}
+                onSyncNow={handleSyncNow}
               />
             </header>
             )}
+            {session && profile && <OfflineBanner bootedFromCache={bootedFromProfileCache} />}
 
             <BetaFeedbackBanner />
 
@@ -2093,6 +2147,7 @@ function AppShell() {
                     appVersion={appVersion ?? undefined}
                     onVersionClick={() => setReleaseNotesMode("history")}
                     onCheckForUpdate={versionState.refresh}
+                    onSyncNow={handleSyncNow}
                   />
                 </div>
               )}
