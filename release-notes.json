@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "label": "Work offline, sync when you're back",
+    "items": [
+      "Notes now work fully offline — create, edit, pin, archive and delete without a connection. Everything syncs automatically the moment you're back online.",
+      "Garden layout edits made offline are saved on your device and synced when you reconnect.",
+      "You can add a one-off task while offline; it's saved and syncs on reconnect. Recurring routines and task links still need a connection.",
+      "An offline banner keeps you informed, and the account menu's \"Sync now\" lets you push pending changes on demand."
+    ]
+  }
+]

@@ -8,6 +8,8 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import { fitStageToCanvas } from "../lib/layoutViewport";
 import { readSnapshot, writeSnapshot } from "../lib/snapshotCache";
+import { enqueue } from "../lib/offlineQueue";
+import { isOffline } from "../hooks/useOnline";
 import toast from "react-hot-toast";
 import GardenRuler from "./GardenRuler";
 import GardenScaleBar from "./GardenScaleBar";
@@ -619,49 +621,63 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     setHistoryTick((n) => (n + 1) & 0xffff);
   }, []);
 
-  // Auto-save — delete + re-insert strategy for simplicity
+  // Auto-save — delete + re-insert strategy for simplicity.
+  // Offline-first Phase 3: when offline (or on a network failure), the whole
+  // "replace this layout's shapes" op is queued as a delete-by-layout_id +
+  // one insert per shape (FIFO replay reproduces the final state on
+  // reconnect), and the layout snapshot is updated so a reopen offline shows
+  // the edits. Local shape state is already optimistic.
   const triggerSave = useCallback(() => {
     setSaveState("unsaved");
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       if (!layoutId) return;
       setSaveState("saving");
+      const current = shapesRef.current;
+      const rows = current.map((s, i) => ({
+        id: s.id,
+        layout_id: layoutId,
+        area_id: s.area_id,
+        shape_type: s.shape_type,
+        label: s.label,
+        color: s.color,
+        x_m: s.x_m,
+        y_m: s.y_m,
+        width_m: s.width_m,
+        height_m: s.height_m,
+        radius_m: s.radius_m,
+        points: s.points,
+        rotation: s.rotation,
+        z_index: i,
+        dashed: s.dashed ?? false,
+        extrude_m: s.extrude_m ?? null,
+        preset_id: s.preset_id ?? null,
+        plan_id: s.plan_id ?? null,
+      }));
+      const persistViaQueue = () => {
+        enqueue({ kind: "db-write", table: "garden_shapes", op: "delete", match: { column: "layout_id", value: layoutId }, label: "Layout edit" });
+        for (const row of rows) {
+          enqueue({ kind: "db-write", table: "garden_shapes", op: "insert", payload: row, label: "Layout shape" });
+        }
+        writeSnapshot("layout", layoutId, { layout, shapes: current });
+        setSaveState("saved"); // queued = safe on this device
+      };
+      if (isOffline()) { persistViaQueue(); return; }
       try {
-        const current = shapesRef.current;
         const { error: delErr } = await supabase.from("garden_shapes").delete().eq("layout_id", layoutId);
         if (delErr) throw delErr;
-        if (current.length > 0) {
-          const { error: insErr } = await supabase.from("garden_shapes").insert(
-            current.map((s, i) => ({
-              id: s.id,
-              layout_id: layoutId,
-              area_id: s.area_id,
-              shape_type: s.shape_type,
-              label: s.label,
-              color: s.color,
-              x_m: s.x_m,
-              y_m: s.y_m,
-              width_m: s.width_m,
-              height_m: s.height_m,
-              radius_m: s.radius_m,
-              points: s.points,
-              rotation: s.rotation,
-              z_index: i,
-              dashed: s.dashed ?? false,
-              extrude_m: s.extrude_m ?? null,
-              preset_id: s.preset_id ?? null,
-              plan_id: s.plan_id ?? null,
-            }))
-          );
+        if (rows.length > 0) {
+          const { error: insErr } = await supabase.from("garden_shapes").insert(rows);
           if (insErr) throw insErr;
         }
+        writeSnapshot("layout", layoutId, { layout, shapes: current });
         setSaveState("saved");
       } catch (err) {
-        Logger.error("Auto-save failed", err);
-        setSaveState("unsaved");
+        Logger.error("Auto-save failed — queued for sync", err);
+        persistViaQueue();
       }
     }, 600);
-  }, [layoutId]);
+  }, [layoutId, layout]);
 
   const undo = useCallback(() => {
     const { past, future } = historyRef.current;

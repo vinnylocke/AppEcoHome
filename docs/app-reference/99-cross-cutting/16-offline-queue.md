@@ -40,12 +40,53 @@ Items are a discriminated union `QueuedWrite` — one variant per `kind`, with s
 
 | Kind | Operation | Producer |
 |------|-----------|----------|
-| `task-status` | Update `tasks.status` / `completed_at` / `completed_by` | `TaskList` (the only wired producer today). Before enqueueing, TaskList **replaces** any existing queued `task-status` item for the same task (`getQueue()` + `remove()`) — a refetch while offline repaints the task as Pending, so a second tap used to stack a duplicate item instead of superseding the first. |
-| `task-postpone` | Update `tasks.due_date` | none yet |
-| `journal-add` | Insert into `plant_journals` | none yet |
-| `ailment-link` | Insert into `plant_instance_ailments` | none yet |
+| `task-status` | Update `tasks.status` / `completed_at` / `completed_by` | `TaskList`. Before enqueueing, TaskList **replaces** any existing queued `task-status` item for the same task (`getQueue()` + `remove()`) — a refetch while offline repaints the task as Pending, so a second tap used to stack a duplicate item instead of superseding the first. |
+| `task-postpone` | Update `tasks.due_date` | none wired (legacy shape; use `db-write` for new work) |
+| `journal-add` | Insert into `plant_journals` | none wired (legacy shape; use `db-write`) |
+| `ailment-link` | Insert into `plant_instance_ailments` | none wired (legacy shape; use `db-write`) |
+| `db-write` | **Generic single-row insert / update / delete on any table** (offline-first Phase 3). | `queuedWrite.ts` helpers — see below |
 
-The union is a deliberate whitelist so persisted payloads stay trustworthy across app versions. Adding a new shape means extending `QueuedWrite["kind"]` + the executor in `applyOne()`. Unknown kinds are dropped silently so a stale shape can't loop forever.
+The four bespoke kinds are legacy, hand-rolled shapes. **New offline writes should use `db-write` via the `queuedWrite.ts` helpers, not a new bespoke kind.** The generic kind collapses the ~35 single-row idempotent writes (task create/edit, notes CRUD, plant edit/archive, instance edit, shopping, areas/locations edit, garden shapes, todos, lux) into one replayable shape. The union stays a deliberate whitelist so persisted payloads stay trustworthy across app versions; unknown kinds are dropped silently so a stale shape can't loop forever.
+
+### `db-write` kind (offline-first Phase 3)
+
+```ts
+{
+  kind: "db-write",
+  table: string,                                   // e.g. "notes"
+  op: "insert" | "update" | "delete",
+  payload?: Record<string, unknown>,               // insert/update rows
+  match?: { column: string; value: string|number },// update/delete target
+  label?: string,                                   // human label for the badge/debug
+}
+```
+
+Executor in `applyOne()`:
+- `insert` → `supabase.from(table).upsert(payload)` — **upsert, not insert**, so a double-replay of a client-id'd row is idempotent instead of a duplicate/PK conflict. **Every insert must carry a client-generated `id`** (a `crypto.randomUUID()` for uuid-PK tables) so the row is stable across optimistic paint → queue → replay.
+- `update` → `.update(payload).eq(match.column, match.value)`
+- `delete` → `.delete().eq(match.column, match.value)` (malformed items with no `match` are dropped silently)
+
+RLS enforces safety server-side on replay — the queue never carries elevated privilege; a write that the user couldn't make online is dead-lettered on replay like any other permanent failure.
+
+### `queuedWrite.ts` helpers — the producer API
+
+Producers call these instead of `supabase.from(table)…` directly (`src/lib/queuedWrite.ts`):
+
+```ts
+insertOrQueue(table, payload, label?) : Promise<{ queued, error? }>
+updateOrQueue(table, patch, match, label?)
+deleteOrQueue(table, match, label?)
+```
+
+Logic: if `isOffline()` → enqueue a `db-write` and return `{ queued: true }`. Else attempt the write; on a **permanent** error (has a PostgREST `code` or 4xx `status`) return `{ queued: false, error }` so the caller can surface it; on a **transient** (network-shaped) error enqueue + `{ queued: true }`; on success `{ queued: false }`. The caller updates its local state/snapshot **optimistically** so the change shows immediately whether or not it queued.
+
+**Wired producers (Phase 3):**
+
+| Surface | Writes | Notes |
+|---------|--------|-------|
+| Notes (`useNotes.ts`) | create / update / delete note + `note_links` | Full offline CRUD. Client `crypto.randomUUID()` id; optimistic `setNotes` + snapshot (`rhozly:snap:v1:notes*`). |
+| Garden layout (`GardenLayoutEditor.tsx`) | delete-then-insert `garden_shapes` on save | Offline save enqueues the shape rows + writes the `layout` snapshot. |
+| Add task (`AddTaskModal.tsx`) | insert a **plain one-off** `tasks` row | Recurring/blueprint, routine-edit and dependency-linking paths are gated online-only via `requireOnline` (they chain dependent writes that can't run offline). The queued task syncs on reconnect; it appears in task lists after sync (the `TaskEngine` cache is in-memory, so no instant cross-view optimistic paint). |
 
 ### `useOfflineQueue` hook
 
@@ -117,9 +158,13 @@ Gardens are often in poor-signal corners. The offline queue lets you carry on ed
 
 ## Code references for ongoing maintenance
 
-- `src/lib/offlineQueue.ts` — queue store, `enqueue` / `flushQueue` / `clearQueue` / `bootstrapOfflineQueue`, per-kind executors in `applyOne()`, cross-tab `storage` listener
+- `src/lib/offlineQueue.ts` — queue store, `enqueue` / `flushQueue` / `clearQueue` / `bootstrapOfflineQueue`, per-kind executors in `applyOne()` (incl. the generic `db-write` insert-as-upsert / update / delete), cross-tab `storage` listener
+- `src/lib/queuedWrite.ts` — `insertOrQueue` / `updateOrQueue` / `deleteOrQueue` — the offline-aware producer API for the `db-write` kind
+- `src/hooks/useOnline.ts` — `useOnline()` / `isOffline()` connectivity source used by the helpers
 - `src/hooks/useOfflineQueue.ts` — reactive view + manual `flush()`
 - `src/components/QueuedActionsBadge.tsx` — badge; live online state via `useSyncExternalStore`
 - `src/components/TaskList.tsx` — the `task-status` producer (replaces same-task queued items)
+- `src/hooks/useNotes.ts`, `src/components/GardenLayoutEditor.tsx`, `src/components/AddTaskModal.tsx` — Phase 3 `db-write` producers
+- `tests/unit/lib/queuedWrite.test.ts` — offline/online/permanent-error branches of the helpers
 - `src/App.tsx` — calls `clearQueue()` on sign-out
 - `localStorage` key `rhozly_offline_queue_v1`

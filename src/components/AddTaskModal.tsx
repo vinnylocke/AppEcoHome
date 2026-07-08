@@ -18,6 +18,8 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 import { requireOnline } from "../lib/requireOnline";
+import { isOffline } from "../hooks/useOnline";
+import { insertOrQueue } from "../lib/queuedWrite";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { logEvent, EVENT } from "../events/registry";
@@ -503,6 +505,56 @@ export default function AddTaskModal({
       setDateError(false);
     }
     if (hasError) return;
+
+    // Offline-first Phase 3: a plain one-off task is a single idempotent
+    // insert, so it can be queued and synced later. The recurring/blueprint,
+    // routine-edit, and dependency-linking paths chain dependent writes
+    // (blueprint id → task → generateBlueprintTasks / ghost materialisation)
+    // that can't run offline — gate those on a connection.
+    const isPlainOneOff = !existingBlueprint && !form.isRecurring && !selectedDepTask;
+    if (isOffline()) {
+      if (!isPlainOneOff) {
+        requireOnline(
+          existingBlueprint || form.isRecurring ? "Recurring routines" : "Linking task dependencies",
+        );
+        return;
+      }
+      setLoading(true);
+      try {
+        const id = crypto.randomUUID();
+        const row = {
+          id,
+          home_id: homeId,
+          title: form.title.trim(),
+          description: form.description,
+          type: form.type,
+          status: "Pending",
+          due_date: form.start_date,
+          location_id: form.location_id || null,
+          area_id: form.area_id || null,
+          plan_id: form.plan_id || null,
+          inventory_item_ids: form.inventory_item_ids,
+          seed_packet_id: form.type === "Planting" ? pickedNurseryPacketId : null,
+          scope: form.scope,
+          created_by: currentUserId,
+          assigned_to: form.assigned_to || null,
+        };
+        await insertOrQueue("tasks", row, "New task");
+        logEvent(EVENT.TASK_CREATED, {
+          task_type: form.type,
+          is_recurring: false,
+          inventory_item_ids: form.inventory_item_ids ?? [],
+        });
+        toast.success("Task saved — it'll sync when you're back online");
+        onSuccess();
+      } catch (err: any) {
+        Logger.error("Offline task create failed", err);
+        toast.error("Couldn't save task.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     // Conflict detection — only when creating a brand-new recurring blueprint.
     // Looks for an existing active blueprint with the same area + task type;

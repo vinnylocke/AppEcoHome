@@ -52,6 +52,25 @@ export type QueuedWrite =
       linkedBy: string | null;
       photoUrl: string | null;
       notes: string | null;
+    })
+  // Generic single-row write (offline-first Phase 3). Collapses the ~35
+  // single-row-idempotent offline writes (task create/edit, note, plant
+  // edit/archive, instance edit, shopping, areas/locations edit, garden
+  // shapes, todos, lux) into ONE replayable shape instead of a bespoke kind
+  // each. RLS enforces safety server-side on replay. `op`:
+  //   insert → supabase.from(table).insert(payload)
+  //   update → supabase.from(table).update(payload).eq(match.column, match.value)
+  //   delete → supabase.from(table).delete().eq(match.column, match.value)
+  // Use only for idempotent rows: an insert must carry a client-generated id
+  // (uuid) so a double-replay upserts the same row rather than duplicating.
+  | (BaseQueued & {
+      kind: "db-write";
+      table: string;
+      op: "insert" | "update" | "delete";
+      payload?: Record<string, unknown>;
+      match?: { column: string; value: string | number };
+      /** Human label for the queued-count UI / debugging. */
+      label?: string;
     });
 
 const STORAGE_KEY = "rhozly_offline_queue_v1";
@@ -179,6 +198,34 @@ async function applyOne(item: QueuedWrite): Promise<void> {
       notes:             item.notes,
     });
     if (error) throw error;
+    return;
+  }
+  if (item.kind === "db-write") {
+    if (item.op === "insert") {
+      // Upsert (not plain insert) so a double-replay of a client-id'd row is
+      // idempotent instead of a duplicate/PK-conflict.
+      const { error } = await supabase.from(item.table).upsert(item.payload ?? {});
+      if (error) throw error;
+      return;
+    }
+    if (item.op === "update") {
+      if (!item.match) return; // malformed — drop silently
+      const { error } = await supabase
+        .from(item.table)
+        .update(item.payload ?? {})
+        .eq(item.match.column, item.match.value);
+      if (error) throw error;
+      return;
+    }
+    if (item.op === "delete") {
+      if (!item.match) return;
+      const { error } = await supabase
+        .from(item.table)
+        .delete()
+        .eq(item.match.column, item.match.value);
+      if (error) throw error;
+      return;
+    }
     return;
   }
   // Unknown kind — drop it so the queue doesn't loop forever on a stale shape.
