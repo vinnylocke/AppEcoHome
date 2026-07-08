@@ -149,8 +149,9 @@ export default function ManualPlantCreation({
   // only visible action was the copy-on-write "Save as my own copy" submit —
   // one accidental click away from forking the plant off auto-updates. With
   // `disableWhenPristine`, the fork-save stays disabled until the user has
-  // actually edited something.
-  const pristineBaselineRef = useRef<string | null>(null);
+  // actually edited something. Dirty is EVENT-driven (every user mutation
+  // goes through `updateForm`) — state-diffing against a baseline raced the
+  // initialData sync effect and misread the sync itself as an edit.
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
@@ -276,21 +277,18 @@ export default function ManualPlantCreation({
         watering_max_days: initialData.watering_max_days?.toString() || "",
         labels: Array.isArray(initialData.labels) ? initialData.labels : [],
       }));
-      // Re-baseline the pristine snapshot: the state produced by THIS sync is
-      // "unchanged" — only subsequent user edits count as dirty.
-      pristineBaselineRef.current = null;
+      // The state produced by this sync is "unchanged" — only subsequent
+      // user edits (via updateForm) count as dirty.
+      setDirty(false);
     }
   }, [initialData]);
 
-  useEffect(() => {
-    const snapshot = JSON.stringify(formData);
-    if (pristineBaselineRef.current === null) {
-      pristineBaselineRef.current = snapshot;
-      setDirty(false);
-      return;
-    }
-    setDirty(snapshot !== pristineBaselineRef.current);
-  }, [formData]);
+  /** Every USER-driven form mutation goes through this — programmatic syncs
+   *  call setFormData directly and stay pristine. */
+  const updateForm: typeof setFormData = (updater) => {
+    setDirty(true);
+    setFormData(updater);
+  };
 
   const handleInputChange = (e: any) => {
     if (isReadOnly) return;
@@ -298,7 +296,7 @@ export default function ManualPlantCreation({
     if (name === "common_name" && errors.common_name) {
       setErrors((prev) => ({ ...prev, common_name: "" }));
     }
-    setFormData((prev) => {
+    updateForm((prev) => {
       const updated = {
         ...prev,
         [name]: type === "checkbox" ? checked : value,
@@ -350,7 +348,7 @@ export default function ManualPlantCreation({
         data: { publicUrl },
       } = supabase.storage.from("plant-images").getPublicUrl(filePath);
 
-      setFormData((prev) => ({ ...prev, thumbnail_url: publicUrl }));
+      updateForm((prev) => ({ ...prev, thumbnail_url: publicUrl }));
       toast.success("Image uploaded!");
     } catch (err: any) {
       toast.error("Failed to upload image.");
@@ -361,7 +359,7 @@ export default function ManualPlantCreation({
 
   const toggleArrayItem = (field: keyof typeof formData, value: string) => {
     if (isReadOnly) return;
-    setFormData((prev) => {
+    updateForm((prev) => {
       const current = (prev[field] as string[]) || [];
       return {
         ...prev,
@@ -654,7 +652,7 @@ export default function ManualPlantCreation({
                 <WikiImagePicker
                   plantName={formData.common_name || "plant"}
                   onSelect={(url) => {
-                    setFormData((prev) => ({ ...prev, thumbnail_url: url }));
+                    updateForm((prev) => ({ ...prev, thumbnail_url: url }));
                     setShowWikiPicker(false);
                     toast.success("Image set from Wikipedia!");
                   }}
@@ -723,7 +721,7 @@ export default function ManualPlantCreation({
                             <button
                               type="button"
                               onClick={() =>
-                                setFormData((prev) => ({
+                                updateForm((prev) => ({
                                   ...prev,
                                   labels: (prev.labels as string[]).filter(
                                     (l) => l !== lbl,
@@ -751,7 +749,7 @@ export default function ManualPlantCreation({
                             val &&
                             !(formData.labels as string[]).includes(val)
                           ) {
-                            setFormData((prev) => ({
+                            updateForm((prev) => ({
                               ...prev,
                               labels: [...(prev.labels as string[]), val],
                             }));
@@ -763,7 +761,7 @@ export default function ManualPlantCreation({
                           !labelsInput &&
                           (formData.labels as string[]).length > 0
                         ) {
-                          setFormData((prev) => ({
+                          updateForm((prev) => ({
                             ...prev,
                             labels: (prev.labels as string[]).slice(0, -1),
                           }));
@@ -775,7 +773,7 @@ export default function ManualPlantCreation({
                           val &&
                           !(formData.labels as string[]).includes(val)
                         ) {
-                          setFormData((prev) => ({
+                          updateForm((prev) => ({
                             ...prev,
                             labels: [...(prev.labels as string[]), val],
                           }));

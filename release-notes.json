@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Plants",
+    "items": [
+      "\"Save as my own copy\" now correctly stays disabled until you actually change something."
+    ]
+  }
+]
