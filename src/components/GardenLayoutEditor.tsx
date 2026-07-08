@@ -353,9 +353,15 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const didInitialFit = useRef(false);
   useEffect(() => {
     if (didInitialFit.current || !layout || !containerMeasured.current) return;
-    if (containerSize.w < 50 || containerSize.h < 50) return;
+    // Read the LIVE rect: the observer's first report can arrive mid-layout
+    // (before the toolbar/banner constrain the flex column) with an inflated
+    // height, which pushed the fitted canvas way down the viewport.
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 50 || rect.height < 50) return;
     didInitialFit.current = true;
-    const fit = fitStageToCanvas(layout.canvas_w_m, layout.canvas_h_m, containerSize.w, containerSize.h, BASE_PX);
+    const fit = fitStageToCanvas(layout.canvas_w_m, layout.canvas_h_m, rect.width, rect.height, BASE_PX);
     setZoom(fit.zoom);
     setStagePos({ x: fit.x, y: fit.y });
   }, [layout, containerSize]);
