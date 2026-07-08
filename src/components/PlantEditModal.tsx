@@ -707,20 +707,37 @@ export default function PlantEditModal({
                 </div>
               ) : (plant.source === "api" || plant.source === "verdantly") && forksOnEdit ? (
                 <p className="text-[10px] text-rhozly-on-surface/40 font-semibold uppercase tracking-widest mb-4">
-                  Sourced from {getProviderLabel(plant.source) ?? "the plant encyclopedia"} — saving creates your own editable copy; the original stays untouched
+                  Sourced from {getProviderLabel(plant.source) ?? "the plant encyclopedia"} — saving creates your own editable copy, which won't receive future {getProviderLabel(plant.source) ?? "encyclopedia"} updates
                 </p>
               ) : (plant.source === "api" || plant.source === "verdantly") ? (
                 <p className="text-[10px] text-rhozly-on-surface/40 font-semibold uppercase tracking-widest mb-4">
                   Read-only — data sourced from {getProviderLabel(plant.source) ?? "the plant encyclopedia"}
                 </p>
+              ) : plant.source === "ai" && forksOnEdit ? (
+                <p data-testid="ai-fork-consequence-note" className="text-[10px] text-rhozly-on-surface/40 font-semibold uppercase tracking-widest mb-4">
+                  From Rhozly's plant library — saving an edit creates your own personal copy, which stops receiving automatic care-guide updates
+                </p>
               ) : null}
 
-              {/* Wave 5 — AI catalogue freshness callout + Refresh now action */}
+              {/* AI catalogue freshness callout — review the before→after and
+                  either Apply (sync catalogue values into this plant) or Keep
+                  mine (ack only). Apply reuses the in-place revert RPC: for a
+                  shallow fork "revert to parent" IS "apply latest". */}
               {freshness?.has_update && (
                 <CareUpdateCallout
                   updatedFields={freshness.updated_care_fields}
                   lastGeneratedAt={freshness.last_care_generated_at}
+                  globalPlantId={freshness.global_plant_id}
+                  seenVersion={freshness.seen_version}
                   onAcknowledge={freshness.acknowledge}
+                  onApply={!isAiCustomFork ? async () => {
+                    const { error } = await supabase.rpc("revert_ai_plant_fork_in_place", {
+                      p_fork_id: plant.id,
+                    });
+                    if (error) throw error;
+                    toast.success("Care guide updated to the latest version.");
+                    onClose(); // parent refetches the shed with the synced data
+                  } : undefined}
                 />
               )}
               {plant.source === "ai" && (

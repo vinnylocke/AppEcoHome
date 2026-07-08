@@ -487,6 +487,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           }
 
           let extracted: any;
+          let directCatalogue: { db_plant_id: number | null; freshness_version: number | null } | null = null;
           if ((item as any).preloadedDetails) {
             const pd = (item as any).preloadedDetails;
             extracted = {
@@ -521,6 +522,14 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             const aiData = await PlantDoctorService.generateCareGuide(cleanName);
             if (!aiData) throw new Error("AI failed to generate data");
             extracted = aiData.plantData ? aiData.plantData : aiData;
+            // The edge fn returns the global catalogue id + version at the top
+            // level — carry them so this path links + acks exactly like the
+            // preloadedDetails path (the missed path behind the eternal
+            // "Care guide updated" chip — cdc21be only covered preloaded).
+            directCatalogue = {
+              db_plant_id: (aiData as any).db_plant_id ?? null,
+              freshness_version: (aiData as any).freshness_version ?? null,
+            };
           }
           if (!extracted.common_name) extracted.common_name = cleanName;
 
@@ -543,25 +552,29 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             perenual_id: null,
           };
           const pd = (item as any).preloadedDetails;
-          if (pd?.db_plant_id != null) {
-            aiSkeleton.forked_from_plant_id = pd.db_plant_id;
+          // Catalogue link comes from EITHER the preloaded details or the
+          // direct generate_care_guide response — both paths link + ack.
+          const catalogueId: number | null = pd?.db_plant_id ?? directCatalogue?.db_plant_id ?? null;
+          const catalogueVersion: number | null = pd?.freshness_version ?? directCatalogue?.freshness_version ?? null;
+          if (catalogueId != null) {
+            aiSkeleton.forked_from_plant_id = catalogueId;
             aiSkeleton.overridden_fields = [];
           }
           await savePlantToDB(aiSkeleton, extracted);
-          // Post-Wave-7 hotfix — seed user_plant_ack at the global's current
-          // freshness_version so the freshness chip doesn't fire on a
-          // just-added plant. Mirrors what fork_ai_plant_for_home does
-          // internally; we have to do it client-side because Wave 3 chose to
-          // create the home-scoped row directly rather than via the RPC.
-          if (pd?.db_plant_id != null) {
+          // Seed user_plant_ack at the global's current freshness_version so
+          // the freshness chip doesn't fire on a just-added plant. Without
+          // this, a missing ack row reads as "seen version 0" and the chip is
+          // on from day one (docs/plans/ai-plant-freshness-and-edit-ux-
+          // overhaul.md F1).
+          if (catalogueId != null) {
             const { data: userData } = await supabase.auth.getUser();
             const callerId = userData?.user?.id;
             if (callerId) {
               await supabase.from("user_plant_ack").upsert(
                 {
                   user_id: callerId,
-                  plant_id: pd.db_plant_id,
-                  seen_freshness_version: pd.freshness_version ?? 1,
+                  plant_id: catalogueId,
+                  seen_freshness_version: catalogueVersion ?? 1,
                   acked_at: new Date().toISOString(),
                 },
                 { onConflict: "user_id,plant_id" },

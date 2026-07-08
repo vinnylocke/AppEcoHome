@@ -127,16 +127,26 @@ export async function refreshStaleAiPlants(
         // sunlight/watering/etc top-level columns stayed at their original
         // add-time values forever, and the user's home row never received
         // any changed data even when the chip said "N fields updated".
+        //
+        // MERGE, don't replace: fields the regeneration omitted keep their
+        // stored values (both in the jsonb and the columns). Wholesale
+        // replacement dropped omitted fields from storage, which made the
+        // NEXT run diff them back in — permanent flip-flop noise.
+        const oldPlantData = ((plant.care_guide_data as { plantData?: Record<string, unknown> })?.plantData ?? {}) as Record<string, unknown>;
         const newPlantData = (newData as { plantData?: Record<string, unknown> }).plantData ?? {};
+        const mergedPlantData: Record<string, unknown> = { ...oldPlantData };
+        for (const [k, v] of Object.entries(newPlantData)) {
+          if (v != null) mergedPlantData[k] = v;
+        }
         const topLevelPatch: Record<string, unknown> = {};
         for (const f of USER_VISIBLE_CARE_FIELDS) {
-          if (newPlantData[f] !== undefined) topLevelPatch[f] = newPlantData[f];
+          if (newPlantData[f] != null) topLevelPatch[f] = newPlantData[f];
         }
 
         const { error: updErr } = await db
           .from("plants")
           .update({
-            care_guide_data: newData,
+            care_guide_data: { plantData: mergedPlantData },
             updated_care_fields: diff.fieldNames,
             freshness_version: newVersion,
             last_freshness_check_at: nowIso,

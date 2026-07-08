@@ -951,7 +951,11 @@ function InstanceCareFreshnessSection({ plantRecord }: { plantRecord: any }) {
     <CareUpdateCallout
       updatedFields={fresh.updated_care_fields}
       lastGeneratedAt={fresh.last_care_generated_at}
+      globalPlantId={fresh.global_plant_id}
+      seenVersion={fresh.seen_version}
       onAcknowledge={fresh.acknowledge}
+      // No onApply here — the instance modal has no refetch path for the
+      // parent plant; the full Apply action lives in the Plant Edit Modal.
     />
   );
 }

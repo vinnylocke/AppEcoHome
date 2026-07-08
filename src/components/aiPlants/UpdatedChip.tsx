@@ -28,7 +28,10 @@ export default function UpdatedChip({
       ? "text-[9px] px-1.5 py-0.5 gap-0.5"
       : "text-[10px] px-2 py-1 gap-1";
 
-  const label = count === 1 ? "1 field updated" : `${count} fields updated`;
+  // One quiet phrase, not a per-field count shout — a shed full of
+  // "10 FIELDS UPDATED" badges read as "everything is broken"
+  // (docs/plans/ai-plant-freshness-and-edit-ux-overhaul.md persona review).
+  const label = "Update available";
 
   const Component = onClick ? "button" : "span";
 

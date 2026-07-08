@@ -329,7 +329,7 @@ const LIBRARY_FALLBACK = [
   ["Foxglove", "Digitalis purpurea"], ["Geranium", "Pelargonium hortorum"], ["Fuchsia", "Fuchsia magellanica"],
   ["Dahlia", "Dahlia pinnata"], ["Petunia", "Petunia × atkinsiana"],
 ];
-async function seedLibraryShed(homeId, areas, locations, allocId) {
+async function seedLibraryShed(homeId, areas, locations, allocId, uid) {
   const { data: glob } = await sb.from("plants")
     .select("id, common_name, scientific_name, watering, care_level, cycle, sunlight, description")
     .is("home_id", null).eq("source", "ai").limit(10);
@@ -361,6 +361,25 @@ async function seedLibraryShed(homeId, areas, locations, allocId) {
   });
   await insert("plants", libPlants);
   await insert("inventory_items", libInv);
+
+  // Seed user_plant_ack for every shallow fork at its global's CURRENT
+  // freshness_version — without this every seeded AI plant shows the yellow
+  // "Care guide updated" chip from day one (docs/plans/ai-plant-freshness-
+  // and-edit-ux-overhaul.md F1).
+  const forkIds = src.filter((s) => s.fork != null).map((s) => s.fork);
+  if (forkIds.length && uid) {
+    const { data: globVers } = await sb.from("plants")
+      .select("id, freshness_version").in("id", forkIds);
+    const acks = (globVers ?? []).map((g) => ({
+      user_id: uid,
+      plant_id: g.id,
+      seen_freshness_version: g.freshness_version ?? 1,
+      acked_at: new Date().toISOString(),
+    }));
+    if (acks.length) {
+      await sb.from("user_plant_ack").upsert(acks, { onConflict: "user_id,plant_id" });
+    }
+  }
 }
 
 async function seedHome(homeId, uid, homeIndex, allocId) {
@@ -455,7 +474,7 @@ async function seedHome(homeId, uid, homeIndex, allocId) {
     }
   });
   await insert("inventory_items", inventory);
-  await seedLibraryShed(homeId, areas, locations, allocId); // manual + library mix in the shed
+  await seedLibraryShed(homeId, areas, locations, allocId, uid); // manual + library mix in the shed
 
   // — Task blueprints (routines) —
   const blueprints = [];

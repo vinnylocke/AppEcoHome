@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "label": "Plants",
+    "items": [
+      "Fixed the \"care guide updated\" badge showing on every AI plant forever — it now only appears for genuine updates.",
+      "Care-guide updates are now reviewable: see exactly what changed (old → new values) and choose \"Apply updates\" to take the new guidance or \"Keep mine\" to stay as you are.",
+      "The Shed badge is now a calm \"Update available\" chip instead of a per-field count.",
+      "Editing a library or AI plant now clearly explains that your personal copy stops receiving automatic updates."
+    ]
+  }
+]

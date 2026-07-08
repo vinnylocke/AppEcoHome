@@ -11,9 +11,9 @@ The seed adds a global Cherry Tomato at `freshness_version=2` with `updated_care
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| AI-FRESH-001 | ✅ | Shed card shows the Updated chip on Cherry Tomato — `ai-updated-chip` contains "fields updated" | — | ✅ Passing |
+| AI-FRESH-001 | ✅ | Shed card shows the Updated chip on Cherry Tomato — `ai-updated-chip` contains "Update available" (2026-07-08 calm-down) | — | ✅ Passing |
 | AI-FRESH-002 | ✅ | Opening the plant shows the yellow callout — `ai-care-update-callout` contains "Sunlight" + "watering" labels | — | ✅ Passing |
-| AI-FRESH-003 | ✅ | Mark as reviewed dismisses the callout — optimistic local clear | — | ✅ Passing |
+| AI-FRESH-003 | ✅ | Keep mine (ack) dismisses the callout — optimistic local clear (was "Mark as reviewed"; callout now also offers "Apply updates") | — | ✅ Passing |
 
 ## Override flow (Wave 6)
 

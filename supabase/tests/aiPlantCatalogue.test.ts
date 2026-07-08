@@ -214,13 +214,47 @@ Deno.test("diffCareGuide — handles missing plantData wrapper", () => {
   const a = { plantData: baseCare.plantData };
   const b = {};
   const d = diffCareGuide(a, b);
-  assertEquals(d.changed, true);
-  // Every defined field in `a` is treated as a change vs. missing in `b`.
-  // (description from free-text + structured fields).
+  // Omission-guard contract (2026-07-08): fields ABSENT from the new payload
+  // are not changes — an empty regeneration must be a no-op, never a
+  // "everything changed" event (that shape caused the June-12 noise storm).
+  assertEquals(d.changed, false);
+  assertEquals(d.fieldNames, []);
 });
 
 Deno.test("diffCareGuide — handles completely empty inputs", () => {
   const d = diffCareGuide({}, {});
   assertEquals(d.changed, false);
   assertEquals(d.fieldNames, []);
+});
+
+// ── Round-11-era omission guard (docs/plans/ai-plant-freshness-and-edit-ux-overhaul.md F2) ──
+
+Deno.test("diffCareGuide — a field ABSENT from the new payload is NOT a change", () => {
+  const oldGuide = { plantData: { ...baseCare.plantData, drought_tolerant: false, tropical: false, medicinal: false, cuisine: true } };
+  // Regeneration omits all four booleans (the June-12 cron noise shape).
+  const d = diffCareGuide(oldGuide, baseCare);
+  assertEquals(d.changed, false, "omitted fields must not diff to null");
+  assertEquals(d.fieldNames, []);
+});
+
+Deno.test("diffCareGuide — an explicit null in the new payload is treated as absent", () => {
+  const oldGuide = { plantData: { ...baseCare.plantData, cuisine: true } };
+  const newGuide = { plantData: { ...baseCare.plantData, cuisine: null } };
+  const d = diffCareGuide(oldGuide, newGuide);
+  assertEquals(d.changed, false);
+});
+
+Deno.test("diffCareGuide — real value changes are still detected alongside omissions", () => {
+  const oldGuide = { plantData: { ...baseCare.plantData, drought_tolerant: false, watering_max_days: 4 } };
+  const newGuide = { plantData: { ...baseCare.plantData, watering_max_days: 6 } }; // drought omitted + real change
+  const d = diffCareGuide(oldGuide, newGuide);
+  assertEquals(d.changed, true);
+  assertEquals(d.fieldNames, ["watering_max_days"]);
+});
+
+Deno.test("diffCareGuide — case-only churn stays a non-change (June-12 fixture)", () => {
+  const oldGuide = { plantData: { ...baseCare.plantData, sunlight: ["Full Sun", "Partial Shade"] } };
+  const newGuide = { plantData: { ...baseCare.plantData, sunlight: ["partial shade", "full sun"] } };
+  const d = diffCareGuide(oldGuide, newGuide);
+  assertEquals(d.changed, false);
 });

@@ -148,6 +148,14 @@ export function diffCareGuide(oldData: unknown, newData: unknown): CareGuideDiff
   for (const field of STRUCTURED_CARE_FIELDS) {
     const a = normaliseFieldValue(oldPlant[field]);
     const b = normaliseFieldValue(newPlant[field]);
+    // A field ABSENT (or null) in the regenerated payload is NOT a change —
+    // Gemini omitting a field it previously returned is schema/generation
+    // noise, not a care update. The 2026-06-12 cron run flagged
+    // `drought_tolerant/tropical/medicinal/cuisine: false → null` on EVERY
+    // plant this way (docs/plans/ai-plant-freshness-and-edit-ux-overhaul.md
+    // F2). Merge semantics: the old value survives; only a real new value
+    // can differ.
+    if (b == null) continue;
     if (!valuesEqual(a, b)) {
       fieldNames.push(field);
       perField[field] = { before: oldPlant[field] ?? null, after: newPlant[field] ?? null };

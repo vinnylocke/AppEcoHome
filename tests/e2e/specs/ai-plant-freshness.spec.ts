@@ -55,10 +55,10 @@ test.describe("AI Plant Freshness — chip + acknowledge", () => {
     await expect(card).toBeVisible({ timeout: 10000 });
 
     // The chip lives inside the card; it has data-testid="ai-updated-chip"
-    // and renders "2 fields updated" given seeded updated_care_fields.
+    // and renders the quiet "Update available" label (2026-07-08 calm-down).
     const chip = card.locator("[data-testid='ai-updated-chip']");
     await expect(chip).toBeVisible({ timeout: 5000 });
-    await expect(chip).toContainText(/fields updated/i);
+    await expect(chip).toContainText(/update available/i);
   });
 
   test("AI-FRESH-002: Opening the plant shows the yellow callout listing changed fields", async ({
@@ -81,7 +81,7 @@ test.describe("AI Plant Freshness — chip + acknowledge", () => {
     await expect(callout).toContainText(/watering/i);
   });
 
-  test("AI-FRESH-003: Mark as reviewed dismisses the callout", async ({
+  test("AI-FRESH-003: Keep mine (ack) dismisses the callout", async ({
     authenticatedPage,
   }) => {
     const shed = new ShedPage(authenticatedPage);

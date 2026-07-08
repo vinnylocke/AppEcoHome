@@ -332,3 +332,43 @@ Deno.test("refreshStaleAiPlants — batchSize caps the candidate select", async 
   assertEquals(result.examined, 10);
   assertEquals(result.changed, 10);
 });
+
+// ── Merge-don't-replace persist (docs/plans/ai-plant-freshness-and-edit-ux-overhaul.md F2) ──
+
+Deno.test("refreshStaleAiPlants — omitted fields survive the persisted merge", async () => {
+  const original = {
+    plantData: {
+      ...(careGuide({ watering_min_days: 3 }) as { plantData: Record<string, unknown> }).plantData,
+      drought_tolerant: true,
+      cuisine: true,
+    },
+  };
+  const candidate: CandidateRow = {
+    id: 99,
+    common_name: "Rosemary",
+    scientific_name: ["Salvia rosmarinus"],
+    care_guide_data: original,
+    freshness_version: 1,
+    last_freshness_check_at: null,
+  };
+  const mock = makeMock({ candidates: [candidate] });
+
+  // Regeneration changes watering but OMITS drought_tolerant + cuisine.
+  const regenerated = careGuide({ watering_min_days: 5 });
+  const result = await refreshStaleAiPlants(
+    mock.db as any,
+    async () => ({ plantData: regenerated, usage: fakeUsage }),
+    { sleepMs: 0 },
+  );
+
+  assertEquals(result.changed, 1);
+  const update = mock.updates.find((u) => u.patch.care_guide_data != null);
+  const persisted = (update!.patch.care_guide_data as { plantData: Record<string, unknown> }).plantData;
+  assertEquals(persisted.watering_min_days, 5, "real change persisted");
+  assertEquals(persisted.drought_tolerant, true, "omitted field kept its stored value");
+  assertEquals(persisted.cuisine, true, "omitted field kept its stored value");
+  // And the noise fields are not in changed_fields on the revision row.
+  const revision = (mock.inserts["plant_care_revisions"] ?? [])[0] as { changed_fields: string[] };
+  assertEquals(revision.changed_fields.includes("drought_tolerant"), false);
+  assertEquals(revision.changed_fields.includes("cuisine"), false);
+});

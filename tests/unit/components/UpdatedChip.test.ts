@@ -15,14 +15,17 @@ describe("UpdatedChip", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  test("renders 'N fields updated' for count >= 2", () => {
+  // 2026-07-08 calm-down: one quiet phrase, never a per-field count shout
+  // (docs/plans/ai-plant-freshness-and-edit-ux-overhaul.md).
+  test("renders the quiet 'Update available' label for any positive count", () => {
     render(React.createElement(UpdatedChip, { count: 3 }));
-    expect(screen.getByTestId("ai-updated-chip").textContent).toContain("3 fields updated");
+    expect(screen.getByTestId("ai-updated-chip").textContent).toContain("Update available");
+    expect(screen.getByTestId("ai-updated-chip").textContent).not.toContain("fields");
   });
 
-  test("renders singular '1 field updated' for count 1", () => {
+  test("count 1 uses the same label", () => {
     render(React.createElement(UpdatedChip, { count: 1 }));
-    expect(screen.getByTestId("ai-updated-chip").textContent).toContain("1 field updated");
+    expect(screen.getByTestId("ai-updated-chip").textContent).toContain("Update available");
   });
 
   test("renders as button + fires onClick when handler provided", () => {
