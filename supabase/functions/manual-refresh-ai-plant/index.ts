@@ -25,12 +25,12 @@
 //      version + return changed_fields.
 //   5. If nothing changed → just upsert ack defensively + return up-to-date.
 //
-// Rate limit (env: AI_REFRESH_RATE_LIMIT_MINUTES, default 7 days) is kept as
-// a button-spam guard. With no Gemini cost, this is purely a UX concern.
+// Rate limit: UNLIMITED by default (2026-07-08 product decision) — refresh
+// is a pure DB sync with no Gemini cost, so users may refresh as often as
+// they like; it simply no-ops when the catalogue hasn't changed. Set
+// AI_REFRESH_RATE_LIMIT_MINUTES to a positive value to re-enable a cadence.
 //
-// Tier gate (Sage+) is kept for now to preserve the existing access model.
-// We could relax this later — a no-Gemini refresh is cheap — but that's a
-// separate product decision.
+// Tier gate (Sage+) is kept to preserve the existing access model.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
@@ -45,11 +45,15 @@ import {
 
 const FN = "manual-refresh-ai-plant";
 
+// Product decision 2026-07-08: refresh is UNLIMITED by default. It never
+// calls Gemini — it only syncs from the global catalogue row and no-ops when
+// nothing differs — so there is no cost to guard. Set the env var to a
+// positive minute count to re-enable a cadence limit if that ever changes.
 const RATE_LIMIT_MINUTES = (() => {
   const raw = Deno.env.get("AI_REFRESH_RATE_LIMIT_MINUTES");
   const parsed = raw ? Number(raw) : NaN;
   if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return 7 * 24 * 60; // 7 days
+  return 0; // unlimited
 })();
 const RATE_LIMIT_MS = RATE_LIMIT_MINUTES * 60 * 1000;
 
@@ -129,24 +133,27 @@ serve(async (req) => {
       }
     }
 
-    // 3. Rate limit (per user, per global plant).
-    const cutoff = new Date(Date.now() - RATE_LIMIT_MS).toISOString();
-    const { data: recent } = await supabase
-      .from("ai_plant_manual_refresh_log")
-      .select("refreshed_at")
-      .eq("user_id", callerUserId)
-      .eq("plant_id", inputPlantId)
-      .gt("refreshed_at", cutoff)
-      .limit(1);
-    if (recent && recent.length > 0) {
-      const nextEligible = new Date(new Date(recent[0].refreshed_at).getTime() + RATE_LIMIT_MS);
-      return new Response(JSON.stringify({
-        error: "rate_limited",
-        retry_after: nextEligible.toISOString(),
-        rate_limit_minutes: RATE_LIMIT_MINUTES,
-      }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // 3. Rate limit (per user, per global plant) — skipped entirely when
+    //    RATE_LIMIT_MINUTES is 0 (the 2026-07-08 unlimited default).
+    if (RATE_LIMIT_MINUTES > 0) {
+      const cutoff = new Date(Date.now() - RATE_LIMIT_MS).toISOString();
+      const { data: recent } = await supabase
+        .from("ai_plant_manual_refresh_log")
+        .select("refreshed_at")
+        .eq("user_id", callerUserId)
+        .eq("plant_id", inputPlantId)
+        .gt("refreshed_at", cutoff)
+        .limit(1);
+      if (recent && recent.length > 0) {
+        const nextEligible = new Date(new Date(recent[0].refreshed_at).getTime() + RATE_LIMIT_MS);
+        return new Response(JSON.stringify({
+          error: "rate_limited",
+          retry_after: nextEligible.toISOString(),
+          rate_limit_minutes: RATE_LIMIT_MINUTES,
+        }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // 4. Resolve the global parent.
