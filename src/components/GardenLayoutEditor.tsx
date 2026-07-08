@@ -7,6 +7,7 @@ import GardenCompass from "./GardenCompass";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import { fitStageToCanvas } from "../lib/layoutViewport";
+import { readSnapshot, writeSnapshot } from "../lib/snapshotCache";
 import toast from "react-hot-toast";
 import GardenRuler from "./GardenRuler";
 import GardenScaleBar from "./GardenScaleBar";
@@ -546,6 +547,30 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   useEffect(() => {
     if (!layoutId) return;
     (async () => {
+      // Offline-first Phase 2: paint the cached layout + shapes instantly so
+      // a layout opens offline (read-only offline — the toolbar edits are the
+      // phones' view-only mode / online).
+      const cached = readSnapshot<{ layout: any; shapes: any[] }>("layout", layoutId);
+      const applyLayout = (lay: any) => {
+        setLayout(lay);
+        setSettingName(lay.name);
+        setSettingW(lay.canvas_w_m);
+        setSettingH(lay.canvas_h_m);
+        setNorthOffset(lay.north_offset_deg ?? 0);
+        setSettingNorthOffset(lay.north_offset_deg ?? 0);
+      };
+      const applyShapes = (shps: any[]) =>
+        setShapes((shps ?? []).map((s: any) => ({
+          ...s,
+          points: s.points ?? null,
+          extrude_m: s.extrude_m ?? null,
+          preset_id: s.preset_id ?? null,
+        })));
+      if (cached) {
+        applyLayout(cached.data.layout);
+        applyShapes(cached.data.shapes);
+        setLoading(false);
+      }
       try {
         const [{ data: lay, error: layErr }, { data: shps, error: shpErr }, { data: homeRow }] = await Promise.all([
           supabase.from("garden_layouts").select("*").eq("id", layoutId).single(),
@@ -554,26 +579,15 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         ]);
         if (layErr) throw layErr;
         if (shpErr) throw shpErr;
-        if (lay) {
-          setLayout(lay);
-          setSettingName(lay.name);
-          setSettingW(lay.canvas_w_m);
-          setSettingH(lay.canvas_h_m);
-          setNorthOffset(lay.north_offset_deg ?? 0);
-          setSettingNorthOffset(lay.north_offset_deg ?? 0);
-        }
+        if (lay) applyLayout(lay);
         if (homeRow?.lat != null && homeRow?.lng != null) {
           setHomeLatLng({ lat: homeRow.lat, lng: homeRow.lng });
         }
-        setShapes((shps ?? []).map((s: any) => ({
-          ...s,
-          points: s.points ?? null,
-          extrude_m: s.extrude_m ?? null,
-          preset_id: s.preset_id ?? null,
-        })));
+        applyShapes(shps ?? []);
+        writeSnapshot("layout", layoutId, { layout: lay, shapes: shps ?? [] });
       } catch (err) {
         Logger.error("Failed to load layout", err);
-        toast.error("Could not load layout.");
+        if (!cached) toast.error("Could not load layout."); // keep cache offline
       } finally {
         setLoading(false);
       }

@@ -39,6 +39,8 @@
 | `rhozly_shed_cache_{home_id}` | Per-home shed snapshot (plants + locations) written by `useCachedShed` |
 | `rhozly_shopping_plan_suggest_dismissed` | Shopping banner |
 | `rhozly:dashboard:v1:{home_id}` | Local-first dashboard snapshot (see Dashboard snapshot below) |
+| `rhozly:profile:v1:{user_id}` | Cached `user_profiles` row — lets the app BOOT offline (offline-first Phase 0, `src/lib/profileCache.ts`). Cleared on sign-out. |
+| `rhozly:snap:v1:{name}:{scope}` | Generic per-screen offline read caches (offline-first Phase 2, `src/lib/snapshotCache.ts`). `name` ∈ {homes, watchlist, planner, journal, automations, layouts, layout}, `scope` = home/user/layout id. Written on each successful fetch, painted instantly on open. Cleared on sign-out via `clearAllSnapshots()`. |
 | `rhozly_quick_launcher_v1` | Quick Launcher pin order — `{ pinned: string[] }`. Synced to `user_profiles.quick_launcher_pins`. Cleared on sign-out. |
 | `rhozly_quick_menu_seen` | Has the user seen the floating menu hint on `/quick` (boolean string) |
 | `ewelink_oauth_*` | eWeLink OAuth dance |

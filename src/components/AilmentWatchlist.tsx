@@ -9,6 +9,7 @@ import {
 import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
+import { readSnapshot, writeSnapshot } from "../lib/snapshotCache";
 import { supabase } from "../lib/supabase";
 import { PerenualService } from "../lib/perenualService";
 import {
@@ -1893,7 +1894,15 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   const [affectedCounts, setAffectedCounts] = useState<Record<string, number>>({});
 
   const fetchAilments = useCallback(async () => {
-    setLoading(true);
+    // Offline-first Phase 2: paint the cached watchlist instantly so the
+    // screen opens offline; only show the spinner on a cold first visit.
+    const cached = homeId ? readSnapshot<Ailment[]>("watchlist", homeId) : null;
+    if (cached) {
+      setAilments(cached.data);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setFetchError(false);
     const { data, error } = await supabase
       .from("ailments")
@@ -1902,9 +1911,10 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
       .order("created_at", { ascending: false });
     if (error) {
       Logger.error("Failed to load ailment watchlist", error, { homeId }, "Could not load watchlist.");
-      setFetchError(true);
+      if (!cached) setFetchError(true); // keep cached rows visible offline
     } else {
       setAilments((data || []) as Ailment[]);
+      if (homeId) writeSnapshot("watchlist", homeId, (data || []) as Ailment[]);
     }
     setLoading(false);
   }, [homeId, retryTick]);

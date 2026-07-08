@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { readSnapshot, writeSnapshot } from "../lib/snapshotCache";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
 import { usePermissions } from "../context/HomePermissionsContext";
@@ -123,7 +124,16 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
   }, [searchParams, setSearchParams]);
 
   const fetchPlans = async () => {
-    setLoading(true);
+    // Offline-first Phase 2: paint cached plans + counts instantly so the
+    // Planner opens offline.
+    const cached = homeId ? readSnapshot<{ plans: any[]; counts: Record<string, { tasks: number; blueprints: number }> }>("planner", homeId) : null;
+    if (cached) {
+      setPlans(cached.data.plans);
+      setPlanCounts(cached.data.counts);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setFetchError(false);
     const [plansResult, tasksResult, bpResult] = await Promise.all([
       supabase
@@ -144,10 +154,11 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
     ]);
 
     if (plansResult.error) {
-      setFetchError(true);
+      if (!cached) setFetchError(true); // keep cached plans visible offline
       Logger.error("Failed to load plans", plansResult.error, {}, "Failed to load plans.");
     } else {
-      setPlans(plansResult.data || []);
+      const freshPlans = plansResult.data || [];
+      setPlans(freshPlans);
       const counts: Record<string, { tasks: number; blueprints: number }> = {};
       (tasksResult.data || []).forEach((row: any) => {
         if (!row.plan_id) return;
@@ -160,6 +171,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
         counts[row.plan_id].blueprints++;
       });
       setPlanCounts(counts);
+      if (homeId) writeSnapshot("planner", homeId, { plans: freshPlans, counts });
     }
     setLoading(false);
   };

@@ -45,6 +45,7 @@ import { clearLocalPins as clearQuickLauncherPins } from "./lib/quickLauncherPre
 import { clearQueue as clearOfflineQueue, flushQueue } from "./lib/offlineQueue";
 import { clearAllShedCaches } from "./hooks/useCachedShed";
 import { writeProfileCache, readProfileCache, clearAllProfileCaches, type CachedProfile } from "./lib/profileCache";
+import { clearAllSnapshots } from "./lib/snapshotCache";
 import { invalidateEntitlements } from "./hooks/useEntitlements";
 import * as Sentry from "@sentry/react";
 import WeatherForecast from "./components/WeatherForecast";
@@ -1191,6 +1192,7 @@ function AppShell() {
         clearAllDashboardCaches();
         clearAllShedCaches();
         clearAllProfileCaches();
+        clearAllSnapshots();
         clearQuickLauncherPins();
         clearOfflineQueue();
         invalidateEntitlements();

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { readSnapshot, writeSnapshot } from "../lib/snapshotCache";
 import { supabase } from "../lib/supabase";
 import {
   ChevronDown,
@@ -58,6 +59,11 @@ export const HomeDropdown: React.FC<Props> = ({
       } = await supabase.auth.getSession();
       if (!session) return;
 
+      // Offline-first Phase 2: paint the cached home list immediately so the
+      // switcher shows the real home name (not "Select Home") offline.
+      const cached = readSnapshot<HomeWithRole[]>("homes", session.user.id);
+      if (cached && homes.length === 0) setHomes(cached.data);
+
       // 2. ONLY fetch home_members rows that belong to this specific user
       const { data, error } = await supabase
         .from("home_members")
@@ -78,6 +84,7 @@ export const HomeDropdown: React.FC<Props> = ({
             role: item.role,
           }));
         setHomes(homeList);
+        writeSnapshot("homes", session.user.id, homeList);
       }
     } finally {
       setIsFetching(false);

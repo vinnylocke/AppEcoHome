@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { readSnapshot, writeSnapshot } from "../../lib/snapshotCache";
 import { supabase } from "../../lib/supabase";
 import { Plus, Loader2, Zap } from "lucide-react";
 import AutomationCard from "./AutomationCard";
@@ -43,9 +44,17 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
   const filtered = filterByText(automations, query, (a) => [a.name, summariseTree(a.trigger_logic), a.area_name, a.location_name]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    // Offline-first Phase 2: paint the cached automations list instantly so
+    // the section opens offline (read-only offline — editing is gated).
+    const cached = homeId ? readSnapshot<AutomationFull[]>("automations", homeId) : null;
+    if (cached) {
+      setAutomations(cached.data);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
 
-    const { data: raw } = await supabase
+    const { data: raw, error: rawErr } = await supabase
       .from("automations")
       .select(`
         id, home_id, name, is_active, trigger_logic, created_at,
@@ -57,10 +66,17 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
       .eq("home_id", homeId)
       .order("created_at");
 
+    // Offline / fetch error: keep the cached list rather than blanking it.
+    if (rawErr) {
+      setLoading(false);
+      return;
+    }
+
     const rows = (raw ?? []) as any[];
 
     if (rows.length === 0) {
       setAutomations([]);
+      if (homeId) writeSnapshot("automations", homeId, []);
       setLoading(false);
       return;
     }
@@ -105,6 +121,7 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
     }));
 
     setAutomations(parsed);
+    if (homeId) writeSnapshot("automations", homeId, parsed);
     setLoading(false);
   }, [homeId]);
 

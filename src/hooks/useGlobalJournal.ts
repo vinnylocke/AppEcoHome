@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
+import { readSnapshot, writeSnapshot } from "../lib/snapshotCache";
 import type { JournalEntry, JournalTargetType } from "../types";
 
 /**
@@ -58,6 +59,13 @@ export function useGlobalJournal(homeId: string | null): UseGlobalJournalResult 
       setLoading(false);
       return;
     }
+    // Offline-first Phase 2: paint the cached journal instantly so it opens
+    // offline; spinner only on a cold first visit.
+    const cached = readSnapshot<JournalEntry[]>("journal", homeId);
+    if (cached) {
+      setEntries(cached.data);
+      setLoading(false);
+    }
     setError(null);
     try {
       const { data, error: queryErr } = await supabase
@@ -70,9 +78,10 @@ export function useGlobalJournal(homeId: string | null): UseGlobalJournalResult 
         .limit(PAGE_LIMIT);
       if (queryErr) throw queryErr;
       setEntries((data ?? []) as JournalEntry[]);
+      writeSnapshot("journal", homeId, (data ?? []) as JournalEntry[]);
     } catch (err: any) {
       Logger.error("useGlobalJournal: refresh failed", err, { homeId });
-      setError(err?.message ?? "Couldn't load the journal.");
+      if (!cached) setError(err?.message ?? "Couldn't load the journal."); // keep cache offline
     } finally {
       setLoading(false);
     }

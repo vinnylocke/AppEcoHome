@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, ChevronRight, Loader2, Wand2, SquareDashed, Arrow
 import { IconLayout } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
+import { readSnapshot, writeSnapshot } from "../lib/snapshotCache";
 import toast from "react-hot-toast";
 import FeatureGate from "./shared/FeatureGate";
 
@@ -152,6 +153,12 @@ function GardenLayoutListInner({ homeId }: Props) {
   useEffect(() => { fetchLayouts(); }, [homeId]);
 
   const fetchLayouts = async () => {
+    // Offline-first Phase 2: paint the cached layout list instantly.
+    const cached = homeId ? readSnapshot<Layout[]>("layouts", homeId) : null;
+    if (cached) {
+      setLayouts(cached.data);
+      setLoading(false);
+    }
     try {
       const { data, error } = await supabase
         .from("garden_layouts")
@@ -160,9 +167,10 @@ function GardenLayoutListInner({ homeId }: Props) {
         .order("created_at", { ascending: false });
       if (error) throw error;
       setLayouts(data ?? []);
+      if (homeId) writeSnapshot("layouts", homeId, (data ?? []) as Layout[]);
     } catch (err) {
       Logger.error("Failed to fetch garden layouts", err);
-      toast.error("Could not load layouts.");
+      if (!cached) toast.error("Could not load layouts."); // keep cache offline
     } finally {
       setLoading(false);
     }
