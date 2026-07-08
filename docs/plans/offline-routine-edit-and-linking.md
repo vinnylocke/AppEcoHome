@@ -37,4 +37,10 @@ One phase, one deploy, live-verified (offline edit + link → reconnect → sync
 
 ## Delivered (2026-07-08)
 
-Shipped. `injectOfflineTask`/`injectOfflineBlueprint` are now replace-by-id (so an edit updates in place). `AddTaskModal`'s offline branch dropped the `requireOnline` gate and handles routine edit (`updateOrQueue` + re-inject) and dependency linking (offline ghost materialisation + queued `task_dependencies`). Verified end-to-end vs a real DB: offline edit changed the blueprint's ghost cadence (7→2 days), offline link to a ghost materialised the target and queued the dependency; on reconnect the queue drained and the DB showed the updated blueprint, the materialised task, and the dependency row — all FKs intact. Tests: +2 in `taskEngineOffline.test.ts` (replace-by-id); the 41 engine tests still pass. Docs updated: `16-offline-queue.md`, `01-add-task-modal.md`.
+Shipped in two steps. `injectOfflineTask`/`injectOfflineBlueprint` are now replace-by-id (so an edit updates in place). `AddTaskModal`'s offline branch dropped the `requireOnline` gate and handles routine edit (`updateOrQueue` + re-inject) and dependency linking.
+
+**Race eliminated (follow-up, same day):** the first cut materialised a ghost target offline with a client uuid and queued a plain `task_dependencies` insert — the `unique_blueprint_date` race flagged below. Replaced with a **resolve-on-flush** `task-dep-link` queue kind: at flush it finds the cron's materialised row (or upserts one on `onConflict: blueprint_id,due_date`) and links to whichever id is real. No client-uuid materialise offline → no collision.
+
+Verified end-to-end vs a real DB: offline edit changed the blueprint's ghost cadence (7→2 days); the dep-link resolves correctly in **both** cases — (A) cron already materialised the target → links to the cron's id with **no duplicate**; (B) target not yet materialised → flush creates it then links. Tests: `taskEngineOffline.test.ts` (+2 replace-by-id), `offlineQueueDepLink.test.ts` (+4 resolution branches); the 41 engine tests still pass. Docs: `16-offline-queue.md`, `01-add-task-modal.md`.
+
+> The "Risks — ghost-materialisation race" section below is retained for history but **no longer applies** — the resolve-on-flush design removes it.

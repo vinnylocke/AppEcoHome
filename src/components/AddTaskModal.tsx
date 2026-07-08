@@ -20,6 +20,7 @@ import toast from "react-hot-toast";
 import { requireOnline } from "../lib/requireOnline";
 import { isOffline } from "../hooks/useOnline";
 import { insertOrQueue, updateOrQueue } from "../lib/queuedWrite";
+import { enqueue as enqueueWrite } from "../lib/offlineQueue";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { logEvent, EVENT } from "../events/registry";
@@ -622,36 +623,42 @@ export default function AddTaskModal({
           createdTaskId = row.id;
         }
 
-        // ── Dependency linking. If the target is a ghost, materialise it
-        // offline first (a plain task insert with a client uuid) so the
-        // dependency can reference a real row on replay.
+        // ── Dependency linking (race-free). Rather than materialise a ghost
+        // target with our own uuid offline (which could collide with the
+        // generate-tasks cron on `unique_blueprint_date`), queue a resolve-
+        // on-flush link: at reconnect it finds the real target row (the
+        // cron's if it exists, else materialises one) and inserts the
+        // dependency against whichever id is real. `createdTaskId` is the
+        // task we just queued, so it's always concrete.
         if (selectedDepTask && createdTaskId) {
-          let depTargetId: string = selectedDepTask.id;
           if (selectedDepTask.isGhost) {
-            const physId = crypto.randomUUID();
-            const physRow = {
-              id: physId,
-              home_id: selectedDepTask.home_id ?? homeId,
-              blueprint_id: selectedDepTask.blueprint_id ?? null,
-              title: selectedDepTask.title,
-              description: selectedDepTask.description ?? null,
-              type: selectedDepTask.type,
-              due_date: selectedDepTask.due_date,
-              status: "Pending",
-              location_id: selectedDepTask.location_id ?? null,
-              area_id: selectedDepTask.area_id ?? null,
-              plan_id: selectedDepTask.plan_id ?? null,
-              inventory_item_ids: selectedDepTask.inventory_item_ids ?? [],
-            };
-            await insertOrQueue("tasks", physRow, "Materialise task");
-            TaskEngine.injectOfflineTask(homeId, physRow);
-            depTargetId = physId;
+            enqueueWrite({
+              kind: "task-dep-link",
+              createdTaskId,
+              orientation: linkType === "waiting_on" ? "waiting_on" : "blocks",
+              targetGhost: {
+                home_id: selectedDepTask.home_id ?? homeId,
+                blueprint_id: selectedDepTask.blueprint_id,
+                due_date: selectedDepTask.due_date,
+                title: selectedDepTask.title,
+                description: selectedDepTask.description ?? null,
+                type: selectedDepTask.type,
+                location_id: selectedDepTask.location_id ?? null,
+                area_id: selectedDepTask.area_id ?? null,
+                plan_id: selectedDepTask.plan_id ?? null,
+                inventory_item_ids: selectedDepTask.inventory_item_ids ?? [],
+              },
+              label: "Task link",
+            });
+          } else {
+            enqueueWrite({
+              kind: "task-dep-link",
+              createdTaskId,
+              orientation: linkType === "waiting_on" ? "waiting_on" : "blocks",
+              targetTaskId: selectedDepTask.id,
+              label: "Task link",
+            });
           }
-          const dep =
-            linkType === "waiting_on"
-              ? { id: crypto.randomUUID(), task_id: createdTaskId, depends_on_task_id: depTargetId }
-              : { id: crypto.randomUUID(), task_id: depTargetId, depends_on_task_id: createdTaskId };
-          await insertOrQueue("task_dependencies", dep, "Task link");
         }
 
         toast.success(

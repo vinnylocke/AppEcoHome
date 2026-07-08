@@ -45,6 +45,7 @@ Items are a discriminated union `QueuedWrite` — one variant per `kind`, with s
 | `journal-add` | Insert into `plant_journals` | none wired (legacy shape; use `db-write`) |
 | `ailment-link` | Insert into `plant_instance_ailments` | none wired (legacy shape; use `db-write`) |
 | `db-write` | **Generic single-row insert / update / delete on any table** (offline-first Phase 3). | `queuedWrite.ts` helpers — see below |
+| `task-dep-link` | **Resolve-on-flush task dependency link.** Resolves the real target task at flush (the cron's row if it exists, else materialises one via upsert on `unique_blueprint_date`), then inserts `task_dependencies`. Race-free — see below. | `AddTaskModal` offline dependency linking |
 
 The four bespoke kinds are legacy, hand-rolled shapes. **New offline writes should use `db-write` via the `queuedWrite.ts` helpers, not a new bespoke kind.** The generic kind collapses the ~35 single-row idempotent writes (task create/edit, notes CRUD, plant edit/archive, instance edit, shopping, areas/locations edit, garden shapes, todos, lux) into one replayable shape. The union stays a deliberate whitelist so persisted payloads stay trustworthy across app versions; unknown kinds are dropped silently so a stale shape can't loop forever.
 
@@ -86,7 +87,17 @@ Logic: if `isOffline()` → enqueue a `db-write` and return `{ queued: true }`. 
 |---------|--------|-------|
 | Notes (`useNotes.ts`) | create / update / delete note + `note_links` | Full offline CRUD. Client `crypto.randomUUID()` id; optimistic `setNotes` + snapshot (`rhozly:snap:v1:notes*`). |
 | Garden layout (`GardenLayoutEditor.tsx`) | delete-then-insert `garden_shapes` on save | Offline save enqueues the shape rows + writes the `layout` snapshot. |
-| Add / edit task + routine, link dependencies (`AddTaskModal.tsx`) | insert a one-off `tasks` row, insert a recurring `task_blueprints` + first `tasks` row, **update** a `task_blueprints` row, and insert `task_dependencies` (+ materialise a ghost target `tasks` row) | **Phase 5 + follow-up.** Everything the modal does now works offline via client uuids. Create (one-off or new routine) queues the inserts (FIFO replay inserts the blueprint before its task, preserving the FK) and injects into the task engine snapshot so it shows in **every** view instantly; the routine's occurrences render as ghosts, so `generate-tasks` is skipped and the cron/reconnect materialises persisted rows. **Routine edit** is an `updateOrQueue("task_blueprints", …)` + re-inject (replace-by-id) so ghosts regenerate from the new values. **Dependency linking** materialises a ghost target offline (client-uuid task insert) then queues the `task_dependencies` row. See the ghost-materialisation-race caveat in [`offline-routine-edit-and-linking.md`](../../plans/offline-routine-edit-and-linking.md). |
+| Add / edit task + routine, link dependencies (`AddTaskModal.tsx`) | insert a one-off `tasks` row, insert a recurring `task_blueprints` + first `tasks` row, **update** a `task_blueprints` row, and insert `task_dependencies` (+ materialise a ghost target `tasks` row) | **Phase 5 + follow-up.** Everything the modal does now works offline via client uuids. Create (one-off or new routine) queues the inserts (FIFO replay inserts the blueprint before its task, preserving the FK) and injects into the task engine snapshot so it shows in **every** view instantly; the routine's occurrences render as ghosts, so `generate-tasks` is skipped and the cron/reconnect materialises persisted rows. **Routine edit** is an `updateOrQueue("task_blueprints", …)` + re-inject (replace-by-id) so ghosts regenerate from the new values. **Dependency linking** queues a `task-dep-link` (resolve-on-flush) — race-free: no ghost is materialised with a client uuid offline, so it can't collide with the `generate-tasks` cron. |
+
+### `task-dep-link` kind — race-free dependency linking
+
+Linking a task to a *ghost* occurrence is race-prone if the ghost is materialised offline with a client uuid: the `generate-tasks` cron may materialise the **same** `(blueprint_id, due_date)` server-side first, so the client insert would trip `unique_blueprint_date`, dead-letter, and orphan the dependency. This kind defers all resolution to flush time (`applyOne`):
+
+1. **Concrete target** (`targetTaskId`) → insert the dependency directly.
+2. **Ghost target** (`targetGhost` = `{ home_id, blueprint_id, due_date, … }`) → query `tasks` for that `(blueprint_id, due_date)`; if a row exists (the cron's, or a prior partial flush) link to it; otherwise `upsert` on `onConflict: "blueprint_id,due_date"` and link to the returned id.
+3. Insert `task_dependencies` with the `waiting_on` / `blocks` orientation.
+
+`createdTaskId` (the task the modal just created) is always concrete and queued as its own insert first, so FIFO replay guarantees it exists before the link runs.
 | Add manual plant (`saveToShed.ts` ← `TheShed.handleManualSave`) | insert a `plants` row + its auto-seasonal `plant_schedules` | **Phase 4.** Plant integer id is generated client-side (`generatePlantId`) so no server round-trip / id remap is needed; schedule uuids are generated client-side too. Hemisphere for the schedule windows comes from the cached home latitude (`readDashboardCache`) so they still land in the right months offline. Dup-check runs against the cached shed list; the new plant is painted + persisted via `useCachedShed.optimisticAddPlant`. Only the `manual` source is offline-capable — API/AI/Verdantly adds need the network for their care data anyway. |
 
 **Explicitly kept online-gated (Phase 4 product call):**
@@ -176,6 +187,7 @@ Gardens are often in poor-signal corners. The offline queue lets you carry on ed
 - `src/lib/saveToShed.ts` — Phase 4 offline manual-plant insert (plant + schedules); `src/hooks/useCachedShed.ts` `optimisticAddPlant`; `src/components/TheShed.tsx` `handleManualSave`
 - `src/components/integrations/AutomationBuilderModal.tsx` — automation save gated online via `requireOnline`
 - `src/lib/taskEngine.ts` — Phase 5 persistent task snapshot (`rhozly:snap:v1:tasks:{homeId}`), extracted pure `buildRenderTasks`, offline fetch fallback, `injectOfflineTask` / `injectOfflineBlueprint`
-- `tests/unit/lib/queuedWrite.test.ts`, `tests/unit/lib/saveToShedOffline.test.ts`, `tests/unit/lib/taskEngineOffline.test.ts` — helper + offline manual-plant + task-engine offline branches
+- `src/lib/offlineQueue.ts` `applyOne` `task-dep-link` branch — resolve-on-flush dependency linking
+- `tests/unit/lib/queuedWrite.test.ts`, `tests/unit/lib/saveToShedOffline.test.ts`, `tests/unit/lib/taskEngineOffline.test.ts`, `tests/unit/lib/offlineQueueDepLink.test.ts` — helper + offline manual-plant + task-engine + dep-link resolution branches
 - `src/App.tsx` — calls `clearQueue()` on sign-out
 - `localStorage` key `rhozly_offline_queue_v1`

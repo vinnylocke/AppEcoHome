@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "More reliable offline task linking",
+    "items": [
+      "Linking a task to an upcoming routine occurrence while offline now syncs reliably even if that occurrence gets created on the server in the meantime — no lost links, no duplicates."
+    ]
+  }
+]

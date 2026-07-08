@@ -71,6 +71,36 @@ export type QueuedWrite =
       match?: { column: string; value: string | number };
       /** Human label for the queued-count UI / debugging. */
       label?: string;
+    })
+  // Resolve-on-flush task dependency link (offline-first). Linking a task to
+  // a ghost occurrence is race-prone if we materialise the ghost with our own
+  // client uuid offline: the `generate-tasks` cron may materialise the SAME
+  // (blueprint_id, due_date) server-side first, and our insert would then trip
+  // `unique_blueprint_date` and dead-letter, orphaning the dependency. This
+  // kind defers everything to flush time: it resolves the real target row
+  // (the cron's, if it exists; otherwise it materialises one), then inserts
+  // the dependency against whichever id is real. `createdTaskId` is the
+  // already-queued task we control; only the TARGET may need resolving.
+  | (BaseQueued & {
+      kind: "task-dep-link";
+      createdTaskId: string;
+      orientation: "waiting_on" | "blocks";
+      /** Concrete target (target was already a physical task). */
+      targetTaskId?: string;
+      /** Ghost target to resolve/materialise at flush. */
+      targetGhost?: {
+        home_id: string;
+        blueprint_id: string;
+        due_date: string;
+        title: string;
+        description: string | null;
+        type: string;
+        location_id: string | null;
+        area_id: string | null;
+        plan_id: string | null;
+        inventory_item_ids: string[];
+      };
+      label?: string;
     });
 
 const STORAGE_KEY = "rhozly_offline_queue_v1";
@@ -226,6 +256,61 @@ async function applyOne(item: QueuedWrite): Promise<void> {
       if (error) throw error;
       return;
     }
+    return;
+  }
+  if (item.kind === "task-dep-link") {
+    // Resolve the real target id at flush time (race-free).
+    let targetId = item.targetTaskId ?? null;
+    if (!targetId && item.targetGhost) {
+      const g = item.targetGhost;
+      // Did the ghost already become a real row — materialised by us in a
+      // prior partial flush, or by the generate-tasks cron server-side?
+      const { data: existing, error: findErr } = await supabase
+        .from("tasks")
+        .select("id")
+        .eq("blueprint_id", g.blueprint_id)
+        .eq("due_date", g.due_date)
+        .neq("status", "Skipped")
+        .limit(1);
+      if (findErr) throw findErr;
+      if (existing && existing.length > 0) {
+        targetId = existing[0].id;
+      } else {
+        // Not yet materialised anywhere — create it now. Upsert on the
+        // (blueprint_id, due_date) unique constraint so a concurrent cron
+        // insert can't turn this into a hard duplicate-key failure; the
+        // returned row is whichever one now exists.
+        const { data: inserted, error: insErr } = await supabase
+          .from("tasks")
+          .upsert(
+            {
+              home_id: g.home_id,
+              blueprint_id: g.blueprint_id,
+              title: g.title,
+              description: g.description,
+              type: g.type,
+              due_date: g.due_date,
+              status: "Pending",
+              location_id: g.location_id,
+              area_id: g.area_id,
+              plan_id: g.plan_id,
+              inventory_item_ids: g.inventory_item_ids,
+            },
+            { onConflict: "blueprint_id,due_date" },
+          )
+          .select("id")
+          .single();
+        if (insErr) throw insErr;
+        targetId = inserted?.id ?? null;
+      }
+    }
+    if (!targetId) return; // malformed — drop
+    const payload =
+      item.orientation === "waiting_on"
+        ? { task_id: item.createdTaskId, depends_on_task_id: targetId }
+        : { task_id: targetId, depends_on_task_id: item.createdTaskId };
+    const { error } = await supabase.from("task_dependencies").insert(payload);
+    if (error) throw error;
     return;
   }
   // Unknown kind — drop it so the queue doesn't loop forever on a stale shape.

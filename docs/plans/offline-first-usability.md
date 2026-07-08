@@ -74,6 +74,6 @@ All five phases shipped and live-verified, one deploy each.
 **Product calls made:**
 - **Automations kept online-gated** (not queued): they drive live valve hardware and reference paired devices, so an offline config can't be validated or fire. `AutomationBuilderModal.save` uses `requireOnline` for a clear message. This matches this plan's own Phase 4 recommendation.
 - **Destructive cascades kept online-only** (inventory/journal/task fan-out can't be previewed offline).
-- **Ghost-materialisation race (dependency linking):** if the `generate-tasks` cron materialises the same (blueprint_id, due_date) between an offline link and reconnect, the queued materialise-insert dead-letters on `unique_blueprint_date`. Rare (exact same-date collision) and dependencies are a soft ordering hint; accepted with a queue log rather than blocking the feature.
+- **Ghost-materialisation race — resolved.** Dependency linking originally materialised a ghost target offline with a client uuid, which could collide with the `generate-tasks` cron on `unique_blueprint_date`. Replaced with a **resolve-on-flush** `task-dep-link` queue kind that resolves the real target at flush (cron's row if present, else an upsert on the constraint) and links to it. Verified live in both orderings — no duplicate, no dead-letter.
 
 Canonical mechanics doc: [`99-cross-cutting/16-offline-queue.md`](../app-reference/99-cross-cutting/16-offline-queue.md).
