@@ -102,11 +102,12 @@ BlueprintService.createOrUpdate({...});
 // Inserts or updates task_blueprints + nested links
 ```
 
-#### Offline (offline-first Phase 5)
-When `isOffline()`, `handleSubmit` takes a queue-and-inject path instead of the direct writes above:
+#### Offline (offline-first Phase 5 + follow-up)
+When `isOffline()`, `handleSubmit` takes a queue-and-inject path instead of the direct writes above. **Every** path works offline now:
 - **New one-off task** → client uuid, `insertOrQueue("tasks", …)`, then `TaskEngine.injectOfflineTask(homeId, row)` so it shows in every task view immediately.
 - **New recurring routine** → client uuids for the blueprint + first task, `insertOrQueue("task_blueprints", …)` then `insertOrQueue("tasks", …)` (FIFO replay keeps the FK valid), then `injectOfflineBlueprint` + `injectOfflineTask`. `generate-tasks` is **skipped** offline — the ghost engine renders the recurrence; the cron/reconnect materialises persisted rows.
-- **Routine edit** (existing blueprint) and **dependency linking** are gated online via `requireOnline` (they touch already-materialised rows / need ghost materialisation).
+- **Routine edit** (existing blueprint) → `updateOrQueue("task_blueprints", updates, { column: "id", value })` + `injectOfflineBlueprint({ ...existingBlueprint, ...updates })` (replace-by-id) so its ghosts regenerate from the new values.
+- **Dependency linking** → if the target is a ghost it's materialised offline first (a client-uuid `tasks` insert + inject), then `insertOrQueue("task_dependencies", { id, task_id, depends_on_task_id })` with the same `waiting_on`/`blocks` orientation as online. Rare `unique_blueprint_date` race on the materialise is documented in the plan.
 Queued writes replay on reconnect (idempotent upsert); see [Offline Queue](../99-cross-cutting/16-offline-queue.md).
 
 ### Photo-to-task flow (Sage/Evergreen)

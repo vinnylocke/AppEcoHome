@@ -19,7 +19,7 @@ import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 import { requireOnline } from "../lib/requireOnline";
 import { isOffline } from "../hooks/useOnline";
-import { insertOrQueue } from "../lib/queuedWrite";
+import { insertOrQueue, updateOrQueue } from "../lib/queuedWrite";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { logEvent, EVENT } from "../events/registry";
@@ -507,20 +507,43 @@ export default function AddTaskModal({
     }
     if (hasError) return;
 
-    // Offline-first (Phase 5): both a plain one-off task AND a new recurring
-    // routine can be created offline. Each is a set of idempotent inserts with
-    // client-generated uuids; the task/blueprint is injected into the task
-    // engine's snapshot so it shows in every view immediately, and the queued
-    // inserts sync on reconnect. Only the routine-EDIT path (touches already-
-    // materialised rows) and dependency linking (needs ghost materialisation)
-    // still require a connection.
+    // Offline-first: a plain one-off task, a NEW recurring routine, a routine
+    // EDIT, and dependency linking all work offline. Everything is a set of
+    // idempotent client-uuid writes queued for replay; the task/blueprint is
+    // injected into the task engine's snapshot so it shows in every view
+    // immediately. `generate-tasks` (edge fn) is skipped — ghosts render the
+    // recurrence; the cron / reconnect materialises persisted rows later.
     if (isOffline()) {
-      if (existingBlueprint || selectedDepTask) {
-        requireOnline(existingBlueprint ? "Editing a routine" : "Linking task dependencies");
-        return;
-      }
       setLoading(true);
       try {
+        // ── Routine EDIT — a single blueprint update; its ghosts regenerate
+        // from the new values (no materialised-row surgery needed).
+        if (existingBlueprint) {
+          const updates = {
+            title: form.title.trim(),
+            description: form.description,
+            task_type: form.type,
+            location_id: form.location_id || null,
+            area_id: form.area_id || null,
+            plan_id: form.plan_id || null,
+            inventory_item_ids: form.inventory_item_ids,
+            seed_packet_id: form.type === "Planting" ? pickedNurseryPacketId : null,
+            frequency_days: form.frequency_days,
+            start_date: form.start_date,
+            end_date: form.end_date || null,
+            scope: form.scope,
+            assigned_to: form.assigned_to || null,
+          };
+          await updateOrQueue("task_blueprints", updates, { column: "id", value: existingBlueprint.id }, "Edit routine");
+          TaskEngine.injectOfflineBlueprint(homeId, { ...existingBlueprint, ...updates });
+          toast.success("Routine updated — syncs when you're back online");
+          onSuccess();
+          return;
+        }
+
+        // ── CREATE one-off or new routine, capturing the new task id so a
+        // dependency can be linked to it below.
+        let createdTaskId: string;
         if (form.isRecurring) {
           const blueprintId = crypto.randomUUID();
           const firstTaskId = crypto.randomUUID();
@@ -563,9 +586,6 @@ export default function AddTaskModal({
           };
           await insertOrQueue("task_blueprints", bpRow, "New routine");
           await insertOrQueue("tasks", firstTask, "New routine task");
-          // Skip generate-tasks (edge fn) offline — the ghost engine renders
-          // the recurrence from the blueprint; the daily cron / a reconnect
-          // materialises the persisted rows later.
           TaskEngine.injectOfflineBlueprint(homeId, bpRow);
           TaskEngine.injectOfflineTask(homeId, firstTask);
           logEvent(EVENT.BLUEPRINT_CREATED, {
@@ -573,8 +593,7 @@ export default function AddTaskModal({
             frequency_days: form.frequency_days,
             inventory_item_ids: form.inventory_item_ids ?? [],
           });
-          toast.success("Routine saved — syncs when you're back online");
-          onSuccess();
+          createdTaskId = firstTaskId;
         } else {
           const row = {
             id: crypto.randomUUID(),
@@ -600,9 +619,47 @@ export default function AddTaskModal({
             is_recurring: false,
             inventory_item_ids: form.inventory_item_ids ?? [],
           });
-          toast.success("Task saved — it'll sync when you're back online");
-          onSuccess();
+          createdTaskId = row.id;
         }
+
+        // ── Dependency linking. If the target is a ghost, materialise it
+        // offline first (a plain task insert with a client uuid) so the
+        // dependency can reference a real row on replay.
+        if (selectedDepTask && createdTaskId) {
+          let depTargetId: string = selectedDepTask.id;
+          if (selectedDepTask.isGhost) {
+            const physId = crypto.randomUUID();
+            const physRow = {
+              id: physId,
+              home_id: selectedDepTask.home_id ?? homeId,
+              blueprint_id: selectedDepTask.blueprint_id ?? null,
+              title: selectedDepTask.title,
+              description: selectedDepTask.description ?? null,
+              type: selectedDepTask.type,
+              due_date: selectedDepTask.due_date,
+              status: "Pending",
+              location_id: selectedDepTask.location_id ?? null,
+              area_id: selectedDepTask.area_id ?? null,
+              plan_id: selectedDepTask.plan_id ?? null,
+              inventory_item_ids: selectedDepTask.inventory_item_ids ?? [],
+            };
+            await insertOrQueue("tasks", physRow, "Materialise task");
+            TaskEngine.injectOfflineTask(homeId, physRow);
+            depTargetId = physId;
+          }
+          const dep =
+            linkType === "waiting_on"
+              ? { id: crypto.randomUUID(), task_id: createdTaskId, depends_on_task_id: depTargetId }
+              : { id: crypto.randomUUID(), task_id: depTargetId, depends_on_task_id: createdTaskId };
+          await insertOrQueue("task_dependencies", dep, "Task link");
+        }
+
+        toast.success(
+          form.isRecurring
+            ? "Routine saved — syncs when you're back online"
+            : "Task saved — it'll sync when you're back online",
+        );
+        onSuccess();
       } catch (err: any) {
         Logger.error("Offline task create failed", err);
         toast.error("Couldn't save task.");

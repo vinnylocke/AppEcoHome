@@ -476,7 +476,12 @@ export const TaskEngine = {
   injectOfflineTask(homeId: string, taskRow: any): void {
     const snap = readSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId);
     if (!snap) return;
-    const physicalTasks = [taskRow, ...(snap.data.physicalTasks || [])];
+    // Replace-by-id (dedupe then prepend) so re-injecting an edited row
+    // updates in place instead of duplicating; harmless for a fresh create.
+    const physicalTasks = [
+      taskRow,
+      ...(snap.data.physicalTasks || []).filter((t: any) => t.id !== taskRow.id),
+    ];
     writeSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId, { ...snap.data, physicalTasks });
     TaskEngine.invalidateCache(homeId);
   },
@@ -491,7 +496,13 @@ export const TaskEngine = {
   injectOfflineBlueprint(homeId: string, blueprintRow: any): void {
     const snap = readSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId);
     if (!snap) return;
-    const blueprints = [blueprintRow, ...(snap.data.blueprints || [])];
+    // Replace-by-id so an offline routine EDIT updates the blueprint in place
+    // (its ghosts then regenerate from the new values) rather than adding a
+    // duplicate; a fresh create simply prepends.
+    const blueprints = [
+      blueprintRow,
+      ...(snap.data.blueprints || []).filter((b: any) => b.id !== blueprintRow.id),
+    ];
     writeSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId, { ...snap.data, blueprints });
     TaskEngine.invalidateCache(homeId);
   },

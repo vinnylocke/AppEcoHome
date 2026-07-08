@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Edit routines & link tasks offline",
+    "items": [
+      "Editing a recurring routine now works with no connection — your changes show in the schedule straight away and sync when you're back online.",
+      "Linking a task to another (waiting-on / blocks) also works offline now, including when the task you link to is an upcoming routine occurrence.",
+      "With this, everything in the New Task / routine screen works offline end to end."
+    ]
+  }
+]

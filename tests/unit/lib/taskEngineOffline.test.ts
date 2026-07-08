@@ -102,4 +102,28 @@ describe("TaskEngine.injectOffline*", () => {
     expect(() => TaskEngine.injectOfflineTask("home-none", { id: "x" })).not.toThrow();
     expect(store.get("tasks:home-none")).toBeUndefined();
   });
+
+  test("injectOfflineBlueprint replaces an existing blueprint by id (edit in place)", () => {
+    store.set("tasks:home-1", {
+      physicalTasks: [],
+      blueprints: [{ id: "bp-1", title: "Old", frequency_days: 7 }],
+      skippedTombstones: [],
+    });
+    TaskEngine.injectOfflineBlueprint("home-1", { id: "bp-1", title: "New", frequency_days: 3 });
+    const snap = store.get("tasks:home-1");
+    expect(snap.blueprints).toHaveLength(1); // replaced, not duplicated
+    expect(snap.blueprints[0]).toMatchObject({ id: "bp-1", title: "New", frequency_days: 3 });
+  });
+
+  test("injectOfflineTask replaces an existing task by id", () => {
+    store.set("tasks:home-1", {
+      physicalTasks: [{ id: "t1", status: "Pending" }],
+      blueprints: [],
+      skippedTombstones: [],
+    });
+    TaskEngine.injectOfflineTask("home-1", { id: "t1", status: "Completed" });
+    const snap = store.get("tasks:home-1");
+    expect(snap.physicalTasks).toHaveLength(1);
+    expect(snap.physicalTasks[0].status).toBe("Completed");
+  });
 });
