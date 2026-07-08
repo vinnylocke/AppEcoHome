@@ -1,27 +1,30 @@
-// ─── Today task summary (RHO-20) ───────────────────────────────────────────
+// ─── Today task summary (RHO-20; completion-aware since 2026-07) ────────────
 //
-// The Home status strip used to show a single opaque "N tasks today" number
-// that didn't move as tasks were done. This builds a "X of Y done today"
-// breakdown by combining two sources, each authoritative for different parts:
+// The Home status strip shows "X of Y done today". It combines two sources,
+// each authoritative for a different half:
 //
-//   - PENDING comes from the ghost-aware CLIENT count (locationTaskCounts).
-//     Recurring blueprint tasks are virtual "ghosts" until acted on, so only
-//     the client knows the true remaining count.
-//   - DONE / SKIPPED / POSTPONED come from the SERVER `dayStrip` today bucket.
-//     Those are always persisted rows (never ghosts), so the tested server
-//     aggregation is the source of truth for them.
+//   - PENDING comes from the ghost-aware CLIENT count (locationTaskCounts):
+//     open tasks DUE today. Recurring blueprint tasks are virtual "ghosts"
+//     until acted on, so only the client knows the true remaining count.
+//   - DONE comes from the SERVER's completion-aware `tasks.doneToday`
+//     (`computeDoneToday`): tasks Completed today (incl. an OVERDUE or harvest
+//     task cleared today) OR due today and done. This deliberately does NOT
+//     use the day-strip's today bucket — that buckets completions on their
+//     DUE day, so an overdue task completed today never counted here. That
+//     mismatch was the "2 of 3 instead of 3 of 3" bug.
+//
+// The two halves are disjoint (done = Completed, pending = open) so they never
+// double-count.
 
 export interface TodayBucketLike {
-  completedOnTime?: number;
-  completedLate?: number;
   skipped?: number;
   postponed?: number;
 }
 
 export interface TodaySummary {
-  /** Tasks scheduled today that are done (on-time + late). */
+  /** Tasks done that count toward today (completed today, or due-today & done). */
   done: number;
-  /** Tasks still to do today (ghost-aware). */
+  /** Tasks still to do today (ghost-aware, open, due today). */
   pending: number;
   /** done + pending — the denominator of "X of Y done today". */
   total: number;
@@ -32,15 +35,18 @@ export interface TodaySummary {
 }
 
 /**
- * Combine the ghost-aware client pending count with the server's today
- * `dayStrip` bucket into a single breakdown. `bucket` may be null/undefined
- * while the stats fetch is in flight — pending still renders from the client.
+ * Combine the ghost-aware client pending count with the server's
+ * completion-aware `doneToday`. `bucket` (the day-strip today bucket) is now
+ * used only for the passthrough skipped/postponed tallies; it may be
+ * null/undefined while the stats fetch is in flight — pending still renders
+ * from the client and done falls back to 0.
  */
 export function buildTodaySummary(
   pendingCount: number,
-  bucket: TodayBucketLike | null | undefined,
+  doneToday: number | null | undefined,
+  bucket?: TodayBucketLike | null,
 ): TodaySummary {
-  const done = (bucket?.completedOnTime ?? 0) + (bucket?.completedLate ?? 0);
+  const done = Math.max(0, doneToday ?? 0);
   const pending = Math.max(0, pendingCount);
   return {
     done,

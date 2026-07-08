@@ -173,6 +173,37 @@ export function computeTaskStats(
   return { total, overdue, pending, priorOverdue, completedThisWeek };
 }
 
+/**
+ * "Done today" for the Home status strip's "X of Y done today" headline.
+ *
+ * Completion-oriented (NOT the day-strip's due-date bucketing): a task counts
+ * if it is Completed AND either
+ *   - it was completed today (local `completed_at` === today), so clearing an
+ *     OVERDUE or harvest task today is reflected, or
+ *   - its effective due date is today (so a today task ticked a touch early
+ *     still counts).
+ * Distinct per task, so a due-today-and-done-today task is counted once.
+ *
+ * This intentionally diverges from `computeDayStrip`, whose per-day
+ * `completedOnTime/Late` buckets stay due-date-based (correct for the weekly
+ * strip). Pending (the denominator's other half) still comes from the
+ * ghost-aware CLIENT count; see `src/lib/todaySummary.ts`.
+ */
+export function computeDoneToday(
+  tasks: StatTask[],
+  today: string,
+  tzOffsetMinutes = 0,
+): number {
+  let done = 0;
+  for (const t of tasks) {
+    if (t.status !== "Completed") continue;
+    const completedToday = completedDateLocal(t, tzOffsetMinutes) === today;
+    const dueToday = effectiveDueDate(t) === today;
+    if (completedToday || dueToday) done += 1;
+  }
+  return done;
+}
+
 export interface DayBucket {
   date: string;
   total: number;

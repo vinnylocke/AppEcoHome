@@ -62,6 +62,30 @@ describe("buildRenderTasks (pure)", () => {
     expect(tasks.some((t) => t.id === "t1")).toBe(true);
   });
 
+  test("a task completed TODAY but due earlier still renders in today's range (so cleared overdue work stays visible)", () => {
+    // range = today-only (the dashboard Today list). Due yesterday, done today.
+    // The engine keys "completed in window" on updated_at/created_at (its
+    // proxy for completion time), which is set to now when a task is ticked.
+    const overdueDoneToday = {
+      id: "od",
+      blueprint_id: null,
+      due_date: "2026-04-30",
+      status: "Completed",
+      type: "Watering",
+      updated_at: "2026-05-01T09:00:00.000Z",
+      completed_at: "2026-05-01T09:00:00.000Z",
+    };
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [overdueDoneToday],
+      blueprints: [],
+      skippedTombstones: [],
+      startDateStr: "2026-05-01",
+      endDateStr: "2026-05-01",
+      todayStr: "2026-05-01",
+    });
+    expect(tasks.some((t) => t.id === "od")).toBe(true);
+  });
+
   test("harvest blueprint with an end_date emits one window ghost", () => {
     const bp = {
       id: "bp-h", home_id: "h", title: "Tomato Harvest", task_type: "Harvesting",

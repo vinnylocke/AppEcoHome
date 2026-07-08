@@ -4,6 +4,7 @@ import { log } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import {
   computeDayStrip,
+  computeDoneToday,
   computeHarvestCounts,
   computeTaskStats,
   type StatTask,
@@ -354,6 +355,11 @@ Deno.serve(async (req) => {
     // count on every in-window day; each day shows overdue + pending.
     const dayStrip = computeDayStrip(tasks, weekStart, weekEnd, today, tzOffset);
 
+    // Completion-oriented "done today" for the Home status strip headline —
+    // counts tasks cleared TODAY (incl. overdue/harvest) plus today's tasks
+    // done, independent of the day-strip's due-date bucketing.
+    const doneToday = computeDoneToday(tasks, today, tzOffset);
+
     const result = {
       tasks: {
         total: taskTotal,
@@ -371,6 +377,9 @@ Deno.serve(async (req) => {
         // tasks completed this week. Not folded into total/pending.
         priorOverdue: taskStats.priorOverdue,
         completedThisWeek: taskStats.completedThisWeek,
+        // "X of Y done today" numerator (completion-aware). See
+        // src/lib/todaySummary.ts.
+        doneToday,
       },
       garden: {
         totalPlants,

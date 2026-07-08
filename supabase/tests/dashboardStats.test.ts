@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import {
   computeDayStrip,
+  computeDoneToday,
   computeHarvestCounts,
   computeTaskStats,
   type StatTask,
@@ -299,4 +300,71 @@ Deno.test("DASH-STATS-031: tzOffsetMinutes buckets an evening completion onto th
   assertEquals(withOffset.completedThisWeek, 1);
   const withoutOffset = computeTaskStats(tasks, WEEK_START, WEEK_END, TODAY, 0);
   assertEquals(withoutOffset.completedThisWeek, 0);
+});
+
+// ─── computeDonetoday — the "X of Y done today" numerator ────────────────────
+// Regression guard for the reported bug: an OVERDUE task completed TODAY must
+// count toward "done today" (the old day-strip numerator bucketed it on its
+// past due day and missed it entirely).
+
+Deno.test("DASH-DONE-001: an overdue task completed today counts as done today", () => {
+  const tasks: StatTask[] = [
+    task({ id: "od", due_date: "2026-06-20", status: "Completed", completed_at: `${TODAY}T09:00:00Z` }),
+  ];
+  assertEquals(computeDoneToday(tasks, TODAY, 0), 1);
+});
+
+Deno.test("DASH-DONE-002: a due-today task completed today counts once (not double)", () => {
+  const tasks: StatTask[] = [
+    task({ id: "t", due_date: TODAY, status: "Completed", completed_at: `${TODAY}T12:00:00Z` }),
+  ];
+  assertEquals(computeDoneToday(tasks, TODAY, 0), 1);
+});
+
+Deno.test("DASH-DONE-003: a due-today task completed EARLY (yesterday) still counts (due today)", () => {
+  const tasks: StatTask[] = [
+    task({ id: "early", due_date: TODAY, status: "Completed", completed_at: "2026-06-30T09:00:00Z" }),
+  ];
+  assertEquals(computeDoneToday(tasks, TODAY, 0), 1);
+});
+
+Deno.test("DASH-DONE-004: a task completed on a PRIOR day (due earlier) does NOT count today", () => {
+  const tasks: StatTask[] = [
+    // e.g. the harvest auto-completed a few days ago.
+    task({ id: "harvest", type: "Harvesting", due_date: "2026-06-25", window_end_date: "2026-06-30", status: "Completed", completed_at: "2026-06-28T09:00:00Z" }),
+  ];
+  assertEquals(computeDoneToday(tasks, TODAY, 0), 0);
+});
+
+Deno.test("DASH-DONE-005: an OPEN overdue task does not count (not completed)", () => {
+  const tasks: StatTask[] = [
+    task({ id: "open", due_date: "2026-06-20", status: "Pending" }),
+  ];
+  assertEquals(computeDoneToday(tasks, TODAY, 0), 0);
+});
+
+Deno.test("DASH-DONE-006: timezone — an evening completion counts on the local day, not UTC next-day", () => {
+  // 2026-07-01 21:00 local (UTC+3 → offset -180) is 2026-07-01T18:00Z; a naive
+  // UTC slice of a later completion would misfile it. Here completed_at is
+  // 2026-07-02T01:00Z which, at offset -180 (east of UTC), is 2026-07-02 local
+  // → NOT today. At offset 0 it's 2026-07-02 too. Use a west case:
+  const tasks: StatTask[] = [
+    // 2026-07-02T02:00Z with offset 300 (UTC-5) → 2026-07-01 21:00 local = today.
+    task({ id: "eve", due_date: "2026-06-20", status: "Completed", completed_at: "2026-07-02T02:00:00Z" }),
+  ];
+  assertEquals(computeDoneToday(tasks, TODAY, 300), 1); // west of UTC: still today
+  assertEquals(computeDoneToday(tasks, TODAY, 0), 0);   // UTC: rolled to tomorrow
+});
+
+Deno.test("DASH-DONE-007: mixed set — the reported scenario yields 3", () => {
+  const tasks: StatTask[] = [
+    task({ id: "od1", due_date: "2026-06-20", status: "Completed", completed_at: `${TODAY}T08:00:00Z` }),
+    task({ id: "od2", due_date: "2026-06-22", status: "Completed", completed_at: `${TODAY}T08:30:00Z` }),
+    task({ id: "prune", type: "Pruning", due_date: TODAY, status: "Completed", completed_at: `${TODAY}T10:00:00Z` }),
+    // harvest completed days ago — correctly NOT counted today
+    task({ id: "harvest", type: "Harvesting", due_date: "2026-06-25", window_end_date: "2026-06-30", status: "Completed", completed_at: "2026-06-28T09:00:00Z" }),
+    // one still open due today
+    task({ id: "openToday", due_date: TODAY, status: "Pending" }),
+  ];
+  assertEquals(computeDoneToday(tasks, TODAY, 0), 3); // 2 overdue + pruning
 });

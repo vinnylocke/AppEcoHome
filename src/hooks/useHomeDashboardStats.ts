@@ -38,6 +38,10 @@ export interface HomeDashboardStats {
     priorOverdue: number;
     /** RHO-14: tasks completed within this week. */
     completedThisWeek: number;
+    /** Completion-aware "done today" for the "X of Y done today" headline —
+     *  tasks completed today (incl. overdue/harvest cleared today) or due today
+     *  and done. Independent of the due-date day-strip. */
+    doneToday: number;
   };
   garden: {
     totalPlants: number;

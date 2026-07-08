@@ -79,13 +79,16 @@ export default function HomeMain({
   const hasGarden = locations.length > 0;
 
   // RHO-20 — the "X of Y done today" breakdown. `todayTaskCount` (ghost-aware,
-  // remaining) supplies PENDING; the server dayStrip today bucket supplies the
-  // persisted DONE / SKIPPED / POSTPONED counts. Mounted in BOTH densities so
-  // the breakdown shows for simple-mode (Sprout) users too. Soft-fails: the
-  // hook returns null stats on error and the strip still renders pending.
+  // remaining) supplies PENDING; the server's completion-aware `tasks.doneToday`
+  // supplies DONE (tasks cleared today, incl. overdue/harvest — NOT the
+  // due-date day-strip bucket, which missed overdue-completed-today). The day
+  // bucket is still used for the SKIPPED / POSTPONED passthrough. Mounted in
+  // BOTH densities so the breakdown shows for simple-mode (Sprout) users too.
+  // Soft-fails: the hook returns null stats on error and the strip still
+  // renders pending.
   const { stats: dashStats } = useHomeDashboardStats(homeId);
   const todayBucket = dashStats?.dayStrip?.find((d) => d.isToday) ?? null;
-  const todaySummary = buildTodaySummary(todayTaskCount, todayBucket);
+  const todaySummary = buildTodaySummary(todayTaskCount, dashStats?.tasks.doneToday, todayBucket);
 
   // Phase 2 telemetry: sensor / valve / per-area task chips + attention
   // row. Soft-fails to the client-side grid when the endpoint is
