@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Offline",
-    "items": [
-      "The app now fully reopens with no signal instead of failing to load.",
-      "Features that need the internet — Plant Lens, Garden AI chat, plant search, care-guide refresh and more — now tell you clearly when you're offline instead of quietly doing nothing."
-    ]
-  }
-]
+[]
