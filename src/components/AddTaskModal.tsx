@@ -26,6 +26,7 @@ import { logEvent, EVENT } from "../events/registry";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { getNextOccurrences, formatPreviewLine } from "../lib/scheduleDatePreview";
 import { BlueprintService } from "../services/blueprintService";
+import { TaskEngine } from "../lib/taskEngine";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
 import { usePermissions } from "../context/HomePermissionsContext";
 import NurseryPacketPicker from "./nursery/NurseryPacketPicker";
@@ -506,47 +507,102 @@ export default function AddTaskModal({
     }
     if (hasError) return;
 
-    // Offline-first Phase 3: a plain one-off task is a single idempotent
-    // insert, so it can be queued and synced later. The recurring/blueprint,
-    // routine-edit, and dependency-linking paths chain dependent writes
-    // (blueprint id → task → generateBlueprintTasks / ghost materialisation)
-    // that can't run offline — gate those on a connection.
-    const isPlainOneOff = !existingBlueprint && !form.isRecurring && !selectedDepTask;
+    // Offline-first (Phase 5): both a plain one-off task AND a new recurring
+    // routine can be created offline. Each is a set of idempotent inserts with
+    // client-generated uuids; the task/blueprint is injected into the task
+    // engine's snapshot so it shows in every view immediately, and the queued
+    // inserts sync on reconnect. Only the routine-EDIT path (touches already-
+    // materialised rows) and dependency linking (needs ghost materialisation)
+    // still require a connection.
     if (isOffline()) {
-      if (!isPlainOneOff) {
-        requireOnline(
-          existingBlueprint || form.isRecurring ? "Recurring routines" : "Linking task dependencies",
-        );
+      if (existingBlueprint || selectedDepTask) {
+        requireOnline(existingBlueprint ? "Editing a routine" : "Linking task dependencies");
         return;
       }
       setLoading(true);
       try {
-        const id = crypto.randomUUID();
-        const row = {
-          id,
-          home_id: homeId,
-          title: form.title.trim(),
-          description: form.description,
-          type: form.type,
-          status: "Pending",
-          due_date: form.start_date,
-          location_id: form.location_id || null,
-          area_id: form.area_id || null,
-          plan_id: form.plan_id || null,
-          inventory_item_ids: form.inventory_item_ids,
-          seed_packet_id: form.type === "Planting" ? pickedNurseryPacketId : null,
-          scope: form.scope,
-          created_by: currentUserId,
-          assigned_to: form.assigned_to || null,
-        };
-        await insertOrQueue("tasks", row, "New task");
-        logEvent(EVENT.TASK_CREATED, {
-          task_type: form.type,
-          is_recurring: false,
-          inventory_item_ids: form.inventory_item_ids ?? [],
-        });
-        toast.success("Task saved — it'll sync when you're back online");
-        onSuccess();
+        if (form.isRecurring) {
+          const blueprintId = crypto.randomUUID();
+          const firstTaskId = crypto.randomUUID();
+          const bpRow = {
+            id: blueprintId,
+            home_id: homeId,
+            title: form.title.trim(),
+            description: form.description,
+            task_type: form.type,
+            location_id: form.location_id || null,
+            area_id: form.area_id || null,
+            plan_id: form.plan_id || null,
+            inventory_item_ids: form.inventory_item_ids,
+            seed_packet_id: form.type === "Planting" ? pickedNurseryPacketId : null,
+            frequency_days: form.frequency_days,
+            is_recurring: true,
+            start_date: form.start_date,
+            end_date: form.end_date || null,
+            scope: form.scope,
+            created_by: currentUserId,
+            assigned_to: form.assigned_to || null,
+          };
+          const firstTask = {
+            id: firstTaskId,
+            home_id: homeId,
+            blueprint_id: blueprintId,
+            title: form.title.trim(),
+            description: form.description,
+            type: form.type,
+            status: "Pending",
+            due_date: form.start_date,
+            location_id: form.location_id || null,
+            area_id: form.area_id || null,
+            plan_id: form.plan_id || null,
+            inventory_item_ids: form.inventory_item_ids,
+            seed_packet_id: form.type === "Planting" ? pickedNurseryPacketId : null,
+            scope: form.scope,
+            created_by: currentUserId,
+            assigned_to: form.assigned_to || null,
+          };
+          await insertOrQueue("task_blueprints", bpRow, "New routine");
+          await insertOrQueue("tasks", firstTask, "New routine task");
+          // Skip generate-tasks (edge fn) offline — the ghost engine renders
+          // the recurrence from the blueprint; the daily cron / a reconnect
+          // materialises the persisted rows later.
+          TaskEngine.injectOfflineBlueprint(homeId, bpRow);
+          TaskEngine.injectOfflineTask(homeId, firstTask);
+          logEvent(EVENT.BLUEPRINT_CREATED, {
+            task_type: form.type,
+            frequency_days: form.frequency_days,
+            inventory_item_ids: form.inventory_item_ids ?? [],
+          });
+          toast.success("Routine saved — syncs when you're back online");
+          onSuccess();
+        } else {
+          const row = {
+            id: crypto.randomUUID(),
+            home_id: homeId,
+            title: form.title.trim(),
+            description: form.description,
+            type: form.type,
+            status: "Pending",
+            due_date: form.start_date,
+            location_id: form.location_id || null,
+            area_id: form.area_id || null,
+            plan_id: form.plan_id || null,
+            inventory_item_ids: form.inventory_item_ids,
+            seed_packet_id: form.type === "Planting" ? pickedNurseryPacketId : null,
+            scope: form.scope,
+            created_by: currentUserId,
+            assigned_to: form.assigned_to || null,
+          };
+          await insertOrQueue("tasks", row, "New task");
+          TaskEngine.injectOfflineTask(homeId, row);
+          logEvent(EVENT.TASK_CREATED, {
+            task_type: form.type,
+            is_recurring: false,
+            inventory_item_ids: form.inventory_item_ids ?? [],
+          });
+          toast.success("Task saved — it'll sync when you're back online");
+          onSuccess();
+        }
       } catch (err: any) {
         Logger.error("Offline task create failed", err);
         toast.error("Couldn't save task.");

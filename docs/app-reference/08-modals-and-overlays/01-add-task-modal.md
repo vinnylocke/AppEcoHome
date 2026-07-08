@@ -102,6 +102,13 @@ BlueprintService.createOrUpdate({...});
 // Inserts or updates task_blueprints + nested links
 ```
 
+#### Offline (offline-first Phase 5)
+When `isOffline()`, `handleSubmit` takes a queue-and-inject path instead of the direct writes above:
+- **New one-off task** → client uuid, `insertOrQueue("tasks", …)`, then `TaskEngine.injectOfflineTask(homeId, row)` so it shows in every task view immediately.
+- **New recurring routine** → client uuids for the blueprint + first task, `insertOrQueue("task_blueprints", …)` then `insertOrQueue("tasks", …)` (FIFO replay keeps the FK valid), then `injectOfflineBlueprint` + `injectOfflineTask`. `generate-tasks` is **skipped** offline — the ghost engine renders the recurrence; the cron/reconnect materialises persisted rows.
+- **Routine edit** (existing blueprint) and **dependency linking** are gated online via `requireOnline` (they touch already-materialised rows / need ghost materialisation).
+Queued writes replay on reconnect (idempotent upsert); see [Offline Queue](../99-cross-cutting/16-offline-queue.md).
+
 ### Photo-to-task flow (Sage/Evergreen)
 
 1. Camera/library picks image.

@@ -86,7 +86,7 @@ Logic: if `isOffline()` → enqueue a `db-write` and return `{ queued: true }`. 
 |---------|--------|-------|
 | Notes (`useNotes.ts`) | create / update / delete note + `note_links` | Full offline CRUD. Client `crypto.randomUUID()` id; optimistic `setNotes` + snapshot (`rhozly:snap:v1:notes*`). |
 | Garden layout (`GardenLayoutEditor.tsx`) | delete-then-insert `garden_shapes` on save | Offline save enqueues the shape rows + writes the `layout` snapshot. |
-| Add task (`AddTaskModal.tsx`) | insert a **plain one-off** `tasks` row | Recurring/blueprint, routine-edit and dependency-linking paths are gated online-only via `requireOnline` (they chain dependent writes that can't run offline). The queued task syncs on reconnect; it appears in task lists after sync (the `TaskEngine` cache is in-memory, so no instant cross-view optimistic paint). |
+| Add task / routine (`AddTaskModal.tsx`) | insert a one-off `tasks` row **or** a recurring `task_blueprints` + its first `tasks` row | **Phase 5.** Both a one-off task and a *new* recurring routine are creatable offline (client uuids; FIFO replay inserts the blueprint before its task, preserving the FK). Each is injected into the task engine's persistent snapshot (`TaskEngine.injectOfflineTask` / `injectOfflineBlueprint`) so it appears in **every** task view instantly — the routine's future occurrences render as ghosts (pure-JS, no server call), so `generate-tasks` is skipped offline and the cron/reconnect materialises real rows later. Only routine **edit** (touches materialised rows) and **dependency linking** (needs ghost materialisation) still require a connection. |
 | Add manual plant (`saveToShed.ts` ← `TheShed.handleManualSave`) | insert a `plants` row + its auto-seasonal `plant_schedules` | **Phase 4.** Plant integer id is generated client-side (`generatePlantId`) so no server round-trip / id remap is needed; schedule uuids are generated client-side too. Hemisphere for the schedule windows comes from the cached home latitude (`readDashboardCache`) so they still land in the right months offline. Dup-check runs against the cached shed list; the new plant is painted + persisted via `useCachedShed.optimisticAddPlant`. Only the `manual` source is offline-capable — API/AI/Verdantly adds need the network for their care data anyway. |
 
 **Explicitly kept online-gated (Phase 4 product call):**
@@ -175,6 +175,7 @@ Gardens are often in poor-signal corners. The offline queue lets you carry on ed
 - `src/hooks/useNotes.ts`, `src/components/GardenLayoutEditor.tsx`, `src/components/AddTaskModal.tsx` — Phase 3 `db-write` producers
 - `src/lib/saveToShed.ts` — Phase 4 offline manual-plant insert (plant + schedules); `src/hooks/useCachedShed.ts` `optimisticAddPlant`; `src/components/TheShed.tsx` `handleManualSave`
 - `src/components/integrations/AutomationBuilderModal.tsx` — automation save gated online via `requireOnline`
-- `tests/unit/lib/queuedWrite.test.ts`, `tests/unit/lib/saveToShedOffline.test.ts` — helper + offline manual-plant branches
+- `src/lib/taskEngine.ts` — Phase 5 persistent task snapshot (`rhozly:snap:v1:tasks:{homeId}`), extracted pure `buildRenderTasks`, offline fetch fallback, `injectOfflineTask` / `injectOfflineBlueprint`
+- `tests/unit/lib/queuedWrite.test.ts`, `tests/unit/lib/saveToShedOffline.test.ts`, `tests/unit/lib/taskEngineOffline.test.ts` — helper + offline manual-plant + task-engine offline branches
 - `src/App.tsx` — calls `clearQueue()` on sign-out
 - `localStorage` key `rhozly_offline_queue_v1`

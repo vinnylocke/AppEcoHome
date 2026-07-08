@@ -1,4 +1,6 @@
 import { supabase } from "./supabase";
+import { readSnapshot, writeSnapshot } from "./snapshotCache";
+import { isOffline } from "../hooks/useOnline";
 
 export const getLocalDateString = (date: Date) => {
   const year = date.getFullYear();
@@ -167,6 +169,234 @@ export interface FullResult {
 }
 
 // ---------------------------------------------------------------------------
+// Offline-first (Phase 5): persistent raw-input snapshot
+// ---------------------------------------------------------------------------
+//
+// Every other screen has a localStorage snapshot; the task engine was the
+// last one that fetched-on-mount and so couldn't render offline. We cache
+// the RAW fetch inputs (physical tasks + full blueprint list + skip
+// tombstones) per home, then rebuild the rendered list — including ghost
+// generation, which is pure JS — from the cache when a fetch fails offline.
+// Caching raw inputs (not the rendered output) means an offline-created
+// one-off task or routine can be injected and every view re-derives ghosts
+// from it consistently.
+
+const TASKS_SNAPSHOT = "tasks";
+
+interface RawTaskSnapshot {
+  physicalTasks: any[];
+  blueprints: any[];
+  skippedTombstones: any[];
+}
+
+/** Mirror of the SQL predicate in `run()`'s tasks query, applied to cached
+ *  rows in the offline path so a narrower/wider requested range still shows
+ *  the right physical tasks. Online rows are already SQL-filtered, so this is
+ *  offline-only — `buildRenderTasks` receives range-filtered physicals in
+ *  both paths and its output stays identical. */
+function filterPhysicalsToRange(rows: any[], args: FetchArgs): any[] {
+  const { startDateStr, endDateStr, includeOverdue = false } = args;
+  return rows.filter((t) => {
+    if (t.status === "Skipped") return false;
+    if (!t.due_date) return false;
+    if (t.due_date > endDateStr) return false;
+    if (!includeOverdue) {
+      const inWindow =
+        t.due_date >= startDateStr ||
+        (t.window_end_date && t.window_end_date >= startDateStr);
+      if (!inWindow) return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * The pure-JS core of the engine: given the raw fetch inputs, produce the
+ * rendered task list (physical rows + generated ghosts) plus the blueprint
+ * list. Extracted verbatim from `run()` so BOTH the online path (post-fetch)
+ * and the offline path (from the cached snapshot) produce identical output.
+ * No DB calls, no side effects.
+ */
+export function buildRenderTasks(input: {
+  physicalTasks: any[];
+  blueprints: any[];
+  skippedTombstones: any[];
+  startDateStr: string;
+  endDateStr: string;
+  todayStr: string;
+}): { tasks: any[]; bps: any[]; rawTasks: any[] } {
+  const { physicalTasks, blueprints, skippedTombstones, startDateStr, endDateStr, todayStr } = input;
+
+  const tombstoneSet = new Set(
+    (skippedTombstones ?? []).map(
+      (t: any) => `${t.blueprint_id}:${t.due_date}`,
+    ),
+  );
+
+  const physicalRows = physicalTasks || [];
+
+  const materialisedKeys = new Set(
+    physicalRows
+      .filter((t: any) => t.blueprint_id && t.due_date)
+      .map((t: any) => `${t.blueprint_id}:${t.due_date}`),
+  );
+
+  const rawTasks = physicalRows.filter((task) => {
+    if (task.status !== "Completed") return true;
+    const isDueInWindow =
+      task.due_date >= startDateStr && task.due_date <= endDateStr;
+    const timestamp = task.updated_at || task.created_at || task.due_date;
+    const completedDateStr = timestamp.includes("T")
+      ? getLocalDateString(new Date(timestamp))
+      : timestamp;
+    const isCompletedInWindow =
+      completedDateStr >= startDateStr && completedDateStr <= endDateStr;
+    return isDueInWindow || isCompletedInWindow;
+  });
+
+  const bps = blueprints || [];
+
+  // ── Harvest canonical-window dedup ──────────────────────────────────
+  const canonicalWindow = new Map<string, { start: string; end: string }>();
+  for (const t of rawTasks) {
+    if (
+      (t.type === "Harvesting" || t.type === "Harvest")
+      && t.window_end_date
+      && t.blueprint_id
+      && t.status === "Pending"
+    ) {
+      const existing = canonicalWindow.get(t.blueprint_id);
+      if (!existing || t.due_date < existing.start) {
+        canonicalWindow.set(t.blueprint_id, {
+          start: t.due_date,
+          end: t.window_end_date,
+        });
+      }
+    }
+  }
+  const dedupedRawTasks = rawTasks.filter((t) => {
+    if (!t.blueprint_id) return true;
+    if (t.status !== "Pending") return true;
+    if (t.type !== "Harvesting" && t.type !== "Harvest") return true;
+    if (t.window_end_date) return true;
+    const c = canonicalWindow.get(t.blueprint_id);
+    if (!c) return true;
+    return !(t.due_date >= c.start && t.due_date <= c.end);
+  });
+
+  // Generate ghost tasks from blueprints (pure JS — no DB calls).
+  const ghosts: any[] = [];
+  bps.forEach((bp) => {
+    if (!bp.frequency_days || !bp.start_date) return;
+
+    const pausedUntilStr = bp.paused_until
+      ? String(bp.paused_until).split("T")[0]
+      : null;
+
+    // ── Harvest window branch ────────────────────────────────────────
+    if (
+      (bp.task_type === "Harvesting" || bp.task_type === "Harvest")
+      && bp.end_date
+    ) {
+      if (pausedUntilStr && todayStr < pausedUntilStr) return;
+
+      const ghostStartIso = bp.start_date;
+      const intersectsRange =
+        ghostStartIso <= endDateStr && bp.end_date >= startDateStr;
+      if (!intersectsRange) return;
+
+      const alreadyExists =
+        materialisedKeys.has(`${bp.id}:${ghostStartIso}`)
+        || tombstoneSet.has(`${bp.id}:${ghostStartIso}`);
+      if (alreadyExists) return;
+
+      ghosts.push({
+        id: `ghost-${bp.id}-${ghostStartIso}`,
+        blueprint_id: bp.id,
+        home_id: bp.home_id,
+        title: bp.title,
+        description: bp.description,
+        type: bp.task_type,
+        due_date: ghostStartIso,
+        window_end_date: bp.end_date,
+        status: "Pending",
+        location_id: bp.location_id,
+        area_id: bp.area_id,
+        plan_id: bp.plan_id,
+        inventory_item_ids: bp.inventory_item_ids || [],
+        locations: bp.locations,
+        scope: bp.scope || "home",
+        created_by: bp.created_by || null,
+        assigned_to: bp.assigned_to || null,
+        isGhost: true,
+      });
+      return;
+    }
+
+    const freq = bp.frequency_days;
+
+    const MS_PER_DAY = 86_400_000;
+    const parseUtcMs = (s: string) =>
+      Date.parse(`${String(s).split("T")[0]}T00:00:00Z`);
+    const stepMs = freq * MS_PER_DAY;
+
+    let ghostMs = parseUtcMs(bp.start_date);
+    const rangeStartMs = parseUtcMs(startDateStr);
+    const rangeEndMs = parseUtcMs(endDateStr);
+    if (Number.isNaN(ghostMs)) return;
+
+    if (ghostMs < rangeStartMs) {
+      const diffDays = Math.ceil((rangeStartMs - ghostMs) / MS_PER_DAY);
+      const cyclesToSkip = Math.ceil(diffDays / freq);
+      ghostMs += cyclesToSkip * stepMs;
+    }
+
+    while (ghostMs <= rangeEndMs) {
+      const ghostDateStr = new Date(ghostMs).toISOString().split("T")[0];
+      if (bp.end_date && ghostDateStr > bp.end_date) break;
+
+      if (pausedUntilStr && ghostDateStr < pausedUntilStr) {
+        ghostMs += stepMs;
+        continue;
+      }
+
+      const alreadyExists =
+        materialisedKeys.has(`${bp.id}:${ghostDateStr}`)
+        || tombstoneSet.has(`${bp.id}:${ghostDateStr}`);
+
+      if (
+        !alreadyExists &&
+        ghostDateStr >= startDateStr &&
+        ghostDateStr <= endDateStr
+      ) {
+        ghosts.push({
+          id: `ghost-${bp.id}-${ghostDateStr}`,
+          blueprint_id: bp.id,
+          home_id: bp.home_id,
+          title: bp.title,
+          description: bp.description,
+          type: bp.task_type,
+          due_date: ghostDateStr,
+          status: "Pending",
+          location_id: bp.location_id,
+          area_id: bp.area_id,
+          plan_id: bp.plan_id,
+          inventory_item_ids: bp.inventory_item_ids || [],
+          locations: bp.locations,
+          scope: bp.scope || "home",
+          created_by: bp.created_by || null,
+          assigned_to: bp.assigned_to || null,
+          isGhost: true,
+        });
+      }
+      ghostMs += stepMs;
+    }
+  });
+
+  return { tasks: [...dedupedRawTasks, ...ghosts], bps, rawTasks };
+}
+
+// ---------------------------------------------------------------------------
 // In-memory cache (Phase 2 of Quick Access perf work)
 // ---------------------------------------------------------------------------
 //
@@ -236,6 +466,37 @@ export const TaskEngine = {
   },
 
   /**
+   * Offline-first (Phase 5): inject an offline-created one-off task into the
+   * persistent raw snapshot and drop the in-memory cache for the home, so the
+   * next fetch/peek from ANY task view rebuilds from the snapshot and shows
+   * the task immediately (before its queued insert syncs). The queued insert
+   * reconciles on reconnect (idempotent upsert). Safe no-op if no snapshot
+   * exists yet (nothing has been fetched for the home).
+   */
+  injectOfflineTask(homeId: string, taskRow: any): void {
+    const snap = readSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId);
+    if (!snap) return;
+    const physicalTasks = [taskRow, ...(snap.data.physicalTasks || [])];
+    writeSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId, { ...snap.data, physicalTasks });
+    TaskEngine.invalidateCache(homeId);
+  },
+
+  /**
+   * Offline-first (Phase 5): inject an offline-created recurring blueprint
+   * into the snapshot. Because ghosts are generated purely in JS from the
+   * blueprint list, this makes the routine's upcoming tasks appear across
+   * every view instantly — no persisted task rows needed until the
+   * `generate-tasks` cron / a reconnect materialises them.
+   */
+  injectOfflineBlueprint(homeId: string, blueprintRow: any): void {
+    const snap = readSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId);
+    if (!snap) return;
+    const blueprints = [blueprintRow, ...(snap.data.blueprints || [])];
+    writeSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId, { ...snap.data, blueprints });
+    TaskEngine.invalidateCache(homeId);
+  },
+
+  /**
    * Fire-and-forget prefetch — kicks off a fetch in the background so its
    * result lands in the cache by the time the next mount happens.
    * Called from the Today tile tap on /quick before navigating to
@@ -300,267 +561,123 @@ export const TaskEngine = {
       }
       tasksQuery = tasksQuery.lte("due_date", endDateStr);
 
-      const [
-        { data: physicalTasks, error: tError },
-        { data: blueprints, error: bpError },
-        { data: skippedTombstones },
-      ] = await Promise.all([
-        tasksQuery,
-        supabase
-          .from("task_blueprints")
-          .select("*, locations(name, is_outside), areas(name), plans(name)")
-          .eq("home_id", homeId)
-          .eq("is_recurring", true)
-          .eq("is_archived", false),
-        // Wave-20.x — tombstone fetch is no longer date-bounded. The
-        // harvest ghost branch generates a ghost at the parent
-        // blueprint's start_date, which can sit far outside the
-        // current fetch range (e.g. a "Summer Harvest" blueprint
-        // starts in June, but the Today quick link asks for July
-        // only). The old range filter dropped tombstones at the
-        // blueprint start_date, so a Skipped harvest task silently
-        // failed to suppress its ghost and the user saw the same
-        // task pop back onto Today's list. Skipped rows with
-        // blueprint_id are rare enough that fetching them all is
-        // negligible compared to the wrong-task pile-up.
-        supabase
-          .from("tasks")
-          .select("blueprint_id, due_date")
-          .eq("home_id", homeId)
-          .eq("status", "Skipped")
-          .not("blueprint_id", "is", null),
-      ]);
+      // Offline fallback (offline-first Phase 5): serve the cached raw
+      // snapshot instead of hitting the network, so every task view renders
+      // offline from one shared source and offline-created tasks/routines
+      // (injected into the snapshot) show immediately. Round 2 (inventory
+      // thumbnails + dependency badges) is skipped offline and fills in on
+      // reconnect. Two triggers: known-offline before we attempt, and a
+      // thrown/returned fetch error while offline (flaky signal).
+      const serveOffline = (): FullResult | null => {
+        const snap = readSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId);
+        if (!snap) return null;
+        const offline = buildRenderTasks({
+          physicalTasks: filterPhysicalsToRange(snap.data.physicalTasks || [], args),
+          blueprints: snap.data.blueprints || [],
+          skippedTombstones: snap.data.skippedTombstones || [],
+          startDateStr,
+          endDateStr,
+          todayStr,
+        });
+        const offlineSnapshot: Phase1Snapshot = { tasks: offline.tasks, blueprints: offline.bps };
+        entry.phase1Snapshot = offlineSnapshot;
+        for (const cb of entry.phase1Callbacks) {
+          try { cb(offlineSnapshot); } catch { /* swallow — callback must not break the engine */ }
+        }
+        const offlineFull: FullResult = {
+          tasks: offline.tasks,
+          inventoryDict: {},
+          blockedTaskIds: new Set<string>(),
+        };
+        cache.set(key, { full: offlineFull, fetchedAt: Date.now() });
+        return offlineFull;
+      };
+
+      // Known-offline: don't even attempt the network — serve the snapshot if
+      // we have one (a fresh install with no snapshot falls through and lets
+      // the fetch surface its own error).
+      if (isOffline()) {
+        const served = serveOffline();
+        if (served) return served;
+      }
+
+      let physicalTasks: any[] | null;
+      let blueprints: any[] | null;
+      let skippedTombstones: any[] | null;
+      let tError: unknown;
+      let bpError: unknown;
+      try {
+        [
+          { data: physicalTasks, error: tError },
+          { data: blueprints, error: bpError },
+          { data: skippedTombstones },
+        ] = await Promise.all([
+          tasksQuery,
+          supabase
+            .from("task_blueprints")
+            .select("*, locations(name, is_outside), areas(name), plans(name)")
+            .eq("home_id", homeId)
+            .eq("is_recurring", true)
+            .eq("is_archived", false),
+          // Wave-20.x — tombstone fetch is no longer date-bounded. The
+          // harvest ghost branch generates a ghost at the parent
+          // blueprint's start_date, which can sit far outside the
+          // current fetch range (e.g. a "Summer Harvest" blueprint
+          // starts in June, but the Today quick link asks for July
+          // only). The old range filter dropped tombstones at the
+          // blueprint start_date, so a Skipped harvest task silently
+          // failed to suppress its ghost and the user saw the same
+          // task pop back onto Today's list. Skipped rows with
+          // blueprint_id are rare enough that fetching them all is
+          // negligible compared to the wrong-task pile-up.
+          supabase
+            .from("tasks")
+            .select("blueprint_id, due_date")
+            .eq("home_id", homeId)
+            .eq("status", "Skipped")
+            .not("blueprint_id", "is", null),
+        ]);
+      } catch (netErr) {
+        // Network threw (real offline / dropped signal). Serve the snapshot
+        // if we have one; otherwise surface the error.
+        const served = serveOffline();
+        if (served) return served;
+        throw netErr;
+      }
+
+      // Returned (non-throwing) error while offline — same fallback.
+      if ((tError || bpError) && isOffline()) {
+        const served = serveOffline();
+        if (served) return served;
+      }
 
       if (tError) throw tError;
       if (bpError) throw bpError;
 
-      const tombstoneSet = new Set(
-        (skippedTombstones ?? []).map(
-          (t: any) => `${t.blueprint_id}:${t.due_date}`,
-        ),
-      );
-
-      const physicalRows = physicalTasks || [];
-
-      // Wave-20.3 — Suppression index built from EVERY physical task that
-      // has a blueprint_id, BEFORE any visibility filter runs. This is
-      // what the ghost loop checks below. The materialised-but-hidden
-      // case (snoozed via next_check_at, or completed-outside-window) MUST
-      // still suppress the ghost, otherwise the engine emits a duplicate
-      // ghost at the same (blueprint_id, due_date) key and the next
-      // materialisation INSERT trips the `unique_blueprint_date`
-      // constraint. See docs/plans/harvest-snooze-duplicate-ghost-fix.md.
-      const materialisedKeys = new Set(
-        physicalRows
-          .filter((t: any) => t.blueprint_id && t.due_date)
-          .map((t: any) => `${t.blueprint_id}:${t.due_date}`),
-      );
-
-      // Filter historical completed tasks out of the window.
-      //
-      // We deliberately do NOT hide snoozed window tasks here anymore.
-      // The previous filter (which dropped Pending tasks where
-      // `next_check_at > today`) made the task disappear from the
-      // calendar entirely — the user lost the harvest dot on its due
-      // date and the row from each day's agenda for the whole window.
-      // Consumers that need to suppress snoozed tasks from a
-      // task-action view (the dashboard's "1 overdue" counter, the
-      // home-nav badge, the today-focus card) filter on next_check_at
-      // themselves so the badge counts stay clean.
-      const rawTasks = physicalRows.filter((task) => {
-        if (task.status !== "Completed") return true;
-        const isDueInWindow =
-          task.due_date >= startDateStr && task.due_date <= endDateStr;
-        const timestamp = task.updated_at || task.created_at || task.due_date;
-        // updated_at/created_at are UTC timestamptz — slicing the UTC date
-        // and comparing to the LOCAL window strings drops/includes tasks
-        // off by one day at range edges (evening completions in the
-        // Americas). Convert real timestamps to the local calendar day;
-        // date-only fallbacks pass through untouched.
-        const completedDateStr = timestamp.includes("T")
-          ? getLocalDateString(new Date(timestamp))
-          : timestamp;
-        const isCompletedInWindow =
-          completedDateStr >= startDateStr && completedDateStr <= endDateStr;
-        return isDueInWindow || isCompletedInWindow;
+      // Persist the raw fetch inputs so task views render offline next time,
+      // and so an offline-created one-off task / routine can be injected into
+      // them (see injectOfflineTask / injectOfflineBlueprint).
+      writeSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId, {
+        physicalTasks: physicalTasks || [],
+        blueprints: blueprints || [],
+        skippedTombstones: skippedTombstones || [],
       });
 
-      const bps = blueprints || [];
-
-      // ── Harvest canonical-window dedup ──────────────────────────────────
-      // Wave-21.0004 — defence-in-depth against the pre-fix `generate-tasks`
-      // cron that materialised daily Pending tasks for harvest blueprints
-      // without `window_end_date`. Those duplicates appear alongside the
-      // canonical window task across every in-window day (the same plant
-      // chip on the same day, what the user saw as "doubled up after
-      // skipping"). The cron is fixed in this release + a one-shot prod
-      // cleanup removes the bad rows, but this pass drops any non-window
-      // Pending harvest task whose due_date falls inside a canonical
-      // window from the same blueprint — so old data on cached browsers
-      // or any future drift can't resurface the duplicate.
-      const canonicalWindow = new Map<string, { start: string; end: string }>();
-      for (const t of rawTasks) {
-        if (
-          (t.type === "Harvesting" || t.type === "Harvest")
-          && t.window_end_date
-          && t.blueprint_id
-          && t.status === "Pending"
-        ) {
-          const existing = canonicalWindow.get(t.blueprint_id);
-          if (!existing || t.due_date < existing.start) {
-            canonicalWindow.set(t.blueprint_id, {
-              start: t.due_date,
-              end: t.window_end_date,
-            });
-          }
-        }
-      }
-      const dedupedRawTasks = rawTasks.filter((t) => {
-        if (!t.blueprint_id) return true;
-        if (t.status !== "Pending") return true;
-        if (t.type !== "Harvesting" && t.type !== "Harvest") return true;
-        if (t.window_end_date) return true;
-        const c = canonicalWindow.get(t.blueprint_id);
-        if (!c) return true;
-        return !(t.due_date >= c.start && t.due_date <= c.end);
+      // Pure-JS render (ghost generation + harvest dedup) — shared with the
+      // offline path above so both produce identical output.
+      const built = buildRenderTasks({
+        physicalTasks: physicalTasks || [],
+        blueprints: blueprints || [],
+        skippedTombstones: skippedTombstones || [],
+        startDateStr,
+        endDateStr,
+        todayStr,
       });
-
-      // Generate ghost tasks from blueprints (pure JS — no DB calls).
-      const ghosts: any[] = [];
-      bps.forEach((bp) => {
-        if (!bp.frequency_days || !bp.start_date) return;
-
-        // Pause handling: occurrences BEFORE paused_until are skipped
-        // permanently (so a past pause window never resurrects its ghosts
-        // as overdue), while occurrences on/after paused_until still emit —
-        // a one-week pause must not blank next month's calendar. Date-string
-        // compares keep this timezone-safe.
-        const pausedUntilStr = bp.paused_until
-          ? String(bp.paused_until).split("T")[0]
-          : null;
-
-        // ── Harvest window branch ────────────────────────────────────────
-        // Harvest blueprints with both a start_date AND end_date emit ONE
-        // ghost per window — due_date is the window start, window_end_date
-        // is the window close. The engine + UI then treat the task as
-        // "active in window" rather than overdue-by-default. See
-        // docs/app-reference/04-schedule/01-blueprint-manager.md.
-        // Wave-20.6 — accept both "Harvesting" (plantScheduleFactory + the
-        // current canonical name) AND the legacy "Harvest" (no -ing) used
-        // by Save-to-Shed and Companion plants. Both refer to the same
-        // concept; treating only one of them as windowed was the root
-        // cause of "summer harvest" tasks never getting the window model.
-        if (
-          (bp.task_type === "Harvesting" || bp.task_type === "Harvest")
-          && bp.end_date
-        ) {
-          // A window ghost is one long-lived task, not a per-day grid —
-          // suppress it while the pause is actually active; once the pause
-          // lapses the still-open window is relevant again.
-          if (pausedUntilStr && todayStr < pausedUntilStr) return;
-
-          const ghostStartIso = bp.start_date;
-          const intersectsRange =
-            ghostStartIso <= endDateStr && bp.end_date >= startDateStr;
-          if (!intersectsRange) return;
-
-          const alreadyExists =
-            materialisedKeys.has(`${bp.id}:${ghostStartIso}`)
-            || tombstoneSet.has(`${bp.id}:${ghostStartIso}`);
-          if (alreadyExists) return;
-
-          ghosts.push({
-            id: `ghost-${bp.id}-${ghostStartIso}`,
-            blueprint_id: bp.id,
-            home_id: bp.home_id,
-            title: bp.title,
-            description: bp.description,
-            type: bp.task_type,
-            due_date: ghostStartIso,
-            window_end_date: bp.end_date,
-            status: "Pending",
-            location_id: bp.location_id,
-            area_id: bp.area_id,
-            plan_id: bp.plan_id,
-            inventory_item_ids: bp.inventory_item_ids || [],
-            locations: bp.locations,
-            scope: bp.scope || "home",
-            created_by: bp.created_by || null,
-            assigned_to: bp.assigned_to || null,
-            isGhost: true,
-          });
-          return;
-        }
-
-        const freq = bp.frequency_days;
-
-        // Grid math in pure UTC milliseconds. Date-only strings parse as
-        // UTC midnight, so the previous local-getter formatting
-        // (getLocalDateString) emitted every ghost a day early west of UTC
-        // — which broke the (blueprint_id:due_date) dedup against
-        // cron-materialised tasks and inserted wrong-date rows on
-        // materialisation.
-        const MS_PER_DAY = 86_400_000;
-        const parseUtcMs = (s: string) =>
-          Date.parse(`${String(s).split("T")[0]}T00:00:00Z`);
-        const stepMs = freq * MS_PER_DAY;
-
-        let ghostMs = parseUtcMs(bp.start_date);
-        const rangeStartMs = parseUtcMs(startDateStr);
-        const rangeEndMs = parseUtcMs(endDateStr);
-        if (Number.isNaN(ghostMs)) return;
-
-        if (ghostMs < rangeStartMs) {
-          const diffDays = Math.ceil((rangeStartMs - ghostMs) / MS_PER_DAY);
-          const cyclesToSkip = Math.ceil(diffDays / freq);
-          ghostMs += cyclesToSkip * stepMs;
-        }
-
-        while (ghostMs <= rangeEndMs) {
-          const ghostDateStr = new Date(ghostMs).toISOString().split("T")[0];
-          if (bp.end_date && ghostDateStr > bp.end_date) break;
-
-          // Skip occurrences inside the pause window (see comment above).
-          if (pausedUntilStr && ghostDateStr < pausedUntilStr) {
-            ghostMs += stepMs;
-            continue;
-          }
-
-          const alreadyExists =
-            materialisedKeys.has(`${bp.id}:${ghostDateStr}`)
-            || tombstoneSet.has(`${bp.id}:${ghostDateStr}`);
-
-          if (
-            !alreadyExists &&
-            ghostDateStr >= startDateStr &&
-            ghostDateStr <= endDateStr
-          ) {
-            ghosts.push({
-              id: `ghost-${bp.id}-${ghostDateStr}`,
-              blueprint_id: bp.id,
-              home_id: bp.home_id,
-              title: bp.title,
-              description: bp.description,
-              type: bp.task_type,
-              due_date: ghostDateStr,
-              status: "Pending",
-              location_id: bp.location_id,
-              area_id: bp.area_id,
-              plan_id: bp.plan_id,
-              inventory_item_ids: bp.inventory_item_ids || [],
-              locations: bp.locations,
-              scope: bp.scope || "home",
-              created_by: bp.created_by || null,
-              assigned_to: bp.assigned_to || null,
-              isGhost: true,
-            });
-          }
-          ghostMs += stepMs;
-        }
-      });
+      const rawTasks = built.rawTasks;
+      const bps = built.bps;
 
       // Phase 1 complete — fire all subscribers with the partial snapshot.
-      const tasks = [...dedupedRawTasks, ...ghosts];
+      const tasks = built.tasks;
       const snapshot: Phase1Snapshot = { tasks, blueprints: bps };
       entry.phase1Snapshot = snapshot;
       for (const cb of entry.phase1Callbacks) {
