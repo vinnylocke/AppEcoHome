@@ -16,6 +16,7 @@ import { getProviderLabel } from "../lib/verdantlyUtils";
 import { supabase } from "../lib/supabase";
 import { isTaskOverdueToday } from "../lib/taskFilters";
 import toast from "react-hot-toast";
+import { requireOnline } from "../lib/requireOnline";
 import { useAiPlantFreshness } from "../hooks/useAiPlantFreshness";
 import CareUpdateCallout from "./aiPlants/CareUpdateCallout";
 import SourceChip from "./aiPlants/SourceChip";
@@ -204,6 +205,7 @@ export default function PlantEditModal({
 
   const handleManualRefresh = async () => {
     if (refreshing) return;
+    if (!requireOnline("Refreshing the care guide")) return;
     setRefreshing(true);
     try {
       // ONE endpoint covers every AI plant — orphan, shallow fork, or pure

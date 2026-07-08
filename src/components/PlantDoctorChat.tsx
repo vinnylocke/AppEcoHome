@@ -37,6 +37,7 @@ import { Lightbox, type GalleryImage } from "./DiagnosisImageGallery";
 import ImageCredit from "./credit/ImageCredit";
 import { coerceImageCredit, isKnownCredit } from "../lib/imageCredit";
 import toast from "react-hot-toast";
+import { requireOnline } from "../lib/requireOnline";
 import { PlantActionButtons } from "./PlantActionButtons";
 import { TaskActionButtons } from "./TaskActionButtons";
 import PlanSuggestionCard, { type PlanSuggestion } from "./chat/PlanSuggestionCard";
@@ -805,6 +806,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!input.trim() && !pendingImage && !pendingAudio) || isLoading) return;
+    if (!requireOnline("Garden AI chat")) return;
 
     const audioSnapshot = pendingAudio;
     const userText = input.trim()

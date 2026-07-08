@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { IconDoctor, IconPlantDB, IconPest, IconAI, IconPlant, IconGuides, IconShopping } from "../constants/icons";
 import { toast } from "react-hot-toast";
+import { requireOnline } from "../lib/requireOnline";
 import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
 import { EVENT, logEvent } from "../events/registry";
@@ -572,6 +573,7 @@ export default function PlantDoctor({
       return toast.error("AI features are disabled.");
     }
     if (photos.length === 0) return toast.error("Upload an image first.");
+    if (!requireOnline("Plant Lens")) return;
 
     setIsProcessing(true);
     setActiveAction(action);
@@ -645,6 +647,7 @@ export default function PlantDoctor({
   const handleMultiId = async () => {
     if (!aiEnabled) return toast.error("AI features are disabled.");
     if (!selectedFile) return toast.error("Upload an image first.");
+    if (!requireOnline("Multi-ID")) return;
     // Multi-ID is intentionally single-photo. Note it but proceed with photo 1.
     if (photos.length > 1) {
       toast("Multi-ID uses the first photo only — it's designed to detect every plant in one overview shot.", { duration: 5000 });
@@ -738,6 +741,7 @@ export default function PlantDoctor({
   const handleAnalyse = async () => {
     if (!aiEnabled) return toast.error("AI features are disabled.");
     if (photos.length === 0) return toast.error("Upload an image first.");
+    if (!requireOnline("Plant Lens")) return;
 
     setIsProcessing(true);
     setActiveAction("analyse");

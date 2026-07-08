@@ -17,6 +17,7 @@ import { IconAI, IconPrune, IconHarvest } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
+import { requireOnline } from "../lib/requireOnline";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { logEvent, EVENT } from "../events/registry";
@@ -1419,6 +1420,7 @@ function GenerateFromPhotoBlock({
       toast.error("Image must be under 5MB.");
       return;
     }
+    if (!requireOnline("Creating a task from a photo")) return;
     setGenerating(true);
     try {
       const base64 = await new Promise<string>((resolve, reject) => {

@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { Sparkles, Loader2, ChevronDown, AlertCircle, Brain, RefreshCw, X, CheckCircle2 } from "lucide-react";
 import InfoTooltip from "./InfoTooltip";
 import toast from "react-hot-toast";
+import { requireOnline } from "../lib/requireOnline";
 import {
   analyseArea,
   type OptimisationProposal,
@@ -134,6 +135,7 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
 
   const handleAnalyse = useCallback(async () => {
     if (analyseScope === "single" && !selectedAreaId) return;
+    if (!requireOnline("Schedule optimisation")) return;
     setAnalysing(true);
     setProposals(null);
 
@@ -187,6 +189,7 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
 
   const handleAiAnalyse = useCallback(async () => {
     if (!selectedAreaId || !userId) return;
+    if (!requireOnline("AI schedule analysis")) return;
     setAiAnalysing(true);
     setAiProposals(null);
 

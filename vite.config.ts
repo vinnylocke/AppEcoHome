@@ -38,6 +38,14 @@ export default defineConfig({
         // a new SW (which was causing mid-session white screens).
         cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{js,mjs,css,html,ico,png,svg,woff,woff2}"],
+        // Offline-first Phase 0: serve the precached SPA shell (index.html)
+        // for ANY navigation when the network is unavailable. Without this
+        // the service worker returned ERR_INTERNET_DISCONNECTED on an offline
+        // reload — the app couldn't boot offline at all, regardless of the
+        // profile cache. `denylist` keeps real backend routes off the SPA
+        // fallback so they still hit the network when online.
+        navigateFallback: "index.html",
+        navigateFallbackDenylist: [/^\/api\//, /^\/functions\//, /^\/auth\/v1\//, /^\/rest\/v1\//],
         // Only static media gets a runtime cache. Anything without a route
         // here (Supabase REST / Auth / Edge Functions / Realtime, Open-Meteo,
         // Firebase) is NetworkOnly — the documented PWA contract (22-pwa.md).

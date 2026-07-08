@@ -95,6 +95,14 @@ The SW registers **exactly two** runtime routes; anything without a route is Net
 
 Everything else — Supabase REST / Auth / Edge Functions / Realtime, Open-Meteo, Firebase — has **no route = NetworkOnly** (live data, never cached). This replaced a `/^https:\/\//` NetworkFirst catch-all (`remote-resources` cache) that wrote every authenticated PostgREST response into Cache Storage: stale data replayed after mutations on flaky networks, another account's rows readable at rest on shared devices, and unbounded growth. Sign-out also deletes the legacy `remote-resources` cache on devices that still carry it.
 
+### Offline navigation fallback (offline-first Phase 0, 2026-07-08)
+
+`workbox.navigateFallback: "index.html"` (with a `navigateFallbackDenylist` for `/api/`, `/functions/`, `/auth/v1/`, `/rest/v1/`) makes the SW serve the precached SPA shell for ANY navigation when the network is unavailable. Without it an offline reload returned `ERR_INTERNET_DISCONNECTED` and the app could not boot offline at all — the precached `index.html` existed but workbox wasn't told to use it as the navigation fallback. This is the SW half of booting offline; the data half is `src/lib/profileCache.ts` (see [Offline Banner](../09-persistent-ui/03-offline-badge.md)). API/data reads remain NetworkOnly — offline data comes from the per-screen localStorage caches, not the SW.
+
+### Internet-only gating (offline-first Phase 1)
+
+Features that genuinely need the network — all AI (Plant Lens, Garden AI chat, care-guide refresh, schedule optimise, photo→task), plant search/add-from-catalogue, image uploads, integrations pairing, invites, export — call `requireOnline(label)` (`src/lib/requireOnline.ts`) at the top of their action handler. Offline it shows a friendly "You're offline — {feature} needs a connection" toast and returns false, instead of a silent spin/failure. `navigator.onLine === false` is a reliable offline signal (the false case is what matters). Background/boot calls (e.g. `sync-weather`) are NOT gated — they just no-op offline.
+
 ### Background updates
 
 Service worker installs in background; UpdateBanner prompts to reload + activate.

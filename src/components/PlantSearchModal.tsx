@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { getProviderPlantDetails, careGuideToPlantDetails } from "../lib/plantProvider";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import toast from "react-hot-toast";
+import { requireOnline } from "../lib/requireOnline";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantSearch from "./shared/PlantSearch";
 import { libraryRowToPlantDetails } from "../lib/plantCatalogue";
@@ -108,6 +109,8 @@ export default function PlantSearchModal({
    * `previewPlant` shape matches what `handleAddToShed` expects.
    */
   const handleSelect = async (sel: PlantSelection) => {
+    // Resolving a search result fetches provider/AI data — needs a connection.
+    if (!requireOnline("Plant search")) return;
     setIsFetchingPreview(true);
     try {
       let fullPlantData: any;
