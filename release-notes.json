@@ -1,10 +1,1 @@
-[
-  {
-    "label": "\"Done today\" now counts everything you cleared",
-    "items": [
-      "The dashboard's \"X of Y done today\" now counts tasks you complete today even if they were overdue — clearing old tasks moves the number, instead of leaving it stuck.",
-      "Tasks you completed today stay visible on the dashboard once ticked off, rather than disappearing.",
-      "Completed harvests now show a \"Harvest completed on {date}\" note so it's clear when the whole harvest was logged."
-    ]
-  }
-]
+[]
