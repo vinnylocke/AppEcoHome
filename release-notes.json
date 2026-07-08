@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Plants",
+    "items": [
+      "After refreshing a care guide, a clear \"Updates applied and saved\" note with a Done button confirms nothing else is needed — and \"Save as my own copy\" is now disabled until you actually edit something, so you can't fork a plant by accident."
+    ]
+  }
+]

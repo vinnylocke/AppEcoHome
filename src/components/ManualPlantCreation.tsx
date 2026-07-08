@@ -40,6 +40,8 @@ interface ManualPlantCreationProps {
   isSaving?: boolean;
   submitLabel?: string;
   isReadOnly?: boolean;
+  /** Disable the submit until the user actually edits a field (fork-save guard). */
+  disableWhenPristine?: boolean;
   /**
    * Wave 7 (D9) — field names from `plants.updated_care_fields` that should
    * render with a yellow "Updated" highlight (the catalogue cron changed them
@@ -110,6 +112,7 @@ export default function ManualPlantCreation({
   isSaving,
   submitLabel = "Add to Shed",
   isReadOnly = false,
+  disableWhenPristine = false,
   highlightedFields,
   overriddenFields,
 }: ManualPlantCreationProps) {
@@ -141,6 +144,14 @@ export default function ManualPlantCreation({
 
   const [activeSection, setActiveSection] = useState<string | null>("basics");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  // Pristine/dirty tracking (2026-07-08 — docs/plans/ai-plant-freshness-and-
+  // edit-ux-overhaul.md follow-up): after a care-guide Refresh, the modal's
+  // only visible action was the copy-on-write "Save as my own copy" submit —
+  // one accidental click away from forking the plant off auto-updates. With
+  // `disableWhenPristine`, the fork-save stays disabled until the user has
+  // actually edited something.
+  const pristineBaselineRef = useRef<string | null>(null);
+  const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [savedConfirm, setSavedConfirm] = useState(false);
@@ -265,8 +276,21 @@ export default function ManualPlantCreation({
         watering_max_days: initialData.watering_max_days?.toString() || "",
         labels: Array.isArray(initialData.labels) ? initialData.labels : [],
       }));
+      // Re-baseline the pristine snapshot: the state produced by THIS sync is
+      // "unchanged" — only subsequent user edits count as dirty.
+      pristineBaselineRef.current = null;
     }
   }, [initialData]);
+
+  useEffect(() => {
+    const snapshot = JSON.stringify(formData);
+    if (pristineBaselineRef.current === null) {
+      pristineBaselineRef.current = snapshot;
+      setDirty(false);
+      return;
+    }
+    setDirty(snapshot !== pristineBaselineRef.current);
+  }, [formData]);
 
   const handleInputChange = (e: any) => {
     if (isReadOnly) return;
@@ -1059,8 +1083,9 @@ export default function ManualPlantCreation({
             <button
               type="submit"
               data-testid="plant-form-save-btn"
-              disabled={isSaving || savedConfirm}
-              className={`flex-[2] py-4 rounded-2xl font-black shadow-lg flex items-center justify-center gap-2 transition-all ${savedConfirm ? "bg-green-500 text-white" : "bg-rhozly-primary text-white"}`}
+              disabled={isSaving || savedConfirm || (disableWhenPristine && !dirty)}
+              title={disableWhenPristine && !dirty ? "No changes to save — edit a field first" : undefined}
+              className={`flex-[2] py-4 rounded-2xl font-black shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${savedConfirm ? "bg-green-500 text-white" : "bg-rhozly-primary text-white"}`}
             >
               {isSaving ? (
                 <Loader2 className="animate-spin" size={20} />

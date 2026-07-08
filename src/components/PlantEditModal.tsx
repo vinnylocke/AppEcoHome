@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
-import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen, BookOpenCheck, Sun, Sprout, Activity, MapPin, Boxes, Gauge } from "lucide-react";
+import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen, BookOpenCheck, Sun, Sprout, Activity, MapPin, Boxes, Gauge, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantScheduleTab from "./PlantScheduleTab";
@@ -806,12 +806,40 @@ export default function PlantEditModal({
                 </>
               )}
 
+              {/* Post-refresh confirmation — the refresh already SAVED the
+                  updates to this plant; without this strip the only visible
+                  action was the fork-save button, which reads like "confirm"
+                  but would fork the plant off auto-updates. */}
+              {(lastRefreshChangedFields?.length ?? 0) > 0 && (
+                <div
+                  data-testid="ai-refresh-applied-strip"
+                  className="bg-green-50 border border-green-300 rounded-2xl p-4 mb-4 flex items-start gap-3"
+                  role="status"
+                >
+                  <CheckCircle2 size={18} className="text-green-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black text-green-900">Updates applied and saved</p>
+                    <p className="text-[11px] font-bold text-green-800/80 mt-0.5 leading-snug">
+                      The highlighted fields below show what changed — it's already saved to your plant. No need to press save.
+                    </p>
+                  </div>
+                  <button
+                    data-testid="ai-refresh-done"
+                    onClick={onClose}
+                    className="shrink-0 px-4 py-2 min-h-[36px] bg-green-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-green-700 transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
+
               <ManualPlantCreation
                 initialData={fullPlantData}
                 onSave={handleSaveWithOverride}
                 submitLabel={forksOnEdit ? "Save as my own copy" : "Save Updates"}
                 isSaving={isSaving}
                 isReadOnly={formReadOnly}
+                disableWhenPristine={forksOnEdit}
                 // Wave 7 (D9) — yellow highlight on fields the catalogue cron
                 // updated but the user hasn't ack'd, purple on fields the
                 // user has explicitly overridden. Both lists default to []
