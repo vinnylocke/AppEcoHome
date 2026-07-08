@@ -56,3 +56,20 @@
 User chose the **full core (Phases 0–3) AND the hard offline inserts (Phase 4)** — the complete offline story including offline add-manual-plant and add-automation via client temp-id + remap-on-sync. Delivered phase by phase, each deployed and live-verified before the next (established session rhythm). Phase 0 first (keystone), then 1→4.
 
 **Phase 4 approach (offline inserts):** client generates a negative/UUID temp id for the new row, the read cache shows it immediately, and on flush the queue inserts server-side, captures the real id, and remaps every queued item + cache reference that pointed at the temp id (FIFO replay makes dependent inserts resolvable). Integer-PK tables (plants) use a client temp id in a reserved negative range; uuid-PK tables generate a real uuid client-side (no remap needed).
+
+## Delivered (2026-07-08)
+
+All five phases shipped and live-verified, one deploy each.
+
+- **Phase 0** — profile-cache boot-from-cache, `OfflineBanner`, user-menu "Sync now", reconnect auto-refetch, chunk-error offline guard. (keystone)
+- **Phase 1** — `requireOnline()` gates on every internet-only action (AI chat, Plant Lens, plant/AI care refresh, task-from-photo, plant search).
+- **Phase 2** — per-screen snapshot read caches (home switcher, watchlist, planner, journal, automations, layouts) + `lazyWithRetry` so routes render offline.
+- **Phase 3** — **OS 35.0039.** Generic `db-write` queue kind (insert-as-upsert / update / delete) + `queuedWrite.ts` helpers. Producers: Notes full CRUD (optimistic + snapshot), garden-layout shape save, one-off task create. Verified offline→reconnect round-trips against a real DB; 5 unit tests.
+- **Phase 4** — **OS 35.0040.** Offline add-manual-plant: **no temp-id remap needed** — plant integer ids are already client-generated (`generatePlantId`), so `saveToShed` just queues the plant + its seasonal `plant_schedules` (client uuids), deriving hemisphere from the cached home latitude; `TheShed` dup-checks the cached list and paints via `optimisticAddPlant`. Verified end-to-end (1 plant + 4 schedules queued → flush → persisted); 3 unit tests.
+
+**Product calls made:**
+- **Automations kept online-gated** (not queued): they drive live valve hardware and reference paired devices, so an offline config can't be validated or fire. `AutomationBuilderModal.save` uses `requireOnline` for a clear message. This matches this plan's own Phase 4 recommendation.
+- **Destructive cascades kept online-only** (inventory/journal/task fan-out can't be previewed offline).
+- **Offline-created one-off tasks** sync on reconnect but don't paint instantly in every task view — the `TaskEngine` list cache is in-memory, so cross-view optimistic injection was out of scope; the save toast says so.
+
+Canonical mechanics doc: [`99-cross-cutting/16-offline-queue.md`](../app-reference/99-cross-cutting/16-offline-queue.md).
