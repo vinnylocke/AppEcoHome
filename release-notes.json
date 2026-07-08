@@ -1,11 +1,1 @@
-[
-  {
-    "label": "Garden Layout",
-    "items": [
-      "Fixed layouts rendering as an empty 2D canvas — seeded shapes now draw correctly and both views always match.",
-      "The 3D view now opens framed on your garden instead of a corner, and 2D opens fitted to your whole canvas.",
-      "Phones now get a clean view-only layout viewer — pan, zoom, switch 2D/3D and tap shapes for details; card actions moved into a ⋮ menu so tapping a layout opens it reliably.",
-      "Editor toolbar no longer overflows on smaller desktop windows."
-    ]
-  }
-]
+[]
