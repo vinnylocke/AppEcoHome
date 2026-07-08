@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Offline",
-    "items": [
-      "Fixed screens like the Planner and Watchlist showing an error when opened offline — they now load your saved data instead of trying (and failing) to reload."
-    ]
-  }
-]
+[]
