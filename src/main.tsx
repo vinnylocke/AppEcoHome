@@ -30,6 +30,14 @@ function handleChunkError(msg: string) {
     msg.includes("Unable to preload CSS") ||
     msg.includes("Loading chunk")
   ) {
+    // Offline-first: NEVER reload while offline — a reload hits the dead
+    // network and lands on a blank/error screen, turning a retryable
+    // precache miss into a hard crash. Offline, `lazyWithRetry` re-attempts
+    // the import from the SW precache; if the chunk genuinely isn't cached
+    // the route's error boundary shows a message the user can act on. A
+    // stale-chunk reload only makes sense when we can actually fetch fresh
+    // assets — i.e. online.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     if (!chunkReloading) {
       chunkReloading = true;
       window.location.reload();
