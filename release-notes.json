@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "label": "Garden AI",
+    "items": [
+      "Evergreen now runs our most advanced AI model in the Garden AI chat — exclusive to the top tier. Sage keeps its Pro-class model."
+    ]
+  },
+  {
+    "label": "New",
+    "items": [
+      "Evening overdue nudge — if tasks are still overdue at 8pm your time, Rhozly sends a gentle reminder. Toggle it in Gardener's Profile → Alerts."
+    ]
+  }
+]

@@ -100,7 +100,7 @@ for each user:
 
 **Atomic send-once claims (`notification_claims`, migration `20260828000000`):** the per-user dedup used to be read-then-write on recent `notifications` rows — overlapping invocations (pg_net retry, a slow run overlapping the next 15-min tick) both saw "not sent" and double-pushed, and an ignored error on the dedup read failed *open* and re-notified everyone. Now each run claims `(user_id, kind, local claim_date)` rows via `ON CONFLICT DO NOTHING` (upsert with `ignoreDuplicates`) **before** inserting into `notifications`; whoever wins the insert sends, everyone else skips, and a claim error throws (fail closed — no duplicate spray). The rolling ~18 h recent-notifications read remains only as a cheap pre-filter — it is now paged and error-checked (fail closed). Claims older than 7 days are pruned each run. The table is service-role only (RLS enabled, no policies/grants).
 
-**Delivery timing (2026-06-19):** `daily-batch-notifications` now runs **every 15 min** (not a single 08:00 UTC fire). The task digest is delivered at each user's chosen **local `reminderTime`** (`notification_prefs.reminderTime`, default `"08:00"` local — editable in the Notifications tab); golden hour fires **~45 min before each home's real sunset**. Per-user dedup is a rolling ~18 h window. Pure timing helpers: `_shared/notificationTiming.ts` (`localMinutesOfDay`, `isReminderDue`, `isNearSunset`). See [Cron Jobs](./11-cron-jobs.md).
+**Delivery timing (2026-06-19):** `daily-batch-notifications` now runs **every 15 min** (not a single 08:00 UTC fire). The task digest is delivered at each user's chosen **local `reminderTime`** (`notification_prefs.reminderTime`, default `"08:00"` local — editable in the Notifications tab); golden hour fires **~45 min before each home's real sunset**; the **evening overdue nudge** (`overdue_evening`, 2026-07-08) fires at **20:00 local** when the user still has strictly-overdue actionable tasks — muted via the `overdueEvening` category, one per user per local day. Per-user dedup is a rolling ~18 h window. Pure timing helpers: `_shared/notificationTiming.ts` (`localMinutesOfDay`, `isReminderDue`, `isNearSunset`). See [Cron Jobs](./11-cron-jobs.md).
 
 The shared helper `_shared/taskFilters.ts` is the SERVER-SIDE MIRROR of `src/lib/taskFilters.ts`. Both must agree — if the client says a task is hidden today, the server agrees and skips the push. Covered by `supabase/tests/notificationFilters.test.ts`.
 
@@ -116,6 +116,7 @@ Cross-run dedup (per home, per day) is keyed on **`type:title`** — matching th
 - goldenHour (Wave 21.B — wired via the existing `daily-batch-notifications` cron with NOAA sunset calc per home)
 - optimiseDigest (Wave 21.C — wired via the new `weekly-optimise-digest` cron; activity-aware headline + deep link to Optimise tab)
 - weeklyOverview (Wave 21.A — wired via the new `generate-weekly-overviews` cron + `/weekly` route)
+- overdueEvening (2026-07-08 — wired via the `overdue_evening` kind in `daily-batch-notifications`, 20:00 local)
 - betaPrompts (wired)
 
 ### In-app toast

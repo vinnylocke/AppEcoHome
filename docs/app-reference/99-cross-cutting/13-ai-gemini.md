@@ -84,6 +84,18 @@ Vision-heavy plant-doctor actions opt out of the Flash-only default. `_shared/ge
 
 Used by `identify_vision`, `diagnose`, `identify_pest`, `analyse_comprehensive`, and `identify_scene` in `plant-doctor/index.ts`. Trades ~20× cost per call for noticeably better visual reasoning. Other vision actions across the codebase can opt in by passing `models: VISION_DIAGNOSIS_MODELS` to `callGeminiCascade`.
 
+### Per-tier chat cascade — `agent-chat/chatModels.ts`
+
+The Garden AI chat picks its cascade by subscription tier (`modelsForTier`, split 2026-07-08 — the round-7 eval showed Pro-class models transform the chat, and the top model is now the Evergreen differentiator):
+
+| Tier | Cascade |
+|------|---------|
+| Evergreen | `gemini-3.1-pro-preview` → `gemini-2.5-pro` → `gemini-3-flash-preview` → `gemini-2.5-flash` |
+| Sage | `gemini-2.5-pro` → `gemini-3-flash-preview` → `gemini-2.5-flash` |
+| Sprout / Botanist / unknown | `gemini-3-flash-preview` → `gemini-2.5-flash` → `gemini-2.5-flash-lite` |
+
+`gemini-3.1-pro-preview` appears in **no other tier's cascade** — it is Evergreen-exclusive by product decision (docs/plans/evergreen-top-model-and-overdue-nudge.md). Flash rungs remain in the paid cascades as availability fallbacks.
+
 **Object detection (`identify_scene` / Multi-ID).** Gemini returns native bounding boxes as `box_2d = [ymin, xmin, ymax, xmax]` normalised to **0–1000** (top-left origin). The `SCENE_MAP_SCHEMA` responseSchema requests one box + ranked candidate IDs per detected plant; the client maps `box_2d` → CSS percentages via `src/lib/sceneMap.ts` to overlay boxes on the rendered photo. Boxes are approximate — pair them with the confidence weighting rather than treating them as pixel-exact.
 
 ### Pricing (per 1M tokens, confirmed against https://ai.google.dev/gemini-api/docs/pricing)

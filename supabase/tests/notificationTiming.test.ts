@@ -41,3 +41,14 @@ Deno.test("isNearSunset — within the 30–75 min pre-sunset window", () => {
   assert(!isNearSunset(new Date("2026-06-19T18:30:00Z"), sunset));  // 90 min before → too early
   assert(!isNearSunset(new Date("2026-06-19T20:05:00Z"), sunset));  // after sunset → no
 });
+
+// ── Evening overdue nudge slot (2026-07-08) — fixed 20:00 local ──────────────
+
+Deno.test("isReminderDue — the 20:00 overdue-nudge slot fires only in its tick window", () => {
+  const toMin = (h: number, m: number) => h * 60 + m;
+  assert(isReminderDue(toMin(20, 0), "20:00"), "20:00 exactly fires");
+  assert(isReminderDue(toMin(20, 14), "20:00"), "20:14 still inside the 15-min tick");
+  assert(!isReminderDue(toMin(19, 59), "20:00"), "19:59 must not fire early");
+  assert(!isReminderDue(toMin(20, 15), "20:00"), "20:15 belongs to the next tick");
+  assert(!isReminderDue(toMin(8, 0), "20:00"), "morning tick must not fire the evening nudge");
+});

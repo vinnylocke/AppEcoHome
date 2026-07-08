@@ -161,3 +161,12 @@ Deno.test("getDigestStyle — defaults to 'combined'", () => {
   assertEquals(getDigestStyle({ digestStyle: "combined" }), "combined");
   assertEquals(getDigestStyle({ digestStyle: "per_home" }), "per_home");
 });
+
+// ── overdueEvening (2026-07-08 — the 8pm overdue nudge category) ─────────────
+
+Deno.test("shouldNotify — overdueEvening defaults ON and mutes on explicit false", () => {
+  assertEquals(shouldNotify(null, "overdueEvening"), true, "legacy user gets the nudge");
+  assertEquals(shouldNotify({}, "overdueEvening"), true, "unset pref defaults on");
+  assertEquals(shouldNotify({ overdueEvening: false }, "overdueEvening"), false, "explicit false mutes");
+  assertEquals(shouldNotify({ master: false, overdueEvening: true }, "overdueEvening"), false, "master off wins");
+});

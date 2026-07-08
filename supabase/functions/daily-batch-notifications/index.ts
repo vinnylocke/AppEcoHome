@@ -16,10 +16,13 @@ const FN = "daily-batch-notifications";
 
 // Runs every 15 min (was a single 08:00 UTC fire). Each user's task digest is
 // delivered at their chosen local `reminderTime` (default 08:00 local); golden
-// hour fires ~45 min before each home's actual sunset. Rolling ~18 h per-user
+// hour fires ~45 min before each home's actual sunset; the evening overdue
+// nudge fires at 20:00 local when tasks are still overdue (2026-07-08 —
+// docs/plans/evergreen-top-model-and-overdue-nudge.md). Rolling ~18 h per-user
 // dedup keeps it to one of each per day regardless of timezone / reminder time.
 const REMINDER_TICK_MIN = 15;
 const DEDUP_MS = 18 * 60 * 60 * 1000;
+const OVERDUE_NUDGE_TIME = "20:00"; // fixed local evening slot
 
 function greetingForLocalMinutes(mins: number): string {
   if (mins < 12 * 60) return "Good Morning";
@@ -70,15 +73,17 @@ serve(async (_req) => {
       supabase
         .from("notifications")
         .select("user_id, type")
-        .in("type", ["daily_batch", "golden_hour"])
+        .in("type", ["daily_batch", "golden_hour", "overdue_evening"])
         .gte("created_at", dedupSinceIso)
         .order("created_at", { ascending: false })
     );
     const sentDigest = new Set<string>();
     const sentGolden = new Set<string>();
+    const sentOverdue = new Set<string>();
     for (const n of recentNotifs) {
       if (n.type === "daily_batch") sentDigest.add(n.user_id);
       else if (n.type === "golden_hour") sentGolden.add(n.user_id);
+      else if (n.type === "overdue_evening") sentOverdue.add(n.user_id);
     }
 
     // 3. Which members are due for a digest now (home-local reminder time)?
@@ -202,6 +207,64 @@ serve(async (_req) => {
       }
     } catch (err: any) {
       warn(FN, "golden_hour_failed", { error: err.message });
+    }
+
+    // 5b. Evening overdue nudge — 20:00 local, only when tasks are STILL
+    //     overdue (due before the home's local today; snooze/harvest-window
+    //     contract respected). One per user per local day via the same
+    //     claims machinery.
+    try {
+      const dueNudgeMembers = homeMembers.filter((m) => {
+        if (sentOverdue.has(m.user_id)) return false;
+        const prefs = prefsByUser[m.user_id] ?? {};
+        if (!shouldNotify(prefs, "overdueEvening")) return false;
+        const tz = homesById.get(m.home_id)?.timezone ?? "UTC";
+        return isReminderDue(localMinutesOfDay(now, tz), OVERDUE_NUDGE_TIME, REMINDER_TICK_MIN);
+      });
+
+      if (dueNudgeMembers.length > 0) {
+        const nudgeHomeIds = [...new Set(dueNudgeMembers.map((m) => m.home_id))];
+        const localDateByNudgeHome = new Map<string, string>();
+        for (const hid of nudgeHomeIds) {
+          localDateByNudgeHome.set(hid, localDateInTz(now, homesById.get(hid)?.timezone ?? "UTC"));
+        }
+        const maxNudgeDate = [...localDateByNudgeHome.values()].sort().pop()!;
+
+        const { data: overdueRows } = await supabase
+          .from("tasks")
+          .select("id, home_id, title, type, due_date, next_check_at, window_end_date, status")
+          .eq("status", "Pending")
+          .in("home_id", nudgeHomeIds)
+          .lt("due_date", maxNudgeDate);
+        const overdueByHome: Record<string, number> = {};
+        const sampleTitleByHome: Record<string, string> = {};
+        for (const t of (overdueRows ?? []) as any[]) {
+          if (!t.home_id) continue;
+          const localToday = localDateByNudgeHome.get(t.home_id)!;
+          if (t.due_date >= localToday) continue; // strictly overdue, not today-due
+          if (!isTaskActionableToday(t, localToday)) continue; // snoozed/out-of-window don't nag
+          overdueByHome[t.home_id] = (overdueByHome[t.home_id] ?? 0) + 1;
+          sampleTitleByHome[t.home_id] ??= t.title;
+        }
+
+        for (const member of dueNudgeMembers) {
+          const count = overdueByHome[member.home_id] ?? 0;
+          if (count === 0) continue;
+          notificationsToInsert.push({
+            user_id: member.user_id,
+            home_id: member.home_id,
+            title: "🌙 Still on the list",
+            body: count === 1
+              ? `"${sampleTitleByHome[member.home_id]}" is still overdue — fancy a quick evening catch-up?`
+              : `${count} tasks are still overdue — fancy a quick evening catch-up?`,
+            type: "overdue_evening",
+            data: { route: "/dashboard" },
+            is_read: false,
+          });
+        }
+      }
+    } catch (err: any) {
+      warn(FN, "overdue_evening_failed", { error: err.message });
     }
 
     if (notificationsToInsert.length === 0) {

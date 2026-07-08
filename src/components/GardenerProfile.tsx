@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { toast } from "react-hot-toast";
-import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2, Bell, Droplets, Wheat, Scissors, Cloud, Sun, Sparkles, MessageSquare, Eye, Calendar as CalendarIcon, Volume2, CreditCard } from "lucide-react";
+import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2, Bell, Droplets, Wheat, Scissors, Cloud, Sun, Sparkles, MessageSquare, Eye, Calendar as CalendarIcon, Volume2, CreditCard, Clock } from "lucide-react";
 import { TIERS, type TierId } from "../constants/tiers";
 import { useAchievements } from "../hooks/useAchievements";
 import { ACHIEVEMENTS } from "../lib/achievements";
@@ -62,6 +62,8 @@ interface NotificationPrefs {
   optimiseDigest: boolean;
   weeklyOverview: boolean;
   betaPrompts:    boolean;
+  /** 20:00-local nudge when tasks are still overdue. */
+  overdueEvening: boolean;
   /** Weekly email: one combined email per recipient with sections per home,
    *  or the legacy fan-out (one email per home). */
   digestStyle:    DigestStyle;
@@ -79,6 +81,7 @@ const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
   optimiseDigest: true,   // Wave 21.C — wired
   weeklyOverview: true,   // Wave 21.A — new
   betaPrompts:    true,
+  overdueEvening: true,   // 2026-07-08 — 8pm overdue nudge
   digestStyle:    "combined", // Wave 22.0044
   reminderTime:   "08:00",    // local time the daily digest is delivered
 };
@@ -175,6 +178,7 @@ function NotificationsTab({ userId }: { userId: string }) {
     { key: "goldenHour",     label: "Golden hour reminders",  sub: "A photo nudge before sunset",                                          icon: <Sun size={14} className="text-orange-500" /> },
     { key: "optimiseDigest", label: "Weekly optimise digest", sub: "A summary of suggested schedule improvements",                         icon: <Sparkles size={14} className="text-violet-500" /> },
     { key: "weeklyOverview", label: "Weekly garden overview", sub: "Sunday morning summary of your week ahead",                            icon: <CalendarIcon size={14} className="text-rhozly-primary" /> },
+    { key: "overdueEvening", label: "Evening overdue nudge",  sub: "An 8pm reminder when tasks are still overdue",                         icon: <Clock size={14} className="text-slate-500" /> },
     { key: "betaPrompts",    label: "Beta feedback prompts",  sub: "Occasional in-app surveys on new features",                            icon: <MessageSquare size={14} className="text-emerald-500" /> },
   ];
 

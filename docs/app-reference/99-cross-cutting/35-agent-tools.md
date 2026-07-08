@@ -155,12 +155,12 @@ Botanist+, confirm-gated (archive/delete = strong-confirm), all with Undo:
 
 Per [tools.ts](../../supabase/functions/agent-chat/tools.ts) `getToolsForTier()`:
 
-| Tier | Reads | Writes (Phase 2+) | Daily messages |
-|------|-------|---------------------|----------------|
-| Sprout | ✅ | ❌ | 5 |
-| Botanist | ✅ | ✅ | 25 |
-| Sage | ✅ | ✅ | 100 |
-| Evergreen | ✅ | ✅ | 9999 |
+| Tier | Reads | Writes (Phase 2+) | Daily messages | Model cascade (`chatModels.ts`) |
+|------|-------|---------------------|----------------|--------------------------------|
+| Sprout | ✅ | ❌ | 5 | Flash |
+| Botanist | ✅ | ✅ | 25 | Flash |
+| Sage | ✅ | ✅ | 100 | Pro-class (`gemini-2.5-pro`-led) |
+| Evergreen | ✅ | ✅ | 9999 | Most advanced (`gemini-3.1-pro-preview`-led, exclusive) |
 
 Tier limits live in `agent-chat/index.ts:TIER_MESSAGE_LIMITS`. Quota is enforced via the `check_ai_message_quota` SQL function against `ai_usage_log` rows with `function_name = 'agent-chat-message'` in the last 24 hours.
 
