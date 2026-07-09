@@ -152,6 +152,36 @@ describe("buildRenderTasks (pure)", () => {
     expect(tasks.some((t) => t.id === "done")).toBe(true);
   });
 
+  test("multiple completed rows for the SAME window collapse to one (no '8 completed pruning')", () => {
+    // Leftover daily rows the user completed under the pre-window model, all
+    // backfilled with the same window_end_date, must render as ONE entry.
+    const mk = (id: string, due: string) => ({
+      id, blueprint_id: "bp-w", due_date: due, status: "Completed", type: "Pruning",
+      window_end_date: "2026-05-30", updated_at: `${due}T09:00:00.000Z`,
+    });
+    const physicalTasks = [
+      mk("d1", "2026-05-02"), mk("d2", "2026-05-03"), mk("d3", "2026-05-04"),
+      mk("d4", "2026-05-05"), mk("d5", "2026-05-06"),
+    ];
+    const { tasks } = buildRenderTasks({
+      physicalTasks, blueprints: [], skippedTombstones: [], ...RANGE,
+    });
+    const shown = tasks.filter((t) => t.blueprint_id === "bp-w");
+    expect(shown).toHaveLength(1);          // one, not five
+    expect(shown[0].id).toBe("d1");          // earliest-due representative
+  });
+
+  test("completed window tasks for DIFFERENT blueprints are both kept (distinct plants)", () => {
+    const mk = (id: string, bp: string) => ({
+      id, blueprint_id: bp, due_date: "2026-05-03", status: "Completed", type: "Pruning",
+      window_end_date: "2026-05-30", updated_at: "2026-05-03T09:00:00.000Z",
+    });
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [mk("a", "bp-A"), mk("b", "bp-B")], blueprints: [], skippedTombstones: [], ...RANGE,
+    });
+    expect(tasks.filter((t) => t.status === "Completed")).toHaveLength(2);
+  });
+
   test("a completed window task DROPS OFF once its window has closed", () => {
     const completed = {
       id: "done", blueprint_id: null, due_date: "2026-04-01", status: "Completed",

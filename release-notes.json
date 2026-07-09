@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "One completed pruning per window, not many",
+    "items": [
+      "Fixed leftover daily pruning tasks all showing as separate 'completed' entries on the same day — a pruning window now shows a single completed entry."
+    ]
+  }
+]

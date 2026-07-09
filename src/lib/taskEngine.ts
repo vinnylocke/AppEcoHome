@@ -258,7 +258,7 @@ export function buildRenderTasks(input: {
   physicalRows.forEach((t: any) => pushDue(t.blueprint_id, t.due_date));
   (skippedTombstones ?? []).forEach((t: any) => pushDue(t.blueprint_id, t.due_date));
 
-  const rawTasks = physicalRows.filter((task) => {
+  const rawVisible = physicalRows.filter((task) => {
     if (task.status !== "Completed") return true;
     const isDueInWindow =
       task.due_date >= startDateStr && task.due_date <= endDateStr;
@@ -278,6 +278,30 @@ export function buildRenderTasks(input: {
       task.due_date <= endDateStr;
     return isDueInWindow || isCompletedInWindow || windowStillOpen;
   });
+
+  // Collapse duplicate COMPLETED window tasks to ONE per (blueprint_id,
+  // window_end_date). Under the pre-window model a pruning/harvest blueprint
+  // materialised a task PER DAY; a user who completed several now has multiple
+  // completed rows for the same window, and the "stays visible in-window" rule
+  // above would render all of them (e.g. "8 completed pruning today"). Keep the
+  // earliest-due representative so a single "…completed" entry shows. Distinct
+  // blueprints/windows are untouched (different keys).
+  const completedWindowRep = new Map<string, any>();
+  for (const t of rawVisible) {
+    if (t.status !== "Completed" || !t.blueprint_id || !t.window_end_date) continue;
+    const key = `${t.blueprint_id}:${t.window_end_date}`;
+    const cur = completedWindowRep.get(key);
+    if (!cur || (t.due_date && cur.due_date && t.due_date < cur.due_date)) {
+      completedWindowRep.set(key, t);
+    }
+  }
+  const rawTasks =
+    completedWindowRep.size === 0
+      ? rawVisible
+      : rawVisible.filter((t) => {
+          if (t.status !== "Completed" || !t.blueprint_id || !t.window_end_date) return true;
+          return completedWindowRep.get(`${t.blueprint_id}:${t.window_end_date}`) === t;
+        });
 
   const bps = blueprints || [];
 
