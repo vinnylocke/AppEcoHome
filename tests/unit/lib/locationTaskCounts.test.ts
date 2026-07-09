@@ -90,6 +90,36 @@ describe("buildLocationTaskCounts", () => {
     expect(buildLocationTaskCounts([L1], [], [bp], TODAY)[L1]).toBe(1);
   });
 
+  test("a COMPLETED in-window harvest suppresses its ghost → 0 (the reported bug)", () => {
+    // Harvest window still open today, but the harvest was auto-completed on an
+    // earlier day. Its persisted row (fetched now that the App query is
+    // window-aware) is a tombstone that suppresses the in-window ghost, so it
+    // is NOT counted as a remaining task today.
+    const bp = dailyBp("h1", {
+      task_type: "Harvesting",
+      frequency_days: 30,
+      start_date: "2026-07-01",
+      end_date: "2026-07-20",
+    });
+    const tasks: TaskCountRow[] = [
+      { location_id: L1, blueprint_id: "h1", status: "Completed" },
+    ];
+    expect(buildLocationTaskCounts([L1], tasks, [bp], TODAY)[L1]).toBe(0);
+  });
+
+  test("an OPEN in-window harvest persisted row counts once (no double with its ghost)", () => {
+    const bp = dailyBp("h1", {
+      task_type: "Harvesting",
+      frequency_days: 30,
+      start_date: "2026-07-01",
+      end_date: "2026-07-20",
+    });
+    const tasks: TaskCountRow[] = [
+      { location_id: L1, blueprint_id: "h1", status: "Pending" },
+    ];
+    expect(buildLocationTaskCounts([L1], tasks, [bp], TODAY)[L1]).toBe(1);
+  });
+
   test("paused, not-yet-started, and ended blueprints are excluded", () => {
     const paused = dailyBp("p", { paused_until: "2026-07-10" });
     const future = dailyBp("f", { start_date: "2026-07-10" });

@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Completed harvests no longer count as still-to-do",
+    "items": [
+      "A harvest that's already been logged (auto-completed) no longer shows as one of today's remaining tasks — so \"X of Y done today\" no longer counts a finished harvest in the total."
+    ]
+  }
+]

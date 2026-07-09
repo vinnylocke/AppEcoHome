@@ -819,11 +819,19 @@ function AppShell() {
             // instead. Dropping Completed here previously let completed
             // recurring tasks regenerate a ghost that was double-counted as
             // pending against the server's `done` count.
+            //
+            // Harvest tasks live on a WINDOW, not a single due day: their
+            // due_date is the window START (often days ago), so a completed
+            // in-window harvest was missed by an `eq("due_date", today)` fetch
+            // — its ghost then went unsuppressed and padded today's total (an
+            // auto-completed harvest showing as one of "N to do today"). Widen
+            // to also catch any harvest whose window covers today so it
+            // suppresses its ghost.
             supabase
               .from("tasks")
               .select("id, blueprint_id, location_id, status")
               .in("location_id", locationIds)
-              .eq("due_date", todayStr),
+              .or(`due_date.eq.${todayStr},and(due_date.lte.${todayStr},window_end_date.gte.${todayStr})`),
             supabase
               .from("task_blueprints")
               .select("id, location_id, start_date, created_at, end_date, frequency_days, task_type, paused_until")
