@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Completed pruning no longer counts as still-to-do",
+    "items": [
+      "Fixed a pruning task that had already been completed still counting in your \"X of Y done today\" total and disappearing from view.",
+      "A completed pruning (or harvest) now stays visible as completed for the rest of its window, instead of vanishing the next day."
+    ]
+  }
+]

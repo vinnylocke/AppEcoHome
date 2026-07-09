@@ -116,6 +116,54 @@ describe("buildRenderTasks (pure)", () => {
     expect(ghosts[0].type).toBe("Pruning");
   });
 
+  test("window ghost is suppressed by a completed task on a NON-window-start day (no phantom)", () => {
+    // Regression (OS 35.0046): pre-existing pruning/harvest completed on an
+    // arbitrary in-window day (materialised daily by the old cron) must
+    // suppress the window ghost — an exact-window-start check emitted a
+    // phantom pending ghost alongside the completed task.
+    const bp = {
+      id: "bp-w", home_id: "h", title: "Spring Pruning", task_type: "Pruning",
+      frequency_days: 1, start_date: "2026-05-01", end_date: "2026-05-30", inventory_item_ids: [],
+    };
+    // completed on 2026-05-06 (NOT the window start 2026-05-01)
+    const completed = {
+      id: "done", blueprint_id: "bp-w", due_date: "2026-05-06", status: "Completed",
+      type: "Pruning", window_end_date: "2026-05-30", updated_at: "2026-05-06T09:00:00.000Z",
+    };
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [completed], blueprints: [bp], skippedTombstones: [], ...RANGE,
+    });
+    expect(tasks.some((t) => t.isGhost)).toBe(false); // no phantom window ghost
+    expect(tasks.filter((t) => !t.isGhost).map((t) => t.id)).toEqual(["done"]);
+  });
+
+  test("a completed WINDOW task stays visible while its window is still open (completed earlier)", () => {
+    // Regression: a window task completed early in its window must not vanish
+    // the next day — it stays shown (as completed) until the window closes.
+    const completed = {
+      id: "done", blueprint_id: null, due_date: "2026-04-20", status: "Completed",
+      type: "Pruning", window_end_date: "2026-05-30",
+      // completed + created well before the (today-only) range
+      updated_at: "2026-04-21T09:00:00.000Z", created_at: "2026-04-21T09:00:00.000Z",
+    };
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [completed], blueprints: [], skippedTombstones: [], ...RANGE,
+    });
+    expect(tasks.some((t) => t.id === "done")).toBe(true);
+  });
+
+  test("a completed window task DROPS OFF once its window has closed", () => {
+    const completed = {
+      id: "done", blueprint_id: null, due_date: "2026-04-01", status: "Completed",
+      type: "Pruning", window_end_date: "2026-04-15", // window closed before RANGE (May)
+      updated_at: "2026-04-10T09:00:00.000Z", created_at: "2026-04-10T09:00:00.000Z",
+    };
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [completed], blueprints: [], skippedTombstones: [], ...RANGE,
+    });
+    expect(tasks.some((t) => t.id === "done")).toBe(false);
+  });
+
   test("a frequency PRUNING blueprint (no end_date) still recurs per frequency", () => {
     const bp = {
       id: "bp-pf", home_id: "h", title: "Prune", task_type: "Pruning",

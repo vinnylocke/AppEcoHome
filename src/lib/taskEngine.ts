@@ -242,6 +242,22 @@ export function buildRenderTasks(input: {
       .map((t: any) => `${t.blueprint_id}:${t.due_date}`),
   );
 
+  // Per-blueprint list of every real (physical + skip-tombstone) task due_date,
+  // so the seasonal-window branch can suppress its ghost when the blueprint
+  // already has ANY task inside the window — not only one exactly at the window
+  // start. Pre-existing pruning/harvest rows sit on arbitrary in-window days
+  // (materialised daily by the old cron, then completed), so an exact-date
+  // check emitted a phantom window ghost alongside the completed task.
+  const dueDatesByBlueprint = new Map<string, string[]>();
+  const pushDue = (bpId?: string | null, due?: string | null) => {
+    if (!bpId || !due) return;
+    const arr = dueDatesByBlueprint.get(bpId);
+    if (arr) arr.push(due);
+    else dueDatesByBlueprint.set(bpId, [due]);
+  };
+  physicalRows.forEach((t: any) => pushDue(t.blueprint_id, t.due_date));
+  (skippedTombstones ?? []).forEach((t: any) => pushDue(t.blueprint_id, t.due_date));
+
   const rawTasks = physicalRows.filter((task) => {
     if (task.status !== "Completed") return true;
     const isDueInWindow =
@@ -252,7 +268,15 @@ export function buildRenderTasks(input: {
       : timestamp;
     const isCompletedInWindow =
       completedDateStr >= startDateStr && completedDateStr <= endDateStr;
-    return isDueInWindow || isCompletedInWindow;
+    // A completed SEASONAL WINDOW task (harvest/pruning) stays visible for the
+    // whole time its window overlaps the range — otherwise a task completed
+    // early in the window vanished the next day ("it disappeared"). It renders
+    // with its "Harvest/Pruning completed {date}" chip until the window closes.
+    const windowStillOpen =
+      !!task.window_end_date &&
+      task.window_end_date >= startDateStr &&
+      task.due_date <= endDateStr;
+    return isDueInWindow || isCompletedInWindow || windowStillOpen;
   });
 
   const bps = blueprints || [];
@@ -308,10 +332,13 @@ export function buildRenderTasks(input: {
         ghostStartIso <= endDateStr && bp.end_date >= startDateStr;
       if (!intersectsRange) return;
 
-      const alreadyExists =
-        materialisedKeys.has(`${bp.id}:${ghostStartIso}`)
-        || tombstoneSet.has(`${bp.id}:${ghostStartIso}`);
-      if (alreadyExists) return;
+      // Window-aware suppression: a real task ANYWHERE inside [start, end]
+      // means this window already has its representative task — don't emit a
+      // duplicate ghost. (Covers the exact-window-start case too.)
+      const hasWindowTask = (dueDatesByBlueprint.get(bp.id) ?? []).some(
+        (d) => d >= ghostStartIso && d <= bp.end_date,
+      );
+      if (hasWindowTask) return;
 
       ghosts.push({
         id: `ghost-${bp.id}-${ghostStartIso}`,
