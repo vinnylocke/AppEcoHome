@@ -99,6 +99,36 @@ describe("buildRenderTasks (pure)", () => {
     expect(ghosts[0].due_date).toBe("2026-05-02");
     expect(ghosts[0].window_end_date).toBe("2026-05-30");
   });
+
+  test("a seasonal PRUNING blueprint (end_date) emits ONE window ghost, not a task per day", () => {
+    // freq 1 across a 28-day window — the OLD behaviour was a ghost every day.
+    const bp = {
+      id: "bp-p", home_id: "h", title: "Spring Pruning", task_type: "Pruning",
+      frequency_days: 1, start_date: "2026-05-02", end_date: "2026-05-30", inventory_item_ids: [],
+    };
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [], blueprints: [bp], skippedTombstones: [], ...RANGE,
+    });
+    const ghosts = tasks.filter((t) => t.isGhost);
+    expect(ghosts).toHaveLength(1); // ONE window task, not 14
+    expect(ghosts[0].due_date).toBe("2026-05-02");
+    expect(ghosts[0].window_end_date).toBe("2026-05-30");
+    expect(ghosts[0].type).toBe("Pruning");
+  });
+
+  test("a frequency PRUNING blueprint (no end_date) still recurs per frequency", () => {
+    const bp = {
+      id: "bp-pf", home_id: "h", title: "Prune", task_type: "Pruning",
+      frequency_days: 7, start_date: "2026-05-01", end_date: null, inventory_item_ids: [],
+    };
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [], blueprints: [bp], skippedTombstones: [], ...RANGE,
+    });
+    const ghosts = tasks.filter((t) => t.isGhost);
+    // 2026-05-01 and 2026-05-08 within the 01–14 window, no window_end_date.
+    expect(ghosts.map((g) => g.due_date)).toEqual(["2026-05-01", "2026-05-08"]);
+    expect(ghosts[0].window_end_date).toBeUndefined();
+  });
 });
 
 describe("TaskEngine.injectOffline*", () => {

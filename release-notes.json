@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "label": "Pruning now works like harvesting",
+    "items": [
+      "Seasonal pruning is now a single task for the whole window — no more a new pruning task appearing every day of the season.",
+      "You can chip away at it: tap \"Still pruning\" to keep the task open (with a gentle 3/5/7-day nudge), and \"Done pruning\" once you've finished the lot.",
+      "Completed pruning shows a \"Pruning completed on {date}\" note, just like harvests.",
+      "We've tidied up the leftover daily pruning tasks the old system had created."
+    ]
+  }
+]

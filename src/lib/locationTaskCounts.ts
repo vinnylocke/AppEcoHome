@@ -13,6 +13,8 @@
 // keeps Completed rows (only Skipped is dropped) precisely so they suppress
 // their ghosts.
 
+import { isSeasonalWindowType } from "./windowTasks";
+
 export interface TaskCountRow {
   location_id?: string | null;
   blueprint_id?: string | null;
@@ -77,13 +79,13 @@ export function buildLocationTaskCounts(
     if (bp.end_date && todayMs > new Date(bp.end_date).getTime()) return;
     const existing = existingByLocation[bp.location_id];
     if (existing?.has(bp.id)) return;
-    // Windowed harvest blueprints emit ONE window task active across
-    // [start_date, end_date] — counting them on every freq-aligned day
-    // multiplied them. In-window (checked above) counts once.
-    const isHarvestWindow =
-      (bp.task_type === "Harvesting" || bp.task_type === "Harvest") && !!bp.end_date;
+    // Windowed blueprints (Harvesting/Harvest + Pruning) emit ONE window
+    // task active across [start_date, end_date] — counting them on every
+    // freq-aligned day multiplied them. In-window (checked above) counts
+    // once. Single source for the type set: `windowTasks.ts`.
+    const isWindowType = isSeasonalWindowType(bp.task_type) && !!bp.end_date;
     const diffDays = Math.round((todayMs - anchorMs) / (1000 * 60 * 60 * 24));
-    if (isHarvestWindow || diffDays % bp.frequency_days === 0) {
+    if (isWindowType || diffDays % bp.frequency_days === 0) {
       counts[bp.location_id] = (counts[bp.location_id] || 0) + 1;
     }
   });

@@ -120,6 +120,31 @@ describe("buildLocationTaskCounts", () => {
     expect(buildLocationTaskCounts([L1], tasks, [bp], TODAY)[L1]).toBe(1);
   });
 
+  test("a seasonal PRUNING blueprint (window) counts once, not once per day", () => {
+    // Pruning joined the window model in 2026-07 — freq 1 across the window
+    // must count ONCE (in-window), like harvest, not per freq-aligned day.
+    const bp = dailyBp("p1", {
+      task_type: "Pruning",
+      frequency_days: 1,
+      start_date: "2026-07-01",
+      end_date: "2026-07-20",
+    });
+    expect(buildLocationTaskCounts([L1], [], [bp], TODAY)[L1]).toBe(1);
+  });
+
+  test("a COMPLETED in-window pruning suppresses its ghost → 0", () => {
+    const bp = dailyBp("p1", {
+      task_type: "Pruning",
+      frequency_days: 1,
+      start_date: "2026-07-01",
+      end_date: "2026-07-20",
+    });
+    const tasks: TaskCountRow[] = [
+      { location_id: L1, blueprint_id: "p1", status: "Completed" },
+    ];
+    expect(buildLocationTaskCounts([L1], tasks, [bp], TODAY)[L1]).toBe(0);
+  });
+
   test("paused, not-yet-started, and ended blueprints are excluded", () => {
     const paused = dailyBp("p", { paused_until: "2026-07-10" });
     const future = dailyBp("f", { start_date: "2026-07-10" });

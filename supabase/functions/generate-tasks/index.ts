@@ -5,6 +5,12 @@ import { captureException } from "../_shared/sentry.ts";
 
 const FN = "generate-tasks";
 
+// Seasonal window task types — the frontend ghost engine owns these as ONE
+// window task per blueprint, so the cron must NOT materialise them daily.
+// Mirror of `src/lib/windowTasks.ts` (Deno can't import from src/) — keep in
+// sync. Pruning joined Harvesting/Harvest here in 2026-07.
+const SEASONAL_WINDOW_TYPES = new Set(["Harvesting", "Harvest", "Pruning"]);
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -64,17 +70,15 @@ serve(async (req) => {
     // inside the loop now that last_task is precomputed.
     let harvestSkipped = 0;
     for (const bp of blueprints || []) {
-      // ── Harvest window blueprints follow Wave-20's window model: a
-      // single task per blueprint at start_date with window_end_date
-      // populated, emitted by the frontend ghost engine and materialised
-      // only when the user interacts. Daily cron materialisation here
-      // produces duplicate non-window tasks that appear alongside the
-      // canonical window task across the visible window (the
-      // "after-skipping-it-doubled-up" bug). Skip them entirely.
-      if (
-        (bp.task_type === "Harvesting" || bp.task_type === "Harvest")
-        && bp.end_date
-      ) {
+      // ── Seasonal window blueprints (Harvesting/Harvest + Pruning) follow
+      // Wave-20's window model: a single task per blueprint at start_date
+      // with window_end_date populated, emitted by the frontend ghost engine
+      // and materialised only when the user interacts. Daily cron
+      // materialisation here produces duplicate non-window tasks that appear
+      // alongside the canonical window task across the visible window (the
+      // "after-skipping-it-doubled-up" bug; for pruning it was a task every
+      // day of the season). Skip them entirely.
+      if (SEASONAL_WINDOW_TYPES.has(bp.task_type) && bp.end_date) {
         harvestSkipped += 1;
         continue;
       }

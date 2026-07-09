@@ -1132,15 +1132,18 @@ export default function TaskList({
             // from the task itself so the Today list gets the chip too.
             const lateDue = task.lateCompletionFrom ?? lateCompletionDueDate(task) ?? undefined;
             const lateDone = task.lateCompletedOn ?? (lateDue ? completedLocalDate(task) ?? undefined : undefined);
-            // A completed harvest (window) task shows WHEN the harvest was
-            // logged — the whole window closes on completion, so surfacing the
-            // date makes clear "this harvest was done on X" even when it's not
-            // flagged late. Suppressed when the late chip already shows a date.
+            // A completed SEASONAL WINDOW task (harvest, or pruning since
+            // 2026-07) shows WHEN it was done — the whole window closes on
+            // completion, so surfacing the date makes clear "this was done on
+            // X" even when it's not flagged late. Suppressed when the late chip
+            // already shows a date.
             const isHarvestTask = task.type === "Harvesting" || task.type === "Harvest";
-            const harvestDoneOn =
-              isCompleted && isHarvestTask && !lateDue
+            const isPruningWindowTask = task.type === "Pruning" && !!task.window_end_date;
+            const windowDoneOn =
+              isCompleted && (isHarvestTask || isPruningWindowTask) && !lateDue
                 ? completedLocalDate(task) ?? undefined
                 : undefined;
+            const windowDoneLabel = isPruningWindowTask ? "Pruning completed" : "Harvest completed";
             // Wave-20 — harvest tasks are "in window" while
             // due_date <= today <= window_end_date. They're styled green
             // and aren't overdue until the window closes.
@@ -1250,7 +1253,7 @@ export default function TaskList({
                     </h4>
 
                     {/* Chips */}
-                    {(plantName || task.areas?.name || planName || task.auto_completed_reason || task.overdueCarryoverSince || lateDue || harvestDoneOn) && (
+                    {(plantName || task.areas?.name || planName || task.auto_completed_reason || task.overdueCarryoverSince || lateDue || windowDoneOn) && (
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {task.overdueCarryoverSince && (
                           <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-100 text-red-700">
@@ -1263,9 +1266,9 @@ export default function TaskList({
                             {lateDone && ` · done ${formatDisplayDate(lateDone)}`}
                           </div>
                         )}
-                        {harvestDoneOn && (
+                        {windowDoneOn && (
                           <div data-testid="task-harvested-chip" className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
-                            <Wheat size={10} /> Harvest completed {formatDisplayDate(harvestDoneOn)}
+                            {isPruningWindowTask ? <Scissors size={10} /> : <Wheat size={10} />} {windowDoneLabel} {formatDisplayDate(windowDoneOn)}
                           </div>
                         )}
                         {plantName && (

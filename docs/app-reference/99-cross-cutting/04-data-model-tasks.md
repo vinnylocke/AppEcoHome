@@ -68,11 +68,13 @@ Ghost tasks are materialised into real `tasks` rows when the user acts on them (
 | `window_end_date` | date? | **Wave-20 harvest window model.** For tasks generated from a Harvesting blueprint with both `start_date` and `end_date`, this is the last day the harvest window is open. The task is "active" through `due_date..window_end_date` and only flags overdue afterwards. NULL on all other tasks. |
 | `next_check_at` | date? | **Wave-20 snooze.** When the user (or AI ripeness check) defers a window task via "Not yet", this is the date the task should re-appear. While in the future, the task is hidden from Today / Calendar queries. NULL on completion / window close. |
 
-### Harvest window-task semantics (Wave 20)
+### Seasonal window-task semantics (Wave 20; Pruning added 2026-07)
 
-Harvesting blueprints used to fire a ghost every day inside the window (`frequency_days: 1`) — a 90-day harvest window meant 90 overdue tasks if the user couldn't harvest on day one. Wave 20 fixed this:
+Harvesting blueprints used to fire a ghost every day inside the window (`frequency_days: 1`) — a 90-day harvest window meant 90 overdue tasks if the user couldn't harvest on day one. Wave 20 fixed this for harvest; **2026-07 extended the same model to Pruning** (seasonal pruning is one window task, not a task per day). The set of "seasonal window" task types lives in [`src/lib/windowTasks.ts`](../../../src/lib/windowTasks.ts) (`isSeasonalWindowType` → `Harvesting` / `Harvest` / `Pruning`), mirrored in the `generate-tasks` cron.
 
-- The ghost engine ([`src/lib/taskEngine.ts`](../../../src/lib/taskEngine.ts) — harvest branch) now emits **one ghost per window** when `bp.task_type === "Harvesting" && bp.end_date`. The ghost's `due_date` is the window start; `window_end_date` is the window close.
+- The ghost engine ([`src/lib/taskEngine.ts`](../../../src/lib/taskEngine.ts) — seasonal window branch) now emits **one ghost per window** when `isSeasonalWindowType(bp.task_type) && bp.end_date`. The ghost's `due_date` is the window start; `window_end_date` is the window close.
+- **Everything downstream is generic** (`window_end_date`-keyed), not type-keyed: visibility, overdue, day-strip bucketing, `computeDoneToday`, calendar tinting, TaskList "in-window" styling — so pruning windows inherited them for free.
+- **Completion UX:** harvest uses the yield/AI footer (`HarvestWindowFooter`). Pruning has no yield, so it uses `PruningWindowFooter` — **"Done pruning"** (complete) + **"Still pruning"** (snooze 3/5/7, capped at window end → chip away, task stays open). Window-closed: `PruningWindowClosedFooter` = "Mark done" / "Mark missed" (Skipped). Completed windowed tasks show a "Harvest completed {date}" / "Pruning completed {date}" chip.
 - Visibility queries include the task as long as `window_end_date >= startDate AND due_date <= endDate`.
 - `isTaskOverdue(task, today)` returns false while `today <= window_end_date`.
 - "Not yet" snoozes set `next_check_at = today + N` (3 / 5 / 7 days, capped at `window_end_date`). The task disappears from Today until then.
@@ -85,7 +87,7 @@ Wave 20 introduced the window model on the frontend ghost engine + `buildGhostPa
 
 Wave 21.0004 closes this with three reinforcing changes:
 
-1. **`generate-tasks` skips harvest blueprints with `end_date`** — they're owned by the frontend ghost engine now. The cron logs `harvestSkipped` per run for observability.
+1. **`generate-tasks` skips seasonal-window blueprints with `end_date`** (`SEASONAL_WINDOW_TYPES` = Harvesting/Harvest/**Pruning**) — they're owned by the frontend ghost engine now. The cron logs `harvestSkipped` per run for observability. (2026-07: a one-shot migration `20260907000000_cleanup_daily_pruning_tasks.sql` deleted the leftover daily Pending pruning rows the cron had already made, so the single window task takes over.)
 2. **`taskEngine` defensive dedup** — after fetch, if a Pending harvest task with `window_end_date` set exists for a blueprint, any Pending non-window harvest task for the SAME blueprint whose `due_date` falls inside the canonical window is dropped from the rendered list. Belt-and-braces for cached browser sessions and any future drift.
 3. **One-shot prod cleanup** — `DELETE FROM tasks WHERE status='Pending' AND window_end_date IS NULL AND blueprint_id IN (harvest blueprints with end_date)` ran post-deploy. The DELETE scope is narrow enough that watering / pruning / planting tasks are untouched.
 

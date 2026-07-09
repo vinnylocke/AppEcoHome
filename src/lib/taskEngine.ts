@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { readSnapshot, writeSnapshot } from "./snapshotCache";
 import { isOffline } from "../hooks/useOnline";
+import { isSeasonalWindowType } from "./windowTasks";
 
 export const getLocalDateString = (date: Date) => {
   const year = date.getFullYear();
@@ -293,11 +294,13 @@ export function buildRenderTasks(input: {
       ? String(bp.paused_until).split("T")[0]
       : null;
 
-    // ── Harvest window branch ────────────────────────────────────────
-    if (
-      (bp.task_type === "Harvesting" || bp.task_type === "Harvest")
-      && bp.end_date
-    ) {
+    // ── Seasonal window branch (Harvesting/Harvest + Pruning) ─────────
+    // A windowed blueprint with start_date + end_date emits ONE ghost per
+    // window (due_date = window start, window_end_date = close), active
+    // across the whole window rather than overdue-by-default. Pruning
+    // joined harvest here in 2026-07 — a seasonal pruning is one window
+    // task, not a task per day. Single source: `windowTasks.ts`.
+    if (isSeasonalWindowType(bp.task_type) && bp.end_date) {
       if (pausedUntilStr && todayStr < pausedUntilStr) return;
 
       const ghostStartIso = bp.start_date;

@@ -30,6 +30,8 @@ import {
   Clock,
   Sparkles,
   XCircle,
+  Scissors,
+  Check,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -1375,6 +1377,38 @@ export default function TaskModal({
             );
           }
 
+          // Pruning is a seasonal window task too (2026-07) — same window
+          // footer shape, minus yield/AI (isInWindow / windowClosed already
+          // require window_end_date, so a frequency pruning falls through to
+          // the default footer).
+          const isPruningPending = task.type === "Pruning" && task.status === "Pending";
+          if (isPruningPending && isInWindow) {
+            return (
+              <PruningWindowFooter
+                task={task}
+                onDelete={onDelete}
+                onComplete={onToggleComplete}
+                materializeTask={materializeTask}
+                onTasksUpdated={onTasksUpdated}
+                onClose={onClose}
+                isUpdating={isUpdating}
+              />
+            );
+          }
+          if (isPruningPending && windowClosed) {
+            return (
+              <PruningWindowClosedFooter
+                task={task}
+                onDelete={onDelete}
+                onComplete={onToggleComplete}
+                materializeTask={materializeTask}
+                onTasksUpdated={onTasksUpdated}
+                onClose={onClose}
+                isUpdating={isUpdating}
+              />
+            );
+          }
+
           return (
             <div className="flex gap-3 mt-auto shrink-0 pt-4 border-t border-rhozly-outline/10">
               <button
@@ -1734,6 +1768,200 @@ function HarvestWindowClosedFooter({
         Delete task
       </button>
       {harvestYieldSheet}
+    </div>
+  );
+}
+
+// ─── PruningWindowFooter ──────────────────────────────────────────────────
+// Pruning is a seasonal WINDOW task (like harvest) since 2026-07: one task
+// across [start_date, window_end_date]. It has no yield, so instead of the
+// harvest yield/AI sheet the footer offers just "Done pruning" (complete) and
+// "Still pruning" (snooze forward, capped at window end — chip away at it and
+// the task stays open until you fully complete it).
+
+interface PruningWindowFooterProps {
+  task: any;
+  onDelete: () => void;
+  onComplete: () => void;
+  materializeTask: (t: any) => Promise<any>;
+  onTasksUpdated: () => void;
+  onClose: () => void;
+  isUpdating: boolean;
+}
+
+function PruningWindowFooter({
+  task,
+  onDelete,
+  onComplete,
+  materializeTask,
+  onTasksUpdated,
+  onClose,
+  isUpdating,
+}: PruningWindowFooterProps) {
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const snoozeFor = async (days: number) => {
+    setBusy(true);
+    try {
+      let target = task;
+      if (target.isGhost) target = await materializeTask(target);
+      const today = new Date();
+      const next = new Date(today);
+      next.setDate(today.getDate() + days);
+      const nextStr = getLocalDateString(next);
+      // Never push the reminder past the window close.
+      const cap = target.window_end_date;
+      const finalStr = cap && nextStr > cap ? cap : nextStr;
+      const { error } = await supabase
+        .from("tasks")
+        .update({ next_check_at: finalStr })
+        .eq("id", target.id);
+      if (error) throw error;
+      toast.success(`Snoozed until ${formatDisplayDate(finalStr)} — still in window.`);
+      onTasksUpdated();
+      onClose();
+    } catch (err: any) {
+      Logger.error("Pruning snooze failed", err, { taskId: task.id }, "Couldn't snooze that task.");
+    } finally {
+      setBusy(false);
+      setSnoozeOpen(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3 mt-auto shrink-0 pt-4 border-t border-rhozly-outline/10">
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          data-testid="pruning-action-done"
+          onClick={onComplete}
+          disabled={busy || isUpdating}
+          className="h-16 rounded-2xl bg-rhozly-primary text-white font-black flex flex-col items-center justify-center gap-1 hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {isUpdating ? (
+            <Loader2 className="animate-spin" size={20} />
+          ) : (
+            <>
+              <Check size={20} />
+              <span className="text-xs">Done pruning</span>
+            </>
+          )}
+        </button>
+        <button
+          data-testid="pruning-action-still-pruning"
+          onClick={() => setSnoozeOpen((v) => !v)}
+          disabled={busy || isUpdating}
+          title="Pruned a bit — keep the task open and check back later."
+          className="h-16 rounded-2xl bg-amber-50 text-amber-800 font-black flex flex-col items-center justify-center gap-1 hover:bg-amber-100 transition-colors disabled:opacity-50"
+        >
+          <Scissors size={20} />
+          <span className="text-xs">Still pruning</span>
+        </button>
+      </div>
+      {snoozeOpen && (
+        <div
+          data-testid="pruning-snooze-popover"
+          className="grid grid-cols-3 gap-2 p-2 rounded-2xl bg-rhozly-surface-lowest border border-rhozly-outline/10"
+        >
+          {[3, 5, 7].map((d) => (
+            <button
+              key={d}
+              data-testid={`pruning-snooze-${d}`}
+              onClick={() => snoozeFor(d)}
+              disabled={busy}
+              className="py-2.5 rounded-xl bg-white border border-rhozly-outline/15 text-sm font-black text-rhozly-on-surface hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-colors disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="animate-spin mx-auto" size={14} /> : `${d} days`}
+            </button>
+          ))}
+        </div>
+      )}
+      <button
+        onClick={onDelete}
+        className="text-[11px] font-black uppercase tracking-widest text-rhozly-on-surface/40 hover:text-red-500 transition-colors py-1"
+      >
+        Delete task
+      </button>
+    </div>
+  );
+}
+
+// ─── PruningWindowClosedFooter ────────────────────────────────────────────
+// The pruning window elapsed while still Pending: "Mark done" (complete) or
+// "Mark missed" (Skipped). No yield path (pruning has none).
+
+interface PruningWindowClosedFooterProps {
+  task: any;
+  onDelete: () => void;
+  onComplete: () => void;
+  materializeTask: (t: any) => Promise<any>;
+  onTasksUpdated: () => void;
+  onClose: () => void;
+  isUpdating: boolean;
+}
+
+function PruningWindowClosedFooter({
+  task,
+  onDelete,
+  onComplete,
+  materializeTask,
+  onTasksUpdated,
+  onClose,
+  isUpdating,
+}: PruningWindowClosedFooterProps) {
+  const [busy, setBusy] = useState(false);
+
+  const markMissed = async () => {
+    setBusy(true);
+    try {
+      let target = task;
+      if (target.isGhost) target = await materializeTask(target);
+      const { error } = await supabase
+        .from("tasks")
+        .update({ status: "Skipped" })
+        .eq("id", target.id);
+      if (error) throw error;
+      toast("Marked as missed — won't appear in your active tasks.");
+      onTasksUpdated();
+      onClose();
+    } catch (err: any) {
+      Logger.error("Mark missed failed", err, { taskId: task.id }, "Couldn't mark that task.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3 mt-auto shrink-0 pt-4 border-t border-rhozly-outline/10">
+      <p className="text-xs font-bold text-rhozly-on-surface/60 leading-snug px-1">
+        The pruning window has closed. Did you prune?
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          data-testid="pruning-closed-mark-done"
+          onClick={onComplete}
+          disabled={busy || isUpdating}
+          className="h-14 rounded-2xl bg-rhozly-primary text-white font-black flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {isUpdating ? <Loader2 className="animate-spin" size={18} /> : <Check size={18} />}
+          Mark done
+        </button>
+        <button
+          data-testid="pruning-closed-mark-missed"
+          onClick={markMissed}
+          disabled={busy || isUpdating}
+          className="h-14 rounded-2xl bg-rhozly-surface text-rhozly-on-surface/80 font-black flex items-center justify-center gap-2 hover:bg-rhozly-surface-mid transition-colors disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="animate-spin" size={18} /> : <XCircle size={18} />}
+          Mark missed
+        </button>
+      </div>
+      <button
+        onClick={onDelete}
+        className="text-[11px] font-black uppercase tracking-widest text-rhozly-on-surface/40 hover:text-red-500 transition-colors py-1"
+      >
+        Delete task
+      </button>
     </div>
   );
 }

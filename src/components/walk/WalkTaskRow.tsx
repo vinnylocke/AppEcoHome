@@ -99,7 +99,13 @@ export default function WalkTaskRow({
   const { requestHarvestComplete, harvestYieldSheet } = useHarvestYieldGate(homeId);
 
   const todayIso = localDatePlus(0);
-  const isHarvest = !!task.window_end_date;
+  // Only HARVEST windows get the yield/AI walk strip. Pruning is also a
+  // window task (2026-07) but has no yield — in the quick walk it uses the
+  // normal Complete / Postpone / Skip actions; its "Still pruning" partial
+  // lives in the full TaskModal. So gate the harvest strip on the type, not
+  // just the presence of window_end_date.
+  const isHarvest =
+    (task.type === "Harvesting" || task.type === "Harvest") && !!task.window_end_date;
   const windowClosed =
     isHarvest && String(task.window_end_date).slice(0, 10) < todayIso;
   const inWindow = isHarvest && !windowClosed;
