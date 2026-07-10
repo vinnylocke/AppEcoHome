@@ -3,6 +3,8 @@ import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
+import { requireAuth } from "../_shared/requireAuth.ts";
+import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 import { captureException } from "../_shared/sentry.ts";
 
 const FN = "visualiser-analyse";
@@ -63,17 +65,24 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    let userId: string | null = null;
-    if (homeId) {
-      const guardErr = await guardAiByHome(db, homeId);
-      if (guardErr) return guardErr;
-      const { data: ownerMember } = await db.from("home_members").select("user_id").eq("home_id", homeId).eq("role", "owner").limit(1).maybeSingle();
-      userId = ownerMember?.user_id ?? null;
-      if (userId) {
-        const rateLimitErr = await enforceRateLimit(db, userId, FN);
-        if (rateLimitErr) return rateLimitErr;
-      }
+    // A homeId is required so the tier gate + rate limit can't be skipped by
+    // simply omitting it (bug-audit-2026-07-10 #14). Authorise the caller
+    // against the home, then gate on tier and rate-limit the CALLER.
+    if (!homeId) {
+      return new Response(JSON.stringify({ error: "homeId is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+    const auth = await requireAuth(req, db);
+    if (auth instanceof Response) return auth;
+    const userId = auth.user.id;
+    const memErr = await requireHomeMembership(db, homeId, userId);
+    if (memErr) return memErr;
+    const guardErr = await guardAiByHome(db, homeId);
+    if (guardErr) return guardErr;
+    const rateLimitErr = await enforceRateLimit(db, userId, FN);
+    if (rateLimitErr) return rateLimitErr;
 
     const plantList = plants
       .map((p) => {

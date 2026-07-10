@@ -23,7 +23,16 @@ export async function guardAiByHome(
     .limit(1)
     .single();
 
-  if (!member) return null;
+  // Fail closed: an unknown home (no owner row — e.g. a bogus homeId) must not
+  // grant paid AI access (bug-audit-2026-07-10 #14). This is the TIER gate only;
+  // callers must SEPARATELY verify the caller is a member of the home
+  // (requireHomeMembership) — guardAiByHome does not authorise the caller.
+  if (!member) {
+    return new Response(JSON.stringify({ error: "AI tier required" }), {
+      status: 403,
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
 
   const { data: profile } = await db
     .from("user_profiles")

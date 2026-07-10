@@ -6,6 +6,8 @@ import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
+import { requireAuth } from "../_shared/requireAuth.ts";
+import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 
 const FN = "smart-plant-scheduler";
 
@@ -50,27 +52,31 @@ Deno.serve(async (req) => {
     const { plantName, areaDetails, address, availableMethods, homeId, priorSchedule, plantMetadata } =
       await req.json();
 
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const authToken = authHeader.replace("Bearer ", "");
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } },
-    );
     const serviceDb = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
-    const { data: { user } } = await supabase.auth.getUser(authToken);
-    const userId = user?.id ?? null;
 
-    const guardErr = await guardAiByHome(supabase, homeId);
+    // Require a real caller and authorise them against this home BEFORE the tier
+    // gate — guardAiByHome only checks the owner's tier, and previously a null
+    // userId simply skipped the rate limit (bug-audit-2026-07-10 #14).
+    const auth = await requireAuth(req, serviceDb);
+    if (auth instanceof Response) return auth;
+    const userId = auth.user.id;
+    if (!homeId) {
+      return new Response(JSON.stringify({ error: "homeId is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const memErr = await requireHomeMembership(serviceDb, homeId, userId);
+    if (memErr) return memErr;
+
+    const guardErr = await guardAiByHome(serviceDb, homeId);
     if (guardErr) return guardErr;
 
-    if (userId) {
-      const rateLimitErr = await enforceRateLimit(serviceDb, userId, FN);
-      if (rateLimitErr) return rateLimitErr;
-    }
+    const rateLimitErr = await enforceRateLimit(serviceDb, userId, FN);
+    if (rateLimitErr) return rateLimitErr;
 
     log(FN, "request_received", { plantName, address, homeId, userId, availableMethodsCount: availableMethods?.length ?? 0 });
 
@@ -144,7 +150,7 @@ Deno.serve(async (req) => {
       fetch(forecastUrl, { signal: AbortSignal.timeout(15_000) }),
       fetch(archiveUrl, { signal: AbortSignal.timeout(20_000) }),
       homeId
-        ? loadPreferences(supabase, userId ? { userId } : { homeId })
+        ? loadPreferences(serviceDb, userId ? { userId } : { homeId })
         : Promise.resolve([]),
     ]);
 
@@ -305,7 +311,7 @@ ${climateBlock}
       );
     }
 
-    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "plant_scheduler", usage, contextBlock: userMessage, prompt: `${systemPrompt}\n\n${userMessage}`, rawResult: rawText });
+    await logAiUsage(serviceDb, { homeId, userId, functionName: FN, action: "plant_scheduler", usage, contextBlock: userMessage, prompt: `${systemPrompt}\n\n${userMessage}`, rawResult: rawText });
     log(FN, "result", {
       plantName,
       address,

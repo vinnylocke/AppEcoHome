@@ -165,3 +165,95 @@ Deno.test({
     assertEquals(res.status, 401);
   },
 });
+
+// ─── Batch 2 (bug-audit-2026-07-10) — on-demand AI auth + membership ─────────
+
+// EF-008: generate-daily-brief — targeted { homeId } with no auth → 401
+Deno.test({
+  name: "EF-008: generate-daily-brief — { homeId } no auth → 401",
+  ignore: SKIP,
+  fn: async () => {
+    const res = await callFunction("generate-daily-brief", {
+      body: { homeId: "00000001-0000-0000-0000-000000000002" },
+    });
+    assertEquals(res.status, 401);
+  },
+});
+
+// EF-009: generate-daily-brief — valid JWT but a home the caller isn't in → 403
+Deno.test({
+  name: "EF-009: generate-daily-brief — member JWT, alien homeId → 403",
+  ignore: SKIP,
+  fn: async () => {
+    const jwt = await getJwt("test1@rhozly.com");
+    const res = await callFunction("generate-daily-brief", {
+      headers: { Authorization: `Bearer ${jwt}` },
+      body: { homeId: "00000002-0000-0000-0000-000000000002" }, // worker2's home
+    });
+    assertEquals(res.status, 403);
+  },
+});
+
+// EF-010: generate-grow-suggestions — targeted { homeId } with no auth → 401
+Deno.test({
+  name: "EF-010: generate-grow-suggestions — { homeId } no auth → 401",
+  ignore: SKIP,
+  fn: async () => {
+    const res = await callFunction("generate-grow-suggestions", {
+      body: { homeId: "00000001-0000-0000-0000-000000000002" },
+    });
+    assertEquals(res.status, 401);
+  },
+});
+
+// EF-011: predict-yield — valid JWT, another home's ids → 403 (IDOR closed)
+Deno.test({
+  name: "EF-011: predict-yield — member JWT, alien home_id → 403",
+  ignore: SKIP,
+  fn: async () => {
+    const jwt = await getJwt("test1@rhozly.com");
+    const res = await callFunction("predict-yield", {
+      headers: { Authorization: `Bearer ${jwt}` },
+      body: { instance_id: "10000001", home_id: "00000002-0000-0000-0000-000000000002" },
+    });
+    assertEquals(res.status, 403);
+  },
+});
+
+// EF-012: visualiser-analyse — authenticated but no homeId → 400 (gate can't be skipped)
+Deno.test({
+  name: "EF-012: visualiser-analyse — authed, missing homeId → 400",
+  ignore: SKIP,
+  fn: async () => {
+    const jwt = await getJwt("test1@rhozly.com");
+    const res = await callFunction("visualiser-analyse", {
+      headers: { Authorization: `Bearer ${jwt}` },
+      body: { imageBase64: "abc", plants: [{ name: "Rose" }] }, // no homeId
+    });
+    assertEquals(res.status, 400);
+  },
+});
+
+// EF-013: add-plant-to-library — authenticated non-admin → 403
+Deno.test({
+  name: "EF-013: add-plant-to-library — non-admin → 403",
+  ignore: SKIP,
+  fn: async () => {
+    const jwt = await getJwt("test1@rhozly.com");
+    const res = await callFunction("add-plant-to-library", {
+      headers: { Authorization: `Bearer ${jwt}` },
+      body: { name: "Sneaky Plant" },
+    });
+    assertEquals(res.status, 403);
+  },
+});
+
+// EF-014: generate-daily-brief — no-body cron sweep stays OPEN (not 401)
+Deno.test({
+  name: "EF-014: generate-daily-brief — {} cron sweep is not gated (≠401/403)",
+  ignore: SKIP,
+  fn: async () => {
+    const res = await callFunction("generate-daily-brief", { body: {} });
+    assertEquals(res.status !== 401 && res.status !== 403, true, `cron path should stay open, got ${res.status}`);
+  },
+});

@@ -128,7 +128,7 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
         ├── deno.json             # Deno import map (@std/assert, @shared/ alias)
         ├── setup_test.ts         # Placeholder — keeps "no tests found" error away
         ├── rls_isolation.test.ts # Tier A — 16 cross-tenant RLS isolation tests
-        ├── edge_function_auth.test.ts # Tier B — 7 edge function auth/rate-limit tests
+        ├── edge_function_auth.test.ts # Tier B — 14 edge function auth/rate-limit tests
         ├── fixtures/
         │   ├── weatherContext.ts # makeWeatherContext() + mutators
         │   ├── patternData.ts    # makeUserEvent(), makePatternHit(), sequence builders
@@ -792,7 +792,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `careAdjustments.test.ts` | 8 | Garden Brain shared apply/dismiss lib (`src/lib/careAdjustments.ts`, used by AdaptiveCareCard + the Daily Brief inline Apply) — tighten/stretch → blueprint `frequency_days` update then `status='applied'` + event; blueprint failure aborts (no status write); `create_watering_routine` → blueprint + first task + `generateBlueprintTasks`; `stress_risk` acknowledge-only; dismiss → `status='dismissed'` + event; `fetchCareAdjustment` returns the row only while `proposed` |
 | `favouriteIdentity.test.ts` | 50 | Cross-home favourites pure helpers — **Plants (Phase 1):** `canonicalPlantRefId` (manual/api own id, AI→global parent, orphan fallback, non-AI provenance ignored), `isSourceLockedForTier` (full source×tier matrix), `lockedSourceMessage`, `shouldForkOnEdit` (copy-on-write decision), `buildFavouriteSnapshot` (whitelist cap, null-skip, falsy-keep), `buildForkRow` (re-source manual, drop provider ids, provenance via canonical id, strip bookkeeping). **Ailments (Phase 2):** `isAilmentSourceLockedForTier` (perenual/ai/library matrix), `lockedAilmentSourceMessage`, `ailmentIdentityKey` (name_key mirror — lowercase/trim/collapse-ws), `buildAilmentSnapshot` (whitelist cap). **Seed packets (Phase 3):** `packetIdentityKey` (variety\|plant composite, casing/spacing stability, missing parts), `buildPacketSnapshot` (variety-reference whitelist — never live stock/sowings) |
 
-### Edge function tests — Deno (929 tests across 85 files)
+### Edge function tests — Deno (936 tests across 85 files)
 
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|
@@ -812,7 +812,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `aiUsage.test.ts` | 7 | `logAiUsage` — cost calculation per model (flash-lite, pro, flash-preview, unknown), full field mapping to `ai_usage_log`, null homeId/userId/action passthrough |
 | `yield/predictYield.test.ts` | 6 | `buildYieldPrompt` — includes plant name, planted date, harvest date, no-history text, past yields, weather summary |
 | `rls_isolation.test.ts` | 16 | Cross-tenant RLS — tasks, inventory, locations, plans, blueprints, ailments, weather_alerts, community_guides, home_members, yield_records, user_profiles |
-| `edge_function_auth.test.ts` | 7 | Edge function auth — plant-doctor/contact-support/scan-area/generate-guide/image-proxy reject missing/invalid JWT; scan-area 400 on missing homeId |
+| `edge_function_auth.test.ts` | 14 | Edge function auth — plant-doctor/contact-support/scan-area/generate-guide/image-proxy reject missing/invalid JWT; scan-area 400 on missing homeId; **Batch 2 (bug-audit-2026-07-10):** generate-daily-brief + generate-grow-suggestions `{homeId}` no-auth → 401 and cross-home member → 403 (cron `{}` sweep stays open); predict-yield alien home → 403 (IDOR); visualiser-analyse missing homeId → 400; add-plant-to-library non-admin → 403 |
 | `aiPlantCatalogue.test.ts` | 22 | Wave 2 of AI Plant Overhaul — `normaliseScientificKey`, `parseMatchString`, `diffCareGuide` |
 | `refreshStaleAiPlants.test.ts` | 5 | Wave 4 of AI Plant Overhaul — changed/unchanged paths, empty batch, mid-batch crash isolation, batch-size cap |
 | `sceneJson.test.ts` | 6 | Multi-ID — `parseSceneJson` tolerant parse (clean JSON, code fence, prose preamble, truncated-array salvage, unrecoverable → empty, null/empty input) |

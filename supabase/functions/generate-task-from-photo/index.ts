@@ -6,6 +6,7 @@ import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
+import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 
 const FN = "generate-task-from-photo";
@@ -68,6 +69,12 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
+    // Authorise the CALLER against this home before the tier gate — guardAiByHome
+    // only checks the owner's tier, so without this a member of any other home
+    // (or none) could spend AI on this home (bug-audit-2026-07-10 #14).
+    const memErr = await requireHomeMembership(supabase, homeId, callerUserId);
+    if (memErr) return memErr;
 
     const aiGate = await guardAiByHome(supabase, homeId);
     if (aiGate) return aiGate;

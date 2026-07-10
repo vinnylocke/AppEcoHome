@@ -134,6 +134,20 @@ Edge functions running with the service role key bypass RLS. Used for:
 - Cron jobs writing per-user data.
 - Admin-only tools.
 
+**Because the service role bypasses RLS, a service-role edge function MUST authorise the caller itself** — RLS won't do it. The canonical order for any function that takes a user-supplied `homeId` (bug-audit-2026-07-10 #3/#4/#10/#13/#14):
+
+```ts
+const auth = await requireAuth(req, db);                 // 401 if no/invalid JWT
+if (auth instanceof Response) return auth;
+const memErr = await requireHomeMembership(db, homeId, auth.user.id);  // 403 if not a member
+if (memErr) return memErr;
+const aiGate = await guardAiByHome(db, homeId);          // 403 if the home's tier lacks AI
+if (aiGate) return aiGate;
+await enforceRateLimit(db, auth.user.id, FN);            // rate-limit the CALLER
+```
+
+Key rules: **`guardAiByHome` is a TIER gate only, not an authz gate** — it checks the *owner's* tier, so it must be paired with `requireHomeMembership` (which authorises the *caller*), never used alone. It fails **closed** on an unknown home (no owner row → 403). When a function reads a specific child row by id (e.g. `predict-yield`'s `instance_id`), also verify that row's `home_id` matches the authorised home — membership alone doesn't stop a member of home A pairing A's `homeId` with B's `instance_id`. Admin-only writers (e.g. `add-plant-to-library`) add `requireAdmin` after `requireAuth`. **Cron `verify_jwt=false` fleet paths** (no user body) are a separate concern — see the cron-secret follow-up in the bug audit.
+
 ### Public tables (rare)
 
 - `app_settings` (maintenance flag) — public read.

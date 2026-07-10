@@ -10,6 +10,8 @@
  * gated. Weekly cron + on-demand { homeId }. See docs/plans/ai-insights-overhaul.md.
  */
 import { serviceClient } from "../_shared/supabaseClient.ts";
+import { requireAuth } from "../_shared/requireAuth.ts";
+import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { personaInstruction, type Persona } from "../_shared/persona.ts";
@@ -57,6 +59,16 @@ Deno.serve(async (req) => {
 
     let homeIds: string[];
     if (body.homeId) {
+      // On-demand: a user targeting one home must be an authenticated member of
+      // it (bug-audit-2026-07-10 #4). The no-body cron sweep below stays open —
+      // it's the standard verify_jwt=false cron path.
+      // (cast: serviceClient() pins a newer supabase-js than the auth helpers —
+      // a .d.ts-only mismatch, identical at runtime.)
+      const authDb = db as unknown as Parameters<typeof requireAuth>[1];
+      const auth = await requireAuth(req, authDb);
+      if (auth instanceof Response) return auth;
+      const memErr = await requireHomeMembership(authDb, body.homeId, auth.user.id);
+      if (memErr) return memErr;
       homeIds = [body.homeId];
     } else {
       const { data } = await db.from("homes").select("id");

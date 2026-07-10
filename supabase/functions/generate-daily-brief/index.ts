@@ -17,6 +17,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
+import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
@@ -223,18 +224,31 @@ Deno.serve(async (req) => {
     const feedback: string | null = typeof body?.feedback === "string" ? body.feedback.slice(0, 500) : null;
     const today = new Date().toISOString().split("T")[0];
 
-    // ── Regenerate path: authenticated member, Sage+, rate-limited. ──────────
-    if (regenerate) {
-      if (!onlyHomeId) return json({ error: "homeId required" }, 400);
-      const auth = await requireAuth(req, db);
+    // ── On-demand (targeted) call: authenticated member of the home. ─────────
+    // Any { homeId } call — regenerate or not — must be an authenticated member,
+    // otherwise an anon caller (verify_jwt=false) could burn Gemini + overwrite
+    // any home's brief (bug-audit-2026-07-10 #3). The no-body {} cron sweep
+    // below stays open (the standard verify_jwt=false cron path).
+    if (onlyHomeId) {
+      // cast: this fn's createClient(@2) is a newer supabase-js than the auth
+      // helpers pin (@2.39.3) — a .d.ts-only mismatch, identical at runtime.
+      const authDb = db as unknown as Parameters<typeof requireAuth>[1];
+      const auth = await requireAuth(req, authDb);
       if (auth instanceof Response) return auth;
       const callerId = auth.user.id;
-      const { data: member } = await db.from("home_members").select("user_id").eq("home_id", onlyHomeId).eq("user_id", callerId).maybeSingle();
-      if (!member) return json({ error: "Not a member of this home" }, 403);
-      const { data: prof } = await db.from("user_profiles").select("subscription_tier").eq("uid", callerId).maybeSingle();
-      if (!AI_TIERS.has(prof?.subscription_tier ?? "")) return json({ error: "Regenerate is available on Sage and Evergreen" }, 403);
-      const limited = await enforceRateLimit(db, callerId, FN);
-      if (limited) return limited;
+      const memErr = await requireHomeMembership(authDb, onlyHomeId, callerId);
+      if (memErr) return memErr;
+
+      // Regenerate additionally requires Sage+ and is rate-limited.
+      if (regenerate) {
+        const { data: prof } = await db.from("user_profiles").select("subscription_tier").eq("uid", callerId).maybeSingle();
+        if (!AI_TIERS.has(prof?.subscription_tier ?? "")) return json({ error: "Regenerate is available on Sage and Evergreen" }, 403);
+        const limited = await enforceRateLimit(db, callerId, FN);
+        if (limited) return limited;
+      }
+    } else if (regenerate) {
+      // regenerate with no homeId is meaningless.
+      return json({ error: "homeId required" }, 400);
     }
 
     // ── Home set. ─────────────────────────────────────────────────────────────

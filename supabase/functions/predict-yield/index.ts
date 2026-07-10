@@ -6,6 +6,8 @@ import { captureException } from "../_shared/sentry.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
+import { requireAuth } from "../_shared/requireAuth.ts";
+import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 
 const FN = "predict-yield";
 
@@ -34,16 +36,20 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
+    // Authorise the CALLER against this home before any service-role read —
+    // without this, any signed-in user could pass another home's instance_id +
+    // home_id and read that plant's yield history (IDOR, bug-audit-2026-07-10 #10).
+    const auth = await requireAuth(req, db);
+    if (auth instanceof Response) return auth;
+    const userId = auth.user.id;
+    const memErr = await requireHomeMembership(db, home_id, userId);
+    if (memErr) return memErr;
+
     const guardErr = await guardAiByHome(db, home_id);
     if (guardErr) return guardErr;
 
-    const { data: ownerMember } = await db.from("home_members").select("user_id").eq("home_id", home_id).eq("role", "owner").limit(1).maybeSingle();
-    const userId = ownerMember?.user_id ?? null;
-
-    if (userId) {
-      const rateLimitErr = await enforceRateLimit(db, userId, FN);
-      if (rateLimitErr) return rateLimitErr;
-    }
+    const rateLimitErr = await enforceRateLimit(db, userId, FN);
+    if (rateLimitErr) return rateLimitErr;
 
     // Fetch all context in parallel
     const [
@@ -53,7 +59,7 @@ Deno.serve(async (req) => {
     ] = await Promise.all([
       db
         .from("inventory_items")
-        .select("plant_id, planted_at, expected_harvest_date, nickname")
+        .select("plant_id, planted_at, expected_harvest_date, nickname, home_id")
         .eq("id", instance_id)
         .single(),
       db
@@ -72,6 +78,16 @@ Deno.serve(async (req) => {
     ]);
 
     if (!item) {
+      return new Response(
+        JSON.stringify({ error: "Instance not found" }),
+        { status: 404, headers: { ...CORS, "Content-Type": "application/json" } },
+      );
+    }
+
+    // The instance must actually belong to the home the caller is a member of —
+    // otherwise a member of home A could read home B's plant by pairing A's
+    // home_id with B's instance_id.
+    if (item.home_id !== home_id) {
       return new Response(
         JSON.stringify({ error: "Instance not found" }),
         { status: 404, headers: { ...CORS, "Content-Type": "application/json" } },

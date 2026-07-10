@@ -20,6 +20,8 @@ import {
 } from "../_shared/plantSeedPrompt.ts";
 import { computeSciKey } from "../_shared/plantNameSources.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
+import { requireAdmin } from "../_shared/requireAdmin.ts";
+import { enforceRateLimit } from "../_shared/rateLimit.ts";
 
 const FN = "add-plant-to-library";
 
@@ -46,11 +48,17 @@ Deno.serve(async (req) => {
     }
     const db = createClient(supabaseUrl, serviceKey);
 
-    // Authenticated callers only (the admin screen is access-controlled
-    // client-side; this is defense in depth + identifies who triggered it).
+    // Admin-only + rate-limited: this runs an 8k-token Gemini enrichment and
+    // writes the GLOBAL plant_library every user sees. Client-side gating alone
+    // let any signed-in user loop expensive AI + pollute the catalogue
+    // (bug-audit-2026-07-10 #13). Server-enforce admin + a rate limit.
     const authResult = await requireAuth(req, db);
     if (authResult instanceof Response) return authResult;
     const userId = authResult.user.id;
+    const adminErr = await requireAdmin(db, userId, CORS);
+    if (adminErr) return adminErr;
+    const rlErr = await enforceRateLimit(db, userId, FN);
+    if (rlErr) return rlErr;
 
     const body = await req.json().catch(() => ({}));
     const name = typeof body.name === "string" ? body.name.trim() : "";
