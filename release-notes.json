@@ -1,12 +1,1 @@
-[
-  {
-    "label": "Meet the Garden Brain — schedules that learn from your soil",
-    "items": [
-      "Rhozly now learns how YOUR beds actually behave. Every night it compares your soil sensors' measured drying speed against your plants' comfort range and your watering routines — and suggests precise changes: \"Raised Bed A dries faster than your every-4-days schedule — change to every 2?\"",
-      "One tap applies the change. A week later Rhozly checks the sensor again and tells you honestly whether it worked — \"✓ Since the change: soil in range 93% of the time.\"",
-      "Beds with plants but no watering routine get one proposed from the measured data — and hot weeks use your bed's measured hot-weather drying speed, not a guess.",
-      "It's careful: suggestions only appear once a sensor has ~2 weeks of confident data, never repeat within a fortnight of a dismissal, and your valve automations are respected. Every suggestion shows its numbers.",
-      "Available on Sage and Evergreen for homes with a soil sensor. Find suggestions on your dashboard; notifications can be tuned under Head Gardener → Notifications."
-    ]
-  }
-]
+[]
