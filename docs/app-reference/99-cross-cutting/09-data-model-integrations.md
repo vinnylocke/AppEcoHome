@@ -72,6 +72,15 @@ Old rows written before the discriminator landed are treated as `raw_adc` for ba
 
 Open/close events with `triggered_by` indicating user, automation, or external.
 
+### Valve actuation — provider dispatch (2026-07-10)
+
+Every path that actuates a valve routes through **one** shared dispatcher, `_shared/integrations/valveControl.ts` `controlValve(provider, deviceRow, command, creds, fireFallback)`:
+
+- **Adapter providers** (`custom_http`, and any future provider in the registry) → actuated via `getAdapter(provider).control(...)` — the same adapter contract the manual `integrations-adapter-control` path uses.
+- **Non-adapter providers** (`ewelink` — still direct-wired) → the caller's `fireFallback` thunk (the eWeLink API POST), unchanged.
+
+Callers: `_shared/valveQueue.ts` (`drainValveQueue` — the automation queue), `run-automations` (`fireValves` — direct/manual "run now"), and `integrations-dead-mans-switch` (the 60-second auto-off backstop). **Why it's centralised:** before this, all three hardcoded the eWeLink API with no provider branch, so a `custom_http` (DIY) valve could never be closed by the automation off-path *or* the safety backstop — it could be left **stuck open** (bug-audit-2026-07-10 #1/#2). Routing all three through `controlValve` means they cannot diverge again; eWeLink behaviour is untouched (`getAdapter("ewelink")` is null → fallback path). Deno-tested in `supabase/tests/valveControl.test.ts` (VC-001..006, incl. the real-registry invariants: eWeLink keeps the fallback, custom_http dispatches to its adapter).
+
 ### Device battery state (added 2026-06-16)
 
 Two complementary stores for "what's the battery doing":

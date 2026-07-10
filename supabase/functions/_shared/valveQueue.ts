@@ -14,6 +14,8 @@
 import { decryptCredentials } from "./integrations/encrypt.ts";
 import { buildControlPayload } from "./integrations/ewelinkDevice.ts";
 import { regionToApiBase } from "./integrations/ewelinkAuth.ts";
+import { controlValve } from "./integrations/valveControl.ts";
+import type { ControlCommand, DeviceRow } from "./integrations/contract.ts";
 import { sendReceipt } from "./automationReceipt.ts";
 import { log } from "./logger.ts";
 
@@ -151,7 +153,7 @@ export async function drainValveQueue(
 
       const { data: device } = await db
         .from("devices")
-        .select("id, name, external_device_id, metadata, integration_id")
+        .select("id, name, external_device_id, metadata, integration_id, provider, area_id, device_type")
         .eq("id", deviceId)
         .single();
 
@@ -182,10 +184,11 @@ export async function drainValveQueue(
       }
 
       const integ = integration as Record<string, unknown>;
-      const { accessToken } = await decryptCredentials(
+      // Full creds map: the eWeLink fallback reads `.accessToken`; a control
+      // adapter (custom_http) reads its own keys (control_url/method/…).
+      const creds = await decryptCredentials(
         integ.credentials_encrypted as string,
       );
-      const apiBase = regionToApiBase(integ.region as string);
 
       const command = ((entry.command as string) ?? "turn_on") as
         | "turn_on"
@@ -216,19 +219,41 @@ export async function drainValveQueue(
         if (typeof v === "number" && v > 0) runSeconds = v;
       }
 
-      const ok = await fireValve(
-        apiBase,
-        dev,
-        command,
-        runSeconds,
-        auto.retry_on_failure as boolean,
-        accessToken,
+      // Provider dispatch: custom_http (+ future adapters) actuate through the
+      // adapter contract; eWeLink falls back to the direct API call. Both go
+      // through the ONE dispatcher so the paths can't diverge again.
+      const deviceRow: DeviceRow = {
+        id: dev.id as string,
+        external_device_id: dev.external_device_id as string,
+        name: (dev.name as string) ?? "",
+        device_type: (dev.device_type as DeviceRow["device_type"]) ?? "water_valve",
+        metadata: (dev.metadata as Record<string, unknown>) ?? {},
+        area_id: (dev.area_id as string | null) ?? null,
+      };
+      const controlCommand: ControlCommand = command === "turn_on"
+        ? { kind: "valve_open", duration_seconds: runSeconds }
+        : { kind: "valve_close" };
+
+      const result = await controlValve(
+        (dev.provider as string) ?? "",
+        deviceRow,
+        controlCommand,
+        creds,
+        () => fireValve(
+          regionToApiBase(integ.region as string),
+          dev,
+          command,
+          runSeconds,
+          auto.retry_on_failure as boolean,
+          (creds.accessToken as string) ?? "",
+        ),
       );
+      const ok = result.ok;
 
       await db.from("automation_valve_queue").update({
         status: ok ? "fired" : "failed",
         fired_at: ok ? now : null,
-        error_message: ok ? null : "eWeLink control failed",
+        error_message: ok ? null : (result.error ?? "valve control failed"),
       }).eq("id", entry.id as string);
 
       const run = runRow as Record<string, unknown>;

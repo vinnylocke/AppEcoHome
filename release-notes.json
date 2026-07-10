@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Reliability & safety",
+    "items": [
+      "Custom (DIY) water valves now open and close reliably from automations, manual runs, and the safety auto-off — previously only eWeLink valves were fully supported on those paths."
+    ]
+  }
+]

@@ -15,6 +15,8 @@ import { sendReceipt } from "../_shared/automationReceipt.ts";
 import { drainValveQueue } from "../_shared/valveQueue.ts";
 import { buildControlPayload, resolveEffectiveDuration } from "../_shared/integrations/ewelinkDevice.ts";
 import { regionToApiBase } from "../_shared/integrations/ewelinkAuth.ts";
+import { controlValve } from "../_shared/integrations/valveControl.ts";
+import type { DeviceRow } from "../_shared/integrations/contract.ts";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { readForecast } from "../_shared/weatherForecast.ts";
@@ -218,7 +220,7 @@ async function fireValves(
 
   const { data: devices } = await db
     .from("devices")
-    .select("id, name, external_device_id, metadata, integration_id, provider")
+    .select("id, name, external_device_id, metadata, integration_id, provider, area_id")
     .in("id", deviceIds);
 
   if (!devices || devices.length === 0) return [];
@@ -227,8 +229,10 @@ async function fireValves(
   const sequential = automation.fire_valves_sequentially as boolean;
   const retry = automation.retry_on_failure as boolean;
 
-  // Cache credentials per integration to avoid redundant decryption
-  const credCache = new Map<string, { accessToken: string; apiBase: string }>();
+  // Cache credentials per integration to avoid redundant decryption. Store the
+  // full creds map (a control adapter reads its own keys) + region (eWeLink
+  // fallback only).
+  const credCache = new Map<string, { creds: Record<string, string>; region: string }>();
 
   const results: DeviceResult[] = [];
 
@@ -262,15 +266,32 @@ async function fireValves(
         continue;
       }
 
-      const { accessToken } = await decryptCredentials(
+      const creds = await decryptCredentials(
         (integration as Record<string, unknown>).credentials_encrypted as string,
       );
-      const apiBase = regionToApiBase((integration as Record<string, unknown>).region as string);
-      cred = { accessToken, apiBase };
+      cred = { creds, region: (integration as Record<string, unknown>).region as string };
       credCache.set(integrationId, cred);
     }
 
-    const ok = await fireValve(cred.apiBase, device, "turn_on", durationSeconds, retry, cred.accessToken);
+    // Provider dispatch: custom_http (+ future adapters) actuate through the
+    // adapter contract; eWeLink falls back to the direct API call. Same shared
+    // dispatcher the queue drain + dead-man's switch use (bug-audit-2026-07-10 #2).
+    const deviceRow: DeviceRow = {
+      id: device.id as string,
+      external_device_id: (device.external_device_id as string) ?? "",
+      name: (device.name as string) ?? "",
+      device_type: "water_valve",
+      metadata: (device.metadata as Record<string, unknown>) ?? {},
+      area_id: (device.area_id as string | null) ?? null,
+    };
+    const result = await controlValve(
+      (device.provider as string) ?? "",
+      deviceRow,
+      { kind: "valve_open", duration_seconds: durationSeconds },
+      cred.creds,
+      () => fireValve(regionToApiBase(cred!.region), device, "turn_on", durationSeconds, retry, (cred!.creds.accessToken as string) ?? ""),
+    );
+    const ok = result.ok;
     if (ok) {
       const turnOffAt = new Date(Date.now() + durationSeconds * 1_000).toISOString();
       await Promise.all([
@@ -296,7 +317,7 @@ async function fireValves(
       device_id: device.id as string,
       name: device.name as string,
       success: ok,
-      error: ok ? undefined : "eWeLink control failed",
+      error: ok ? undefined : (result.error ?? "valve control failed"),
     });
   }
 

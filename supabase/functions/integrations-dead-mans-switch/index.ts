@@ -16,6 +16,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { insertReading } from "../_shared/integrations/readings.ts";
+import { controlValve } from "../_shared/integrations/valveControl.ts";
+import type { DeviceRow } from "../_shared/integrations/contract.ts";
 import type { ValveReading } from "../_shared/integrations/providerTypes.ts";
 import { captureException } from "../_shared/sentry.ts";
 
@@ -48,7 +50,7 @@ Deno.serve(async () => {
         // Load device + integration
         const { data: device } = await db
           .from("devices")
-          .select("id, home_id, metadata, integration_id")
+          .select("id, home_id, name, external_device_id, device_type, metadata, integration_id, provider, area_id")
           .eq("id", cmd.device_id)
           .single();
 
@@ -62,48 +64,63 @@ Deno.serve(async () => {
 
         if (!integration) continue;
 
-        const { accessToken } = await decryptCredentials(
-          integration.credentials_encrypted,
+        // Full creds map: the eWeLink fallback reads `.accessToken`; a control
+        // adapter (custom_http) reads its own control_url/method/… keys.
+        const creds = await decryptCredentials(integration.credentials_encrypted);
+        const meta = (device.metadata ?? {}) as Record<string, unknown>;
+
+        // The eWeLink off-command as a fallback thunk. Used only when the
+        // device's provider has no control adapter (i.e. eWeLink) — a custom_http
+        // valve dispatches through its adapter instead, so a DIY valve actually
+        // closes rather than this backstop silently no-op'ing forever
+        // (bug-audit-2026-07-10 #1).
+        const fireEwelinkOff = async (): Promise<boolean> => {
+          const apiPath = meta.use_sub_device
+            ? `/v2/device/thing/sub/status`
+            : `/v2/device/thing/status`;
+          const payload = meta.use_sub_device
+            ? {
+              id: meta.parent_device_id,
+              params: { switches: [{ switch: "off", outlet: 0 }], subDevId: meta.sub_device_id },
+            }
+            : { id: meta.direct_device_id, params: { switch: "off" } };
+          try {
+            const controlRes = await fetch(`${EWELINK_BASE}${apiPath}`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${(creds.accessToken as string) ?? ""}`,
+                "X-CK-Appid": appId,
+              },
+              body: JSON.stringify(payload),
+              signal: AbortSignal.timeout(15_000),
+            });
+            const controlJson = await controlRes.json() as Record<string, unknown>;
+            return controlJson.error === 0;
+          } catch {
+            // Timeout / network / non-JSON body — a failed turn-off so the
+            // command stays armed and is retried.
+            return false;
+          }
+        };
+
+        const deviceRow: DeviceRow = {
+          id: device.id as string,
+          external_device_id: (device.external_device_id as string) ?? "",
+          name: (device.name as string) ?? "",
+          device_type: (device.device_type as DeviceRow["device_type"]) ?? "water_valve",
+          metadata: meta,
+          area_id: (device.area_id as string | null) ?? null,
+        };
+
+        const result = await controlValve(
+          (device.provider as string) ?? "",
+          deviceRow,
+          { kind: "valve_close" },
+          creds,
+          fireEwelinkOff,
         );
-        const meta = device.metadata as Record<string, unknown>;
-
-        let apiPath: string;
-        let payload: Record<string, unknown>;
-
-        if (meta.use_sub_device) {
-          apiPath = `/v2/device/thing/sub/status`;
-          payload = {
-            id: meta.parent_device_id,
-            params: {
-              switches: [{ switch: "off", outlet: 0 }],
-              subDevId: meta.sub_device_id,
-            },
-          };
-        } else {
-          apiPath = `/v2/device/thing/status`;
-          payload = { id: meta.direct_device_id, params: { switch: "off" } };
-        }
-
-        let controlJson: Record<string, unknown>;
-        try {
-          const controlRes = await fetch(`${EWELINK_BASE}${apiPath}`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-              "X-CK-Appid": appId,
-            },
-            body: JSON.stringify(payload),
-            signal: AbortSignal.timeout(15_000),
-          });
-          controlJson = await controlRes.json();
-        } catch (fetchErr) {
-          // Timeout / network / non-JSON body — treat as a failed turn-off so
-          // the command stays armed and is retried, rather than throwing past
-          // the disarm logic below.
-          controlJson = { error: -1, msg: String(fetchErr) };
-        }
-        const success = controlJson.error === 0;
+        const success = result.ok;
         const now = new Date();
 
         // Insert off reading
@@ -129,7 +146,7 @@ Deno.serve(async () => {
             original_command_id: cmd.id,
           },
           status: success ? "success" : "failed",
-          error_message: success ? null : JSON.stringify(controlJson),
+          error_message: success ? null : (result.error ?? "valve turn-off failed"),
           acknowledged_at: success ? now.toISOString() : null,
         });
 
