@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "label": "Your daily brief — one voice for the whole garden",
+    "items": [
+      "Every morning Rhozly now writes you a single ranked brief: what's overdue, what the weather means for today, watering suggestions from your sensors, harvest and pruning windows, anything your automations missed — and the good news too.",
+      "On Sage and Evergreen it's written by your AI head gardener (Evergreen gets our most capable model), honouring your garden's goals; every plan includes the same brief with clear, plain wording.",
+      "Tap any line to jump straight to it. Rate the brief 👍/👎 — and on Sage and Evergreen, tell it what to change and refresh it on the spot.",
+      "Your morning reminder now opens with the brief's headline, and you can ask the garden chat \"what should I do today?\" to hear it conversationally."
+    ]
+  }
+]

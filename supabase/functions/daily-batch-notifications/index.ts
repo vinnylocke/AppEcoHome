@@ -10,6 +10,7 @@ import {
   type NotificationPrefs,
 } from "../_shared/notificationPrefs.ts";
 import { localMinutesOfDay, localDateInTz, isReminderDue, isNearSunset } from "../_shared/notificationTiming.ts";
+import { prependBriefToDigest } from "../_shared/dailyBrief.ts";
 import { fetchAllPages } from "../_shared/pagedSelect.ts";
 
 const FN = "daily-batch-notifications";
@@ -102,6 +103,22 @@ serve(async (_req) => {
     if (dueDigestMembers.length > 0) {
       const dueHomeIds = [...new Set(dueDigestMembers.map((m) => m.home_id))];
 
+      // Garden Brain Phase 2: today's Daily Brief per home — its first
+      // sentence is prepended to the digest body (absent brief → body
+      // unchanged; the digest must never regress because a brief didn't
+      // generate). Keyed on UTC today: the 04:30 UTC generator has run well
+      // before any 08:00-local digest.
+      const utcToday = now.toISOString().split("T")[0];
+      const { data: briefRows } = await supabase
+        .from("daily_briefs")
+        .select("home_id, payload")
+        .in("home_id", dueHomeIds)
+        .eq("brief_date", utcToday);
+      const briefSummaryByHome = new Map<string, string>(
+        ((briefRows ?? []) as Array<{ home_id: string; payload: { summary?: string } }>)
+          .map((b) => [b.home_id, b.payload?.summary ?? ""]),
+      );
+
       // Per-home LOCAL dates: the digest fires at the user's local reminder
       // time, but dueness was judged against the UTC date — a UTC+10 user's
       // 08:00 digest ran at 22:00 UTC *yesterday* and excluded tasks due on
@@ -162,11 +179,12 @@ serve(async (_req) => {
         const tz = homesById.get(member.home_id)?.timezone ?? "UTC";
         const greeting = greetingForLocalMinutes(localMinutesOfDay(now, tz));
         const title = `🌿 ${greeting}!`;
-        const body = featuredPlant
+        const baseBody = featuredPlant
           ? `Your ${featuredPlant} needs attention today!`
           : relevantTasks.length === 1
             ? `Your home has a pending task: ${relevantTasks[0].title}.`
             : `Your home has ${relevantTasks.length} plant care tasks waiting for you today!`;
+        const body = prependBriefToDigest(baseBody, briefSummaryByHome.get(member.home_id));
 
         notificationsToInsert.push({
           user_id: member.user_id,

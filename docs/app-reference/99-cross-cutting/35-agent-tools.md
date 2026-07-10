@@ -115,6 +115,7 @@ All Phase 4 tools render with `risk_level: 'strong_confirm'` — the UI swaps th
 | `get_plant_details` | `plant_id` | Full care guide |
 | `get_weather_now` | — | Current snapshot + alerts |
 | `get_overdue_summary` | — | Combined digest of overdue tasks + ailments + alerts |
+| `get_daily_brief` | — | Today's stored Daily Brief (Garden Brain Phase 2) — ranked items + good news. Reads `daily_briefs`; no AI call, so sprout+. |
 | `optimise_area_schedule` | `area_id` | Invokes `optimise-area-ai` and returns schedule-consolidation suggestions. Read-shaped (proposes only — applying stays manual in the Optimise tab). Forwards the caller's bearer token so the downstream function's auth + AI quota apply. Botanist+. |
 
 ### Phase 5 tool catalogue (automations + devices)

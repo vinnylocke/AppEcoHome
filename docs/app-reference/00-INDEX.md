@@ -222,7 +222,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Agent Tools — Catalogue](./99-cross-cutting/35-agent-tools.md) — tool-calling chat: phases, tool list, executors, tier limits
 - [x] [Plant Search — Unified, Library-First](./99-cross-cutting/36-plant-search.md) — shared search service + `<PlantSearch>` component, library-first + spelling + opt-in expand, migration status
 - [x] [Pl@ntNet](./99-cross-cutting/38-plantnet.md) — primary plant identifier, confidence routing, Gemini cross-check, multi-photo + organ tagging contract (Wave 19)
-- [x] [Garden Brain — Adaptive Care](./99-cross-cutting/39-garden-brain.md) — nightly soil-reality reconciler → verified watering-schedule proposals (`care_adjustments`, AdaptiveCareCard, Sage/Evergreen)
+- [x] [Garden Brain — Adaptive Care + Daily Brief](./99-cross-cutting/39-garden-brain.md) — nightly soil-reality reconciler → verified watering proposals (`care_adjustments`), plus the ranked morning Daily Brief (`daily_briefs`; AI voice Sage/Evergreen, deterministic below)
 
 ---
 

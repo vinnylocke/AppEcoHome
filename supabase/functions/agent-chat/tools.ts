@@ -242,6 +242,16 @@ export const READ_TOOLS: ToolMeta[] = [
   },
   {
     risk: "auto",
+    minTier: "sprout",
+    decl: {
+      name: "get_daily_brief",
+      description:
+        "Get today's Daily Brief — the Garden Brain's ranked morning summary for the home (overdue count, care suggestions, weather, harvest/pruning windows, good news). Use when the user asks 'what should I do today?' or 'give me my morning brief'.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    risk: "auto",
     minTier: "botanist",
     decl: {
       name: "optimise_area_schedule",

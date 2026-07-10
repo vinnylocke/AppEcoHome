@@ -536,6 +536,18 @@ verify_jwt = false
 [functions.head-gardener-chat]
 verify_jwt = false
 
+# Garden Brain Phase 1 — daily cron (garden-brain-reconcile-daily, 03:45) + on-demand.
+# Deterministic adaptive-care reconcile (care_adjustments). verify_jwt = false so the
+# cron's net.http_post (publishable key, no user JWT) runs.
+[functions.garden-brain-reconcile]
+verify_jwt = false
+
+# Garden Brain Phase 2 — daily cron (generate-daily-brief-daily, 04:30) + on-demand
+# regenerate (member-checked in-function). Assembles the ranked Daily Brief;
+# Sage/Evergreen get the AI voice. verify_jwt = false for the cron path.
+[functions.generate-daily-brief]
+verify_jwt = false
+
 # 2026-06-16 Custom integrations Phase 3 — public webhook router for
 # every adapter that implements parseWebhook(). The user's device hits
 # this endpoint with the per-integration webhook secret in the path,

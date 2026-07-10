@@ -6,6 +6,7 @@ import GardenOverviewGrid from "./GardenOverviewGrid";
 import QuickActionsRow from "./QuickActionsRow";
 import AttentionRow from "./AttentionRow";
 import AdaptiveCareCard from "./AdaptiveCareCard";
+import GardenBrainBriefCard from "./GardenBrainBriefCard";
 import WeekPulse from "./WeekPulse";
 import TaskList from "../TaskList";
 import SeasonalPicksCard from "../seasonal/SeasonalPicksCard";
@@ -137,6 +138,10 @@ export default function HomeMain({
       </div>
 
       <AttentionRow items={overview?.attention ?? []} />
+
+      {/* Garden Brain Phase 2 — "Your daily brief": the ranked morning voice.
+          Self-hides when today's brief hasn't generated (pre-cron new homes). */}
+      <GardenBrainBriefCard homeId={homeId} userId={userId} density={density} />
 
       {/* Garden Brain — adaptive-care proposals (Phase 1). Self-hides when the
           home has no open/verified adjustments (server writes them only for
