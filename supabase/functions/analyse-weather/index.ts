@@ -11,6 +11,11 @@ import {
   type HourlyPoint,
   type WeatherRuleResult,
 } from "../_shared/weatherRules/index.ts";
+import {
+  buildWeatherTasks,
+  type TodayWateringTaskRow,
+  type WateringBlueprintRow,
+} from "../_shared/weatherTaskCreation.ts";
 
 const FN = "analyse-weather";
 
@@ -46,7 +51,7 @@ Deno.serve(async (req) => {
     ] = await Promise.all([
       supabase.from("weather_snapshots").select("data").eq("home_id", homeId).single(),
       supabase.from("locations").select("id, is_outside").eq("home_id", homeId),
-      supabase.from("homes").select("climate_zone, lat, country").eq("id", homeId).maybeSingle(),
+      supabase.from("homes").select("climate_zone, lat, country, weather_task_creation").eq("id", homeId).maybeSingle(),
     ]);
 
     if (!snapshot || !locations) throw new Error("Missing snapshot or locations.");
@@ -236,6 +241,107 @@ Deno.serve(async (req) => {
       }
     }
 
+    // --- Execute: create weather-driven tasks (opt-in, homes.weather_task_creation) ---
+    //
+    // Rules emit `taskCreates` (v1: heatwave → Watering). The pure helper
+    // groups planted instances one-task-per-area (unassigned → per-location),
+    // skips anything today's watering already covers, and never creates a
+    // task without a location_id (count safety). weather_task_claims makes
+    // the hourly cron create-once per (home, rule, day, area) AND delete-safe.
+    const taskCreates = allResults.flatMap((r) => r.taskCreates ?? []);
+    const creationEnabled = home?.weather_task_creation === true;
+    let totalTasksCreated = 0;
+    let totalUnplaced = 0;
+    const createdByRule = new Map<string, number>();
+
+    if (taskCreates.length > 0 && creationEnabled) {
+      const [
+        { data: plantedInstances },
+        { data: outsideAreasFull },
+        { data: todayWatering },
+        { data: wateringBps },
+      ] = await Promise.all([
+        supabase
+          .from("inventory_items")
+          .select("id, area_id, location_id")
+          .eq("home_id", homeId)
+          .eq("status", "Planted"),
+        supabase
+          .from("areas")
+          .select("id, name, location_id")
+          .in("location_id", outsideLocationIds),
+        supabase
+          .from("tasks")
+          .select("area_id, location_id, inventory_item_ids")
+          .eq("home_id", homeId)
+          .eq("type", "Watering")
+          .eq("due_date", today)
+          .neq("status", "Skipped"),
+        supabase
+          .from("task_blueprints")
+          .select("area_id, location_id, frequency_days, start_date, created_at, end_date, paused_until")
+          .eq("home_id", homeId)
+          .eq("task_type", "Watering")
+          .eq("is_recurring", true)
+          .eq("is_archived", false),
+      ]);
+
+      for (const create of taskCreates) {
+        const { rows, unplacedCount } = buildWeatherTasks({
+          create,
+          homeId,
+          today,
+          instances: plantedInstances ?? [],
+          areas: (outsideAreasFull ?? []) as { id: string; name: string | null; location_id: string }[],
+          outsideLocationIds,
+          existingToday: (todayWatering ?? []) as TodayWateringTaskRow[],
+          blueprints: (wateringBps ?? []) as WateringBlueprintRow[],
+        });
+        totalUnplaced = Math.max(totalUnplaced, unplacedCount);
+
+        for (const row of rows) {
+          // Atomic create-once claim (PK race). A claim also survives the
+          // user deleting the task, so later hourly runs can't resurrect it.
+          const { error: claimErr } = await supabase
+            .from("weather_task_claims")
+            .insert({ home_id: homeId, claim_key: row.weather_event_key });
+          if (claimErr) continue; // already claimed today — skip silently
+
+          const { error: insErr } = await supabase.from("tasks").insert(row);
+          if (insErr) {
+            logError(FN, "weather_task_insert_failed", { homeId, key: row.weather_event_key, error: insErr.message });
+            continue;
+          }
+          totalTasksCreated += 1;
+          createdByRule.set(create.ruleId, (createdByRule.get(create.ruleId) ?? 0) + 1);
+        }
+      }
+
+      if (totalTasksCreated > 0) {
+        log(FN, "weather_tasks_created", { homeId, count: totalTasksCreated });
+      }
+    }
+
+    // Amend the emitting rule's notification so the message matches what
+    // actually happened: tasks added (and any unplaced-plants nudge) when ON;
+    // a discovery tip when OFF. Matching is by ruleId so unrelated weather
+    // notifications are untouched.
+    const rulesWithCreates = new Set(taskCreates.map((c) => c.ruleId));
+    for (const n of notifications) {
+      if (!n.ruleId || !rulesWithCreates.has(n.ruleId)) continue;
+      if (creationEnabled) {
+        const created = createdByRule.get(n.ruleId) ?? 0;
+        if (created > 0) {
+          n.body += ` We've added ${created} extra watering task${created === 1 ? "" : "s"} for today.`;
+        }
+        if (totalUnplaced > 0) {
+          n.body += ` ${totalUnplaced} planted plant${totalUnplaced === 1 ? " isn't" : "s aren't"} in an area — check ${totalUnplaced === 1 ? "it" : "them"} too.`;
+        }
+      } else {
+        n.body += " Tip: Rhozly can add watering tasks automatically on hot days — Profile → Notifications → Weather actions.";
+      }
+    }
+
     // --- Execute: notifications (dedup within run AND across runs for today) ---
 
     if (notifications.length > 0) {
@@ -285,7 +391,11 @@ Deno.serve(async (req) => {
           shouldNotify(prefsByUid.get(uid), "weatherAlerts")
         );
         const rows = recipients.flatMap((uid) =>
-          deduped.map((n) => ({ home_id: homeId, user_id: uid, ...n }))
+          deduped.map((n) => {
+            // Strip ruleId — it's rule-matching metadata, not a notifications column.
+            const { ruleId: _ruleId, ...payload } = n;
+            return { home_id: homeId, user_id: uid, ...payload };
+          })
         );
 
         if (rows.length > 0) {
@@ -306,6 +416,7 @@ Deno.serve(async (req) => {
       homeId,
       alerts: alerts.length,
       autoCompleted: totalAutoCompleted,
+      tasksCreated: totalTasksCreated,
       notifications: notifications.length,
     });
 

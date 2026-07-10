@@ -115,6 +115,39 @@ export async function fanoutActions(
         if (error) logError(FN, "task_complete_failed", { automation_id: automation.id, message: error.message });
         else tasksCompleted.push({ blueprint_id: t.blueprint_id, title: t.title ?? "", already_done: false });
       }
+
+      // Weather-created tasks (2026-07-10): weather-driven extras are
+      // STANDALONE rows (blueprint_id NULL, weather_event_key set) so the
+      // blueprint-keyed query above never sees them. An automation that
+      // waters this blueprint's area has physically done the extra watering
+      // too — complete matching weather tasks for the same (task_type,
+      // area_id) so they don't linger as phantom to-dos.
+      const { data: bpTarget } = await db.from("task_blueprints")
+        .select("task_type, area_id")
+        .eq("id", action.target_blueprint_id)
+        .maybeSingle();
+      if (bpTarget?.area_id && bpTarget?.task_type) {
+        const { data: weatherTasks } = await db.from("tasks")
+          .select("id, title")
+          .eq("home_id", automation.home_id)
+          .is("blueprint_id", null)
+          .not("weather_event_key", "is", null)
+          .eq("type", bpTarget.task_type)
+          .eq("area_id", bpTarget.area_id)
+          .lte("due_date", today)
+          .in("status", ["Pending", "Postponed"]);
+        for (const t of (weatherTasks ?? []) as Array<{ id: string; title: string }>) {
+          const { error } = await db.from("tasks").update({
+            status: "Completed",
+            completed_at: now.toISOString(),
+            auto_completed_reason: "automation",
+          }).eq("id", t.id);
+          if (error) logError(FN, "weather_task_complete_failed", { automation_id: automation.id, message: error.message });
+          // Attribute to the triggering blueprint — the automation that watered
+          // this area is what completed the weather extra.
+          else tasksCompleted.push({ blueprint_id: action.target_blueprint_id, title: t.title ?? "", already_done: false });
+        }
+      }
     }
   }
   return {

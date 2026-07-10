@@ -35,6 +35,17 @@ const heatwave: WeatherRule = {
         type: "weather_alert",
         title: isHeatwave ? "Heatwave ahead 🌡️" : "Heat Alert 🌡️",
         body: `Temperatures up to ${peak}°C expected. Keep your outdoor plants well watered.`,
+        ruleId: "heatwave",
+      }],
+      // Opt-in task creation (homes.weather_task_creation): on each HOT day,
+      // the handler adds one "extra watering" task per outdoor area over its
+      // planted instances (skipping areas already covered by today's watering).
+      taskCreates: [{
+        ruleId: "heatwave",
+        taskType: "Watering",
+        titleTemplate: "Extra watering — {group}",
+        description: `${label} — up to ${peak}°C. Added automatically because weather tasks are enabled for this home.`,
+        onDates: dates,
       }],
     };
   },

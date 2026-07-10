@@ -43,6 +43,7 @@
 | GP-012 | ✅ | Plan section (admin) — per-tier prices + "Manage billing" visible; selecting a paid tier starts Stripe Checkout (sandbox). Price↔tier mapping unit-covered by `stripeTiers.test.ts`. | Stripe sandbox | 🔲 Pending (live sandbox) |
 | GP-020 | ✅ | `/gardener?section=plans` forces the Account tab, reveals the plan cards (`plan-card-*`), and strips the `section` param (RHO-12) | — | ✅ Passing |
 | GP-021 | ✅ | A tier-locked `UpgradeNudge` (Head Gardener on `/manager` for a Sprout user) navigates to `/gardener?section=plans` and the plan cards become visible | `user_profiles` tier→sprout | ✅ Passing |
+| GP-022 | ✅ | Notifications tab → "Weather actions" → `weather-task-creation-toggle` flips `homes.weather_task_creation` on/off (home-scoped, persists) | — | 🔲 Pending (verified live 2026-07-10 via browser probe) |
 
 **RHO-12 (GP-020/021):** tier-locked `UpgradeNudge` banners deep-link to the plan picker via `/gardener?section=plans`. `GardenerProfile` forces the Account tab, scrolls `#plan-section` ("Your Plan") into view, then strips the param — mirroring the existing `?section=quick-launcher` pattern.
 

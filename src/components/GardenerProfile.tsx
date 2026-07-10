@@ -116,11 +116,49 @@ async function syncNotifPrefsToServer(uid: string, prefs: NotificationPrefs): Pr
   }
 }
 
-function NotificationsTab({ userId }: { userId: string }) {
+function NotificationsTab({ userId, homeId }: { userId: string; homeId: string }) {
   const [prefs, setPrefs] = useState<NotificationPrefs>(() => loadNotifPrefs());
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
   );
+
+  // ── Weather actions (HOME-scoped — homes.weather_task_creation) ──────────
+  // Deliberately NOT a notification_prefs entry: tasks are home-wide, so
+  // per-user values would conflict, and creation must be independent of
+  // whether this user has muted notifications. Rendered here (user decision
+  // 2026-07-10) because this is where users already manage weather alerts.
+  const [weatherTasks, setWeatherTasks] = useState<boolean | null>(null); // null = loading
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("homes")
+          .select("weather_task_creation")
+          .eq("id", homeId)
+          .maybeSingle();
+        if (!cancelled) setWeatherTasks(data?.weather_task_creation === true);
+      } catch {
+        if (!cancelled) setWeatherTasks(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [homeId]);
+
+  const updateWeatherTasks = async (next: boolean) => {
+    const prev = weatherTasks;
+    setWeatherTasks(next); // optimistic
+    const { error } = await supabase
+      .from("homes")
+      .update({ weather_task_creation: next })
+      .eq("id", homeId);
+    if (error) {
+      setWeatherTasks(prev);
+      toast.error("Couldn't update — you may not have permission to change home settings.");
+    } else {
+      toast.success(next ? "Weather watering tasks on" : "Weather watering tasks off");
+    }
+  };
 
   // Wave 22.0044 — pull server prefs on mount so the toggles reflect what
   // the cron functions will actually honour. localStorage is the fallback
@@ -271,6 +309,41 @@ function NotificationsTab({ userId }: { userId: string }) {
             />
           </label>
         ))}
+      </section>
+
+      {/* Weather actions — HOME-scoped (not a notification pref, not gated by
+          the master mute): weather events acting on your task list. */}
+      <section className="bg-white rounded-2xl border border-rhozly-outline/10 p-4 space-y-3">
+        <h3 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
+          Weather actions
+        </h3>
+        <label className="flex items-center justify-between gap-3 cursor-pointer py-1">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="bg-rhozly-surface-low p-1.5 rounded-lg shrink-0 mt-0.5">
+              <Sun size={14} className="text-amber-500" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-black text-rhozly-on-surface">
+                Create watering tasks on hot days
+              </p>
+              <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug">
+                During a heatwave we'll add one extra watering task per area for your
+                planted-out plants — skipped when watering is already scheduled, and
+                auto-completed by your watering automations. Applies to everyone in this home.
+              </p>
+            </div>
+          </div>
+          <input
+            data-testid="weather-task-creation-toggle"
+            type="checkbox"
+            checked={weatherTasks === true}
+            disabled={weatherTasks === null}
+            onChange={(e) => void updateWeatherTasks(e.target.checked)}
+            className="w-11 h-6 shrink-0 appearance-none rounded-full bg-rhozly-outline/30 checked:bg-rhozly-primary transition-colors relative cursor-pointer
+              after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:shadow-md after:transition-transform
+              checked:after:translate-x-5 disabled:cursor-not-allowed"
+          />
+        </label>
       </section>
 
       {/* Daily reminder time — when the task digest is delivered (local) */}
@@ -1620,7 +1693,7 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
       )}
 
       {tab === "notifications" && (
-        <NotificationsTab userId={userId} />
+        <NotificationsTab userId={userId} homeId={homeId} />
       )}
 
       {tab === "achievements" && (

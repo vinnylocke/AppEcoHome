@@ -106,7 +106,7 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 | Function | Cadence | Purpose |
 |----------|---------|---------|
 | `sync-weather` | hourly | Pull Open-Meteo into `weather_snapshots`. |
-| `analyse-weather` | hourly | Evaluate weather rules → snapshots / alerts. |
+| `analyse-weather` | hourly | Evaluate weather rules → alerts, watering auto-completes, notifications; **and (2026-07-10, when `homes.weather_task_creation`) creates weather-driven watering tasks** — one per outdoor area over planted instances, claim-guarded via `weather_task_claims`. See [Weather](./27-weather.md). |
 | `generate-tasks` | daily | Materialise blueprint-derived tasks. Uses one grouped query for last-task-per-blueprint and inserts in chunks of 500 (Wave C rewrite). |
 | `update-plant-states` | daily | Advance growth states per planted-date rules. |
 | `pattern-scan` | every 8h | Run pattern detectors → pattern_hits. Users processed in parallel with concurrency cap of 10; per-pattern hit upserts are batched (Wave C rewrite). |

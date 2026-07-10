@@ -1253,7 +1253,7 @@ export default function TaskList({
                     </h4>
 
                     {/* Chips */}
-                    {(plantName || task.areas?.name || planName || task.auto_completed_reason || task.overdueCarryoverSince || lateDue || windowDoneOn) && (
+                    {(plantName || task.areas?.name || planName || task.auto_completed_reason || task.overdueCarryoverSince || lateDue || windowDoneOn || task.weather_event_key) && (
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {task.overdueCarryoverSince && (
                           <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-100 text-red-700">
@@ -1289,6 +1289,11 @@ export default function TaskList({
                         {task.auto_completed_reason && (
                           <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600" title={task.auto_completed_reason}>
                             <CloudRain size={10} /> Auto-watered
+                          </div>
+                        )}
+                        {task.weather_event_key && (
+                          <div data-testid="task-weather-chip" className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700" title="Created automatically from a weather event">
+                            <CloudRain size={10} /> Weather task
                           </div>
                         )}
                       </div>

@@ -145,6 +145,23 @@ describe("buildLocationTaskCounts", () => {
     expect(buildLocationTaskCounts([L1], tasks, [bp], TODAY)[L1]).toBe(0);
   });
 
+  test("a weather-created standalone task (location-keyed, no blueprint) counts once as pending", () => {
+    // Weather-driven watering tasks are standalone rows that MUST carry a
+    // location_id precisely so this count sees them (a NULL-location task
+    // would be invisible here while its completion counts in doneToday).
+    const tasks: TaskCountRow[] = [
+      { location_id: L1, blueprint_id: null, status: "Pending" },
+    ];
+    expect(buildLocationTaskCounts([L1], tasks, [], TODAY)[L1]).toBe(1);
+  });
+
+  test("a COMPLETED weather-created standalone task is not counted as remaining", () => {
+    const tasks: TaskCountRow[] = [
+      { location_id: L1, blueprint_id: null, status: "Completed" },
+    ];
+    expect(buildLocationTaskCounts([L1], tasks, [], TODAY)[L1]).toBe(0);
+  });
+
   test("paused, not-yet-started, and ended blueprints are excluded", () => {
     const paused = dailyBp("p", { paused_until: "2026-07-10" });
     const future = dailyBp("f", { start_date: "2026-07-10" });

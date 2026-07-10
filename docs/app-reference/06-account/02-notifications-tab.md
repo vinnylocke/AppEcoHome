@@ -73,11 +73,16 @@ NotificationsTab
 | `optimiseDigest` | no |
 | `betaPrompts` | yes |
 
+### Weather actions section (2026-07-10 — HOME-scoped, below Categories)
+
+One toggle: **"Create watering tasks on hot days"** (`data-testid="weather-task-creation-toggle"`, Sun icon). Unlike every row above it, this is **NOT a `notification_prefs` entry** — it reads/writes **`homes.weather_task_creation`** directly (tasks are home-wide; per-user values would conflict, and creation is independent of whether this user muted notifications). Not gated by the master mute. Optimistic update; a failed write (RLS — user can't edit home settings) reverts with a toast. Sub-label states "Applies to everyone in this home". Consumed by `analyse-weather` — see [Weather](../99-cross-cutting/27-weather.md) § Weather-driven task creation.
+
 ### Data flow
 
 - Read: `localStorage.getItem("rhozly_notif_prefs")` parsed JSON, merged with defaults.
 - Write: `localStorage.setItem(...)` on every toggle change.
 - Browser permission: `Notification.requestPermission()` and `Notification.permission`.
+- Weather actions: `homes.weather_task_creation` select on mount + direct update on toggle (home-scoped — see above).
 
 **Voice toggle (`VoiceSection` — separate from notification prefs):**
 

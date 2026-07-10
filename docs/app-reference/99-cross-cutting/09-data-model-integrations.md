@@ -109,7 +109,7 @@ Audit trail of every fire. `status`: `ran` / `skipped_rain` / `failed` / `retrie
 
 - `automations.location_id` (FK `locations`, nullable) — joins `area_id` for the builder's Scope picker.
 - `automations.run_limit_count` (int, NULL = unlimited) + `run_limit_window_hours` (int, default 24) — per-window fire cap enforced by `evaluate-automations`.
-- `automation_actions.action_kind` gains `'complete_task'`; new `target_blueprint_id` (FK `task_blueprints`). The migration converts existing `automation_blueprints` **driven** links into `complete_task` actions and **deletes** the driven rows (implicit auto-completion retired — completion is now an explicit action handled by `evaluate-automations`). `controlling` links are untouched.
+- `automation_actions.action_kind` gains `'complete_task'`; new `target_blueprint_id` (FK `task_blueprints`). The migration converts existing `automation_blueprints` **driven** links into `complete_task` actions and **deletes** the driven rows (implicit auto-completion retired — completion is now an explicit action handled by `evaluate-automations`). `controlling` links are untouched. **2026-07-10:** `complete_task` (`_shared/fanoutActions.ts`) additionally completes **weather-created standalone tasks** matching the target blueprint's `(task_type, area_id)` — rows with `weather_event_key IS NOT NULL`, `blueprint_id IS NULL` — so a valve automation that waters an area also clears that area's heatwave watering extra (`auto_completed_reason: "automation"`). See [Weather](./27-weather.md).
 
 ### Unified condition tree on `automations` (added 2026-06-17, Phase 1)
 

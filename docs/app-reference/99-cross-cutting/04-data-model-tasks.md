@@ -67,6 +67,7 @@ Ghost tasks are materialised into real `tasks` rows when the user acts on them (
 | `todo_list_id` | uuid? | FK → `todo_lists(id)` ON DELETE SET NULL. Back-link to the parent to-do list when the task was created via the [Add To-Do List modal](../08-modals-and-overlays/40-todo-lists.md). NULL for every other task. |
 | `window_end_date` | date? | **Wave-20 harvest window model.** For tasks generated from a Harvesting blueprint with both `start_date` and `end_date`, this is the last day the harvest window is open. The task is "active" through `due_date..window_end_date` and only flags overdue afterwards. NULL on all other tasks. |
 | `next_check_at` | date? | **Wave-20 snooze.** When the user (or AI ripeness check) defers a window task via "Not yet", this is the date the task should re-appear. While in the future, the task is hidden from Today / Calendar queries. NULL on completion / window close. |
+| `weather_event_key` | text? | **2026-07-10 weather-driven tasks.** Set on standalone tasks created by `analyse-weather` from a weather event (`heatwave:{date}:area:{id}` / `:loc:{id}`). Drives the TaskList "Weather task" chip and the automation `complete_task` weather sweep. NULL on every other task. Created rows always carry a real `location_id` (dashboard count safety). See [Weather](./27-weather.md). |
 
 ### Seasonal window-task semantics (Wave 20; Pruning added 2026-07)
 

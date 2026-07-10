@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "label": "Heatwaves can now water your task list",
+    "items": [
+      "New setting: on hot days Rhozly can create extra watering tasks automatically — one per area, covering the plants planted there. Find it under Head Gardener → Notifications → Weather actions (off by default; applies to the whole home).",
+      "It's careful about noise: if watering is already scheduled for an area today — by you or a routine — no extra task is created, and a long heatwave adds at most one task per area per day.",
+      "Your watering automations complete these tasks too, and rain still auto-completes them.",
+      "Plants that are planted but not in any area get a mention in the heatwave alert so they're not forgotten."
+    ]
+  }
+]
