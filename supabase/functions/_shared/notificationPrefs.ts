@@ -17,6 +17,9 @@ export interface NotificationPrefs {
   betaPrompts?: boolean;
   /** 20:00-local nudge when tasks are still overdue (2026-07-08). */
   overdueEvening?: boolean;
+  /** Garden Brain adaptive-care proposals (2026-07-10 — tighten / stress /
+   *  create-routine suggestions from the nightly reconcile). */
+  adaptiveCare?: boolean;
   /** "combined" = one email per recipient with sections per home; "per_home" = the legacy fan-out (one email per home). */
   digestStyle?: DigestStyle;
   /** "HH:MM" local time the daily task digest is delivered (default "08:00"). */

@@ -64,6 +64,8 @@ interface NotificationPrefs {
   betaPrompts:    boolean;
   /** 20:00-local nudge when tasks are still overdue. */
   overdueEvening: boolean;
+  /** Garden Brain adaptive-care proposals (soil-sensor schedule suggestions). */
+  adaptiveCare:   boolean;
   /** Weekly email: one combined email per recipient with sections per home,
    *  or the legacy fan-out (one email per home). */
   digestStyle:    DigestStyle;
@@ -82,6 +84,7 @@ const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
   weeklyOverview: true,   // Wave 21.A — new
   betaPrompts:    true,
   overdueEvening: true,   // 2026-07-08 — 8pm overdue nudge
+  adaptiveCare:   true,   // 2026-07-10 — Garden Brain proposals
   digestStyle:    "combined", // Wave 22.0044
   reminderTime:   "08:00",    // local time the daily digest is delivered
 };
@@ -217,6 +220,7 @@ function NotificationsTab({ userId, homeId }: { userId: string; homeId: string }
     { key: "optimiseDigest", label: "Weekly optimise digest", sub: "A summary of suggested schedule improvements",                         icon: <Sparkles size={14} className="text-violet-500" /> },
     { key: "weeklyOverview", label: "Weekly garden overview", sub: "Sunday morning summary of your week ahead",                            icon: <CalendarIcon size={14} className="text-rhozly-primary" /> },
     { key: "overdueEvening", label: "Evening overdue nudge",  sub: "An 8pm reminder when tasks are still overdue",                         icon: <Clock size={14} className="text-slate-500" /> },
+    { key: "adaptiveCare",   label: "Garden Brain suggestions", sub: "Watering-schedule tweaks learned from your soil sensors",            icon: <Sparkles size={14} className="text-rhozly-primary" /> },
     { key: "betaPrompts",    label: "Beta feedback prompts",  sub: "Occasional in-app surveys on new features",                            icon: <MessageSquare size={14} className="text-emerald-500" /> },
   ];
 

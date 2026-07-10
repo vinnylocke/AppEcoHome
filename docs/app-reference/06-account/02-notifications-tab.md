@@ -69,6 +69,7 @@ NotificationsTab
 | `harvesting` | yes |
 | `pruning` | yes |
 | `weatherAlerts` | yes |
+| `adaptiveCare` | yes — Garden Brain proposal notifications (see [Garden Brain](../99-cross-cutting/39-garden-brain.md)) |
 | `goldenHour` | no |
 | `optimiseDigest` | no |
 | `betaPrompts` | yes |

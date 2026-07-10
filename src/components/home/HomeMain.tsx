@@ -5,6 +5,7 @@ import HomeStatusStrip from "./HomeStatusStrip";
 import GardenOverviewGrid from "./GardenOverviewGrid";
 import QuickActionsRow from "./QuickActionsRow";
 import AttentionRow from "./AttentionRow";
+import AdaptiveCareCard from "./AdaptiveCareCard";
 import WeekPulse from "./WeekPulse";
 import TaskList from "../TaskList";
 import SeasonalPicksCard from "../seasonal/SeasonalPicksCard";
@@ -136,6 +137,11 @@ export default function HomeMain({
       </div>
 
       <AttentionRow items={overview?.attention ?? []} />
+
+      {/* Garden Brain — adaptive-care proposals (Phase 1). Self-hides when the
+          home has no open/verified adjustments (server writes them only for
+          sensor-equipped Sage/Evergreen homes), so no client tier plumbing. */}
+      <AdaptiveCareCard homeId={homeId} currentUserId={userId} />
 
       {hasGarden ? (
         <GardenOverviewGrid

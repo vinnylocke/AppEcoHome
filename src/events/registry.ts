@@ -52,6 +52,9 @@ export const EVENT = {
   AREA_SCAN_COMPLETED:       "area_scan_completed",
   SCAN_TASK_ACCEPTED:        "scan_task_accepted",
   SCAN_AILMENT_LINKED:       "scan_ailment_linked",
+  // Garden Brain — adaptive care (Phase 1, 2026-07-10)
+  CARE_ADJUSTMENT_APPLIED:   "care_adjustment_applied",
+  CARE_ADJUSTMENT_DISMISSED: "care_adjustment_dismissed",
   // Plant Doctor AI
   AI_IDENTIFY:               "ai_identify",
   AI_DIAGNOSE:               "ai_diagnose",
