@@ -13,9 +13,7 @@ import { Brain, Check, ChevronDown, ChevronUp, Droplets, Loader2, Sun, X } from 
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
-import { BlueprintService } from "../../services/blueprintService";
-import { getLocalDateString } from "../../lib/dateUtils";
-import { logEvent, EVENT } from "../../events/registry";
+import { applyCareAdjustment, dismissCareAdjustment } from "../../lib/careAdjustments";
 import { readSnapshot, writeSnapshot } from "../../lib/snapshotCache";
 
 interface CareAdjustment {
@@ -86,93 +84,27 @@ export default function AdaptiveCareCard({ homeId, currentUserId }: { homeId: st
 
   const dismiss = async (adj: CareAdjustment) => {
     setBusyId(adj.id);
-    try {
-      const { error } = await supabase.from("care_adjustments").update({ status: "dismissed" }).eq("id", adj.id);
-      if (error) throw error;
+    const res = await dismissCareAdjustment(adj);
+    if (res.ok) {
       setItems((prev) => prev.filter((i) => i.id !== adj.id));
-      logEvent(EVENT.CARE_ADJUSTMENT_DISMISSED, { kind: adj.kind, area_id: adj.area_id });
-      toast("Dismissed — we won't suggest this again for a couple of weeks.");
-    } catch (err) {
-      Logger.error("Adaptive care dismiss failed", err, { id: adj.id }, "Couldn't dismiss that.");
-    } finally {
-      setBusyId(null);
+      toast(res.message);
+    } else {
+      toast.error(res.message);
     }
+    setBusyId(null);
   };
 
   const apply = async (adj: CareAdjustment) => {
     setBusyId(adj.id);
-    try {
-      if ((adj.kind === "tighten_watering" || adj.kind === "stretch_watering") && adj.blueprint_id && adj.suggested_frequency_days) {
-        const { error } = await supabase
-          .from("task_blueprints")
-          .update({ frequency_days: adj.suggested_frequency_days })
-          .eq("id", adj.blueprint_id);
-        if (error) throw error;
-      } else if (adj.kind === "create_watering_routine" && adj.area_id && adj.suggested_frequency_days) {
-        // Mirror AddTaskModal's recurring create: blueprint + first task + generate.
-        const todayStr = getLocalDateString(new Date());
-        const areaName = (adj.evidence?.headline as string | undefined)?.match(/^(.*?) has no watering/)?.[1] ?? "area";
-        const { data: areaRow } = await supabase.from("areas").select("name, location_id").eq("id", adj.area_id).maybeSingle();
-        const { data: planted } = await supabase
-          .from("inventory_items").select("id").eq("home_id", homeId).eq("status", "Planted").eq("area_id", adj.area_id);
-        const { data: blueprint, error: bpError } = await supabase
-          .from("task_blueprints")
-          .insert([{
-            home_id: homeId,
-            title: `Watering — ${areaRow?.name ?? areaName}`,
-            description: "Created from Rhozly's soil-sensor analysis (Garden Brain).",
-            task_type: "Watering",
-            location_id: areaRow?.location_id ?? null,
-            area_id: adj.area_id,
-            inventory_item_ids: (planted ?? []).map((p) => p.id),
-            frequency_days: adj.suggested_frequency_days,
-            is_recurring: true,
-            start_date: todayStr,
-            scope: "home",
-            created_by: currentUserId,
-          }])
-          .select()
-          .single();
-        if (bpError) throw bpError;
-        const { error: tError } = await supabase.from("tasks").insert([{
-          home_id: homeId,
-          blueprint_id: blueprint.id,
-          title: blueprint.title,
-          description: blueprint.description,
-          type: "Watering",
-          due_date: todayStr,
-          location_id: areaRow?.location_id ?? null,
-          area_id: adj.area_id,
-          inventory_item_ids: (planted ?? []).map((p) => p.id),
-          status: "Pending",
-          scope: "home",
-          created_by: currentUserId,
-        }]);
-        if (tError) throw tError;
-        BlueprintService.generateBlueprintTasks(blueprint.id, todayStr);
-      } else {
-        // stress_risk has no apply — acknowledged.
-      }
-
-      const { error: stErr } = await supabase
-        .from("care_adjustments")
-        .update({ status: "applied", applied_at: new Date().toISOString(), applied_by: currentUserId })
-        .eq("id", adj.id);
-      if (stErr) throw stErr;
+    // Shared with the Daily Brief's inline Apply — src/lib/careAdjustments.ts.
+    const res = await applyCareAdjustment(adj, { homeId, currentUserId });
+    if (res.ok) {
       setItems((prev) => prev.filter((i) => i.id !== adj.id));
-      logEvent(EVENT.CARE_ADJUSTMENT_APPLIED, { kind: adj.kind, area_id: adj.area_id, suggested: adj.suggested_frequency_days });
-      toast.success(
-        adj.kind === "create_watering_routine"
-          ? "Routine created — we'll check back in a week and show you the result."
-          : adj.kind === "stress_risk"
-            ? "Noted — keep an eye on that bed this week."
-            : "Schedule updated — we'll verify it against the sensor and report back.",
-      );
-    } catch (err: unknown) {
-      Logger.error("Adaptive care apply failed", err, { id: adj.id }, "Couldn't apply that change.");
-    } finally {
-      setBusyId(null);
+      toast.success(res.message);
+    } else {
+      toast.error(res.message);
     }
+    setBusyId(null);
   };
 
   if (items.length === 0 && verifiedItems.length === 0) return null;

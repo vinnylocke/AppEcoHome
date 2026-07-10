@@ -120,3 +120,15 @@ Cross-Home Favourites Phase 1 (2026-07-03). Fixtures: `15_favourites.sql` (0017 
 | IE-001 | ✅ | Journal — add entry persists | — | ✅ Passing |
 | IE-002 | ⏭ | Routine — seeded blueprints render as rows — skipped (no blueprints linked to seeded Basil) | — | ⏭ Skipped |
 | IE-003 | ✅ | Yield — log harvest stores amount | — | ✅ Passing |
+
+## Photo timeline observations (Garden Brain Phase 3, 2026-07-10)
+
+Instance detail → Photos tab (`PhotoTimelineTab.tsx`). Observations come from the nightly `scan-journal-photos` cron (Sage/Evergreen owner); rows seeded via service role for E2E.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| PTO-001 | ✅ | Analysed journal photo shows `photo-observation-chip` (health colour: healthy emerald / watch amber / concern rose) on its tile | Seed: `photo_observations` row (service role) | 🔲 Pending (verified live 2026-07-10) |
+| PTO-002 | ✅ | Lightbox shows `photo-observation-panel`: stage + health chips, findings, and each recommended action with Apply/Dismiss | same seed | 🔲 Pending (verified live 2026-07-10) |
+| PTO-003 | ✅ | `create_task` Apply (`photo-action-apply`) inserts a one-off task (due = today + `due_in_days`, linked to the plant + its area) and writes `status: applied` + `applied_task_id` into the actions jsonb | same seed | 🔲 Pending (validation covered by SJP-011..017) |
+| PTO-004 | ✅ | Dismiss (`photo-action-dismiss`) writes `status: dismissed`; both Apply and Dismiss insert an `ai_feedback` row (`function_name: scan-journal-photos`, rating ±1) | same seed | 🔲 Pending |
+| PTO-005 | ✅ | Sub-Sage tier sees `photo-observation-upsell` line instead of observations when journal photos exist | Sprout profile route patch | 🔲 Pending |

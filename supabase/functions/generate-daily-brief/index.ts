@@ -54,12 +54,13 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
     { data: lowBattery },
     { data: insights },
     { data: completions },
+    { data: photoConcerns },
   ] = await Promise.all([
     db.from("tasks")
       .select("id, title, status, due_date, next_check_at, window_end_date")
       .eq("home_id", homeId).eq("status", "Pending").lte("due_date", today),
     db.from("care_adjustments")
-      .select("kind, status, evidence, verification, area_id, areas(name)")
+      .select("id, kind, status, evidence, verification, area_id, areas(name)")
       .eq("home_id", homeId)
       .or(`status.eq.proposed,and(status.in.(verified_good,verified_mixed),verified_at.gte.${since7d})`),
     db.from("weather_alerts")
@@ -84,13 +85,17 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
     db.from("user_events")
       .select("created_at")
       .eq("user_id", ownerId).eq("event_type", "task_completed").gte("created_at", since7d),
+    // Phase 3: yesterday's photo `concern` observations feed the brief.
+    db.from("photo_observations")
+      .select("id, findings, inventory_items(plant_name, nickname)")
+      .eq("home_id", homeId).eq("health", "concern").gte("created_at", since24h),
   ]);
 
   const tasks = (pendingTasks ?? []) as Array<{ title: string; due_date: string; next_check_at: string | null; window_end_date: string | null; status: string }>;
   const overdue = tasks.filter((t) => isOverdue(t, today));
   const dueToday = tasks.filter((t) => effectiveDueDate(t) === today && !isOverdue(t, today));
 
-  const care = (careRows ?? []) as Array<{ kind: string; status: string; evidence: Record<string, unknown>; verification: Record<string, unknown> | null; areas: { name: string | null } | null }>;
+  const care = (careRows ?? []) as Array<{ id: string; kind: string; status: string; evidence: Record<string, unknown>; verification: Record<string, unknown> | null; areas: { name: string | null } | null }>;
   const proposals = care.filter((c) => c.status === "proposed" && ACTIONABLE.has(c.kind));
   const verifications = care
     .filter((c) => c.status === "verified_good" || c.status === "verified_mixed")
@@ -119,10 +124,17 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
     dueTodayCount: dueToday.length,
     topTaskTitles: [...overdue, ...dueToday].slice(0, 3).map((t) => t.title),
     careProposals: proposals.map((p) => ({
+      id: p.id,
       kind: p.kind,
       headline: (p.evidence?.headline as string) ?? "A watering suggestion is waiting",
       detail: (p.evidence?.detail as string) ?? "",
     })),
+    photoFlags: ((photoConcerns ?? []) as Array<{ id: string; findings: string; inventory_items: { plant_name: string | null; nickname: string | null } | null }>)
+      .map((o) => ({
+        observationId: o.id,
+        plantName: o.inventory_items?.nickname || o.inventory_items?.plant_name || "A plant",
+        findings: o.findings,
+      })),
     verifications,
     onTrackAreas,
     weatherAlerts: ((alerts ?? []) as Array<{ type: string; message: string }>).map((a) => ({ type: a.type, message: a.message })),

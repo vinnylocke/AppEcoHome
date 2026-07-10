@@ -8,18 +8,27 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Loader2, RefreshCw, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Check, ChevronRight, Loader2, RefreshCw, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
 import { getLocalDateString } from "../../lib/dateUtils";
 import { readSnapshot, writeSnapshot } from "../../lib/snapshotCache";
+import { applyCareAdjustment, fetchCareAdjustment } from "../../lib/careAdjustments";
+
+interface BriefItemAction {
+  type: "apply_care_adjustment" | "open_photo_actions";
+  adjustmentId?: string;
+  observationId?: string;
+  label: string;
+}
 
 interface BriefItem {
   kind: string;
   title: string;
   reason: string;
   route: string;
+  action?: BriefItemAction;
 }
 
 interface BriefRow {
@@ -48,6 +57,8 @@ export default function GardenBrainBriefCard({
   const [refreshing, setRefreshing] = useState(false);
   const [commentOpen, setCommentOpen] = useState(false);
   const [comment, setComment] = useState("");
+  const [applyingIdx, setApplyingIdx] = useState<number | null>(null);
+  const [appliedIdxs, setAppliedIdxs] = useState<Set<number>>(new Set());
 
   const load = useCallback(async () => {
     if (!homeId) return;
@@ -111,6 +122,34 @@ export default function GardenBrainBriefCard({
       Logger.error("Brief regenerate failed", err, { homeId }, "Couldn't refresh the brief — it may be limited to Sage and Evergreen.");
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  // One-tap Apply on care-proposal items — the SAME mutation the
+  // AdaptiveCareCard runs (shared lib), so the surfaces can't drift.
+  const applyItemAction = async (item: BriefItem, idx: number) => {
+    if (!item.action) return;
+    if (item.action.type === "open_photo_actions") {
+      navigate(item.route);
+      return;
+    }
+    if (item.action.type === "apply_care_adjustment" && item.action.adjustmentId) {
+      setApplyingIdx(idx);
+      const adj = await fetchCareAdjustment(item.action.adjustmentId);
+      if (!adj) {
+        toast("That suggestion has already been handled.");
+        setAppliedIdxs((prev) => new Set(prev).add(idx));
+        setApplyingIdx(null);
+        return;
+      }
+      const res = await applyCareAdjustment(adj, { homeId, currentUserId: userId });
+      if (res.ok) {
+        setAppliedIdxs((prev) => new Set(prev).add(idx));
+        toast.success(res.message);
+      } else {
+        toast.error(res.message);
+      }
+      setApplyingIdx(null);
     }
   };
 
@@ -186,22 +225,42 @@ export default function GardenBrainBriefCard({
 
       {items.length > 0 && (
         <div className="space-y-1.5">
-          {items.map((item, i) => (
-            <button
-              key={`${item.kind}-${i}`}
-              data-testid={`daily-brief-item-${item.kind}`}
-              onClick={() => navigate(item.route)}
-              className="w-full text-left rounded-xl border border-rhozly-outline/10 px-3 py-2 hover:border-rhozly-primary/30 transition flex items-start gap-2"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-black text-rhozly-on-surface leading-snug">{item.title}</p>
-                {density === "detailed" && (
-                  <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug mt-0.5">{item.reason}</p>
+          {items.map((item, i) => {
+            const applied = appliedIdxs.has(i);
+            return (
+              <div
+                key={`${item.kind}-${i}`}
+                data-testid={`daily-brief-item-${item.kind}`}
+                className={`rounded-xl border border-rhozly-outline/10 px-3 py-2 flex items-start gap-2 ${applied ? "opacity-55" : "hover:border-rhozly-primary/30"} transition`}
+              >
+                <button
+                  onClick={() => navigate(item.route)}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <p className="text-xs font-black text-rhozly-on-surface leading-snug">{item.title}</p>
+                  {density === "detailed" && (
+                    <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug mt-0.5">{item.reason}</p>
+                  )}
+                  {applied && (
+                    <p className="text-[10px] font-black text-emerald-600 mt-0.5 flex items-center gap-1"><Check size={10} /> Applied</p>
+                  )}
+                </button>
+                {item.action && !applied ? (
+                  <button
+                    data-testid="daily-brief-item-apply"
+                    onClick={() => void applyItemAction(item, i)}
+                    disabled={applyingIdx === i}
+                    className="shrink-0 h-8 px-3 rounded-lg bg-rhozly-primary text-white text-[10px] font-black flex items-center gap-1 hover:opacity-90 disabled:opacity-50"
+                  >
+                    {applyingIdx === i ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+                    {item.action.label}
+                  </button>
+                ) : (
+                  <ChevronRight size={14} className="text-rhozly-on-surface/25 shrink-0 mt-0.5" />
                 )}
               </div>
-              <ChevronRight size={14} className="text-rhozly-on-surface/25 shrink-0 mt-0.5" />
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
 

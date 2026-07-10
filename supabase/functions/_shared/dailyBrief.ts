@@ -15,8 +15,10 @@ export interface BriefSignals {
   dueTodayCount: number;
   /** Top overdue/today task titles for flavour (max 3 used). */
   topTaskTitles: string[];
-  /** Open Phase-1 care proposals. */
-  careProposals: Array<{ kind: string; headline: string; detail: string }>;
+  /** Open Phase-1 care proposals (id → one-tap apply from the brief). */
+  careProposals: Array<{ id?: string; kind: string; headline: string; detail: string }>;
+  /** Phase-3 photo `concern` observations from the last 24h. */
+  photoFlags?: Array<{ observationId: string; plantName: string; findings: string }>;
   /** Fresh verifications (last 7 days). */
   verifications: Array<{ status: "verified_good" | "verified_mixed"; inRangePct?: number }>;
   /** in_range good-news records (area names). */
@@ -35,10 +37,21 @@ export interface BriefSignals {
   completionStreakDays: number;
 }
 
+/**
+ * One-tap actions on brief items (user requirement 2026-07-10). Set ONLY by
+ * this deterministic assembler — the AI rewrite reconstructs items from the
+ * deterministic array, so `action` survives verbatim by construction and the
+ * model can never author or alter one.
+ */
+export type BriefItemAction =
+  | { type: "apply_care_adjustment"; adjustmentId: string; label: string }
+  | { type: "open_photo_actions"; observationId: string; label: string };
+
 export interface BriefItem {
   kind:
     | "overdue"
     | "care_proposal"
+    | "photo_flag"
     | "weather"
     | "window"
     | "automation_failed"
@@ -48,6 +61,7 @@ export interface BriefItem {
   reason: string;
   route: string;
   score: number;
+  action?: BriefItemAction;
 }
 
 export interface BriefPayload {
@@ -63,6 +77,7 @@ export const MAX_ITEMS = 6;
 const SCORE = {
   overdue: 100,
   care_proposal: 90,
+  photo_flag: 85, // a plant visibly struggling sits between care + weather
   weather: 80,
   window: 70,
   automation_failed: 65,
@@ -92,6 +107,19 @@ export function assembleBrief(s: BriefSignals): BriefPayload {
       reason: p.detail,
       route: "/dashboard?view=home",
       score: SCORE.care_proposal,
+      // One-tap apply straight from the brief (shared careAdjustments lib).
+      ...(p.id ? { action: { type: "apply_care_adjustment" as const, adjustmentId: p.id, label: "Apply" } } : {}),
+    });
+  }
+
+  for (const f of s.photoFlags ?? []) {
+    items.push({
+      kind: "photo_flag",
+      title: `${f.plantName} looks like it needs attention`,
+      reason: f.findings || "Spotted in your latest photo.",
+      route: "/shed",
+      score: SCORE.photo_flag,
+      action: { type: "open_photo_actions", observationId: f.observationId, label: "See photo" },
     });
   }
 

@@ -26,6 +26,7 @@ Buckets (Supabase Storage)
 DB tables that reference media:
 ├── inventory_item_photos    ← timeline rows
 ├── plant_journals           ← per-entry image_url; inventory_item_id is NULLABLE (Quick Capture entries are unassigned until filed)
+├── photo_observations       ← Garden Brain Phase 3: ONE nightly AI vision analysis per plant-linked journal photo (journal_id UNIQUE); growth_stage, health, findings, confidence, actions jsonb (closed vocabulary, per-action status). See [Garden Brain](./39-garden-brain.md)
 ├── plan_photos              ← gallery rows
 ├── plants.default_image     ← single URL
 ├── inventory_items.cover_image_url

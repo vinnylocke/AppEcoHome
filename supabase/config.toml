@@ -548,6 +548,12 @@ verify_jwt = false
 [functions.generate-daily-brief]
 verify_jwt = false
 
+# Garden Brain Phase 3 — daily cron (scan-journal-photos-daily, 04:00). Schema-
+# enforced vision pass over new plant-linked journal photos (Sage/Evergreen,
+# capped 10/home/night) → photo_observations. verify_jwt = false for the cron.
+[functions.scan-journal-photos]
+verify_jwt = false
+
 # 2026-06-16 Custom integrations Phase 3 — public webhook router for
 # every adapter that implements parseWebhook(). The user's device hits
 # this endpoint with the per-integration webhook secret in the path,

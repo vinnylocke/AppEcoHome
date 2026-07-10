@@ -150,3 +150,41 @@ Deno.test("DB-011: window items distinguish open-now vs opens-in-N-days", () => 
   assertStringIncludes(items[0].title, "window is open");
   assertStringIncludes(items[1].title, "opens in 3 days");
 });
+
+// ─── Phase 3 — photo flags + one-tap actions ─────────────────────────────────
+
+Deno.test("DB-012: photo_flag ranks between care_proposal and weather", () => {
+  const { items } = assembleBrief(signals({
+    careProposals: [{ kind: "tighten_watering", headline: "Bed A dries fast", detail: "…" }],
+    photoFlags: [{ observationId: "obs-1", plantName: "Sungold Tomato", findings: "Lower leaves yellowing." }],
+    weatherAlerts: [{ type: "heat", message: "Heatwave ahead." }],
+  }));
+  assertEquals(items.map((i) => i.kind), ["care_proposal", "photo_flag", "weather"]);
+});
+
+Deno.test("DB-013: photo_flag carries the plant name, findings, and an open_photo_actions action", () => {
+  const { items } = assembleBrief(signals({
+    photoFlags: [{ observationId: "obs-9", plantName: "Rosemary", findings: "White dust on leaves." }],
+  }));
+  const flag = items.find((i) => i.kind === "photo_flag")!;
+  assertStringIncludes(flag.title, "Rosemary");
+  assertEquals(flag.reason, "White dust on leaves.");
+  assertEquals(flag.action, { type: "open_photo_actions", observationId: "obs-9", label: "See photo" });
+});
+
+Deno.test("DB-014: care proposals with an id carry apply_care_adjustment; without an id, no action", () => {
+  const { items } = assembleBrief(signals({
+    careProposals: [
+      { id: "adj-1", kind: "tighten_watering", headline: "Bed A dries fast", detail: "d" },
+      { kind: "stress_risk", headline: "Heat risk", detail: "d" },
+    ],
+  }));
+  const [withId, withoutId] = items.filter((i) => i.kind === "care_proposal");
+  assertEquals(withId.action, { type: "apply_care_adjustment", adjustmentId: "adj-1", label: "Apply" });
+  assertEquals(withoutId.action, undefined);
+});
+
+Deno.test("DB-015: photoFlags absent (undefined) is safe — no items, no crash", () => {
+  const { items } = assembleBrief(signals({ overdueCount: 1 }));
+  assertEquals(items.some((i) => i.kind === "photo_flag"), false);
+});
