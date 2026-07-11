@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { deriveClimate } from "../_shared/climateZones.ts";
+import { localToday } from "../_shared/weatherTime.ts";
 import { shouldNotify, type NotificationPrefs } from "../_shared/notificationPrefs.ts";
 import {
   WEATHER_RULES,
@@ -113,7 +114,11 @@ Deno.serve(async (req) => {
 
     // --- Parse snapshot into typed structures ---
 
-    const today = new Date().toISOString().split("T")[0];
+    // Home-LOCAL calendar date (the snapshot's daily/hourly `time` are local-naive
+    // and Open-Meteo gives us `utc_offset_seconds`). Using UTC here made non-UTC
+    // homes evaluate the wrong day — e.g. rain-auto-completing watering a day
+    // early, or stamping heat tasks with tomorrow's date (bug-audit-2026-07-10 #6).
+    const today = localToday(snapshot.data, Date.now());
 
     const rawDaily = snapshot.data.daily ?? {};
     const daily: DailySummary[] = (rawDaily.time ?? []).map(

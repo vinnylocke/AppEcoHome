@@ -793,7 +793,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `careAdjustments.test.ts` | 8 | Garden Brain shared apply/dismiss lib (`src/lib/careAdjustments.ts`, used by AdaptiveCareCard + the Daily Brief inline Apply) — tighten/stretch → blueprint `frequency_days` update then `status='applied'` + event; blueprint failure aborts (no status write); `create_watering_routine` → blueprint + first task + `generateBlueprintTasks`; `stress_risk` acknowledge-only; dismiss → `status='dismissed'` + event; `fetchCareAdjustment` returns the row only while `proposed` |
 | `favouriteIdentity.test.ts` | 50 | Cross-home favourites pure helpers — **Plants (Phase 1):** `canonicalPlantRefId` (manual/api own id, AI→global parent, orphan fallback, non-AI provenance ignored), `isSourceLockedForTier` (full source×tier matrix), `lockedSourceMessage`, `shouldForkOnEdit` (copy-on-write decision), `buildFavouriteSnapshot` (whitelist cap, null-skip, falsy-keep), `buildForkRow` (re-source manual, drop provider ids, provenance via canonical id, strip bookkeeping). **Ailments (Phase 2):** `isAilmentSourceLockedForTier` (perenual/ai/library matrix), `lockedAilmentSourceMessage`, `ailmentIdentityKey` (name_key mirror — lowercase/trim/collapse-ws), `buildAilmentSnapshot` (whitelist cap). **Seed packets (Phase 3):** `packetIdentityKey` (variety\|plant composite, casing/spacing stability, missing parts), `buildPacketSnapshot` (variety-reference whitelist — never live stock/sowings) |
 
-### Edge function tests — Deno (936 tests across 85 files)
+### Edge function tests — Deno (944 tests across 86 files)
 
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|
@@ -803,6 +803,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `frostRisk.test.ts` | 9 | Frost risk rule (tropical vs standard thresholds) + imminent-hourly + forward daily-min frost nights + `dates` |
 | `highWind.test.ts` | 6 | High wind rule (≥40 kph) — full-window scan + grouped `dates` |
 | `weatherHelpers.test.ts` | 3 | `maxConsecutiveDays` (longest consecutive-day run) + `heatThresholdForClimate` (climate→°C map, case-insensitive, default 28, UK 25°C country override) |
+| `weatherTime.test.ts` | 8 | bug-audit-2026-07-10 #6 — home-local weather time (`_shared/weatherTime.ts`, WT-001..008): `snapshotOffsetSeconds` (reads `utc_offset_seconds`, 0 fallback), `localToday` (UTC when offset 0; west-of-UTC before local midnight → previous day; east-of-UTC past midnight → next day; missing offset → UTC), `localNaiveToUtc` (offset subtracted, seconds-optional stamps, unparseable → null) |
 | `rainAutoComplete.test.ts` | 6 | Rain auto-complete rule (≥5mm) |
 | `waterlogging.test.ts` | 6 | Waterlogging rule (5 consecutive rainy days) |
 | `consecutivePostponements.test.ts` | 7 | Consecutive postponements pattern |

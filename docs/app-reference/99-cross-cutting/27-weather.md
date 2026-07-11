@@ -112,6 +112,8 @@ https://api.open-meteo.com/v1/forecast
 
 **2026-06-17:** hourly `precipitation` (mm/h) was added to the fetch so weather-defer automations can sum expected rain inside the recheck window (`_shared/weatherForecast.ts` → `computeRainWindow`) instead of leaning on the daily total. `readForecast(db, homeId, now, windowHours, minProbability, heatThresholdC)` resolves the rain window + heatwave flag the automation evaluators use. See [Automations](../07-management/06-integrations-automations.md).
 
+**Timezone — snapshot dates are home-LOCAL (2026-07-11 fix, bug-audit #6).** Because the fetch uses `timezone=auto`, the `daily.time` / `hourly.time` strings are the home's local wall-clock (no zone), and the response carries `utc_offset_seconds` (stored in `data`). Anything computing "today" or comparing forecast hours to `now` MUST go through `_shared/weatherTime.ts` — `localToday(data, nowMs)` for the local calendar date, `localNaiveToUtc(stamp, offsetSeconds)` to turn a local-naive hourly stamp into a real UTC instant. Using `new Date().toISOString()` (UTC) made non-UTC homes evaluate the wrong day (rain-auto-completing a day early, heat tasks stamped tomorrow). `analyse-weather` and `weatherForecast` both use these helpers. **Not yet migrated:** `frostRisk.ts` still emits a local-naive `starts_at` that renders offset in the banner (display-only follow-up).
+
 ### Data flow
 
 Browser typically reads `weather_snapshots` directly:

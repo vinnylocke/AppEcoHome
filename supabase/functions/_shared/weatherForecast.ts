@@ -9,6 +9,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { computeRainWindow, type HourlyPoint, type RainForecast } from "./automationEvaluator.ts";
+import { localNaiveToUtc, localToday, snapshotOffsetSeconds } from "./weatherTime.ts";
 
 interface DailyBlock {
   time?: string[];
@@ -57,7 +58,13 @@ export async function readForecast(
   const data = snapshot.data as Record<string, unknown>;
   const daily = (data.daily ?? {}) as DailyBlock;
   const hourly = (data.hourly ?? {}) as HourlyBlock;
-  const todayStr = now.toISOString().split("T")[0];
+  // `daily.time` is local-naive and the snapshot carries the home's offset — so
+  // "today" must be the home-LOCAL date (indexOf against a UTC date missed the
+  // right day for non-UTC homes), and each hourly stamp must be converted to its
+  // real UTC instant before comparing to `now` for the rain look-ahead window
+  // (bug-audit-2026-07-10 #6 / weatherForecast).
+  const offsetSec = snapshotOffsetSeconds(data as { utc_offset_seconds?: number });
+  const todayStr = localToday(data as { utc_offset_seconds?: number }, now.getTime());
 
   const dayIdx = daily.time?.indexOf(todayStr) ?? -1;
   const todayRainMm = dayIdx >= 0 ? (daily.precipitation_sum?.[dayIdx] ?? 0) : 0;
@@ -67,8 +74,8 @@ export async function readForecast(
   const points: HourlyPoint[] = [];
   if (hourly.time && hourly.precipitation_probability) {
     for (let i = 0; i < hourly.time.length; i++) {
-      const t = new Date(hourly.time[i]);
-      if (Number.isNaN(t.getTime())) continue;
+      const t = localNaiveToUtc(hourly.time[i], offsetSec);
+      if (!t) continue;
       points.push({
         time: t,
         probability: hourly.precipitation_probability[i] ?? 0,
