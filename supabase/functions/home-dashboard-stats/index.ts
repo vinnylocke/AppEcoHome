@@ -62,6 +62,14 @@ Deno.serve(async (req) => {
     const TASK_COLS =
       "id, status, type, due_date, completed_by, auto_completed_reason, completed_at, window_end_date, next_check_at, inventory_item_ids, blueprint_id";
 
+    // These stats are the CALLER's dashboard view. Home-scoped tasks count for
+    // everyone; a PERSONAL task counts only for its owner. Without this, another
+    // member's personal tasks (which the caller's RLS would normally hide, but
+    // this runs service-role) inflated everyone's "X of Y done today" + week
+    // totals (bug-audit-2026-07-10 #17). Applied as a second `.or` group, which
+    // PostgREST ANDs with the date filter.
+    const scopeFilter = `scope.eq.home,and(scope.eq.personal,created_by.eq.${userId})`;
+
     // ── Run all queries in parallel ─────────────────────────────────────────
     const [
       openTasksResult,
@@ -87,7 +95,8 @@ Deno.serve(async (req) => {
         .select(TASK_COLS)
         .eq("home_id", homeId)
         .eq("status", "Pending")
-        .or(`due_date.lte.${weekEnd},window_end_date.gte.${weekStart}`),
+        .or(`due_date.lte.${weekEnd},window_end_date.gte.${weekStart}`)
+        .or(scopeFilter),
 
       // 1b. RESOLVED tasks (Completed/Skipped) — bounded to this week's
       //     activity: due (or window) inside the week, or completed within
@@ -99,7 +108,8 @@ Deno.serve(async (req) => {
         .neq("status", "Pending")
         .or(
           `and(due_date.gte.${weekStart},due_date.lte.${weekEnd}),and(due_date.lte.${weekEnd},window_end_date.gte.${weekStart}),completed_at.gte.${weekStart}`,
-        ),
+        )
+        .or(scopeFilter),
 
       // 2. Home members (user_ids only — profiles fetched separately)
       db

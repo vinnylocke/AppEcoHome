@@ -676,11 +676,12 @@ export const TaskEngine = {
       let skippedTombstones: any[] | null;
       let tError: unknown;
       let bpError: unknown;
+      let tsError: unknown;
       try {
         [
           { data: physicalTasks, error: tError },
           { data: blueprints, error: bpError },
-          { data: skippedTombstones },
+          { data: skippedTombstones, error: tsError },
         ] = await Promise.all([
           tasksQuery,
           supabase
@@ -716,7 +717,7 @@ export const TaskEngine = {
       }
 
       // Returned (non-throwing) error while offline — same fallback.
-      if ((tError || bpError) && isOffline()) {
+      if ((tError || bpError || tsError) && isOffline()) {
         const served = serveOffline();
         if (served) return served;
       }
@@ -726,12 +727,19 @@ export const TaskEngine = {
 
       // Persist the raw fetch inputs so task views render offline next time,
       // and so an offline-created one-off task / routine can be injected into
-      // them (see injectOfflineTask / injectOfflineBlueprint).
-      writeSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId, {
-        physicalTasks: physicalTasks || [],
-        blueprints: blueprints || [],
-        skippedTombstones: skippedTombstones || [],
-      });
+      // them (see injectOfflineTask / injectOfflineBlueprint). SKIP the write if
+      // the tombstones query errored (returns null without throwing) — persisting
+      // an empty suppression set poisons the snapshot so Skipped/postponed
+      // occurrences resurrect on every offline render (bug-audit-2026-07-10 #15).
+      // Keep the previous good snapshot; this render tolerates the gap and the
+      // next clean fetch repairs it.
+      if (!tsError) {
+        writeSnapshot<RawTaskSnapshot>(TASKS_SNAPSHOT, homeId, {
+          physicalTasks: physicalTasks || [],
+          blueprints: blueprints || [],
+          skippedTombstones: skippedTombstones || [],
+        });
+      }
 
       // Pure-JS render (ghost generation + harvest dedup) — shared with the
       // offline path above so both produce identical output.

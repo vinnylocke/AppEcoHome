@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,411 tests across 129 files
+### Unit tests — 1,413 tests across 130 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
@@ -748,6 +748,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `automationEngine.test.ts` | 17 | `calculateSeasonalDate`, `ailmentTaskType`, `frequencyDays` |
 | `taskEngine.test.ts` | 42 | `fetchTasksWithGhosts` (ghost generation, tombstone suppression, completed task filtering, `paused_until` semantics — pre-pause occurrences suppressed permanently, post-pause occurrences emit during the pause) + bug-audit-2026-07-10 #11 (completion visibility keys off `completed_at`, not the phantom `updated_at`/`created_at` — regression `overdue-cleared-today`) |
 | `taskMutations.test.ts` | 4 | bug-audit-2026-07-10 #5 — `buildGhostPayload` carries `scope`/`created_by`/`assigned_to`/`plan_id` from the ghost (a personal routine's materialised row is never silently `home`-scoped); safe defaults when absent; overrides win |
+| `offlineQueueRetry.test.ts` | 2 | bug-audit-2026-07-10 #20 — `offlineQueue.enqueue` schedules a debounced flush when queued while online (a lie-fi/transient failure isn't stranded until the next app start); does NOT flush when queued offline (waits for the `online` event) |
 | `gardenWalk.test.ts` | 47 | `composeAndOrderWalk` (banding, indoor filter, same-day dedupe, cap) + RHO-18 instance grouping (same-plant same-area collapse into one card, different-area separate, manual-name grouping, group band = most-urgent member, summed counts, distinct-nickname collapse, cap counts groups) + RHO-18 route (task keyed to a non-representative member resolves to the group step) + RHO-17 `composeWalkRoute` (home→location→area→plant ordering, empty-section omission, most-specific task assignment incl. multi-plant/personal/ghost/fallbacks, section done vs skipped filtering, unassigned section, attention preview, `MAX_PLANTS_PER_WALK`) + `sectionForStep`, `isWalkableTask` + Phase 2 telemetry (device → most-specific-step assignment with area/location/home fallbacks, device-only sections stay alive, multi-sensor areas, `areas.latest_soil_*` → `latest` strip, deviceless input keeps Phase 1 behaviour) + Phase 3 weaving (`derivePlanPhase` PlanStaging parity incl. plant-first, home watchlist digest with link counts + archived exclusion, per-area ailment context via itemAreas, In-Progress plan digests + area banners + `openTaskCount`, enrichment-never-forces-a-section rule) |
 | `taskActions.test.ts` | 16 | RHO-17 shared task mutation core — `completeTask`/`skipTask`/`postponeTask` ghost vs physical vs blueprint payload parity with TaskList, `unique_blueprint_date` 23505 → UPDATE fallback, event logging, `materialiseGhost` select passthrough, `snoozeHarvestTask` (today+days, window_end_date cap, ghost materialise-first, ≥1-day floor) |
 | `scheduleFromSchedulableTask.test.ts` | 28 | `scheduleFromSchedulableTask` — month-window → blueprint dates, incl. wrap-around windows (Nov–Jan) |

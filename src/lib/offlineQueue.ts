@@ -166,6 +166,14 @@ export function enqueue(item: QueuedWriteInput): QueuedWrite {
     userId: knownUserId,
   } as QueuedWrite;
   write([...read(), queued]);
+  // If we queued while (nominally) ONLINE — a transient / lie-fi failure — the
+  // `online` event won't fire (it only triggers on an offline→online
+  // transition), so nothing would flush this until the next app start / manual
+  // tap. Kick a debounced retry so the write isn't stranded (bug-audit
+  // 2026-07-10 #20). scheduleRetry() is a no-op if a retry is already pending.
+  if (typeof navigator === "undefined" || navigator.onLine !== false) {
+    scheduleRetry();
+  }
   return queued;
 }
 

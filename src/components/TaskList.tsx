@@ -319,7 +319,10 @@ export default function TaskList({
       }
 
       if (physicalTasks.length > 0) {
-        await Promise.all(
+        // Check each result — supabase-js resolves with { error } instead of
+        // throwing, so an RLS/permission failure would otherwise still show
+        // "N tasks completed!" while nothing changed (bug-audit-2026-07-10).
+        const results = await Promise.all(
           physicalTasks.map((t) =>
             supabase
               .from("tasks")
@@ -327,6 +330,8 @@ export default function TaskList({
               .eq("id", t.id),
           ),
         );
+        const firstErr = results.find((r) => r.error)?.error;
+        if (firstErr) throw firstErr;
       }
 
       selectedTasks.forEach((t) =>
@@ -484,14 +489,35 @@ export default function TaskList({
 
         await Promise.all([
           ...blueprintPhysical.map(async (t: any) => {
-            await supabase.from("tasks").update({ status: "Skipped" }).eq("id", t.id);
-            await supabase.from("tasks").insert(
+            const { error: skipErr } = await supabase.from("tasks").update({ status: "Skipped" }).eq("id", t.id);
+            if (skipErr) throw skipErr;
+            const { error: insErr } = await supabase.from("tasks").insert(
               buildGhostPayload(t, "Pending", { due_date: bulkPostponeDate }),
             );
+            if (insErr) {
+              // supabase-js doesn't throw — without this the task was just
+              // Skipped with NO replacement Pending row and silently vanished
+              // (bug-audit-2026-07-10, TaskList bulk data loss).
+              if ((insErr as { code?: string })?.code === "23505") {
+                // A row already occupies (blueprint_id, due_date) — e.g. a
+                // Skipped tombstone. Revive it to Pending instead of losing the
+                // task (mirrors taskActions.postponeTask's fallback).
+                const { error: updErr } = await supabase.from("tasks")
+                  .update({ status: "Pending" })
+                  .eq("blueprint_id", t.blueprint_id)
+                  .eq("due_date", bulkPostponeDate);
+                if (updErr) throw updErr;
+              } else {
+                // Revert the skip so the task isn't lost, then surface the error.
+                await supabase.from("tasks").update({ status: t.status ?? "Pending" }).eq("id", t.id);
+                throw insErr;
+              }
+            }
           }),
-          ...purePhysical.map((t: any) =>
-            supabase.from("tasks").update({ due_date: bulkPostponeDate }).eq("id", t.id),
-          ),
+          ...purePhysical.map(async (t: any) => {
+            const { error } = await supabase.from("tasks").update({ due_date: bulkPostponeDate }).eq("id", t.id);
+            if (error) throw error; // don't toast "postponed!" on a silent failure
+          }),
         ]);
       }
 

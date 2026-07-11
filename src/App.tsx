@@ -755,6 +755,13 @@ function AppShell() {
     let snapshotLocationTaskCounts: Record<string, number> = {};
     let snapshotOverdueTaskCount = 0;
     let snapshotRawWeather: unknown = null;
+    // supabase-js returns { data: null, error } on a blip without throwing. If a
+    // dashboard sub-query fails, we must NOT persist its empty result to the
+    // cache — a single failed refresh would otherwise cache zeroed badges + no
+    // alerts over good data, shown on the next (esp. offline) cold open until a
+    // fully clean refresh (bug-audit-2026-07-10 #15). Any sub-query error flips
+    // this false and skips the cache write.
+    let dashboardFetchClean = true;
     let snapshotWeather: unknown = null;
 
     if (data) {
@@ -842,21 +849,30 @@ function AppShell() {
 
           if (isStale()) return;
 
-          snapshotAlerts = alertResult.data || [];
-          setAlerts(snapshotAlerts as any[]);
+          // Only trust (and later cache) a result that didn't error — keep the
+          // displayed value on a blip rather than blanking it.
+          if (alertResult.error) {
+            dashboardFetchClean = false;
+          } else {
+            snapshotAlerts = alertResult.data || [];
+            setAlerts(snapshotAlerts as any[]);
+          }
 
           // Compute today's REMAINING task count per location (physical +
           // ghosts). Completed / Skipped rows suppress their blueprint's ghost
           // but aren't counted — see lib/locationTaskCounts.ts.
-          const counts = buildLocationTaskCounts(
-            locationIds,
-            (todayTasksResult.data || []) as any[],
-            (bpResult.data || []) as any[],
-            todayStr,
-          );
-
-          snapshotLocationTaskCounts = counts;
-          setLocationTaskCounts(counts);
+          if (todayTasksResult.error || bpResult.error) {
+            dashboardFetchClean = false;
+          } else {
+            const counts = buildLocationTaskCounts(
+              locationIds,
+              (todayTasksResult.data || []) as any[],
+              (bpResult.data || []) as any[],
+              todayStr,
+            );
+            snapshotLocationTaskCounts = counts;
+            setLocationTaskCounts(counts);
+          }
         }
       }
 
@@ -867,10 +883,14 @@ function AppShell() {
       // effective due date forward).
       const overdueResult = await overduePromise;
       if (isStale()) return;
-      snapshotOverdueTaskCount = (overdueResult.data ?? []).filter((t: any) =>
-        isTaskOverdueToday(t, todayStr),
-      ).length;
-      setOverdueTaskCount(snapshotOverdueTaskCount);
+      if (overdueResult.error) {
+        dashboardFetchClean = false;
+      } else {
+        snapshotOverdueTaskCount = (overdueResult.data ?? []).filter((t: any) =>
+          isTaskOverdueToday(t, todayStr),
+        ).length;
+        setOverdueTaskCount(snapshotOverdueTaskCount);
+      }
 
       if (data.weather_snapshots) {
         const snapshots = data.weather_snapshots;
@@ -932,16 +952,20 @@ function AppShell() {
               return rest;
             })()
           : snapshotWeather;
-      writeDashboardCache(profile.home_id, {
-        rawWeather: snapshotRawWeather,
-        weather: safeSnapshotWeather,
-        locations: snapshotLocations,
-        homeLatLng: snapshotHomeLatLng,
-        hardinessZone: snapshotHardinessZone,
-        overdueTaskCount: snapshotOverdueTaskCount,
-        alerts: snapshotAlerts,
-        locationTaskCounts: snapshotLocationTaskCounts,
-      });
+      // Don't cache a partially-failed refresh — a poisoned cache (zeroed
+      // badges / no alerts) would outlive the blip on the next cold open.
+      if (dashboardFetchClean) {
+        writeDashboardCache(profile.home_id, {
+          rawWeather: snapshotRawWeather,
+          weather: safeSnapshotWeather,
+          locations: snapshotLocations,
+          homeLatLng: snapshotHomeLatLng,
+          hardinessZone: snapshotHardinessZone,
+          overdueTaskCount: snapshotOverdueTaskCount,
+          alerts: snapshotAlerts,
+          locationTaskCounts: snapshotLocationTaskCounts,
+        });
+      }
     }
 
     setDashboardLoaded(true);

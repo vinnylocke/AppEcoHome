@@ -107,6 +107,12 @@ Linking a task to a *ghost* occurrence is race-prone if the ghost is materialise
 | Automation create/edit (`AutomationBuilderModal.save`) | Automations drive live valve hardware and reference paired devices; a config saved offline can't be validated and can't fire until online. Gated with `requireOnline("Saving an automation")` for a clear message rather than a silent queue. |
 | Destructive plant/area cascades | `ON DELETE CASCADE` fan-out (inventory items, journals, tasks) can't be previewed offline; left online-only. |
 
+### Flush triggers (incl. lie-fi, 2026-07-11)
+
+`flushQueue()` runs on: the window `online` event, app startup, a manual tap (`useOfflineQueue().flush()`), a backoff `scheduleRetry()` timer after a transient failure during a flush, AND — since bug-audit-2026-07-10 #20 — **immediately (debounced) when `enqueue()` adds an item while `navigator.onLine !== false`**. The last one matters because `queuedWrite` enqueues on a *transient network-shaped* failure even though the browser still reports online ("lie-fi"): the `online` event only fires on an offline→online *transition*, so without the enqueue-time kick the write sat in localStorage until the next startup/manual tap. `scheduleRetry()` is debounced (one pending timer) and backs off ×2 to 5 min; `flushQueue` resets it to 5 s on any successful drain.
+
+**Snapshot-integrity rule (bug-audit #15):** consumers that paint from a snapshot then revalidate MUST check the query's `.error` before overwriting state / rewriting the snapshot — supabase-js returns `{ data: null, error }` on a blip without throwing, so an unchecked revalidate blanks the card and persists `[]` over good cached data. Applied in `AdaptiveCareCard`, `GardenBrainBriefCard`, `taskEngine` (tombstones), and the `App.tsx` dashboard cache.
+
 ### `useOfflineQueue` hook
 
 ```ts

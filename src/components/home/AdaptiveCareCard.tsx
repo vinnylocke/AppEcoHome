@@ -55,7 +55,7 @@ export default function AdaptiveCareCard({ homeId, currentUserId }: { homeId: st
       setVerifiedItems(cached.data.verified);
     }
     try {
-      const [{ data: open }, { data: recentVerified }] = await Promise.all([
+      const [openRes, verifiedRes] = await Promise.all([
         supabase
           .from("care_adjustments")
           .select("id, area_id, blueprint_id, kind, current_frequency_days, suggested_frequency_days, evidence, status, verification, verified_at")
@@ -71,10 +71,20 @@ export default function AdaptiveCareCard({ homeId, currentUserId }: { homeId: st
           .order("verified_at", { ascending: false })
           .limit(2),
       ]);
-      const openVisible = (open ?? []).filter((a) => VISIBLE_KINDS.has(a.kind)) as CareAdjustment[];
+      // supabase-js doesn't throw on failure — a network blip returns
+      // { data: null, error }. Without checking, a failed offline revalidate
+      // would setItems([]) (blanking the card) AND writeSnapshot([]) (poisoning
+      // the good cache). Keep the snapshot-painted state on error (bug-audit
+      // 2026-07-10 #15).
+      if (openRes.error || verifiedRes.error) {
+        Logger.error("Adaptive care revalidate failed — keeping cached", openRes.error ?? verifiedRes.error, { homeId });
+        return;
+      }
+      const openVisible = (openRes.data ?? []).filter((a) => VISIBLE_KINDS.has(a.kind)) as CareAdjustment[];
+      const recentVerified = verifiedRes.data ?? [];
       setItems(openVisible);
-      setVerifiedItems((recentVerified ?? []) as CareAdjustment[]);
-      writeSnapshot("adaptive-care", homeId, { open: openVisible, verified: recentVerified ?? [] });
+      setVerifiedItems(recentVerified as CareAdjustment[]);
+      writeSnapshot("adaptive-care", homeId, { open: openVisible, verified: recentVerified });
     } catch (err) {
       Logger.error("Adaptive care load failed", err, { homeId });
     }

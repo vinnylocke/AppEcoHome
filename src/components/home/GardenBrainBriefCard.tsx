@@ -66,7 +66,7 @@ export default function GardenBrainBriefCard({
     if (cached?.data) setBrief(cached.data);
     try {
       const todayStr = getLocalDateString(new Date());
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("daily_briefs")
         .select("brief_date, generated_by, payload")
         .eq("home_id", homeId)
@@ -74,6 +74,13 @@ export default function GardenBrainBriefCard({
         .order("brief_date", { ascending: false })
         .limit(1)
         .maybeSingle();
+      // supabase-js returns { data: null, error } on a network blip without
+      // throwing — don't let that setBrief(null) and blank the brief we just
+      // painted from the snapshot (bug-audit-2026-07-10 #15).
+      if (error) {
+        Logger.error("Daily brief revalidate failed — keeping cached", error, { homeId });
+        return;
+      }
       // Only show today's (or yesterday's, pre-cron edge) brief — a week-old
       // brief is worse than none.
       if (data && data.brief_date >= getLocalDateString(new Date(Date.now() - 86_400_000))) {
