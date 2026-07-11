@@ -1,10 +1,1 @@
-[
-  {
-    "label": "Garden Brain",
-    "items": [
-      "\"Needs attention\" no longer flags plants that are being cared for automatically — a plant watered by an automation, or whose task was auto-completed, now counts as looked-after.",
-      "Applying a Garden Brain care suggestion from both the dashboard card and your daily brief can no longer create a duplicate watering routine.",
-      "Dismissing a care suggestion now keeps it hidden for a full two weeks from when you dismissed it."
-    ]
-  }
-]
+[]
