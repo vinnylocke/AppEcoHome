@@ -1,11 +1,1 @@
-[
-  {
-    "label": "Reliability",
-    "items": [
-      "Dashboard cards and task lists no longer blank out or show stale zeros after a brief network hiccup — your cached view is kept until a clean refresh.",
-      "Bulk-postponing tasks can no longer lose a task if the move partly fails.",
-      "\"Done today\" counts now ignore other household members' private tasks.",
-      "A change made during a flaky connection now syncs on its own instead of waiting for the next app open."
-    ]
-  }
-]
+[]
