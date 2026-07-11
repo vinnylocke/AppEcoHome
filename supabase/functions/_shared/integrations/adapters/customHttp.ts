@@ -220,12 +220,17 @@ export function parseSoilPayload(
   }
 
   const recordedAtRaw = b.recorded_at;
-  let recordedAt = new Date().toISOString();
+  const nowMs = Date.now();
+  let recordedAt = new Date(nowMs).toISOString();
   if (recordedAtRaw !== undefined) {
     if (typeof recordedAtRaw !== "string") return { error: "invalid_recorded_at" };
     const d = new Date(recordedAtRaw);
     if (Number.isNaN(d.getTime())) return { error: "invalid_recorded_at" };
-    recordedAt = d.toISOString();
+    // Never accept a FUTURE timestamp: "latest reading" queries order by
+    // recorded_at desc, so a device with a skewed/malicious clock could
+    // otherwise pin one stale reading as current forever (bug-audit-2026-07-10
+    // #18). Cap at now; past timestamps (legitimate backfill) pass through.
+    recordedAt = new Date(Math.min(d.getTime(), nowMs)).toISOString();
   }
 
   const battery = parseBatteryPercent(b.battery_percent);
@@ -478,7 +483,11 @@ export const customHttpAdapter: ProviderAdapter = {
     const timer = setTimeout(() => ac.abort(), CONTROL_TIMEOUT_MS);
     let res: Response;
     try {
-      res = await fetch(controlUrl, { method, headers, body, signal: ac.signal });
+      // redirect:"manual" — `checkControlUrl` only vetted the ORIGINAL host, so
+      // following a redirect would let a whitelisted URL 302 to an internal
+      // address (e.g. cloud metadata) and bypass the SSRF guard (bug-audit
+      // 2026-07-10 #9). A 3xx now surfaces as a non-ok response and fails below.
+      res = await fetch(controlUrl, { method, headers, body, signal: ac.signal, redirect: "manual" });
     } catch (err) {
       throw new Error(
         `control_request_unreachable: ${err instanceof Error ? err.message : String(err)}`,

@@ -118,6 +118,30 @@ Deno.test("control — surfaces a non-2xx response", async () => {
   );
 });
 
+Deno.test("control — passes redirect:manual so a redirect can't bypass the SSRF host check (bug-audit-2026-07-10 #9)", async () => {
+  const captured = await withFetch(
+    () => new Response("ok", { status: 200 }),
+    async () => { await customHttpAdapter.control!(VALVE, OPEN, creds()); },
+  );
+  assertEquals(captured!.init.redirect, "manual");
+});
+
+Deno.test("control — a redirect response is treated as a failure, not followed", async () => {
+  await withFetch(
+    // With redirect:manual the runtime yields an opaque redirect (status 0 /
+    // !ok); a 3xx here likewise fails the !res.ok check rather than chasing the
+    // Location to an internal address.
+    () => new Response(null, { status: 302, headers: { Location: "http://169.254.169.254/latest/meta-data/" } }),
+    async () => {
+      await assertRejects(
+        () => customHttpAdapter.control!(VALVE, OPEN, creds()),
+        Error,
+        "control_request_failed",
+      );
+    },
+  );
+});
+
 Deno.test("control — rejects an unknown template variable", async () => {
   await assertRejects(
     () => customHttpAdapter.control!(VALVE, OPEN, creds({ control_body: '{"d":{{durtion}}}' })),

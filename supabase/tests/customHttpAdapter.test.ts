@@ -108,6 +108,24 @@ Deno.test("parseSoilPayload — invalid recorded_at rejected", () => {
   }
 });
 
+Deno.test("parseSoilPayload — a FUTURE recorded_at is capped at now (bug-audit-2026-07-10 #18)", () => {
+  const future = new Date(Date.now() + 365 * 86_400_000).toISOString(); // a year ahead
+  const out = parseSoilPayload({ ...BASE_SOIL, recorded_at: future });
+  assert(!("error" in out));
+  if ("error" in out) return;
+  // Capped: the stored timestamp must not be in the future (would pin this
+  // reading as "latest" forever).
+  assert(new Date(out.recordedAt).getTime() <= Date.now() + 1000);
+});
+
+Deno.test("parseSoilPayload — a PAST recorded_at passes through (legit backfill)", () => {
+  const past = new Date(Date.now() - 3 * 3_600_000).toISOString(); // 3h ago
+  const out = parseSoilPayload({ ...BASE_SOIL, recorded_at: past });
+  assert(!("error" in out));
+  if ("error" in out) return;
+  assertEquals(out.recordedAt, new Date(past).toISOString());
+});
+
 Deno.test("parseSoilPayload — non-object body rejected", () => {
   const out = parseSoilPayload("nope");
   assert("error" in out);
