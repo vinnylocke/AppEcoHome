@@ -262,7 +262,12 @@ export function buildRenderTasks(input: {
     if (task.status !== "Completed") return true;
     const isDueInWindow =
       task.due_date >= startDateStr && task.due_date <= endDateStr;
-    const timestamp = task.updated_at || task.created_at || task.due_date;
+    // Use completed_at for "when was this completed" — tasks has NO updated_at
+    // column, so the old `task.updated_at` was always undefined and this fell
+    // back to created_at, making a task completed today but due earlier vanish
+    // from today's list instead of showing "completed today" (bug-audit
+    // 2026-07-10 #11).
+    const timestamp = task.completed_at || task.created_at || task.due_date;
     const completedDateStr = timestamp.includes("T")
       ? getLocalDateString(new Date(timestamp))
       : timestamp;

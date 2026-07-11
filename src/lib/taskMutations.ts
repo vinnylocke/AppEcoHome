@@ -17,6 +17,14 @@ export function buildGhostPayload(
     area_id: ghost.area_id,
     plan_id: ghost.plan_id,
     inventory_item_ids: ghost.inventory_item_ids,
+    // Carry the blueprint's ownership/visibility fields (bug-audit-2026-07-10
+    // #5). Without these the materialised row takes the DB defaults
+    // (scope='home', created_by=NULL), so a PERSONAL routine's occurrence
+    // becomes home-visible to every member and drops out of the author's "Mine"
+    // filter. The ghost already carries them from the blueprint (taskEngine).
+    scope: ghost.scope ?? "home",
+    created_by: ghost.created_by ?? null,
+    assigned_to: ghost.assigned_to ?? null,
     // Wave-20.8 — preserve harvest window context across materialisation
     // / postpone. Without these, a delayed (postponed) harvest task would
     // be created without window_end_date and silently lose every window

@@ -124,6 +124,15 @@ serve(async (req) => {
           due_date: new Date(nextMs).toISOString().split("T")[0],
           location_id: bp.location_id,
           area_id: bp.area_id,
+          // Carry the blueprint's ownership/visibility + plan link
+          // (bug-audit-2026-07-10 #5). Without these the row takes the DB
+          // defaults (scope='home', created_by=NULL, plan_id=NULL), so the cron
+          // leaked every PERSONAL routine home-wide nightly and plan-linked
+          // routines vanished from plan views.
+          scope: bp.scope ?? "home",
+          created_by: bp.created_by ?? null,
+          assigned_to: bp.assigned_to ?? null,
+          plan_id: bp.plan_id ?? null,
           // Prefer the array column (set by automationEngine); fall back to the
           // legacy singular column so older blueprints still work.
           inventory_item_ids: bp.inventory_item_ids?.length

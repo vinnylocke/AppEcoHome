@@ -45,6 +45,8 @@ export interface ActionableTask {
   window_end_date?: string | null;
   next_check_at?: string | null;
   scope?: string | null;
+  created_by?: string | null;
+  assigned_to?: string | null;
 }
 
 export interface TaskActionContext {

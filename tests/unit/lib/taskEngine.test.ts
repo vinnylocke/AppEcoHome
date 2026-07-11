@@ -105,7 +105,9 @@ function makeTask(overrides: Record<string, unknown> = {}) {
     due_date: "2026-05-01",
     status: "Pending",
     inventory_item_ids: [],
-    updated_at: "2026-05-01T09:00:00.000Z",
+    // NB: the real `tasks` table has no `updated_at` column. Completed-task
+    // fixtures set `completed_at` (the column the engine actually reads).
+    completed_at: null,
     created_at: "2026-05-01T09:00:00.000Z",
     ...overrides,
   };
@@ -264,7 +266,7 @@ describe("TaskEngine.fetchTasksWithGhosts — completed task filtering", () => {
       id: "completed-in-window",
       due_date: "2026-05-05",
       status: "Completed",
-      updated_at: "2026-05-05T10:00:00.000Z",
+      completed_at: "2026-05-05T10:00:00.000Z",
     });
     queueTable("tasks", [task], []);
     queueTable("task_blueprints", [[]]);
@@ -278,7 +280,7 @@ describe("TaskEngine.fetchTasksWithGhosts — completed task filtering", () => {
       id: "completed-late",
       due_date: "2026-04-28",
       status: "Completed",
-      updated_at: "2026-05-03T10:00:00.000Z", // completed inside the window
+      completed_at: "2026-05-03T10:00:00.000Z", // completed inside the window
     });
     queueTable("tasks", [task], []);
     queueTable("task_blueprints", [[]]);
@@ -287,12 +289,31 @@ describe("TaskEngine.fetchTasksWithGhosts — completed task filtering", () => {
     expect(result.tasks.some((t: any) => t.id === "completed-late")).toBe(true);
   });
 
+  test("completion visibility keys off completed_at, NOT created_at (bug-audit-2026-07-10 #11)", async () => {
+    // Due + created BEFORE the window, but completed INSIDE it (an overdue task
+    // cleared today). It must show as "completed today". This fails if the
+    // engine ever reverts to `created_at`/the phantom `updated_at`: created_at
+    // is before the window, so the row would wrongly vanish.
+    const task = makeTask({
+      id: "overdue-cleared-today",
+      due_date: "2026-04-25",
+      created_at: "2026-04-20T09:00:00.000Z", // before the window
+      status: "Completed",
+      completed_at: "2026-05-06T08:00:00.000Z", // inside the window
+    });
+    queueTable("tasks", [task], []);
+    queueTable("task_blueprints", [[]]);
+
+    const result = await TaskEngine.fetchTasksWithGhosts(PARAMS);
+    expect(result.tasks.some((t: any) => t.id === "overdue-cleared-today")).toBe(true);
+  });
+
   test("completed task entirely outside the window (due and completed before) is excluded", async () => {
     const task = makeTask({
       id: "old-completed",
       due_date: "2026-04-01",
       status: "Completed",
-      updated_at: "2026-04-01T10:00:00.000Z",
+      completed_at: "2026-04-01T10:00:00.000Z",
     });
     queueTable("tasks", [task], []);
     queueTable("task_blueprints", [[]]);

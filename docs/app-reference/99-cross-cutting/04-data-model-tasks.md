@@ -23,6 +23,8 @@ ghosts (virtual, not persisted)
 
 Ghost tasks are materialised into real `tasks` rows when the user acts on them (complete / edit / delete).
 
+**Materialisation must carry the blueprint's ownership/visibility fields.** Both the frontend materialiser (`buildGhostPayload`) and the `generate-tasks` cron copy `scope`, `created_by`, `assigned_to` (and `plan_id`) from the blueprint onto the new `tasks` row. Dropping them lets the row take the DB defaults (`scope='home'`, `created_by=NULL`), which made a **personal** routine's occurrence home-visible to every member and dropped it from the author's "Mine" filter, and made plan-linked routines vanish from plan views (bug-audit-2026-07-10 #5). Completion visibility keys off `tasks.completed_at` — the table has **no `updated_at` column**, so any code reading `updated_at` silently gets `undefined` (bug-audit-2026-07-10 #11).
+
 ---
 
 ## Role 1 — Technical Reference
