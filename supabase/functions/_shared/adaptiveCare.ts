@@ -45,6 +45,7 @@ export interface RecentAdjustment {
   kind: string;
   status: string;
   created_at: string; // ISO
+  dismissed_at?: string | null; // ISO — when the user dismissed it (cooldown anchor)
 }
 
 export interface AreaInput {
@@ -146,10 +147,19 @@ export function realityStats(readings: MoistureReading[], floor: number, ceiling
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-/** Is this (area, kind) inside the cooldown window after a dismissal? */
+/** Is this (area, kind) inside the cooldown window after a dismissal?
+ *  Keyed off `dismissed_at` (when the user dismissed it), NOT `created_at` — a
+ *  proposal can sit open for weeks before being dismissed, so anchoring on
+ *  creation let a fresh dismissal lapse the cooldown immediately (bug-audit
+ *  2026-07-10 #19). Falls back to created_at for legacy rows with no
+ *  dismissed_at (their cooldowns have long since expired anyway). */
 export function inCooldown(recent: RecentAdjustment[], kind: string, todayIso: string): boolean {
   const cutoff = Date.parse(todayIso) - COOLDOWN_DAYS * 86_400_000;
-  return recent.some((r) => r.kind === kind && r.status === "dismissed" && Date.parse(r.created_at) >= cutoff);
+  return recent.some((r) => {
+    if (r.kind !== kind || r.status !== "dismissed") return false;
+    const anchor = Date.parse(r.dismissed_at ?? r.created_at);
+    return anchor >= cutoff;
+  });
 }
 
 /**

@@ -81,6 +81,24 @@ Deno.test("AC-003: cooldown blocks a kind dismissed within 14 days, not others",
   assertEquals(inCooldown(old, "tighten_watering", TODAY), false);
 });
 
+Deno.test("AC-003b: cooldown keys off dismissed_at, not created_at (bug-audit-2026-07-10 #19)", () => {
+  // Created 40 days ago (well past the 14-day window) but dismissed 2 days ago —
+  // the old created_at anchor lapsed the cooldown immediately; the fresh
+  // dismissal must keep it cooling.
+  const dismissedRecently = [{
+    kind: "tighten_watering", status: "dismissed",
+    created_at: "2026-05-31T00:00:00Z", dismissed_at: "2026-07-08T00:00:00Z",
+  }];
+  assertEquals(inCooldown(dismissedRecently, "tighten_watering", TODAY), true);
+
+  // Same old creation, but dismissed 20 days ago → cooldown genuinely lapsed.
+  const dismissedLongAgo = [{
+    kind: "tighten_watering", status: "dismissed",
+    created_at: "2026-05-31T00:00:00Z", dismissed_at: "2026-06-20T00:00:00Z",
+  }];
+  assertEquals(inCooldown(dismissedLongAgo, "tighten_watering", TODAY), false);
+});
+
 // ─── Confidence gates ─────────────────────────────────────────────────────────
 
 Deno.test("AC-004: silent below confidence / segment / reading-days gates", () => {

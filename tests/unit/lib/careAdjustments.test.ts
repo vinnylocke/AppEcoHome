@@ -85,39 +85,59 @@ function mkAdj(over: Partial<CareAdjustmentRow> = {}): CareAdjustmentRow {
 beforeEach(setupMock);
 
 describe("applyCareAdjustment — tighten/stretch", () => {
-  test("updates the blueprint frequency then marks the adjustment applied", async () => {
+  test("claims the proposal (CAS) then updates the blueprint frequency", async () => {
+    queueResult({ data: [{ id: "adj-1" }], error: null }); // claim wins
     const res = await applyCareAdjustment(mkAdj(), OPTS);
 
     expect(res.ok).toBe(true);
-    const bp = calls.find((c) => c.table === "task_blueprints")!;
-    expect(opArgs(bp, "update")?.[0]).toEqual({ frequency_days: 2 });
-    expect(opArgs(bp, "eq")).toEqual(["id", "bp-1"]);
-
-    const adj = calls.find((c) => c.table === "care_adjustments")!;
-    const patch = opArgs(adj, "update")?.[0] as Record<string, unknown>;
+    // The FIRST DB call is the atomic claim on care_adjustments, gated on status.
+    const claim = calls[0];
+    expect(claim.table).toBe("care_adjustments");
+    const patch = opArgs(claim, "update")?.[0] as Record<string, unknown>;
     expect(patch.status).toBe("applied");
     expect(patch.applied_by).toBe("user-1");
     expect(typeof patch.applied_at).toBe("string");
+    const eqOps = claim.ops.filter((o) => o.method === "eq").map((o) => o.args);
+    expect(eqOps).toContainEqual(["status", "proposed"]); // the CAS guard
+
+    const bp = calls.find((c) => c.table === "task_blueprints")!;
+    expect(opArgs(bp, "update")?.[0]).toEqual({ frequency_days: 2 });
+    expect(opArgs(bp, "eq")).toEqual(["id", "bp-1"]);
     expect(logEvent).toHaveBeenCalledWith("care_adjustment_applied", expect.objectContaining({ kind: "tighten_watering" }));
   });
 
-  test("blueprint update failure aborts — no status write, ok:false", async () => {
-    queueResult({ error: { message: "boom" } });
+  test("double-apply is prevented: a lost claim (0 rows) → ok:false, no mutation", async () => {
+    queueResult({ data: [], error: null }); // someone else already claimed it
+    const res = await applyCareAdjustment(mkAdj(), OPTS);
+
+    expect(res.ok).toBe(false);
+    expect(res.message).toMatch(/already been handled/);
+    expect(calls.some((c) => c.table === "task_blueprints")).toBe(false); // never mutated
+    expect(logEvent).not.toHaveBeenCalled();
+  });
+
+  test("blueprint update failure after claiming → revert to proposed, ok:false", async () => {
+    queueResult({ data: [{ id: "adj-1" }], error: null }); // claim wins
+    queueResult({ error: { message: "boom" } });            // blueprint update fails
     const res = await applyCareAdjustment(mkAdj({ kind: "stretch_watering", suggested_frequency_days: 5 }), OPTS);
 
     expect(res.ok).toBe(false);
-    expect(calls.some((c) => c.table === "care_adjustments")).toBe(false);
+    // The last care_adjustments write reverts the claim so it can be retried.
+    const adjCalls = calls.filter((c) => c.table === "care_adjustments");
+    const revert = opArgs(adjCalls[adjCalls.length - 1], "update")?.[0] as Record<string, unknown>;
+    expect(revert.status).toBe("proposed");
+    expect(revert.applied_at).toBeNull();
     expect(logEvent).not.toHaveBeenCalled();
   });
 });
 
 describe("applyCareAdjustment — create_watering_routine", () => {
-  test("creates the blueprint + first task, kicks generation, marks applied", async () => {
+  test("claims, then creates the blueprint + first task, kicks generation", async () => {
+    queueResult({ data: [{ id: "adj-1" }], error: null }); // claim wins (first call)
     queueResult({ data: { name: "Raised Bed A", location_id: "loc-1" } }); // areas
     queueResult({ data: [{ id: "item-1" }, { id: "item-2" }] }); // planted instances
     queueResult({ data: { id: "bp-new", title: "Watering — Raised Bed A", description: "d" } }); // blueprint insert
     queueResult({ error: null }); // task insert
-    queueResult({ error: null }); // status update
 
     const res = await applyCareAdjustment(
       mkAdj({ kind: "create_watering_routine", blueprint_id: null, suggested_frequency_days: 3 }),
@@ -143,7 +163,8 @@ describe("applyCareAdjustment — create_watering_routine", () => {
 });
 
 describe("applyCareAdjustment — stress_risk", () => {
-  test("acknowledges only: no blueprint/task mutation, just the status write", async () => {
+  test("acknowledges only: the claim IS the whole write, no blueprint/task mutation", async () => {
+    queueResult({ data: [{ id: "adj-1" }], error: null }); // claim wins
     const res = await applyCareAdjustment(
       mkAdj({ kind: "stress_risk", blueprint_id: null, suggested_frequency_days: null }),
       OPTS,
@@ -151,17 +172,20 @@ describe("applyCareAdjustment — stress_risk", () => {
 
     expect(res.ok).toBe(true);
     expect(res.message).toMatch(/Noted/);
+    // Only the claim on care_adjustments — no separate status write, no mutation.
     expect(calls.map((c) => c.table)).toEqual(["care_adjustments"]);
   });
 });
 
 describe("dismissCareAdjustment", () => {
-  test("sets status dismissed and logs the event", async () => {
+  test("sets status dismissed + dismissed_at and logs the event", async () => {
     const res = await dismissCareAdjustment(mkAdj());
 
     expect(res.ok).toBe(true);
     const adj = calls.find((c) => c.table === "care_adjustments")!;
-    expect(opArgs(adj, "update")?.[0]).toEqual({ status: "dismissed" });
+    const patch = opArgs(adj, "update")?.[0] as Record<string, unknown>;
+    expect(patch.status).toBe("dismissed");
+    expect(typeof patch.dismissed_at).toBe("string"); // cooldown anchor (bug-audit #19)
     expect(logEvent).toHaveBeenCalledWith("care_adjustment_dismissed", expect.objectContaining({ kind: "tighten_watering" }));
   });
 

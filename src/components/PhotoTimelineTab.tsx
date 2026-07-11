@@ -477,6 +477,12 @@ export default function PhotoTimelineTab({ inventoryItemId }: PhotoTimelineTabPr
 
                 {activeObs.actions.map((action, ai) => {
                   const busy = actionBusy === `${activeObs.id}-${ai}`;
+                  // Disable EVERY action button on this observation while any one
+                  // is in flight — the actions jsonb is a whole-array read-modify-
+                  // write, so a second action firing mid-write would compute from
+                  // the pre-update array and revert the first (bug-audit-2026-07-10
+                  // #16). Only the tapped button shows its spinner.
+                  const anyBusy = actionBusy !== null;
                   const title =
                     action.kind === "create_task" ? action.title ?? "Add a task"
                     : action.kind === "check_for_ailment" ? `Possible ${action.suspected ?? "ailment"} — run a diagnosis`
@@ -494,7 +500,7 @@ export default function PhotoTimelineTab({ inventoryItemId }: PhotoTimelineTabPr
                           <button
                             data-testid="photo-action-apply"
                             onClick={() => void applyPhotoAction(activeObs, ai)}
-                            disabled={busy}
+                            disabled={anyBusy}
                             className="h-8 px-3 rounded-lg bg-rhozly-primary text-white text-[10px] font-black flex items-center gap-1 hover:opacity-90 disabled:opacity-50"
                           >
                             {busy ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
@@ -504,7 +510,7 @@ export default function PhotoTimelineTab({ inventoryItemId }: PhotoTimelineTabPr
                             <button
                               data-testid="photo-action-dismiss"
                               onClick={() => void dismissPhotoAction(activeObs, ai)}
-                              disabled={busy}
+                              disabled={anyBusy}
                               className="h-8 px-3 rounded-lg bg-white/15 text-white/80 text-[10px] font-black flex items-center gap-1 hover:bg-white/25 disabled:opacity-50"
                             >
                               <X size={10} /> Dismiss

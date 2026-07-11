@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
           .eq("action_kind", "valve_open")
           .eq("automations.is_active", true)
           .in("devices.area_id", areaIds),
-        db.from("care_adjustments").select("id, area_id, kind, status, created_at, applied_at, evidence, blueprint_id")
+        db.from("care_adjustments").select("id, area_id, kind, status, created_at, dismissed_at, applied_at, evidence, blueprint_id")
           .eq("home_id", homeId)
           .gte("created_at", new Date(Date.now() - 45 * 86_400_000).toISOString()),
         db.from("weather_snapshots").select("data").eq("home_id", homeId).maybeSingle(),
@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
             blueprint: bp ? { id: bp.id, frequency_days: bp.frequency_days } : null,
             hasWateringAutomation: automationAreaIds.has(areaId),
           },
-          recent: ((recentAdj ?? []) as Array<{ area_id: string | null; kind: string; status: string; created_at: string }>)
+          recent: ((recentAdj ?? []) as Array<{ area_id: string | null; kind: string; status: string; created_at: string; dismissed_at: string | null }>)
             .filter((r) => r.area_id === areaId),
           forecastMaxC,
         };

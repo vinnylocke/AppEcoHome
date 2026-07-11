@@ -47,6 +47,8 @@ Example detectors (illustrative names):
 - `harvestReadyPattern` — fruiting + days-past-planted check
 - `lowEngagementPattern` — user hasn't opened in N days
 
+**`neglectedPlant`** — flags a Planted item (planted 14+ days ago) with **no care activity in 14 days**. "Care" is deliberately broad (bug-audit-2026-07-10 #21 — it used to count ONLY manual `task_completed` user_events, so a plant auto-watered daily still read as neglected): a **Completed task** linked to the item (by `completed_at`, so auto/window/bulk completions count), a **valve turned on in the item's area** (`valve_events` turn_on → `devices.area_id`; automation OR manual watering), or a **recent journal entry**. Any one clears the flag.
+
 ### `PatternHit` shape
 
 ```ts

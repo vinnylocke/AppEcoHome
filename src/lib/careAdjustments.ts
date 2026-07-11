@@ -36,6 +36,27 @@ export async function applyCareAdjustment(
   opts: { homeId: string; currentUserId: string | null },
 ): Promise<ApplyResult> {
   const { homeId, currentUserId } = opts;
+
+  // Atomically CLAIM the proposal (CAS proposed→applied) BEFORE any side-effect.
+  // Apply is reachable from BOTH the dashboard card and the Daily Brief's inline
+  // button on the same screen; without this, tapping both (or two members acting
+  // at once) ran the create-routine mutation twice → duplicate blueprints + tasks
+  // (bug-audit-2026-07-10 #7). Only the caller whose update matches status
+  // 'proposed' claims the row; everyone else gets 0 rows and bails.
+  const { data: claimed, error: claimErr } = await supabase
+    .from("care_adjustments")
+    .update({ status: "applied", applied_at: new Date().toISOString(), applied_by: currentUserId })
+    .eq("id", adj.id)
+    .eq("status", "proposed")
+    .select("id");
+  if (claimErr) {
+    Logger.error("Adaptive care claim failed", claimErr, { id: adj.id });
+    return { ok: false, message: "Couldn't apply that change." };
+  }
+  if (!claimed || claimed.length === 0) {
+    return { ok: false, message: "That suggestion has already been handled." };
+  }
+
   try {
     if ((adj.kind === "tighten_watering" || adj.kind === "stretch_watering") && adj.blueprint_id && adj.suggested_frequency_days) {
       const { error } = await supabase
@@ -82,16 +103,15 @@ export async function applyCareAdjustment(
         created_by: currentUserId,
       }]);
       if (tError) throw tError;
-      BlueprintService.generateBlueprintTasks(blueprint.id, todayStr);
+      // Fire-and-forget generation of the recurring horizon; the blueprint +
+      // first task already exist, so a failure just defers to the daily cron.
+      // `.catch` prevents an unhandled rejection escaping the claimed state.
+      void BlueprintService.generateBlueprintTasks(blueprint.id, todayStr)
+        ?.catch?.((e: unknown) => Logger.error("generateBlueprintTasks failed", e, { id: adj.id }));
     }
-    // stress_risk: acknowledge only.
+    // stress_risk: acknowledge only — the claim above already set 'applied'.
 
-    const { error: stErr } = await supabase
-      .from("care_adjustments")
-      .update({ status: "applied", applied_at: new Date().toISOString(), applied_by: currentUserId })
-      .eq("id", adj.id);
-    if (stErr) throw stErr;
-
+    // The claim already flipped status→applied; nothing more to write here.
     logEvent(EVENT.CARE_ADJUSTMENT_APPLIED, { kind: adj.kind, area_id: adj.area_id, suggested: adj.suggested_frequency_days });
     return {
       ok: true,
@@ -103,6 +123,12 @@ export async function applyCareAdjustment(
             : "Schedule updated — we'll verify it against the sensor and report back.",
     };
   } catch (err) {
+    // The side-effect failed AFTER we claimed the row — revert to 'proposed' so
+    // the suggestion isn't lost (marked applied with nothing applied).
+    await supabase
+      .from("care_adjustments")
+      .update({ status: "proposed", applied_at: null, applied_by: null })
+      .eq("id", adj.id);
     Logger.error("Adaptive care apply failed", err, { id: adj.id });
     return { ok: false, message: "Couldn't apply that change." };
   }
@@ -112,7 +138,12 @@ export async function dismissCareAdjustment(
   adj: Pick<CareAdjustmentRow, "id" | "kind" | "area_id">,
 ): Promise<ApplyResult> {
   try {
-    const { error } = await supabase.from("care_adjustments").update({ status: "dismissed" }).eq("id", adj.id);
+    // Stamp WHEN it was dismissed so the reconciler's 14-day cooldown keys off
+    // the dismissal moment, not created_at (bug-audit-2026-07-10 #19).
+    const { error } = await supabase
+      .from("care_adjustments")
+      .update({ status: "dismissed", dismissed_at: new Date().toISOString() })
+      .eq("id", adj.id);
     if (error) throw error;
     logEvent(EVENT.CARE_ADJUSTMENT_DISMISSED, { kind: adj.kind, area_id: adj.area_id });
     return { ok: true, message: "Dismissed — we won't suggest this again for a couple of weeks." };
