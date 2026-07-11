@@ -32,6 +32,19 @@ describe("sunFit", () => {
     expect(parsePlantSunPreference("filtered sun")).toBe("Partly Sunny");
   });
 
+  it("handles array + non-string sunlight without throwing (RHOZLY-3Y)", () => {
+    // Perenual/api plants store sunlight as a string[] — a raw array crashed
+    // `.trim()` and took down the layout editor's sun overlay.
+    expect(parsePlantSunPreference(["full sun"] as unknown as string)).toBe("Full Sun");
+    expect(parsePlantSunPreference(["part shade", "full sun"] as unknown as string)).toBe("Full Sun"); // ordered: full wins
+    expect(parsePlantSunPreference(["deep shade"] as unknown as string)).toBe("Shade");
+    expect(parsePlantSunPreference([] as unknown as string)).toBe("Unknown");
+    expect(parsePlantSunPreference([""] as unknown as string)).toBe("Unknown");
+    // Defensive: non-string, non-array inputs must not throw either.
+    expect(parsePlantSunPreference(123 as unknown as string)).toBe("Unknown");
+    expect(parsePlantSunPreference({} as unknown as string)).toBe("Unknown");
+  });
+
   it("returns Match when plant preference equals shape class", () => {
     expect(getPlantSunFit("Full Sun", "Full Sun")).toBe("Match");
     expect(getPlantSunFit("Shade", "Shade")).toBe("Match");

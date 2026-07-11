@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,409 tests across 128 files
+### Unit tests — 1,410 tests across 128 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
@@ -767,7 +767,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `plantProvider.test.ts` | 10 | `searchAllProviders` merge/fallback, `getProviderPlantDetails` provider dispatch, config-gate |
 | `taskOptimiser.test.ts` | 12 | `analyseArea` — all 4 scenarios (fragmentation, redundant, two-tier, pileup), non-optimisable categories, cross-area isolation; `canUndoSession` — recent/old sessions, reversed flag, edited blueprint |
 | `taskOptimiserAi.test.ts` | 9 | `analyseAreaAi` — correct edge function invocation, empty proposals, error propagation, optional body fields; `fetchNegativeFeedback` — field mapping, empty result, DB error, missing snapshot fields |
-| `garden.test.ts` | 18 | `sunFit` (parse preferences, match/adjacent/mismatch, summary), `plantTokens` (stable hash colour, initial, grid layout, max), `microclimate` (frost risk classification, wind shelter from walls/greenhouse, low-fence ignore), `companionPlants` (beneficial pairs, harmful pairs, neutrals, group precedence) |
+| `garden.test.ts` | 19 | `sunFit` (parse preferences incl. **array/non-string coercion — RHOZLY-3Y**, match/adjacent/mismatch, summary), `plantTokens` (stable hash colour, initial, grid layout, max), `microclimate` (frost risk classification, wind shelter from walls/greenhouse, low-fence ignore), `companionPlants` (beneficial pairs, harmful pairs, neutrals, group precedence) |
 | `useAiPlantFreshness.test.ts` | 7 | Wave 5 — resolves globals vs shallow forks vs deep forks, ack semantics target global plant_id, empty input, missing parent (RLS/deleted) returns null |
 | `UpdatedChip.test.ts` | 6 | Wave 5 — renders nothing for count≤0, singular vs plural label, button when onClick provided, span otherwise, fires onClick |
 | `aiPlantOverrides.test.ts` | 12 | Wave 6 — `diffOverriddenFields` (no-change, scalar, array, sort/case-insensitive, null/empty equivalence, ignores non-overridable fields) + `mergeOverriddenFields` (union, dedup, null/empty handling) |
