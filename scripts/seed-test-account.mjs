@@ -82,7 +82,9 @@ const KEY = IS_PROD
 
 if (!URL) die(IS_PROD ? "SUPABASE_PROD_URL not set in .env" : "LOCAL_SUPABASE_URL not set");
 if (!KEY) die(IS_PROD ? "SUPABASE_SERVICE_ROLE_KEY not set in .env" : "LOCAL_SERVICE_ROLE_KEY not set (get it from `supabase status`)");
-if (IS_PROD && !PASSWORD) die("--password is required when creating a --prod account");
+// NB: --password is required only when CREATING a brand-new account (checked in
+// findOrCreateUser). For an existing account we reuse it and NEVER reset the
+// password — so re-seeding an existing account needs no --password.
 
 const sb = createClient(URL, KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
@@ -98,6 +100,41 @@ function isoTs(offsetDays = 0) {
   return new Date(Date.now() + offsetDays * day).toISOString();
 }
 function pick(arr, n) { return arr.slice(0, n); }
+
+// A COLD-SNAP weather snapshot (Open-Meteo shape) so the layout FROST overlay
+// renders — the frost overlay reads data.daily.temperature_2m_min and classifies
+// the worst night (≤ -3 = Severe). Day index 2 is a hard frost (-4 °C). Complete
+// enough (daily 8d + hourly 48h + current + utc_offset) not to break the weather
+// panel / rules. Overrides the real forecast until the next sync-weather (daily),
+// which is fine for a test account. See docs/plans/seed-sprout-garden-layout-data.md.
+function coldSnapSnapshot(lat, lng) {
+  const dayMin = [8, 5, -4, -1, 2, 6, 9, 10];
+  const dayMax = [14, 12, 4, 7, 11, 15, 17, 18];
+  const time = dayMin.map((_, i) => isoDate(i - 1)); // yesterday .. +6
+  const daily = {
+    time,
+    temperature_2m_min: dayMin,
+    temperature_2m_max: dayMax,
+    precipitation_sum: time.map((_, i) => (i === 2 ? 0 : i % 3 === 0 ? 1.2 : 0)),
+    weathercode: time.map((_, i) => (i === 2 ? 71 : [1, 2, 3, 0][i % 4])),
+    windspeed_10m_max: time.map((_, i) => 12 + (i % 3) * 5),
+    precipitation_probability_max: time.map((_, i) => (i === 2 ? 40 : 10)),
+  };
+  const hTime = [], hTemp = [], hWind = [], hPop = [], hPrecip = [], hRh = [], hCode = [];
+  for (let i = 0; i < 48; i++) {
+    const hour = i % 24;
+    hTime.push(`${isoDate(Math.floor(i / 24) - 1)}T${String(hour).padStart(2, "0")}:00`);
+    hTemp.push(Math.round((6 + Math.sin((hour / 24) * Math.PI * 2 - Math.PI / 2) * 6) * 10) / 10);
+    hWind.push(10 + (hour % 5) * 2);
+    hPop.push(10); hPrecip.push(0); hRh.push(70 + (hour % 6) * 3); hCode.push(hour % 3);
+  }
+  return {
+    latitude: lat, longitude: lng, timezone: "Europe/London", utc_offset_seconds: 3600,
+    daily,
+    hourly: { time: hTime, temperature_2m: hTemp, wind_speed_10m: hWind, precipitation_probability: hPop, precipitation: hPrecip, relative_humidity_2m: hRh, weather_code: hCode },
+    current: { time: `${isoDate(0)}T09:00`, temperature_2m: 6, wind_speed_10m: 12, weather_code: 2, relative_humidity_2m: 78 },
+  };
+}
 
 // AES-256-GCM, matching _shared/integrations/encrypt.ts: base64(iv[12] || ciphertext || authTag[16]).
 function encryptCreds(obj) {
@@ -214,21 +251,21 @@ const tipTap = (text) => ({ type: "doc", content: [{ type: "paragraph", content:
 
 // ───────────────────────── auth user + homes ─────────────────────────
 async function findOrCreateUser() {
-  const created = await sb.auth.admin.createUser({
-    email: EMAIL,
-    password: PASSWORD || randomUUID(),
-    email_confirm: true,
-  });
-  if (created.data?.user) {
-    console.log(`👤  Created auth user ${created.data.user.id}`);
-    return created.data.user.id;
+  // Existence check first (the handle_new_user trigger makes a user_profiles row
+  // on signup). If it exists, REUSE it and never touch the password — resetting
+  // a test account's password is a standing no-no and would lock the owner out
+  // of the credentials they already have.
+  const { data: existing } = await sb.from("user_profiles").select("uid").eq("email", EMAIL).maybeSingle();
+  if (existing?.uid) {
+    console.log(`👤  Reusing existing auth user ${existing.uid} (password unchanged)`);
+    return existing.uid;
   }
-  // Already exists → find uid via the profile (created by the handle_new_user trigger).
-  const { data: prof } = await sb.from("user_profiles").select("uid").eq("email", EMAIL).maybeSingle();
-  if (!prof?.uid) die(`createUser failed (${created.error?.message}) and no profile found for ${EMAIL}`);
-  if (PASSWORD) await sb.auth.admin.updateUserById(prof.uid, { password: PASSWORD });
-  console.log(`👤  Reusing existing auth user ${prof.uid}`);
-  return prof.uid;
+  // Brand-new account → a password is required (a random one would be unusable).
+  if (!PASSWORD) die(`--password is required to CREATE a new account for ${EMAIL} (it doesn't exist yet).`);
+  const created = await sb.auth.admin.createUser({ email: EMAIL, password: PASSWORD, email_confirm: true });
+  if (!created.data?.user) die(`createUser failed: ${created.error?.message}`);
+  console.log(`👤  Created auth user ${created.data.user.id}`);
+  return created.data.user.id;
 }
 
 const HOME_DEFS = [
@@ -392,11 +429,14 @@ async function seedHome(homeId, uid, homeIndex, allocId) {
   const locDefs = outdoors
     ? [["Back Garden", "Outside", true], ["Front Garden", "Outside", true], ["Greenhouse", "Outside", true]]
     : [["Balcony", "Outside", true], ["Living Room", "Inside", false], ["Kitchen", "Inside", false]];
+  // pH deliberately spans ALL FIVE overlay bands so the layout pH overlay shows
+  // every colour: <5.5 acidic-red, 5.5–6.5 amber, 6.5–7.5 neutral-grey,
+  // 7.5–8.0 light-blue, >8.0 alkaline-blue (see docs/plans/seed-sprout-garden-layout-data.md).
   const areaDefs = outdoors
     ? [
-        ["Raised Bed A", "Loam", 6.5, 42000, true], ["Raised Bed B", "Loam", 6.6, 41000, true],
-        ["South Border", "Clay", 6.8, 35000, true], ["Veg Patch", "Loam", 6.4, 45000, true],
-        ["Herb Spiral", "Sandy", 7.0, 38000, true], ["Greenhouse Bench", "Potting Mix", 5.9, 22000, true],
+        ["Raised Bed A", "Ericaceous", 4.9, 42000, true], ["Raised Bed B", "Loam", 6.1, 41000, true],
+        ["South Border", "Clay", 6.9, 35000, true], ["Veg Patch", "Loam", 7.8, 45000, true],
+        ["Herb Spiral", "Chalky", 8.4, 38000, true], ["Greenhouse Bench", "Potting Mix", 5.9, 22000, true],
       ]
     : [
         ["Balcony Planters", "Potting Mix", 6.2, 18000, true], ["Windowsill", "Potting Mix", 6.0, 3000, false],
@@ -458,7 +498,7 @@ async function seedHome(homeId, uid, homeIndex, allocId) {
         location_id: loc.id, location_name: loc.name, area_id: area.id, area_name: area.name,
         growth_state: nextStage(),
       });
-      plantedInstances.push({ id, name });
+      plantedInstances.push({ id, name, area_id: area.id });
     }
     inventory.push(row);
     // A couple of plants get a second instance for volume.
@@ -470,7 +510,7 @@ async function seedHome(homeId, uid, homeIndex, allocId) {
         identifier: `${name.slice(0, 3).toUpperCase()}-${(i + 1).toString().padStart(3, "0")}B`,
         growth_state: MATURE_STAGES[i],
       });
-      plantedInstances.push({ id: id2, name });
+      plantedInstances.push({ id: id2, name, area_id: area.id });
     }
   });
   await insert("inventory_items", inventory);
@@ -547,16 +587,25 @@ async function seedHome(homeId, uid, homeIndex, allocId) {
   (libAil ?? []).slice(homeIndex * 5, homeIndex * 5 + 5).forEach((a) => ailments.push(mapAilmentLibraryRow(a, homeId)));
   await insert("ailments", ailments);
 
-  // Link 3 ailments to matching planted instances where possible.
+  // Concentrate ACTIVE ailment links so the layout AILMENT-RING overlay shows all
+  // three severities: one bed with 1 link (low), one with 3 (moderate), one with
+  // 5 (severe). useShapeLiveState groups active links by the plant's area
+  // (>=4 severe, >=2 moderate, else low). See docs/plans/seed-sprout-garden-layout-data.md.
+  const instByArea = {};
+  for (const p of plantedInstances) if (p.area_id) (instByArea[p.area_id] ??= []).push(p);
+  const areasWithPlants = Object.keys(instByArea).filter((a) => instByArea[a].length > 0);
   const links = [];
-  ailments.slice(0, 3).forEach((ail) => {
-    const match = plantedInstances.find((p) => ail.affected_plants.includes(p.name)) || plantedInstances[0];
-    if (match) links.push({
-      plant_instance_id: match.id, ailment_id: ail.id, home_id: homeId,
-      linked_by: uid, status: "active",
-    });
+  [1, 3, 5].forEach((n, ai) => {
+    const areaId = areasWithPlants[ai];
+    if (!areaId) return;
+    const insts = instByArea[areaId];
+    for (let k = 0; k < n; k++) {
+      const inst = insts[k % insts.length];
+      const ail = ailments[(ai * 5 + k) % ailments.length]; // distinct ailment per link in the bed
+      links.push({ plant_instance_id: inst.id, ailment_id: ail.id, home_id: homeId, linked_by: uid, status: "active" });
+    }
   });
-  // dedupe by (instance, ailment)
+  // dedupe by (instance, ailment) in case a bed has few instances
   const seen = new Set();
   const linksUniq = links.filter((l) => { const k = `${l.plant_instance_id}|${l.ailment_id}`; if (seen.has(k)) return false; seen.add(k); return true; });
   await insert("plant_instance_ailments", linksUniq);
@@ -648,8 +697,31 @@ async function seedHome(homeId, uid, homeIndex, allocId) {
   });
   // a path + a lawn for flavour
   shapes.push({ id: randomUUID(), layout_id: layoutId, shape_type: "rect", label: "Path", color: "#d6d3d1", x_m: 0, y_m: 7, width_m: 24, height_m: 1.2, z_index: 10 });
-  shapes.push({ id: randomUUID(), layout_id: layoutId, shape_type: "circle", label: "Lawn", color: "#86efac", x_m: 17, y_m: 10, radius_m: 3, z_index: 0 });
+  shapes.push({ id: randomUUID(), layout_id: layoutId, shape_type: "circle", label: "Lawn", color: "#86efac", x_m: 21, y_m: 13, radius_m: 2, z_index: 0 });
+  // Sheltering structures (preset_id + extrude_m ≥ 1) so the microclimate WIND
+  // overlay varies. computeWindExposure is centre-to-centre within 3 m: 2 shelters
+  // → Sheltered, 1 → Partly Sheltered, else Exposed. Beds are laid out by index at
+  // (1,1),(8,1),(15,1),(1,7),(8,7),(15,7) [centres +2.5,+2 for a 5×4 rect]. Placed
+  // to give shape[0] two shelters (Sheltered), shape[1] + shape[5] one each
+  // (Partly), the rest Exposed. See docs/plans/seed-sprout-garden-layout-data.md.
+  const struct = (label, preset, x, y, w, h, extrude, color) => shapes.push({
+    id: randomUUID(), layout_id: layoutId, shape_type: "rect", label, color, preset_id: preset,
+    x_m: x, y_m: y, width_m: w, height_m: h, extrude_m: extrude, z_index: 11,
+  });
+  struct("North Wall (A)", "wall", 1, 0.3, 5, 0.4, 1.8, "#9ca3af");     // centre 3.5,0.5 → shelters Bed A
+  struct("Shed", "shed", 0.1, 2.5, 1, 1, 2.2, "#a8a29e");              // centre 0.6,3 → shelters Bed A (→ Sheltered)
+  struct("North Wall (B)", "wall", 8, 0.3, 5, 0.4, 1.8, "#9ca3af");     // centre 10.5,0.5 → Bed B Partly
+  struct("Greenhouse", "greenhouse", 19.5, 7, 1.6, 4, 2.5, "#bae6fd");  // centre 20.3,9 → Greenhouse Bench Partly
   await insert("garden_shapes", shapes);
+
+  // — Cold-snap weather so the layout FROST overlay renders (upsert on home_id;
+  //   resetHome leaves weather_snapshots alone, so the real forecast would show
+  //   no frost). Overrides real weather until the next sync-weather. —
+  const { error: wxErr } = await sb.from("weather_snapshots").upsert(
+    { home_id: homeId, data: coldSnapSnapshot(HOME_DEFS[homeIndex].lat, HOME_DEFS[homeIndex].lng), updated_at: new Date().toISOString() },
+    { onConflict: "home_id" },
+  );
+  if (wxErr) console.warn(`   ⚠️  weather_snapshots upsert: ${wxErr.message}`);
 
   // — Shopping lists —
   const listActive = randomUUID();
@@ -747,10 +819,11 @@ async function seedHome(homeId, uid, homeIndex, allocId) {
   //    "ping" (POST a reading to its webhook) to fire a sensor automation. No
   //    real hardware: custom_http isn't polled by any cron, and the automation's
   //    action is a notification (not a valve), so it runs end-to-end. ──
-  if (homeIndex === 0) await seedSmartHome(homeId, uid, areas[0], locations[0], blueprints);
+  if (homeIndex === 0) await seedSmartHome(homeId, uid, areas, locations, blueprints);
 }
 
-async function seedSmartHome(homeId, uid, bed, loc, blueprints) {
+async function seedSmartHome(homeId, uid, areas, locations, blueprints) {
+  const bed = areas[0], loc = locations[0];
   const secret = `demo-secret-${homeId.slice(0, 8)}`;
   const integrationId = randomUUID();
   await insert("integrations", [{
@@ -765,12 +838,35 @@ async function seedSmartHome(homeId, uid, bed, loc, blueprints) {
     provider: "custom_http", metadata: { model: "Demo-WH51" }, is_active: true,
     battery_percent: 82, battery_reported_at: isoTs(0), last_seen_at: isoTs(0),
   }]);
-  // Latest moisture is HEALTHY (>30%) so the alert below won't auto-fire — the
+  // Latest moisture is HEALTHY (~48%) so the alert below won't auto-fire — the
   // user pushes a dry reading to trigger it.
   await insert("device_readings", [3, 2, 1, 0].map((d) => ({
     id: randomUUID(), device_id: sensorId, home_id: homeId, recorded_at: isoTs(-d),
     data: { soil_moisture: 50 - d, soil_temp: 18 + d * 0.3, soil_ec: 1100 + d * 20, battery: 82 },
   })));
+
+  // Two MORE soil sensors on other beds so the layout MOISTURE overlay shows a
+  // full spread — dry (amber <30) and wet (blue >60) alongside Bed A's ideal
+  // (green). Latest reading is stamped now (the overlay only trusts <24h data,
+  // and custom_http isn't polled — re-run the seed to refresh before a session).
+  // See docs/plans/seed-sprout-garden-layout-data.md.
+  const extraSensors = [
+    { area: areas[1], moisture: 22, label: "dry" },   // amber
+    { area: areas[2], moisture: 72, label: "wet" },    // blue
+  ].filter((s) => s.area);
+  for (const s of extraSensors) {
+    const devId = randomUUID();
+    await insert("devices", [{
+      id: devId, integration_id: integrationId, home_id: homeId, location_id: loc.id, area_id: s.area.id,
+      external_device_id: `demo-soil-${s.label}`, name: `${s.area.name} Soil Sensor`, device_type: "soil_sensor",
+      provider: "custom_http", metadata: { model: "Demo-WH51" }, is_active: true,
+      battery_percent: 76, battery_reported_at: isoTs(0), last_seen_at: isoTs(0),
+    }]);
+    await insert("device_readings", [2, 1, 0].map((d) => ({
+      id: randomUUID(), device_id: devId, home_id: homeId, recorded_at: isoTs(-d),
+      data: { soil_moisture: s.moisture + (2 - d), soil_temp: 17 + d * 0.2, soil_ec: 1050, battery: 76 },
+    })));
+  }
   // A water valve on the same bed so valve automations are demo-able ("open the
   // valve on Raised Bed A when soil moisture drops below 30%"). custom_http
   // isn't polled and nothing auto-fires it — it exists to be referenced.
