@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Integrations & security",
-    "items": [
-      "Hardened custom device integrations: valve control can no longer be redirected to an unintended address, and a device reporting a future timestamp can no longer mask its real latest reading."
-    ]
-  }
-]
+[]
