@@ -69,6 +69,7 @@ Then `onTierChange()` lifts flags into App state so the rest of the app re-rende
 | AI Assistant Card | `ai_enabled` |
 | New Plan Form (AI blueprint) | `ai_enabled` |
 | Garden Overhaul (photo redesign) | `ai_enabled` (Sage+) |
+| Sketch to Layout (drawing → 2D layout) | `ai_enabled` (Sage+) — server: `requireHomeMembership` + `guardAiByHome` + explicit Sage+ + rate limit on `sketch-to-layout` |
 | Plant-First Planner ("plan around my plants") | `ai_enabled` (Sage+) — client gate + server `guardAiByUser` + rate limit on `generate-plant-first-plan` |
 | Regenerate plan | `ai_enabled` |
 | Photo-to-task in AddTaskModal | `ai_enabled` |

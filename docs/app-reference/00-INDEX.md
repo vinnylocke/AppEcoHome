@@ -76,6 +76,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [The Nursery](./03-garden-hub/10-nursery.md) — seed packets + sowings + plant-out lifecycle (lives behind a Plants / Nursery toggle on `/shed`)
 - [x] [Global Journal](./03-garden-hub/11-global-journal.md) — every journal entry across the home, polymorphically attached (plant / location / area / plan / unassigned), with auto-update on task completion
 - [x] [Senescence](./03-garden-hub/12-senescence.md) — the history of ended plant instances; filter by natural / other; reversible Restore that re-fires task generation
+- [x] [Sketch to Layout](./03-garden-hub/13-sketch-to-layout.md) — hand-drawn sketch → AI shape detection → confirmation wizard → 2D layout
 
 ## 04 — Planner & Shopping
 

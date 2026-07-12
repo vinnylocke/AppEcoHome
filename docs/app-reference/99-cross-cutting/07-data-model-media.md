@@ -17,6 +17,7 @@ Buckets (Supabase Storage)
 ├── plant-doctor-results     ← Cached AI responses (transient)
 ├── ailment-photos           ← Link Ailment Modal
 ├── area-scans               ← Area Scan Modal
+├── garden-sketches          ← Sketch to Layout (private, signed)
 ├── visualiser-captures      ← Plant Visualiser compositions
 ├── plant-sprites            ← Visualiser sprites
 ├── community-guide-images   ← Community Guide Editor
@@ -52,6 +53,7 @@ DB tables that reference media:
 | plant-doctor-results | Private | service role |
 | ailment-photos | Public | home member |
 | area-scans | Public | author |
+| garden-sketches | Private (signed) | service role (edge fn mints signed URLs) |
 | visualiser-captures | Private (signed) | home member |
 | plant-sprites | Public | home member |
 | community-guide-images | Public | guide author |

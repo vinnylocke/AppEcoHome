@@ -257,3 +257,45 @@ Deno.test({
     assertEquals(res.status !== 401 && res.status !== 403, true, `cron path should stay open, got ${res.status}`);
   },
 });
+
+// ─── Batch 3 (sketch-to-layout) — auth + membership + missing-field guard ────
+
+// EF-015: sketch-to-layout — no Authorization header → 401
+Deno.test({
+  name: "EF-015: sketch-to-layout — no Authorization header → 401",
+  ignore: SKIP,
+  fn: async () => {
+    const res = await callFunction("sketch-to-layout", {
+      body: { homeId: "00000001-0000-0000-0000-000000000002", sketchBase64: "abc" },
+    });
+    assertEquals(res.status, 401);
+  },
+});
+
+// EF-016: sketch-to-layout — valid JWT, alien homeId → 403 (membership gate)
+Deno.test({
+  name: "EF-016: sketch-to-layout — member JWT, alien homeId → 403",
+  ignore: SKIP,
+  fn: async () => {
+    const jwt = await getJwt("test1@rhozly.com");
+    const res = await callFunction("sketch-to-layout", {
+      headers: { Authorization: `Bearer ${jwt}` },
+      body: { homeId: "00000002-0000-0000-0000-000000000002", sketchBase64: "abc" }, // worker2's home
+    });
+    assertEquals(res.status, 403);
+  },
+});
+
+// EF-017: sketch-to-layout — valid JWT, own homeId, missing sketchBase64 → 400
+Deno.test({
+  name: "EF-017: sketch-to-layout — own homeId, missing sketchBase64 → 400",
+  ignore: SKIP,
+  fn: async () => {
+    const jwt = await getJwt("test1@rhozly.com");
+    const res = await callFunction("sketch-to-layout", {
+      headers: { Authorization: `Bearer ${jwt}` },
+      body: { homeId: "00000001-0000-0000-0000-000000000002" }, // no sketchBase64
+    });
+    assertEquals(res.status, 400);
+  },
+});

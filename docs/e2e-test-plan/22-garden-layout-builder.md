@@ -1,7 +1,7 @@
 # 22. Garden Layout Builder
 
 **Routes:** `/garden-layout` (list) and `/garden-layout/:layoutId` (editor)
-**Spec file:** `tests/e2e/specs/garden-layout.spec.ts`
+**Spec files:** `tests/e2e/specs/garden-layout.spec.ts`, `tests/e2e/specs/sketch-to-layout.spec.ts` (Sketch → Layout wizard, Stage 18)
 **Components:** `GardenLayoutList.tsx`, `GardenLayoutEditor.tsx`, `GardenEditorToolbar.tsx`, `GardenShapePanel.tsx`, `GardenShapeProperties.tsx`, `GardenRuler.tsx`, `GardenScaleBar.tsx`
 **Seed dependencies:** None (layouts created in tests; cleaned up by data isolation)
 **App-reference:** [05-tools/](../app-reference/05-tools/)
@@ -141,3 +141,15 @@ Phones (<768px) get a view-only layout viewer — no draw/edit tools
 | GLB-045 | ✅ | Zones / Templates / Microclimate / Export launchers in canvas top-right | — | ✅ Passing |
 | GLB-046 | ✅ | Tap canvas compass opens North sheet | — | ✅ Passing |
 | GLB-047 | 🔲 | Zones sheet "Create Zone" disabled with no selection | — | 🔲 Pending E2E |
+
+## Stage 18 — Sketch → Layout wizard (Sage+ AI feature)
+
+**Spec file:** `tests/e2e/specs/sketch-to-layout.spec.ts`
+**Component:** `SketchToLayoutWizard.tsx`, `src/lib/garden/sketchToShapes.ts`, `src/services/sketchToLayoutService.ts`
+**Seed dependencies:** None (layout created in test). The default E2E worker accounts are not guaranteed to be Sage tier, so the spec is written to be non-failing on either side of the tier gate — see below.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| SKL-001 | ✅ | Wizard opens via `create-sketch-layout` from the create-layout modal. Non-Sage accounts: asserts `sketch-to-layout-ai-gate` renders and stops. Sage+ accounts: mocks `**/functions/v1/sketch-to-layout`, uploads a fixture PNG via `sketch-upload-file`, runs detect → scale (`sketch-scale-width`) → classify (asserts `sketch-shape-row-0`/`sketch-shape-row-1` render for both mocked shapes) → review → create, and asserts navigation to `/garden-layout/:id` | `**/functions/v1/sketch-to-layout` (Sage+ branch only) | ✅ Passing |
+
+Unit coverage for the client-side metre-conversion math (`computeCanvasSize`, `normalizedWidthOf`, `gardenWidthFromShapeWidth`, `detectionToShapes`, `KIND_TO_PRESET_ID`) lives in `tests/unit/lib/sketchToShapes.test.ts` (Vitest), not here — see TESTING.md § Current Test Inventory.

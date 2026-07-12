@@ -48,6 +48,8 @@ const TIER_LIMITS: Record<string, Record<string, number>> = {
   // Garden Overhaul — expensive call (~$0.11 each: vision + 3 Imagen).
   // Sage tier limit is generous enough to experiment, evergreen for power users.
   "generate-garden-overhaul":        { sprout: 0,  botanist: 0,  sage: 3,   evergreen: 8 },
+  // Sketch → Layout — one Pro vision call (~$0.02 each). Sage+ only.
+  "sketch-to-layout":                { sprout: 0,  botanist: 0,  sage: 10,  evergreen: 25 },
 };
 const DEFAULT_TIER_LIMITS: Record<string, number> = {
   sprout: 0, botanist: 10, sage: 20, evergreen: 40,

@@ -468,6 +468,11 @@ verify_jwt = false
 [functions.generate-garden-overhaul]
 verify_jwt = true
 
+# Sketch → Layout — Sage+ single Gemini Vision pass. verify_jwt=true
+# (default) — the fn uses requireAuth() + requireHomeMembership().
+[functions.sketch-to-layout]
+verify_jwt = true
+
 # Plant Library Batch API — admin submits → returns 202 with batch_id.
 # verify_jwt off because the polling cron uses the same auth shape as
 # the existing seed/verify cron (publishable bearer token, no JWT).

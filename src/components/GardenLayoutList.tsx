@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Pencil, Trash2, ChevronRight, Loader2, Wand2, SquareDashed, ArrowLeft, Sprout, Copy, MoreVertical } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronRight, Loader2, Wand2, SquareDashed, ArrowLeft, Sprout, Copy, MoreVertical, PenLine } from "lucide-react";
 import { IconLayout } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import { readSnapshot, writeSnapshot } from "../lib/snapshotCache";
 import toast from "react-hot-toast";
 import FeatureGate from "./shared/FeatureGate";
+import SketchToLayoutWizard from "./SketchToLayoutWizard";
 
 interface Layout {
   id: string;
@@ -139,6 +140,7 @@ function GardenLayoutListInner({ homeId }: Props) {
   const [renameValue, setRenameValue] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [showSketch, setShowSketch] = useState(false);
 
   // Wizard — defaults to a beginner-friendly 4×3 m "Starter Garden" (Wave 4D)
   const [wizardMode, setWizardMode] = useState<null | "choice" | "scratch" | "builder" | "starter">(null);
@@ -726,6 +728,19 @@ function GardenLayoutListInner({ homeId }: Props) {
                       <p className="text-xs font-bold text-rhozly-on-surface/50 mt-0.5 leading-relaxed">Pre-made gardens — allotment plot, front border, container terrace.</p>
                     </div>
                   </button>
+                  <button
+                    data-testid="create-sketch-layout"
+                    onClick={() => { closeWizard(); setShowSketch(true); }}
+                    className="w-full flex items-start gap-4 p-5 rounded-3xl border-2 border-rhozly-outline/20 hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-left active:scale-[0.98]"
+                  >
+                    <div className="w-12 h-12 bg-rhozly-surface rounded-2xl flex items-center justify-center shrink-0">
+                      <PenLine size={22} className="text-rhozly-primary" />
+                    </div>
+                    <div>
+                      <p className="font-black text-rhozly-on-surface text-sm">Convert a sketch</p>
+                      <p className="text-xs font-bold text-rhozly-on-surface/50 mt-0.5 leading-relaxed">Turn a hand-drawn sketch into a layout with AI. Sage+</p>
+                    </div>
+                  </button>
                 </div>
                 <div className="px-6 pb-6 shrink-0">
                   <button onClick={closeWizard} className="w-full py-3 rounded-2xl border border-rhozly-outline/20 text-sm font-black text-rhozly-on-surface/60">
@@ -1118,6 +1133,8 @@ function GardenLayoutListInner({ homeId }: Props) {
           </div>
         </div>
       )}
+
+      {showSketch && <SketchToLayoutWizard homeId={homeId} onClose={() => setShowSketch(false)} />}
     </div>
   );
 }
