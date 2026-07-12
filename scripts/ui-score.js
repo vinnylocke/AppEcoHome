@@ -68,6 +68,18 @@ function runClaude(args, timeout) {
   return result.stdout;
 }
 
+// Read the `model:` value from an agent's frontmatter so fallback paths (which drop
+// --agent) still honour the routing policy instead of silently using the CLI default.
+function agentModel(agentName) {
+  try {
+    const md = fs.readFileSync(path.join(CLAUDE_DIR, 'agents', `${agentName}.md`), 'utf8');
+    const m = md.match(/^model:\s*(.+)$/m);
+    return m ? m[1].trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 // Walk a directory and return relative paths to all .tsx/.jsx files
 function findUIFiles() {
   const files = [];
@@ -117,10 +129,10 @@ function scoreFile(filePath) {
     ).replace(/^---[\s\S]*?---\n/, '');
 
     const fallback = `${agentBody}\n\nNow score: ${filePath}\n\nOutput ONLY the JSON object.`;
-    output = runClaude(
-      ['-p', fallback, '--allowedTools', 'Read'],
-      SCORER_TIMEOUT
-    );
+    const fbArgs = ['-p', fallback, '--allowedTools', 'Read'];
+    const scorerModel = agentModel('ui-scorer');
+    if (scorerModel) fbArgs.push('--model', scorerModel);
+    output = runClaude(fbArgs, SCORER_TIMEOUT);
   }
 
   // Extract the JSON object from output

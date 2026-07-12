@@ -62,6 +62,18 @@ function runClaude(args, timeout) {
   return result.stdout;
 }
 
+// Read the `model:` value from an agent's frontmatter so fallback paths (which drop
+// --agent) still honour the routing policy instead of silently using the CLI default.
+function agentModel(agentName) {
+  try {
+    const md = fs.readFileSync(path.join(CLAUDE_DIR, 'agents', `${agentName}.md`), 'utf8');
+    const m = md.match(/^model:\s*(.+)$/m);
+    return m ? m[1].trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Phase 1: Planner ────────────────────────────────────────────────────────
 
 function generatePlan() {
@@ -88,10 +100,10 @@ function generatePlan() {
       'utf8'
     ).replace(/^---[\s\S]*?---\n/, '') + '\n\nNow scan the codebase and output the JSON plan.';
 
-    output = runClaude(
-      ['-p', fallbackPrompt, '--allowedTools', 'Read,Glob,Grep'],
-      PLANNER_TIMEOUT
-    );
+    const fallbackArgs = ['-p', fallbackPrompt, '--allowedTools', 'Read,Glob,Grep'];
+    const plannerModel = agentModel('uiux-planner');
+    if (plannerModel) fallbackArgs.push('--model', plannerModel);
+    output = runClaude(fallbackArgs, PLANNER_TIMEOUT);
   }
 
   // Extract the JSON array from the response
@@ -130,22 +142,26 @@ function runImplementers(plan) {
   for (let i = 0; i < pending.length; i++) {
     const item = pending[i];
     divider();
-    log(`[${i + 1}/${pending.length}] ${item.file}  (priority: ${item.priority})`);
+    log(`[${i + 1}/${pending.length}] ${item.file}  (priority: ${item.priority}, complexity: ${item.complexity || 'routine'})`);
     log(`Steps: ${item.steps.join(' | ')}`);
 
     const stepList = item.steps
       .map((step, idx) => `${idx + 1}. ${step}`)
       .join('\n');
 
+    // Route by the planner's complexity tag: routine polish → Sonnet implementer;
+    // structural / logic-bearing work → Opus feature implementer. The model lives in each
+    // agent's frontmatter, so the routing policy stays single-source.
+    const agentName = item.complexity === 'feature' ? 'uiux-feature-implementer' : 'uiux-implementer';
     const prompt = [
-      `Use the uiux-implementer agent to improve the file: ${item.file}`,
+      `Use the ${agentName} agent to improve the file: ${item.file}`,
       `\n\nSteps to implement:\n${stepList}`,
       `\n\nFollow the agent's rules exactly. Only touch ${item.file}.`,
     ].join('');
 
     try {
       const output = runClaude(
-        ['-p', prompt, '--agent', 'uiux-implementer', '--allowedTools', 'Read,Write,Edit'],
+        ['-p', prompt, '--agent', agentName, '--allowedTools', 'Read,Write,Edit'],
         IMPLEMENTER_TIMEOUT
       );
 

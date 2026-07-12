@@ -66,6 +66,42 @@ Credentials always come from the ticket — never reset a test account's passwor
 
 ---
 
+## Model Routing Policy
+
+Development work is routed to the cheapest Claude model that does the job well, reserving the strongest reasoning for judgment-heavy work. Model aliases resolve to the newest in each family: `opus` → Opus 4.8, `sonnet` → Sonnet 5, `haiku` → Haiku 4.5, `fable` → Fable 5 (top tier, above Opus). Capability order: **fable > opus > sonnet > haiku**.
+
+**This table is the single source of truth for both interactive work and the overnight orchestration** (`scripts/uiux-overnight.js`, `scripts/ui-score.js`). Per-agent model + effort lives in `.claude/agents/*.md` frontmatter, which the scripts load via `--agent`; change the policy here and in the agent frontmatter together.
+
+| Task category | Model | Effort | Notes |
+|---|---|---|---|
+| Planning / architecture / feature breakdown | `opus` | high | Escalate to xhigh, then `fable`, for large cross-cutting designs |
+| New features (net-new, non-trivial logic) | `opus` | medium | Complexity-dependent — see escalation |
+| Routine development (wiring, pattern refactors, small changes) | `sonnet` | medium | |
+| Writing tests | `sonnet` | medium | Use the `test-writer` agent |
+| Running tests + parsing failures | `haiku` | low | Use the `test-runner` agent; escalate a real failure's diagnosis |
+| Running deploys (supabase diff / push) | `haiku` | low | **Human-gated — see guardrails** |
+| Code review of freshly written code | `opus` | high | Use the `code-reviewer` agent (fresh context); xhigh/`fable` for auth / RLS / money / data-loss diffs |
+| Summarization / classification / log parsing / extraction | `haiku` | low | |
+
+### Runtime escalation
+
+Default each task to its row. **Escalate one tier** — effort first (high → xhigh), then model (opus → fable) — when (a) scope is unclear, (b) the change touches money / auth / RLS / data model / migrations / edge-function auth, or (c) a cheaper model already failed once. **De-escalate** to `sonnet` when a task cleanly repeats an established pattern. When in doubt on planning or review, prefer the stronger model — the cost delta is negligible on low-volume, high-value work.
+
+### Specialist agents (`.claude/agents/`)
+
+- `code-reviewer` (opus / high, read-only) — reviews fresh code. **Always a fresh reviewer; never the model instance that wrote the code.**
+- `test-writer` (sonnet / medium) — writes the mandatory three-tier coverage.
+- `test-runner` (haiku / low, read-only) — runs suites + typecheck, triages failures.
+- `uiux-planner` (opus / high) → `uiux-feature-implementer` (opus / medium) for `feature` items and `uiux-implementer` (sonnet / medium) for `routine` items; `ui-scorer` (opus / high) → `ui-fixer` (sonnet / medium) — the overnight UI/UX pipeline.
+
+### Guardrails
+
+- **Deploys and destructive actions stay behind explicit human confirmation regardless of model.** Routing deploy to a fast model does not remove the gate — `npm run deploy` is human-invoked only and self-gates on typecheck + schema + maintenance mode. There is deliberately **no deploy agent** (an auto-delegable agent would risk weakening the human gate); deploy is a documented rule, not an agent.
+- **Code review uses a fresh `code-reviewer` agent**, never the context that wrote the code.
+- **The overnight run never deploys.** It spawns only edit-only UI agents (no deploy tooling), so an unattended run cannot trigger a deploy / destructive category.
+
+---
+
 ## Directory Structure
 
 ```
