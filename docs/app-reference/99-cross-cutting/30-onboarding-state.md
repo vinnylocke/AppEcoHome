@@ -82,6 +82,24 @@ import { recordSignal } from "../onboarding/signals";
 useEffect(() => { void recordSignal("first_notes_visit"); }, []);
 ```
 
+### E2E baseline (2026-07-13)
+
+`supabase/seeds/00_bootstrap.sql` seeds the worker accounts' `onboarding_state` with **every
+registry flow + `welcome_modal` = `"dismissed"`**. Rationale: `global_welcome` is
+`route: "global"` + `important: true`, so on an empty state it fires a centred, pointer-intercepting
+Shepherd card ~800ms after *every* navigation, in *every* fresh browser context (the per-session
+guard is sessionStorage) — silently sabotaging raw-mouse E2E tests. Specs that test un-dismissed
+flows mock their own profile fetch instead (`tests/e2e/fixtures/welcome-modal-ready.ts`). Re-running
+seeds resets any tour state accumulated by prior runs. Full analysis:
+docs/plans/glb-015-offscreen-canvas-and-tour-seeds.md.
+
+### Closed Help drawer is inert (2026-07-13)
+
+The Help Center drawer (the auto-trigger host) stays DOM-mounted for its slide transition; the
+closed container now carries `aria-hidden` + `inert` so its content is unreachable by assistive
+tech and absent from ARIA snapshots until opened — see
+[Help Center](../08-modals-and-overlays/24-help-center.md).
+
 `recordSignal` is idempotent — it short-circuits via an in-memory `recordedThisSession` cache, then a DB read of the existing `trigger_signals` map. Safe to call on every mount.
 
 ### Why jsonb

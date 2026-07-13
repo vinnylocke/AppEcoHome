@@ -3,7 +3,7 @@
 **Routes:** `/garden-layout` (list) and `/garden-layout/:layoutId` (editor)
 **Spec files:** `tests/e2e/specs/garden-layout.spec.ts`, `tests/e2e/specs/sketch-to-layout.spec.ts` (Sketch → Layout wizard, Stage 18)
 **Components:** `GardenLayoutList.tsx`, `GardenLayoutEditor.tsx`, `GardenEditorToolbar.tsx`, `GardenShapePanel.tsx`, `GardenShapeProperties.tsx`, `GardenRuler.tsx`, `GardenScaleBar.tsx`
-**Seed dependencies:** None (layouts created in tests; cleaned up by data isolation)
+**Seed dependencies:** `00_bootstrap.sql` seeds the test home with lat/lng (London) so the sun overlay, time slider and Day/Live mode are exercisable, and seeds `onboarding_state` with all Shepherd tours dismissed so no auto-firing tour card intercepts the raw-mouse canvas drags; layouts themselves are created in tests. Note the 3 seeded weather alerts (`04_weather.sql`) push the editor down at 1280×800 — canvas drags must use `visibleCanvasCentre()` (defined in the spec), never the element-centre.
 **App-reference:** [05-tools/](../app-reference/05-tools/)
 
 The most surface-rich section in the suite. Tests are bucketed by Wave (1A through 12E).
@@ -39,7 +39,7 @@ Phones (<768px) get a view-only layout viewer — no draw/edit tools
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
 | GLB-012 | ✅ | Mobile viewer renders two rows + floating bubble; row 2 is the view-only banner | — | ✅ Passing |
-| GLB-013 | ✅ | Floating bubble keeps view + zoom, hides settings (read-only) | — | ✅ Passing |
+| GLB-013 | ✅ | Floating bubble keeps view + zoom + layers (overlays viewable on phones), hides settings (read-only) | — | ✅ Passing |
 | GLB-014 | ✅ | No shape rail and no mode strip on the phone viewer | — | ✅ Passing |
 | GLB-017 | ✅ | List card body tap opens the layout viewer (not rename) at 390×844 | — | ✅ Passing |
 | GLB-018 | ✅ | Kebab menu holds rename / duplicate / delete on phones; inline icons hidden | — | ✅ Passing |
@@ -48,7 +48,7 @@ Phones (<768px) get a view-only layout viewer — no draw/edit tools
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| GLB-015 | ✅ | Drawing a shape opens 4 properties tabs (Style/Size/Link/Photos — Wave 7D added Photos) | — | ✅ Passing |
+| GLB-015 | ✅ | Drawing a shape opens 4 properties tabs (Style/Size/Link/Photos — Wave 7D added Photos) | — | ✅ Passing (fixed 2026-07-13: root cause was the canvas-CENTRE drag coords landing below the 800px viewport — weather banners + a 1139px-tall canvas. GLB-015/016 now drag around `visibleCanvasCentre()`, the centre of the canvas∩viewport intersection. History + false Help-drawer lead: docs/plans/glb-015-offscreen-canvas-and-tour-seeds.md) |
 | GLB-016 | ✅ | Tabs reveal the right fields | — | ✅ Passing |
 
 ## Stage 6 — Living map (Wave 7) — requires linked area + plants in seed
@@ -64,7 +64,7 @@ Phones (<768px) get a view-only layout viewer — no draw/edit tools
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| GLB-021 | ✅ | Companions toggle visible in toolbar (3D mode + location) | — | ✅ Passing |
+| GLB-021 | ✅ | Companions toggle visible in toolbar (now both views — see Stage 19) | — | ✅ Passing |
 | GLB-022 | 🔲 | AI suggestions button on linked shape | — | 🔲 Pending seed extension |
 
 ## Stage 8 — Workflows (Wave 9)
@@ -124,7 +124,7 @@ Phones (<768px) get a view-only layout viewer — no draw/edit tools
 | GLB-038 | 🔲 | Sun-fit badge on linked shape with known classification | — | 🔲 Pending |
 | GLB-039 | ✅ | Snap-to-grid toggle visible | — | ✅ Passing |
 | GLB-040 | ✅ | Right-click opens context menu (duplicate / delete) | — | ✅ Passing |
-| GLB-041 | ✅ | Frost / Wind / Companions toggles in toolbar | — | ✅ Passing |
+| GLB-041 | ✅ | Frost / Wind / Companions toggles in toolbar (now both views — see Stage 19) | — | ✅ Passing |
 
 ## Stage 16 — Wizard expanded shapes (Wave 4B) + Starter layouts (Wave 12E)
 
@@ -153,3 +153,19 @@ Phones (<768px) get a view-only layout viewer — no draw/edit tools
 | SKL-001 | ✅ | Wizard opens via `create-sketch-layout` from the create-layout modal. Non-Sage accounts: asserts `sketch-to-layout-ai-gate` renders and stops. Sage+ accounts: mocks `**/functions/v1/sketch-to-layout`, uploads a fixture PNG via `sketch-upload-file`, runs detect → scale (`sketch-scale-width`) → classify (asserts `sketch-shape-row-0`/`sketch-shape-row-1` render for both mocked shapes) → review → create, and asserts navigation to `/garden-layout/:id` | `**/functions/v1/sketch-to-layout` (Sage+ branch only) | ✅ Passing |
 
 Unit coverage for the client-side metre-conversion math (`computeCanvasSize`, `normalizedWidthOf`, `gardenWidthFromShapeWidth`, `detectionToShapes`, `KIND_TO_PRESET_ID`) lives in `tests/unit/lib/sketchToShapes.test.ts` (Vitest), not here — see TESTING.md § Current Test Inventory.
+
+## Stage 19 — Overlay parity + time-aware sun (2026-07-13)
+
+All seven overlays (sun, lux, companions, frost, wind, pH, moisture) now work in **both** 2D and 3D
+(plan: docs/plans/garden-layout-3d-overlay-parity.md). The toolbar's layers group renders in both
+views; the sun overlay gained a Day/Live mode switch (`sun-mode-day` / `sun-mode-live`) where Live
+tints shapes lit/shaded at the slider time via `isShapeInShadowAt`. Tint colour maths is
+unit-covered in `tests/unit/lib/overlayTints.test.ts`; these rows cover the UI wiring.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| GLB-048 | ✅ | 2D desktop toolbar shows every overlay toggle (layers no longer 3D-only) | — | ✅ Passing |
+| GLB-049 | ✅ | Wind / pH / Moisture toggles flip `aria-pressed` in 2D without crashing the stage | — | ✅ Passing |
+| GLB-050 | ✅ | Sun overlay in 2D reveals date + time slider and Day/Live switch; Live selects | — | ✅ Passing |
+| GLB-051 | ✅ | Frost / pH / Moisture / Companions toggles stay available + functional in 3D | — | ✅ Passing |
+| GLB-052 | ✅ | Live sun mode in 3D; scrubbing the time slider keeps the scene alive | — | ✅ Passing |

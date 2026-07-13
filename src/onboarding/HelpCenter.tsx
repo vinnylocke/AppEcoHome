@@ -54,7 +54,14 @@ export default function HelpCenter({ userId, onboardingState, onStateChange, ope
             />
           )}
 
+          {/* Always mounted (slide transition) but removed from the
+              accessibility tree + made inert while closed — otherwise
+              screen readers and ARIA snapshots can reach the off-screen
+              drawer content at any time. */}
           <div
+            data-testid="help-center-drawer"
+            aria-hidden={!open}
+            inert={!open}
             className={`fixed right-0 bottom-0 z-50 shadow-2xl transition-transform duration-300 w-full sm:w-[420px] top-0 sm:top-0 ${open ? "translate-x-0" : "translate-x-full"}`}
           >
             <HelpCenterDrawer

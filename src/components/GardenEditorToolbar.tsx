@@ -47,6 +47,9 @@ interface Props {
   setShowLuxOverlay: (v: boolean | ((prev: boolean) => boolean)) => void;
   showSunOverlay: boolean;
   setShowSunOverlay: (v: boolean | ((prev: boolean) => boolean)) => void;
+  /** "day" = daily sun-hours classification, "time" = lit/shade at the slider time */
+  sunOverlayMode: "day" | "time";
+  setSunOverlayMode: (m: "day" | "time") => void;
   showCompanionsOverlay: boolean;
   setShowCompanionsOverlay: (v: boolean | ((prev: boolean) => boolean)) => void;
   showFrostOverlay?: boolean;
@@ -283,14 +286,16 @@ function SunControlsInline({
 
 function LayersGroup({
   showLuxOverlay, setShowLuxOverlay, showSunOverlay, setShowSunOverlay,
+  sunOverlayMode, setSunOverlayMode,
   showCompanionsOverlay, setShowCompanionsOverlay,
   showFrostOverlay, setShowFrostOverlay,
   showWindOverlay, setShowWindOverlay,
   showPhOverlay, setShowPhOverlay,
   showMoistureOverlay, setShowMoistureOverlay,
-}: Pick<Props, "showLuxOverlay" | "setShowLuxOverlay" | "showSunOverlay" | "setShowSunOverlay" | "showCompanionsOverlay" | "setShowCompanionsOverlay" | "showFrostOverlay" | "setShowFrostOverlay" | "showWindOverlay" | "setShowWindOverlay" | "showPhOverlay" | "setShowPhOverlay" | "showMoistureOverlay" | "setShowMoistureOverlay">) {
+  homeLatLng, setHomeLatLng, homeId,
+}: Pick<Props, "showLuxOverlay" | "setShowLuxOverlay" | "showSunOverlay" | "setShowSunOverlay" | "sunOverlayMode" | "setSunOverlayMode" | "showCompanionsOverlay" | "setShowCompanionsOverlay" | "showFrostOverlay" | "setShowFrostOverlay" | "showWindOverlay" | "setShowWindOverlay" | "showPhOverlay" | "setShowPhOverlay" | "showMoistureOverlay" | "setShowMoistureOverlay" | "homeLatLng" | "setHomeLatLng" | "homeId">) {
   return (
-    <div className="flex items-center gap-1" role="group" aria-label="Layers">
+    <div className="flex items-center gap-1 flex-wrap" role="group" aria-label="Layers">
       <button
         data-testid="toggle-lux-btn"
         onClick={() => setShowLuxOverlay((v) => !v)}
@@ -301,16 +306,48 @@ function LayersGroup({
       >
         <Lightbulb size={14} /> Lux
       </button>
-      <button
-        data-testid="toggle-sun-btn"
-        onClick={() => setShowSunOverlay((v) => !v)}
-        aria-pressed={showSunOverlay}
-        className={`min-h-[36px] px-3 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors flex items-center gap-1 ${
-          showSunOverlay ? "bg-yellow-100 text-yellow-700" : "text-rhozly-on-surface/50 hover:bg-rhozly-surface"
-        }`}
-      >
-        <Sun size={14} /> Sun
-      </button>
+      {homeLatLng ? (
+        <>
+          <button
+            data-testid="toggle-sun-btn"
+            onClick={() => setShowSunOverlay((v) => !v)}
+            aria-pressed={showSunOverlay}
+            className={`min-h-[36px] px-3 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors flex items-center gap-1 ${
+              showSunOverlay ? "bg-yellow-100 text-yellow-700" : "text-rhozly-on-surface/50 hover:bg-rhozly-surface"
+            }`}
+          >
+            <Sun size={14} /> Sun
+          </button>
+          {showSunOverlay && (
+            <div className="flex items-center gap-0.5 bg-rhozly-surface rounded-lg p-0.5" role="group" aria-label="Sun overlay mode">
+              <button
+                data-testid="sun-mode-day"
+                onClick={() => setSunOverlayMode("day")}
+                aria-pressed={sunOverlayMode === "day"}
+                title="Total sun hours for the chosen date"
+                className={`min-h-[30px] px-2 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors ${
+                  sunOverlayMode === "day" ? "bg-white text-yellow-700 shadow-sm" : "text-rhozly-on-surface/50"
+                }`}
+              >
+                Day
+              </button>
+              <button
+                data-testid="sun-mode-live"
+                onClick={() => setSunOverlayMode("time")}
+                aria-pressed={sunOverlayMode === "time"}
+                title="Lit vs shaded at the time on the slider"
+                className={`min-h-[30px] px-2 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors ${
+                  sunOverlayMode === "time" ? "bg-white text-yellow-700 shadow-sm" : "text-rhozly-on-surface/50"
+                }`}
+              >
+                Live
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <LocationPrompt setHomeLatLng={setHomeLatLng} homeId={homeId} />
+      )}
       <button
         data-testid="toggle-companions-btn"
         onClick={() => setShowCompanionsOverlay((v) => !v)}
@@ -409,6 +446,7 @@ export default function GardenEditorToolbar(props: Props) {
     homeLatLng, setHomeLatLng,
     sunDate, setSunDate, sunMinutes, setSunMinutes, isPlaying, setIsPlaying,
     showLuxOverlay, setShowLuxOverlay, showSunOverlay, setShowSunOverlay,
+    sunOverlayMode, setSunOverlayMode,
     showCompanionsOverlay, setShowCompanionsOverlay,
     showFrostOverlay, setShowFrostOverlay,
     showWindOverlay, setShowWindOverlay,
@@ -475,7 +513,7 @@ export default function GardenEditorToolbar(props: Props) {
               <ViewToggle viewMode={viewMode} setViewMode={(m) => { setViewMode(m); setBubbleOpen(null); }} />
             </div>
           )}
-          {bubbleOpen === "sun" && viewMode === "3d" && homeLatLng && (
+          {bubbleOpen === "sun" && homeLatLng && (viewMode === "3d" || showSunOverlay) && (
             <div className="pointer-events-auto bg-white rounded-2xl shadow-xl border border-rhozly-outline/15 p-3 max-w-[calc(100vw-24px)]">
               <SunControlsInline
                 sunDate={sunDate}
@@ -488,12 +526,17 @@ export default function GardenEditorToolbar(props: Props) {
             </div>
           )}
           {bubbleOpen === "layers" && (
-            <div className="pointer-events-auto bg-white rounded-2xl shadow-xl border border-rhozly-outline/15 p-2 flex items-center gap-1">
+            <div className="pointer-events-auto bg-white rounded-2xl shadow-xl border border-rhozly-outline/15 p-2 flex items-center gap-1 max-w-[calc(100vw-24px)] flex-wrap">
               <LayersGroup
                 showLuxOverlay={showLuxOverlay}
                 setShowLuxOverlay={setShowLuxOverlay}
                 showSunOverlay={showSunOverlay}
                 setShowSunOverlay={setShowSunOverlay}
+                sunOverlayMode={sunOverlayMode}
+                setSunOverlayMode={setSunOverlayMode}
+                homeLatLng={homeLatLng}
+                setHomeLatLng={setHomeLatLng}
+                homeId={homeId}
                 showCompanionsOverlay={showCompanionsOverlay}
                 setShowCompanionsOverlay={setShowCompanionsOverlay}
                 showFrostOverlay={showFrostOverlay}
@@ -535,26 +578,24 @@ export default function GardenEditorToolbar(props: Props) {
                 <Magnet size={18} />
               </button>
             )}
-            {viewMode === "3d" && homeLatLng && (
-              <>
-                <button
-                  data-testid="bubble-sun-btn"
-                  onClick={() => setBubbleOpen((s) => (s === "sun" ? null : "sun"))}
-                  aria-label="Sun controls"
-                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/60 hover:bg-rhozly-surface transition-colors"
-                >
-                  <Sun size={18} />
-                </button>
-                <button
-                  data-testid="bubble-layers-btn"
-                  onClick={() => setBubbleOpen((s) => (s === "layers" ? null : "layers"))}
-                  aria-label="Layers"
-                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/60 hover:bg-rhozly-surface transition-colors"
-                >
-                  <Layers size={18} />
-                </button>
-              </>
+            {homeLatLng && (viewMode === "3d" || showSunOverlay) && (
+              <button
+                data-testid="bubble-sun-btn"
+                onClick={() => setBubbleOpen((s) => (s === "sun" ? null : "sun"))}
+                aria-label="Sun controls"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/60 hover:bg-rhozly-surface transition-colors"
+              >
+                <Sun size={18} />
+              </button>
             )}
+            <button
+              data-testid="bubble-layers-btn"
+              onClick={() => setBubbleOpen((s) => (s === "layers" ? null : "layers"))}
+              aria-label="Layers"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/60 hover:bg-rhozly-surface transition-colors"
+            >
+              <Layers size={18} />
+            </button>
             {viewMode === "3d" && !homeLatLng && (
               <LocationPrompt setHomeLatLng={setHomeLatLng} homeId={homeId} />
             )}
@@ -623,38 +664,41 @@ export default function GardenEditorToolbar(props: Props) {
         </button>
       )}
 
-      {viewMode === "3d" && (
-        homeLatLng ? (
-          <>
-            <SunControlsInline
-              sunDate={sunDate}
-              setSunDate={setSunDate}
-              sunMinutes={sunMinutes}
-              setSunMinutes={setSunMinutes}
-              isPlaying={isPlaying}
-              setIsPlaying={setIsPlaying}
-            />
-            <LayersGroup
-              showLuxOverlay={showLuxOverlay}
-              setShowLuxOverlay={setShowLuxOverlay}
-              showSunOverlay={showSunOverlay}
-              setShowSunOverlay={setShowSunOverlay}
-              showCompanionsOverlay={showCompanionsOverlay}
-              setShowCompanionsOverlay={setShowCompanionsOverlay}
-              showFrostOverlay={showFrostOverlay}
-              setShowFrostOverlay={setShowFrostOverlay}
-              showWindOverlay={showWindOverlay}
-              setShowWindOverlay={setShowWindOverlay}
-              showPhOverlay={showPhOverlay}
-              setShowPhOverlay={setShowPhOverlay}
-              showMoistureOverlay={showMoistureOverlay}
-              setShowMoistureOverlay={setShowMoistureOverlay}
-            />
-          </>
-        ) : (
-          <LocationPrompt setHomeLatLng={setHomeLatLng} homeId={homeId} />
-        )
+      {/* Sun date/time controls — always in 3D (they drive the scene lighting);
+          in 2D only while the sun overlay is on (they drive its Day date / Live time). */}
+      {homeLatLng && (viewMode === "3d" || showSunOverlay) && (
+        <SunControlsInline
+          sunDate={sunDate}
+          setSunDate={setSunDate}
+          sunMinutes={sunMinutes}
+          setSunMinutes={setSunMinutes}
+          isPlaying={isPlaying}
+          setIsPlaying={setIsPlaying}
+        />
       )}
+      {/* Overlay toggles — available in BOTH views. Only the sun overlay needs
+          a home location; LayersGroup swaps that button for a location prompt. */}
+      <LayersGroup
+        showLuxOverlay={showLuxOverlay}
+        setShowLuxOverlay={setShowLuxOverlay}
+        showSunOverlay={showSunOverlay}
+        setShowSunOverlay={setShowSunOverlay}
+        sunOverlayMode={sunOverlayMode}
+        setSunOverlayMode={setSunOverlayMode}
+        homeLatLng={homeLatLng}
+        setHomeLatLng={setHomeLatLng}
+        homeId={homeId}
+        showCompanionsOverlay={showCompanionsOverlay}
+        setShowCompanionsOverlay={setShowCompanionsOverlay}
+        showFrostOverlay={showFrostOverlay}
+        setShowFrostOverlay={setShowFrostOverlay}
+        showWindOverlay={showWindOverlay}
+        setShowWindOverlay={setShowWindOverlay}
+        showPhOverlay={showPhOverlay}
+        setShowPhOverlay={setShowPhOverlay}
+        showMoistureOverlay={showMoistureOverlay}
+        setShowMoistureOverlay={setShowMoistureOverlay}
+      />
 
       <button
         data-testid="canvas-settings-btn"

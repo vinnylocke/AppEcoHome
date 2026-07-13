@@ -75,4 +75,19 @@ test.describe("Help Center — Documentation drawer", () => {
     await authenticatedPage.locator('[data-testid="doc-image-lightbox-close"]').click();
     await expect(lightbox).toBeHidden({ timeout: 5000 });
   });
+
+  test("HCD-006: closed drawer is aria-hidden + inert; opening restores it to the a11y tree", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/dashboard");
+
+    // The drawer stays mounted (slide transition) but must be invisible to
+    // assistive tech while closed — role queries respect aria-hidden, so the
+    // heading must be unreachable until the drawer opens.
+    const drawer = authenticatedPage.getByTestId("help-center-drawer");
+    await expect(drawer).toHaveAttribute("aria-hidden", "true");
+    await expect(authenticatedPage.getByRole("heading", { name: "Help & Guides" })).toHaveCount(0);
+
+    await authenticatedPage.getByRole("button", { name: "Help Center", exact: true }).first().click();
+    await expect(authenticatedPage.getByRole("heading", { name: "Help & Guides" })).toBeVisible();
+    await expect(drawer).not.toHaveAttribute("aria-hidden", "true");
+  });
 });

@@ -1,12 +1,13 @@
 import React, { useRef, useState, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
-import { OrbitControls, Html, GizmoHelper, GizmoViewport, Sky, Environment } from "@react-three/drei";
+import { OrbitControls, Html, GizmoHelper, GizmoViewport, Sky, Environment, Line } from "@react-three/drei";
 import * as THREE from "three";
 import type { ShapeData } from "./GardenShapeProperties";
 import type { ShapePreset } from "./GardenShapePanel";
 import GardenShape3D from "./GardenShape3D";
 import { SUN_CLASS_COLOR, SUN_CLASS_TEXT_COLOR, type ShapeSunResult, type SunClass } from "../lib/sunAnalysis";
+import { SUN_LIT_COLOR, SUN_SHADE_COLOR, SUN_LIT_TEXT_COLOR, SUN_SHADE_TEXT_COLOR } from "../lib/garden/overlayTints";
 import { getGrassTexture } from "../lib/garden/garden3DMaterials";
 import FeatureGate from "./shared/FeatureGate";
 
@@ -28,6 +29,17 @@ interface Props {
   showLuxOverlay: boolean;
   sunAnalysisResults: ShapeSunResult[] | null;
   showSunOverlay: boolean;
+  /** Live sun mode map (shapeId → lit at slider time). Null = day mode. */
+  litByShapeId: Record<string, boolean> | null;
+  /** Atmospheric tint per shape ("#rrggbbaa") — frost/wind/pH/moisture. */
+  overlayTintByShapeId: Record<string, string | null>;
+  showCompanionsOverlay: boolean;
+  companionLines: Array<{
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+    relation: "Beneficial" | "Harmful";
+    reason?: string;
+  }>;
   sunDateObj: Date;
   selectedTokenId?: string | null;
   onTokenSelect?: (itemId: string, plantName: string, currentSize: number, currentHeight: number) => void;
@@ -110,7 +122,8 @@ function GardenLayout3DInner({
   interactionMode, pendingPreset,
   onSelect, onShapeChange, onDrawShape, sunPosition,
   areaPlants, areaLuxReadings, showLuxOverlay,
-  sunAnalysisResults, showSunOverlay, sunDateObj,
+  sunAnalysisResults, showSunOverlay, litByShapeId, overlayTintByShapeId,
+  showCompanionsOverlay, companionLines, sunDateObj,
   selectedTokenId, onTokenSelect, onTokenMove,
 }: Props) {
   const orbitRef = useRef<any>(null);
@@ -309,14 +322,47 @@ function GardenLayout3DInner({
             luxReading={showLuxOverlay && s.area_id ? (luxByArea[s.area_id] ?? null) : null}
             sunResult={sunAnalysisResults?.find(r => r.shapeId === s.id) ?? null}
             showSunOverlay={showSunOverlay}
+            litState={litByShapeId ? (litByShapeId[s.id] ?? false) : null}
+            overlayTint={overlayTintByShapeId[s.id] ?? null}
             selectedTokenId={selectedTokenId}
             onTokenSelect={onTokenSelect}
             onTokenMove={onTokenMove}
           />
         ))}
 
-        {/* Sun classification legend */}
-        {showSunOverlay && sunAnalysisResults && (
+        {/* Companion planting lines — same palette + dash as the 2D stage */}
+        {showCompanionsOverlay && companionLines.map((c, i) => (
+          <Line
+            key={`cmp3d-${i}`}
+            points={[[c.from.x, 0.05, c.from.y], [c.to.x, 0.05, c.to.y]]}
+            color={c.relation === "Beneficial" ? "#16a34a" : "#ef4444"}
+            lineWidth={2.5}
+            dashed
+            dashSize={0.3}
+            gapSize={0.2}
+          />
+        ))}
+
+        {/* Sun overlay legend — Live mode shows Lit/Shade, Day mode the classifications */}
+        {showSunOverlay && litByShapeId && (
+          <Html position={[0, 0, 0]} style={{ pointerEvents: "none" }}>
+            <div style={{
+              position: "fixed", bottom: 12, left: 12,
+              background: "white", borderRadius: 12,
+              padding: "8px 12px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            }}>
+              {([["Lit", SUN_LIT_COLOR, SUN_LIT_TEXT_COLOR], ["Shade", SUN_SHADE_COLOR, SUN_SHADE_TEXT_COLOR]] as const).map(([label, color, text]) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
+                  <span style={{ fontSize: 10, fontWeight: 900, color: text }}>
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Html>
+        )}
+        {showSunOverlay && !litByShapeId && sunAnalysisResults && (
           <Html position={[0, 0, 0]} style={{ pointerEvents: "none" }}>
             <div style={{
               position: "fixed", bottom: 12, left: 12,

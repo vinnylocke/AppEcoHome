@@ -83,7 +83,12 @@ The **Light Sensor** area readings (`LightSensor.tsx`) and the live-reading cate
 
 ### Sun overlay (Garden Layout Editor)
 
-Tints each shape based on its `sunClass`. Drives the "Sun" overlay toggle.
+Two modes, switchable via the Day/Live control next to the Sun toggle (2026-07-13):
+
+- **Day** — tints each shape based on its `sunClass` (daily aggregate, unchanged).
+- **Live** — tints each shape lit (yellow) or shaded (slate) at the sun-time-slider position, using `isShapeInShadowAt(shape, allShapes, lat, lng, date, northOffsetDeg)` — the same single-point-in-time shadow test the Sun Tracker garden panel uses. The editor recomputes the map per slider tick (memoised on `[shapes, homeLatLng, sunDateObj, northOffset]`).
+
+Both modes render in 2D (Konva tint rect) and 3D (flat tinted plane per shape). Live tint colours live in `src/lib/garden/overlayTints.ts` (`SUN_LIT_COLOR` / `SUN_SHADE_COLOR`).
 
 ### AR Sun Tracker
 

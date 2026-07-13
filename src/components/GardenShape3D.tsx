@@ -3,6 +3,7 @@ import { TransformControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 import type { ShapeData } from "./GardenShapeProperties";
 import { getShapeCentre, SUN_CLASS_COLOR, SUN_CLASS_TEXT_COLOR, type ShapeSunResult } from "../lib/sunAnalysis";
+import { splitHexAlpha, getSunTimeTint, SUN_LIT_TEXT_COLOR, SUN_SHADE_TEXT_COLOR } from "../lib/garden/overlayTints";
 import { getMaterialForPreset, getWoodTexture } from "../lib/garden/garden3DMaterials";
 import { getPlantTokenColor, computeTokenGrid, MAX_VISIBLE_TOKENS } from "../lib/garden/plantTokens";
 import { getPlantFamily, type PlantFamily } from "../constants/plantFamilies";
@@ -81,6 +82,10 @@ interface Props {
   luxReading: number | null;
   sunResult: ShapeSunResult | null;
   showSunOverlay: boolean;
+  /** Live sun mode: true = lit at slider time, false = shaded. Null = day mode. */
+  litState: boolean | null;
+  /** Atmospheric overlay tint ("#rrggbbaa") — frost/wind/pH/moisture. Null = none. */
+  overlayTint: string | null;
   selectedTokenId?: string | null;
   onTokenSelect?: (itemId: string, plantName: string, currentSize: number, currentHeight: number) => void;
   onTokenMove?: (itemId: string, xLocalM: number, yLocalM: number, heightM: number) => void;
@@ -172,7 +177,7 @@ function DraggableToken({
 
 export default function GardenShape3D({
   shape, isSelected, interactionMode, onSelect, onChange,
-  plantedItems, luxReading, sunResult, showSunOverlay,
+  plantedItems, luxReading, sunResult, showSunOverlay, litState, overlayTint,
   selectedTokenId, onTokenSelect, onTokenMove,
 }: Props) {
   const meshRef = useRef<THREE.Mesh>(null!);
@@ -277,7 +282,28 @@ export default function GardenShape3D({
     return <planeGeometry args={[shape.width_m ?? 1, shape.height_m ?? 1]} />;
   }, [shape.shape_type, shape.preset_id, shape.width_m, shape.height_m, shape.radius_m, shape.points, shape.x_m, shape.y_m]);
 
-  const sunOverlay = showSunOverlay && sunResult ? (
+  // Sun overlay — Live mode (lit/shade at slider time) wins over Day mode
+  // (daily classification). Both render as a flat tinted plane + label.
+  const sunOverlay = showSunOverlay && litState !== null ? (
+    <>
+      <mesh position={[centre.x, 0.02, centre.z]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={-1}>
+        {sunOverlayGeom}
+        <meshBasicMaterial
+          color={getSunTimeTint(litState)}
+          transparent opacity={0.45} depthWrite={false}
+        />
+      </mesh>
+      <Html position={[centre.x, 0.05, centre.z]} center style={{ pointerEvents: "none" }}>
+        <span style={{
+          fontSize: 9, fontWeight: 900,
+          color: litState ? SUN_LIT_TEXT_COLOR : SUN_SHADE_TEXT_COLOR,
+          textShadow: "0 1px 2px rgba(255,255,255,0.9)", whiteSpace: "nowrap",
+        }}>
+          {litState ? "Lit" : "Shade"}
+        </span>
+      </Html>
+    </>
+  ) : showSunOverlay && sunResult ? (
     <>
       <mesh position={[centre.x, 0.02, centre.z]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={-1}>
         {sunOverlayGeom}
@@ -297,6 +323,19 @@ export default function GardenShape3D({
       </Html>
     </>
   ) : null;
+
+  // Atmospheric tint (frost/wind/pH/moisture) — hidden while the sun overlay
+  // is tinting so the two never fight for the same plane (sun wins, same
+  // priority the 2D stage applies).
+  const atmosphericOverlay = !sunOverlay && overlayTint ? (() => {
+    const { color, opacity } = splitHexAlpha(overlayTint);
+    return (
+      <mesh position={[centre.x, 0.02, centre.z]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={-1}>
+        {sunOverlayGeom}
+        <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} />
+      </mesh>
+    );
+  })() : null;
 
   // ---- tree canopy (cluster of foliage spheres + trunk) ----
   if (shape.preset_id === "tree-canopy") {
@@ -339,6 +378,7 @@ export default function GardenShape3D({
         {plantBillboard}
         {luxBadge}
         {sunOverlay}
+        {atmosphericOverlay}
       </group>
     );
   }
@@ -361,6 +401,7 @@ export default function GardenShape3D({
         {plantBillboard}
         {luxBadge}
         {sunOverlay}
+        {atmosphericOverlay}
       </group>
     );
   }
@@ -382,6 +423,7 @@ export default function GardenShape3D({
         {plantBillboard}
         {luxBadge}
         {sunOverlay}
+        {atmosphericOverlay}
       </group>
     );
   }
@@ -409,6 +451,7 @@ export default function GardenShape3D({
         {plantBillboard}
         {luxBadge}
         {sunOverlay}
+        {atmosphericOverlay}
       </group>
     );
   }
@@ -509,6 +552,7 @@ export default function GardenShape3D({
       {plantBillboard}
       {luxBadge}
       {sunOverlay}
+      {atmosphericOverlay}
     </group>
   );
 }

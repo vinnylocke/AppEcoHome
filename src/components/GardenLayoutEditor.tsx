@@ -17,13 +17,14 @@ import GardenShapePanel, { type ShapePreset } from "./GardenShapePanel";
 import GardenShapeProperties, { type ShapeData } from "./GardenShapeProperties";
 import GardenEditorToolbar, { type InteractionMode } from "./GardenEditorToolbar";
 import { useSunPosition } from "../hooks/useSunPosition";
-import { computeAllShapesSunHours, type ShapeSunResult } from "../lib/sunAnalysis";
+import { computeAllShapesSunHours, isShapeInShadowAt, SUN_CLASS_COLOR, type ShapeSunResult } from "../lib/sunAnalysis";
+import { getShapeOverlayTint, getSunTimeTint2D } from "../lib/garden/overlayTints";
 import { useShapeLiveState } from "../hooks/useShapeLiveState";
 import { computeTokenGrid, getPlantTokenColor, getPlantInitial, MAX_VISIBLE_TOKENS } from "../lib/garden/plantTokens";
 import { getShapeDecorations } from "../lib/garden/shapeDecorations";
 import { getCompanionRelationForGroups } from "../constants/companionPlants";
 import { parsePlantSunPreference, getPlantSunFit, getShapeFitSummary } from "../lib/garden/sunFit";
-import { classifyFrostRisk, computeWindExposure, type ForecastDay } from "../lib/garden/microclimate";
+import { type ForecastDay } from "../lib/garden/microclimate";
 import { computeAlignmentGuides, getShapeBounds, type GuideLine } from "../lib/garden/alignmentGuides";
 import PlanFilterChip from "./garden/PlanFilterChip";
 import MicroclimateReportModal from "./garden/MicroclimateReportModal";
@@ -98,6 +99,8 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   >([]);
   const [showLuxOverlay, setShowLuxOverlay] = useState(false);
   const [showSunOverlay, setShowSunOverlay] = useState(false);
+  // "day" = whole-day sun-hours classification; "time" = lit/shade at the slider time
+  const [sunOverlayMode, setSunOverlayMode] = useState<"day" | "time">("day");
   const [showCompanionsOverlay, setShowCompanionsOverlay] = useState(false);
   const [showFrostOverlay, setShowFrostOverlay] = useState(false);
   const [showWindOverlay, setShowWindOverlay] = useState(false);
@@ -528,6 +531,36 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     if (!showSunOverlay || !homeLatLng || !shapes.length) return null;
     return computeAllShapesSunHours(shapes, homeLatLng.lat, homeLatLng.lng, new Date(sunDate), northOffset);
   }, [showSunOverlay, shapes, homeLatLng, sunDate, northOffset]);
+
+  // Live sun mode — lit/shade per shape at the slider time. Null = day mode
+  // (or overlay off / no location), so consumers can branch on it directly.
+  const litByShapeId = useMemo<Record<string, boolean> | null>(() => {
+    if (!showSunOverlay || sunOverlayMode !== "time" || !homeLatLng || !shapes.length) return null;
+    const out: Record<string, boolean> = {};
+    for (const s of shapes) {
+      out[s.id] = !isShapeInShadowAt(s, shapes, homeLatLng.lat, homeLatLng.lng, sunDateObj, northOffset);
+    }
+    return out;
+  }, [showSunOverlay, sunOverlayMode, shapes, homeLatLng, sunDateObj, northOffset]);
+
+  // Atmospheric overlay tint per shape (frost > wind > pH > moisture) —
+  // shared source of truth for the 2D stage and the 3D scene.
+  const overlayTintByShapeId = useMemo<Record<string, string | null>>(() => {
+    const out: Record<string, string | null> = {};
+    if (!showFrostOverlay && !showWindOverlay && !showPhOverlay && !showMoistureOverlay) return out;
+    const ctx = {
+      showFrost: showFrostOverlay,
+      showWind: showWindOverlay,
+      showPh: showPhOverlay,
+      showMoisture: showMoistureOverlay,
+      forecast,
+      allShapes: shapes,
+      areaPh,
+      areaMoisture,
+    };
+    for (const s of shapes) out[s.id] = getShapeOverlayTint(s, ctx);
+    return out;
+  }, [shapes, showFrostOverlay, showWindOverlay, showPhOverlay, showMoistureOverlay, forecast, areaPh, areaMoisture]);
 
   // Play/pause — advance slider 5 min every 200 ms (≈ 1 full day in ~2 min)
   useEffect(() => {
@@ -1414,37 +1447,17 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     const taskCounts = shape.area_id ? areaTaskCounts[shape.area_id] : undefined;
     const ailment = shape.area_id ? areaAilmentSeverity[shape.area_id] : undefined;
 
-    // Atmospheric overlay tint colours (Wave 11A + pH/Moisture follow-up)
-    let overlayTint: string | null = null;
-    if (showFrostOverlay && forecast.length > 0) {
-      const worstMin = Math.min(...forecast.slice(0, 7).map((d) => d.temp_min_c));
-      const risk = classifyFrostRisk(worstMin);
-      overlayTint = risk === "Severe" ? "#dc262640"
-        : risk === "Moderate" ? "#f9731640"
-        : risk === "Mild" ? "#fbbf2440"
-        : "#94a3b833";
-    } else if (showWindOverlay) {
-      const expo = computeWindExposure(shape, shapes);
-      overlayTint = expo === "Exposed" ? "#ef444440"
-        : expo === "Partly Sheltered" ? "#fbbf2440"
-        : "#10b98140";
-    } else if (showPhOverlay && shape.area_id) {
-      const phValue = areaPh[shape.area_id];
-      if (phValue != null) {
-        // Acidic (red) → neutral (grey) → alkaline (blue)
-        if (phValue < 5.5) overlayTint = "#dc262640";
-        else if (phValue < 6.5) overlayTint = "#fbbf2440";
-        else if (phValue <= 7.5) overlayTint = "#94a3b833";
-        else if (phValue <= 8.0) overlayTint = "#7dd3fc40";
-        else overlayTint = "#3b82f640";
-      }
-    } else if (showMoistureOverlay && shape.area_id) {
-      const m = areaMoisture[shape.area_id];
-      if (m != null) {
-        // 0-30 = dry (amber), 30-60 = ideal (green), 60+ = wet (blue)
-        if (m < 30) overlayTint = "#fbbf2440";
-        else if (m < 60) overlayTint = "#10b98140";
-        else overlayTint = "#3b82f640";
+    // Atmospheric overlay tint (Wave 11A + pH/Moisture follow-up) — shared
+    // 2D/3D source of truth lives in lib/garden/overlayTints.
+    let overlayTint: string | null = overlayTintByShapeId[shape.id] ?? null;
+    // Sun overlay tint takes precedence over the atmospheric tints.
+    // Live mode = lit/shade at the slider time; Day mode = daily classification.
+    if (showSunOverlay) {
+      if (litByShapeId) {
+        overlayTint = getSunTimeTint2D(litByShapeId[shape.id] ?? false);
+      } else {
+        const cls = sunAnalysisResults?.find((r) => r.shapeId === shape.id)?.classification;
+        if (cls) overlayTint = SUN_CLASS_COLOR[cls] + "66";
       }
     }
 
@@ -1729,6 +1742,8 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         setShowLuxOverlay={setShowLuxOverlay}
         showSunOverlay={showSunOverlay}
         setShowSunOverlay={setShowSunOverlay}
+        sunOverlayMode={sunOverlayMode}
+        setSunOverlayMode={setSunOverlayMode}
         showCompanionsOverlay={showCompanionsOverlay}
         setShowCompanionsOverlay={setShowCompanionsOverlay}
         showFrostOverlay={showFrostOverlay}
@@ -1789,6 +1804,10 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               showLuxOverlay={showLuxOverlay}
               sunAnalysisResults={sunAnalysisResults}
               showSunOverlay={showSunOverlay}
+              litByShapeId={litByShapeId}
+              overlayTintByShapeId={overlayTintByShapeId}
+              showCompanionsOverlay={showCompanionsOverlay}
+              companionLines={companionLines}
               sunDateObj={sunDateObj}
               selectedTokenId={selectedTokenId}
               onTokenSelect={(itemId) => {

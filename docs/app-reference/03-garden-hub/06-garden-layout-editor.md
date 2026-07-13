@@ -14,7 +14,7 @@ A Konva-based 2D editor plus a Three.js-based 3D view (Sage/Evergreen). Shapes a
 - Pick from a sidebar of presets (raised bed, fence, shed, path, pot, tree, pond, etc.).
 - Drag, resize, rotate, snap to grid, multi-select with marquee or shift-click.
 - Switch between 2D and 3D view (`1` / `2` keys).
-- Toggle overlays: sun, lux, companions, frost, wind, pH, moisture.
+- Toggle overlays: sun, lux, companions, frost, wind, pH, moisture — **available in both 2D and 3D** (parity since 2026-07-13). The sun overlay has two modes: **Day** (daily sun-hours classification) and **Live** (lit/shade at the time-slider position).
 - Long-press a shape (mobile) or right-click (desktop) → context menu / Quick Actions sheet.
 - Link a shape to a Garden Area (so it inherits metrics) and to inventory items (so plant tokens render inside).
 - Filter shapes by Plan (planner integration).
@@ -71,6 +71,7 @@ GardenLayoutEditor (Konva Stage)
 | `northOffset`, `homeLatLng` | Sun positioning inputs |
 | `sunDate`, `sunMinutes`, `isPlaying` | Sun-time slider state |
 | `showLuxOverlay`, `showSunOverlay`, `showCompanionsOverlay`, `showFrostOverlay`, `showWindOverlay`, `showPhOverlay`, `showMoistureOverlay` | Overlay toggles |
+| `sunOverlayMode` | `day` (sun-hours classification) / `time` (Live lit-vs-shade at slider time) |
 | `activePlanFilter` | Filter shapes by `plan_id` |
 | `quickActionsShape`, `contextMenu`, `tokenResize` | Modal-ish UI surfaces |
 | `snapToGrid` | 0.5 m grid snap |
@@ -123,9 +124,9 @@ None directly — saves are explicit. (Could be added in a future "collaborative
 | Feature | Tier |
 |---------|------|
 | 2D editor | Every tier |
-| 3D view (`2` key, toggle) | Sage / Evergreen |
-| Sun overlay | Every tier (lat/lng required) |
-| Frost / Wind / pH / Moisture overlays | Every tier |
+| 3D view (`2` key, toggle) | **Every tier currently** — gated behind `FeatureGate feature="garden_layout_3d"`, whose entry in `src/constants/tierFeatures.ts` is `ALL` (gates open). Flip that array to `["sage","evergreen"]` to re-restrict. (Doc previously claimed Sage/Evergreen-only — corrected 2026-07-13.) |
+| Sun overlay (Day + Live modes) | Every tier (lat/lng required) |
+| Frost / Wind / pH / Moisture overlays | Every tier — in both 2D and 3D |
 | Microclimate report (full text) | Sage / Evergreen |
 
 ### Beta gating
@@ -149,6 +150,8 @@ Some Wave-12 features (Bed Templates Sheet, Zone Sheet) ship behind beta flags d
 
 - Konva Stage uses layers to avoid full redraws on every drag.
 - Sun analysis (`computeAllShapesSunHours`) memoised on `[shapes, homeLatLng, sunDate, northOffset]`.
+- Live sun mode (`litByShapeId`) memoised on `[shapes, homeLatLng, sunDateObj, northOffset]` — one `isShapeInShadowAt` per shape per slider tick, O(shapes × blockers), trivial.
+- Atmospheric tints (`overlayTintByShapeId`) memoised on shapes + toggles + forecast + areaPh + areaMoisture; shared by both views.
 - Companion overlay also memoised — only runs when toggled on.
 - 3D view lazy-loaded via dynamic import.
 - ResizeObserver watches container instead of polling.
@@ -185,6 +188,28 @@ Per docs/plans/garden-layout-fixes-and-mobile-readonly.md:
   rendered as an empty 2D canvas while 3D still showed ground + plant
   tokens ("2D doesn't match 3D"). Data repaired + constrained to
   `rect/path/circle/ellipse/polygon`.
+
+### Overlay parity + time-aware sun (2026-07-13)
+
+Per docs/plans/garden-layout-3d-overlay-parity.md:
+
+- **All seven overlays now work in both views.** The frost/wind/pH/moisture
+  tint logic was extracted to `src/lib/garden/overlayTints.ts`
+  (`getShapeOverlayTint`) — the 2D stage and the 3D scene both read it, so
+  the views can't drift. 3D renders the tint as a flat plane per shape
+  (same mechanism as the sun overlay); companion lines render as dashed
+  three.js `Line`s at y = 0.05.
+- **The toolbar's layers group renders in both views** (it was 3D-only,
+  which left the 2D-only overlays with no buttons at all). Only the sun
+  button needs the home's lat/lng — when missing, that one button is
+  replaced by the "Enable location" prompt and the rest stay usable.
+- **Sun overlay Day/Live modes** (`sunOverlayMode` state): Day = daily
+  classification (unchanged); Live = per-shape lit/shade at the slider
+  time via `isShapeInShadowAt`, updating as the slider scrubs or plays.
+  The 2D stage also gained a sun tint (it previously computed the
+  classification but rendered no tint — only fit badges).
+- **Sun date/time controls in 2D** whenever the sun overlay is on
+  (previously 3D-only).
 
 ---
 
@@ -224,25 +249,27 @@ This is where your garden becomes machine-readable. Every shape you draw is some
 
 #### 5. Toggle overlays
 
-Each overlay tints shapes by a different signal:
+Each overlay tints shapes by a different signal. **All overlays work in both 2D and 3D** — in 2D as Konva tint rects, in 3D as flat tinted planes on each shape (both read the same shared tint helper, `src/lib/garden/overlayTints.ts`, so the views can never disagree):
 
 | Overlay | Tint colour | Meaning |
 |---------|-------------|---------|
-| Sun | Yellow gradient | Hours of direct sun per day |
-| Lux | Heatmap | Most recent `area_lux_readings.lux` |
-| Companions | Lines between shapes | Beneficial = green, harmful = red |
-| Frost | Blue | Tonight's min temperature |
+| Sun — Day mode | Classification palette (yellow→slate) | Hours of direct sun for the chosen date |
+| Sun — Live mode | Yellow = lit, slate = shaded | Whether the shape is lit at the time-slider position |
+| Lux | Badge (3D) | `area_lux_readings.lux` within ±30 min of the slider time |
+| Companions | Dashed lines between shapes | Beneficial = green, harmful = red |
+| Frost | Blue→red bands | Worst overnight low across the 7-day forecast |
 | Wind | Red gradient | Wind exposure score |
-| pH | Red→blue | Acidic vs alkaline |
-| Moisture | Yellow→blue | Dry vs saturated |
+| pH | Red→blue | Acidic vs alkaline (`areas.medium_ph`) |
+| Moisture | Yellow→blue | Dry vs saturated (latest soil-sensor reading) |
 
-Multiple overlays can stack but compete for the same tint slot — last enabled wins.
+One tint at a time: the sun overlay wins over the atmospheric tints, and the atmospheric tints resolve in fixed priority frost > wind > pH > moisture.
 
-#### 6. Sun-time slider
+#### 6. Sun-time slider + Day/Live mode
 
-- Drag the time slider at the bottom of the canvas.
-- The sun azimuth updates live; shape shadows in 3D follow.
+- The date + time slider appears in 3D always, and in 2D whenever the sun overlay is on.
+- The sun azimuth updates live; scene lighting/shadows in 3D follow.
 - Tap play to animate dawn → dusk.
+- With the sun overlay on, a **Day / Live** switch appears next to the Sun button. *Day* tints by total sun-hours for the chosen date; *Live* re-tints every shape lit/shaded as you scrub the slider (uses `isShapeInShadowAt` from `src/lib/sunAnalysis.ts`).
 
 #### 7. Link a shape to an Area
 
@@ -276,15 +303,15 @@ Multiple overlays can stack but compete for the same tint slot — last enabled 
 
 | Tier | Differences |
 |------|-------------|
-| Sprout / Botanist | 2D only. All overlays available. |
-| Sage / Evergreen | 2D + 3D, Microclimate report unlocked, AI in sun analysis. |
+| Sprout / Botanist | 2D + 3D (the `garden_layout_3d` gate is currently open to all tiers). All overlays available in both views. |
+| Sage / Evergreen | Same, plus Microclimate report unlocked and AI in sun analysis. |
 
 ### Common mistakes / pitfalls
 
 - **Drawing without linking to an area.** Shape exists but doesn't inherit metrics or show tokens. Always link via properties → Linked Area.
 - **Not calibrating north.** Sun analysis runs against north = up by default. If your house faces south-west, all shadows are wrong until you calibrate.
 - **Drawing the canvas way bigger than the garden.** Wastes space — canvas dimensions live in Settings and can be re-sized.
-- **Overlay stacking confusion.** Two overlays mean only the last one tints. Use one at a time.
+- **Overlay stacking confusion.** Only one tint shows at a time — sun beats the atmospheric overlays, and those resolve frost > wind > pH > moisture. Use one at a time for clarity.
 - **Forgetting to save before closing.** Save state stays `unsaved` if the debounce is in flight — wait for `Saved` before navigating.
 - **Trying to edit on a phone.** Phones show the layout view-only — pan, zoom, switch 2D/3D and tap shapes for details, but drawing and editing need a tablet or computer (the tools genuinely don't fit a small screen).
 
@@ -298,7 +325,8 @@ Multiple overlays can stack but compete for the same tint slot — last enabled 
 
 - **Sun shadows look wrong:** recalibrate north.
 - **Plant tokens missing:** the shape isn't linked to the area, or the inventory item's area doesn't match.
-- **3D view blank:** check tier — Sprout / Botanist see a paywall.
+- **3D view blank:** check the `garden_layout_3d` feature gate (currently open to all tiers in `tierFeatures.ts`; if it has been flipped to Sage/Evergreen, lower tiers see a paywall).
+- **An overlay button does nothing:** most overlays need data — pH needs `areas.medium_ph` on the linked area, moisture needs a soil sensor with a reading in the last 24 h, lux needs a light-sensor reading within ±30 min of the slider time, frost needs a weather snapshot, and sun needs the home's lat/lng.
 - **Save spinning forever:** check toast — if a network error, retry will fire on next interaction.
 
 ---
@@ -320,6 +348,7 @@ Multiple overlays can stack but compete for the same tint slot — last enabled 
 - `src/components/GardenEditorToolbar.tsx` — top toolbar
 - `src/components/garden/` — extracted sub-sheets (Quick Actions, Context Menu, Bed Templates, etc.)
 - `src/lib/garden/` — pure geometry/utility code (alignment guides, plant tokens, microclimate, sun fit)
+- `src/lib/garden/overlayTints.ts` — shared 2D/3D overlay tint logic (frost/wind/pH/moisture bands, Live sun tints, hex-alpha splitting)
 - `src/lib/sunAnalysis.ts` — heavy sun-hours computation
 - `src/hooks/useShapeLiveState.ts` — bulk fetch of plants/tasks/ailments/pH/moisture per area
 - `src/hooks/useSunPosition.ts` — SunCalc wrapper

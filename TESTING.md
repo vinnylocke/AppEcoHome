@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,443 tests across 130 files
+### Unit tests — 1,457 tests across 131 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
@@ -769,6 +769,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `taskOptimiser.test.ts` | 12 | `analyseArea` — all 4 scenarios (fragmentation, redundant, two-tier, pileup), non-optimisable categories, cross-area isolation; `canUndoSession` — recent/old sessions, reversed flag, edited blueprint |
 | `taskOptimiserAi.test.ts` | 9 | `analyseAreaAi` — correct edge function invocation, empty proposals, error propagation, optional body fields; `fetchNegativeFeedback` — field mapping, empty result, DB error, missing snapshot fields |
 | `garden.test.ts` | 19 | `sunFit` (parse preferences incl. **array/non-string coercion — RHOZLY-3Y**, match/adjacent/mismatch, summary), `plantTokens` (stable hash colour, initial, grid layout, max), `microclimate` (frost risk classification, wind shelter from walls/greenhouse, low-fence ignore), `companionPlants` (beneficial pairs, harmful pairs, neutrals, group precedence) |
+| `overlayTints.test.ts` | 14 | Garden Layout shared 2D/3D overlay tints (`src/lib/garden/overlayTints.ts`) — `getShapeOverlayTint` frost/wind/pH/moisture colour bands, null-without-data, worst-of-7-day frost minimum, fixed priority frost > wind > pH > moisture; `splitHexAlpha` (#rrggbbaa → colour + opacity for three.js); Live sun tints (`getSunTimeTint`/`getSunTimeTint2D` lit vs shade) |
 | `useAiPlantFreshness.test.ts` | 7 | Wave 5 — resolves globals vs shallow forks vs deep forks, ack semantics target global plant_id, empty input, missing parent (RLS/deleted) returns null |
 | `UpdatedChip.test.ts` | 6 | Wave 5 — renders nothing for count≤0, singular vs plural label, button when onClick provided, span otherwise, fires onClick |
 | `aiPlantOverrides.test.ts` | 12 | Wave 6 — `diffOverriddenFields` (no-change, scalar, array, sort/case-insensitive, null/empty equivalence, ignores non-overridable fields) + `mergeOverriddenFields` (union, dedup, null/empty handling) |
@@ -850,7 +851,9 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `scanJournalPhotos.test.ts` | 17 | Garden Brain Phase 3 photo scan (`_shared/scanJournalPhotos.ts`, SJP-001..031) — `selectPhotos` predicate (plant-linked, has image, never observed, 14-day window, oldest-first, 10-cap), `validateObservation` closed-vocabulary contract (unknown kinds dropped, ≤2 actions, due_in_days clamp 0–14, create_task requires task_type+title, check_for_ailment requires suspected, text caps 160/200/80, status always `proposed`, unusable core → null), `shouldApplyStage` (≥0.8 + differs), responseSchema enum pinning, prompt content |
 | `homeOverview.test.ts` | 16 | `home-overview` pure helpers (`_shared/homeOverview.ts`, HOME-OV-001..016) — `deriveValveState` (running inside the turn_on countdown, never past `duration_seconds`, newer turn_off wins, failed-queue-newer-than-last-event → failed, `nextRunAt` = earliest pending turn_on), `soilBand` (<30 dry / >70 wet), `rankAttention` (overdue > alert > failed automation > battery/soil > harvest; max 4; empty when calm), `summariseSoilReading` (null-safe, `readingAgeMin`, battery falls back to the reading payload), RHO-17 Phase 2 `shapeWalkDevices` (unassigned/location/area assignments + name-sorted, multi-sensor areas, valve state + control metadata with duration fallback, stale reading ages, unknown device types dropped) |
 
-### E2E tests — 531 tests across 36 files (+ 13 isolation tests)
+### E2E tests — 537 tests across 36 files (+ 13 isolation tests)
+
+> **Onboarding tours are seeded dismissed.** `00_bootstrap.sql` writes a full `onboarding_state` baseline (every `flowRegistry` Shepherd flow + `welcome_modal` = `dismissed`) for the worker accounts. Without it, the `global_welcome` tour (route `global`, `important: true` — bypasses the daily throttle; its per-session guard is sessionStorage, fresh in every test context) renders a centred pointer-intercepting card ~800ms after every navigation on any account with an empty state. Specs that need un-dismissed flows mock their own profile fetch (see `tests/e2e/fixtures/welcome-modal-ready.ts`).
 
 > `ailment-library.spec.ts` (Section 24) covers the browse shell (heading, search, kind filter chips) + the "Browse the ailment library" navigation from the Watchlist. Shell-only (the seeded e2e DB has no `ailment_library` rows → grid empty state).
 
@@ -904,13 +907,13 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `statstab.spec.ts` | 7 | Stats tab (STT-001–007): tab visible, plant info shows planted date, yield count ≥ 1, pruning count ≥ 1, ailment row visible, task total visible, Tomato empty states |
 | `data-isolation.spec.ts` | 13 | **Isolation project only** — cross-home data isolation for plants, ailments, plans, blueprints, locations, tasks, inventory items |
 | `community-guides.spec.ts` | 17 | Tab visibility, guide display, reader view, star toggle, comment, publish guide, draft isolation |
-| `help-center-docs.spec.ts` | 5 | Help Center → Documentation drawer (HCD-001–005): Dashboard doc reader opens, embedded `/doc-images/*.webp` screenshots load (not broken), raw `📸 Screenshot:` callouts stripped, click-to-expand lightbox opens + closes via Esc / close button |
+| `help-center-docs.spec.ts` | 6 | Help Center → Documentation drawer (HCD-001–006): Dashboard doc reader opens, embedded `/doc-images/*.webp` screenshots load (not broken), raw `📸 Screenshot:` callouts stripped, click-to-expand lightbox opens + closes via Esc / close button, closed drawer is `aria-hidden` + `inert` until opened (the drawer stays DOM-mounted for its slide transition) |
 | `security-auth.spec.ts` | 8 | AUTH-001–008: unauthenticated routes redirect to /auth, sign-out invalidates session, post-logout DB query returns 0 rows |
 | `security-xss.spec.ts` | 7 | XSS-001–007: XSS payloads in task title, guide title, guide comment, guide body, location name, plan name — `window.__xss` stays undefined |
 | `security-storage.spec.ts` | 6 | STG-001–006: cross-home area-scan read blocked, alien community-guides upload blocked, alien file delete, SVG MIME rejected, oversized upload rejected, area-scans bucket is private |
 | `shopping.spec.ts` | 28 | Shopping list CRUD, plant/product search (AI + Verdantly + Perenual), shed offer, add purchased plants to shed |
 | `companion-plants.spec.ts` | 7 | Companion Plants tab (CPT-001–007): tab visible in shed plant modal, Beneficial/Harmful/Neutral sections, Neutral collapsed by default, Add to Shed button on checkbox, ai_required upgrade message |
-| `garden-layout.spec.ts` | 15 | Garden Layout (GLB-001–016): list page + blank-canvas wizard, desktop toolbar single-row, Draw/Edit/Look mode rename, 2D/3D + zoom + settings buttons, sectioned shape rail (Beds/Structures/Hardscape/Features), mobile two-row toolbar + floating bubble, properties tabs (Style/Size/Link) |
+| `garden-layout.spec.ts` | 20 | Garden Layout (GLB-001–016, GLB-048–052): list page + blank-canvas wizard, desktop toolbar single-row, Draw/Edit/Look mode rename, 2D/3D + zoom + settings buttons, sectioned shape rail (Beds/Structures/Hardscape/Features), mobile two-row toolbar + floating bubble (incl. layers button in both views), properties tabs (Style/Size/Link), overlay parity (GLB-048–052: all overlay toggles in 2D + 3D, sun overlay Day/Live mode switch, time slider in 2D, Live scrub in 3D) |
 | `sketch-to-layout.spec.ts` | 1 | Sketch → Layout wizard (SKL-001): opens via `create-sketch-layout`; asserts the Sage+ tier gate (`sketch-to-layout-ai-gate`) for non-Sage accounts, or — when the account is Sage+ — runs the full mocked-detection happy path (upload → detect → scale → classify → review → create) to a new `/garden-layout/:id` |
 
 > **Seed note — timezone resilience:** `03_tasks_blueprints.sql` includes a "Daily Garden Check" blueprint (`freq=1`, `start_date = CURRENT_DATE - 1 day`). This ensures at least one ghost task is always visible on any date regardless of UTC/local timezone offset. Ghost task E2E tests anchor to this blueprint so they don't become flaky near midnight UTC on UTC+N machines.

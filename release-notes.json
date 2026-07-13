@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "label": "Garden Layout",
+    "items": [
+      "All map overlays — frost, wind, soil pH, moisture and companion lines — now work in the 3D garden view, not just 2D",
+      "Overlay buttons are now available in the 2D editor too (they were previously unreachable outside 3D)",
+      "New Live sun mode: flick the Day/Live switch and scrub the time slider to see exactly which beds are lit or shaded at any time of day, in both 2D and 3D",
+      "The sun overlay now tints beds in the 2D view as well as 3D"
+    ]
+  },
+  {
+    "label": "Accessibility",
+    "items": [
+      "The Help & Guides drawer is now properly hidden from screen readers while closed"
+    ]
+  }
+]

@@ -322,7 +322,7 @@ E2E tests run with up to 4 parallel workers, each backed by its own isolated Sup
 
 | File | Contents |
 |------|----------|
-| `00_bootstrap.sql` | Test auth user, profile, home, home_members |
+| `00_bootstrap.sql` | Test auth user, profile, home (with lat/lng for sun overlay), home_members, onboarding baseline (all Shepherd tours + welcome_modal dismissed so no tour card auto-fires over tests) |
 | `01_locations_areas.sql` | 2 locations, 5 garden areas |
 | `02_plants_shed.sql` | 6 plants + 6 inventory items (all statuses) |
 | `03_tasks_blueprints.sql` | 8 blueprints + 12 standalone tasks (all types & statuses) |

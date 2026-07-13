@@ -1,9 +1,31 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { test } from "../fixtures/auth";
 
 // Garden Layout Builder — Section 20
 // Covers Wave 1 changes: extracted toolbar, mode rename (Draw / Edit / Look),
 // properties tabs (Style / Size / Link), sectioned shape rail, mobile floating bubble.
+
+/**
+ * Centre of the VISIBLE part of the Konva canvas. The canvas can extend far
+ * past the viewport (seeded weather-alert banners push the editor down and
+ * the stage is 1000px+ tall at 1280×800), and raw mouse events can't hit
+ * off-viewport points — GLB-015 failed for weeks because the element-centre
+ * maths landed below the fold. Always drag relative to this instead.
+ */
+async function visibleCanvasCentre(page: Page): Promise<{ cx: number; cy: number }> {
+  const stage = page.locator("canvas").first();
+  await stage.scrollIntoViewIfNeeded();
+  const box = await stage.boundingBox();
+  if (!box) throw new Error("Canvas not measurable");
+  const vp = page.viewportSize();
+  if (!vp) throw new Error("Viewport size unavailable");
+  const x1 = Math.max(box.x, 0);
+  const y1 = Math.max(box.y, 0);
+  const x2 = Math.min(box.x + box.width, vp.width);
+  const y2 = Math.min(box.y + box.height, vp.height);
+  if (x2 <= x1 || y2 <= y1) throw new Error("Canvas has no visible area in the viewport");
+  return { cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
+}
 
 test.describe("Garden Layout — list (Section 20 Stage 1)", () => {
   test("GLB-001: layout list loads with create button", async ({ authenticatedPage }) => {
@@ -111,11 +133,13 @@ test.describe("Garden Layout — phone READ-ONLY viewer (garden-layout-fixes-and
     await expect(authenticatedPage.getByTestId("editor-floating-bubble")).toBeVisible();
   });
 
-  test("GLB-013: floating bubble keeps view + zoom, hides settings (read-only)", async ({ authenticatedPage }) => {
+  test("GLB-013: floating bubble keeps view + zoom + layers, hides settings (read-only)", async ({ authenticatedPage }) => {
     const bubble = authenticatedPage.getByTestId("editor-floating-bubble");
     await expect(bubble.getByTestId("bubble-view-btn")).toBeVisible();
     await expect(bubble.getByTestId("zoom-in-btn")).toBeVisible();
     await expect(bubble.getByTestId("zoom-out-btn")).toBeVisible();
+    // Overlay layers are viewable on phones too (view-only still allows overlays)
+    await expect(bubble.getByTestId("bubble-layers-btn")).toBeVisible();
     await expect(bubble.getByTestId("canvas-settings-btn")).toHaveCount(0);
   });
 
@@ -152,6 +176,78 @@ test.describe("Garden Layout — phone list card actions (kebab)", () => {
   });
 });
 
+test.describe("Garden Layout — overlays in both views (3D parity + 2D toolbar)", () => {
+  test.beforeEach(async ({ authenticatedPage }) => {
+    await authenticatedPage.setViewportSize({ width: 1440, height: 900 });
+    await authenticatedPage.goto("/garden-layout");
+    await authenticatedPage.getByTestId("create-layout-btn").click();
+    await authenticatedPage.getByTestId("create-blank-canvas").click();
+    await authenticatedPage.getByTestId("new-layout-name-input").fill(`Overlay Test ${Date.now()}`);
+    await authenticatedPage.getByTestId("create-layout-confirm").click();
+    await expect(authenticatedPage).toHaveURL(/\/garden-layout\/.+/, { timeout: 10000 });
+  });
+
+  test("GLB-048: 2D toolbar shows every overlay toggle (layers no longer 3D-only)", async ({ authenticatedPage }) => {
+    await expect(authenticatedPage.getByTestId("toggle-lux-btn")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("toggle-sun-btn")).toBeVisible(); // home lat/lng is seeded
+    await expect(authenticatedPage.getByTestId("toggle-companions-btn")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("toggle-frost-btn")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("toggle-wind-btn")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("toggle-ph-btn")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("toggle-moisture-btn")).toBeVisible();
+  });
+
+  test("GLB-049: overlay toggles flip aria-pressed in 2D without crashing the stage", async ({ authenticatedPage }) => {
+    for (const id of ["toggle-wind-btn", "toggle-ph-btn", "toggle-moisture-btn"]) {
+      const btn = authenticatedPage.getByTestId(id);
+      await btn.click();
+      await expect(btn).toHaveAttribute("aria-pressed", "true");
+    }
+    // Stage still alive after toggling
+    await expect(authenticatedPage.locator("canvas").first()).toBeVisible();
+  });
+
+  test("GLB-050: sun overlay in 2D reveals time controls + Day/Live mode switch", async ({ authenticatedPage }) => {
+    // Off: no sun time controls in 2D
+    await expect(authenticatedPage.getByTestId("sun-time-slider")).toHaveCount(0);
+
+    await authenticatedPage.getByTestId("toggle-sun-btn").click();
+    await expect(authenticatedPage.getByTestId("sun-time-slider")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("sun-date-input")).toBeVisible();
+
+    const day = authenticatedPage.getByTestId("sun-mode-day");
+    const live = authenticatedPage.getByTestId("sun-mode-live");
+    await expect(day).toHaveAttribute("aria-pressed", "true"); // default mode
+    await live.click();
+    await expect(live).toHaveAttribute("aria-pressed", "true");
+    await expect(day).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("GLB-051: overlay toggles stay available and functional in 3D", async ({ authenticatedPage }) => {
+    await authenticatedPage.getByTestId("view-3d-btn").click();
+    for (const id of ["toggle-frost-btn", "toggle-ph-btn", "toggle-moisture-btn", "toggle-companions-btn"]) {
+      const btn = authenticatedPage.getByTestId(id);
+      await expect(btn).toBeVisible();
+      await btn.click();
+      await expect(btn).toHaveAttribute("aria-pressed", "true");
+    }
+    // 3D canvas survived the overlay toggles
+    await expect(authenticatedPage.locator("canvas").first()).toBeVisible();
+  });
+
+  test("GLB-052: Live sun mode works in 3D and scrubbing the slider keeps the scene alive", async ({ authenticatedPage }) => {
+    await authenticatedPage.getByTestId("view-3d-btn").click();
+    await authenticatedPage.getByTestId("toggle-sun-btn").click();
+    await authenticatedPage.getByTestId("sun-mode-live").click();
+    await expect(authenticatedPage.getByTestId("sun-mode-live")).toHaveAttribute("aria-pressed", "true");
+
+    const slider = authenticatedPage.getByTestId("sun-time-slider");
+    await slider.fill("720");  // midday
+    await slider.fill("1200"); // 20:00
+    await expect(authenticatedPage.locator("canvas").first()).toBeVisible();
+  });
+});
+
 test.describe("Garden Layout — properties tabs (Wave 1C)", () => {
   test.beforeEach(async ({ authenticatedPage }) => {
     await authenticatedPage.setViewportSize({ width: 1280, height: 800 });
@@ -166,16 +262,10 @@ test.describe("Garden Layout — properties tabs (Wave 1C)", () => {
   test("GLB-015: drawing a shape opens properties with three tabs", async ({ authenticatedPage }) => {
     await authenticatedPage.getByTestId("shape-tile-raised-bed").click();
 
-    const stage = authenticatedPage.locator("canvas").first();
-    const box = await stage.boundingBox();
-    if (!box) throw new Error("Canvas not measurable");
-    const x1 = box.x + box.width / 2 - 80;
-    const y1 = box.y + box.height / 2 - 50;
-    const x2 = box.x + box.width / 2 + 80;
-    const y2 = box.y + box.height / 2 + 50;
-    await authenticatedPage.mouse.move(x1, y1);
+    const { cx, cy } = await visibleCanvasCentre(authenticatedPage);
+    await authenticatedPage.mouse.move(cx - 80, cy - 50);
     await authenticatedPage.mouse.down();
-    await authenticatedPage.mouse.move(x2, y2);
+    await authenticatedPage.mouse.move(cx + 80, cy + 50);
     await authenticatedPage.mouse.up();
 
     await expect(authenticatedPage.getByTestId("property-tab-style")).toBeVisible({ timeout: 5000 });
@@ -185,12 +275,10 @@ test.describe("Garden Layout — properties tabs (Wave 1C)", () => {
 
   test("GLB-016: Style tab shows label + colour, Size tab shows dimensions, Link tab shows delete", async ({ authenticatedPage }) => {
     await authenticatedPage.getByTestId("shape-tile-raised-bed").click();
-    const stage = authenticatedPage.locator("canvas").first();
-    const box = await stage.boundingBox();
-    if (!box) throw new Error("Canvas not measurable");
-    await authenticatedPage.mouse.move(box.x + 200, box.y + 200);
+    const { cx, cy } = await visibleCanvasCentre(authenticatedPage);
+    await authenticatedPage.mouse.move(cx - 60, cy - 40);
     await authenticatedPage.mouse.down();
-    await authenticatedPage.mouse.move(box.x + 320, box.y + 280);
+    await authenticatedPage.mouse.move(cx + 60, cy + 40);
     await authenticatedPage.mouse.up();
 
     await expect(authenticatedPage.getByTestId("property-tab-style")).toBeVisible({ timeout: 5000 });

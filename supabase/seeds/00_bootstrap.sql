@@ -103,13 +103,19 @@ ON CONFLICT (uid) DO UPDATE SET
   ai_enabled = EXCLUDED.ai_enabled,
   is_admin   = EXCLUDED.is_admin;
 
--- 3. Home
-INSERT INTO public.homes (id, name)
+-- 3. Home — lat/lng seeded (London) so the layout editor's sun overlay,
+-- sun-time slider and Day/Live mode control are exercisable in E2E.
+INSERT INTO public.homes (id, name, lat, lng)
 VALUES (
   '00000000-0000-0000-0000-000000000002',
-  'Test Garden Home'
+  'Test Garden Home',
+  51.5074,
+  -0.1278
 )
-ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  lat  = EXCLUDED.lat,
+  lng  = EXCLUDED.lng;
 
 -- 4. Home membership (owner)
 INSERT INTO public.home_members (home_id, user_id, role)
@@ -126,9 +132,50 @@ ON CONFLICT (home_id, user_id) DO NOTHING;
 --    NULL on a freshly seeded user always sends them through "Choose your
 --    plan"). 'evergreen' matches the migration's backfill rule for users
 --    with ai_enabled + enable_perenual, so tests see the full feature set.
+--
+--    onboarding_state: every Shepherd tour flow (src/onboarding/flowRegistry.ts)
+--    is seeded 'dismissed'. Without this, `global_welcome` (route "global",
+--    important:true — bypasses the daily throttle; its only re-fire guard is
+--    sessionStorage, which is fresh in every Playwright context) fires a
+--    centred, pointer-intercepting card ~800ms after EVERY navigation, on
+--    every route, for any account with an empty state — silently sabotaging
+--    raw-mouse tests and centre-of-screen clicks (root cause analysis:
+--    docs/plans/glb-015-offscreen-canvas-and-tour-seeds.md). welcome_modal
+--    is dismissed for the same determinism. Specs that need un-dismissed
+--    flows mock their own profile fetch (tests/e2e/fixtures/welcome-modal-ready.ts).
+--    This overwrite IS the canonical baseline — re-running seeds resets any
+--    tour state accumulated by previous test runs.
 UPDATE public.user_profiles
 SET
   home_id           = '00000000-0000-0000-0000-000000000002',
   enable_perenual   = true,
-  subscription_tier = 'evergreen'
+  subscription_tier = 'evergreen',
+  onboarding_state  = '{
+    "welcome_modal": "dismissed",
+    "global_welcome": "dismissed",
+    "home_setup_tips": "dismissed",
+    "dashboard_tour": "dismissed",
+    "garden_hub_tour": "dismissed",
+    "weather_insights_tour": "dismissed",
+    "planner_tour": "dismissed",
+    "task_schedule_tour": "dismissed",
+    "tools_hub_tour": "dismissed",
+    "plant_doctor_tour": "dismissed",
+    "visualiser_tour": "dismissed",
+    "add_manual_plant": "dismissed",
+    "add_location_and_area": "dismissed",
+    "guides_tour": "dismissed",
+    "profile_quiz_tour": "dismissed",
+    "quick_access_tour": "dismissed",
+    "weekly_overview_tour": "dismissed",
+    "notes_tour": "dismissed",
+    "voice_chat_tour": "dismissed",
+    "image_credits_tour": "dismissed",
+    "garden_ai_chat_tour": "dismissed",
+    "plantnet_identification_tour": "dismissed",
+    "nursery_tour": "dismissed",
+    "garden_walk_tour": "dismissed",
+    "seasonal_picks_tour": "dismissed",
+    "quick_launcher_customise_tour": "dismissed"
+  }'::jsonb
 WHERE uid = '00000000-0000-0000-0000-000000000001';

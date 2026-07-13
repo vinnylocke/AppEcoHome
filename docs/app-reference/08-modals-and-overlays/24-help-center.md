@@ -9,6 +9,16 @@
 > the doc-viewer behaviour is summarised under "Documentation drawer" immediately below. A full
 > rewrite of this file to cover both surfaces is outstanding.
 
+## Mount + accessibility behaviour (2026-07-13)
+
+The drawer is **always mounted** (portaled to `document.body` from `src/onboarding/HelpCenter.tsx`)
+so the open/close slide transition works; closed state is `translate-x-full` off the right viewport
+edge. Since 2026-07-13 the closed container also carries `aria-hidden` + `inert`
+(`data-testid="help-center-drawer"`) so assistive tech, focus, and ARIA snapshots can't reach the
+off-screen content — previously the full drawer subtree was silently present in the accessibility
+tree at all times (and misled an E2E failure investigation; see
+docs/plans/glb-015-offscreen-canvas-and-tour-seeds.md).
+
 ## Documentation drawer (`HelpCenterDrawer.tsx`)
 
 The **Documentation** tab renders each `documentation/NN-*.md` file via `react-markdown` (custom
