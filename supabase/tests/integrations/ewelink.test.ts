@@ -317,14 +317,25 @@ Deno.test("parseDeviceState — sub-device switches array 'off'", () => {
   assertEquals(parseDeviceState({ params: { switches: [{ switch: "off" }] } }).state, "off");
 });
 
-Deno.test("parseDeviceState — missing switch field defaults to 'off'", () => {
-  assertEquals(parseDeviceState({ params: {} }).state, "off");
+// 2026-07-16 — a payload with NO switch param at all now reads "unknown",
+// not "off": querying a bridge (or getting sparse params) is not evidence
+// the valve is closed. That silent "off" default is what made a running
+// sub-device valve show Off in the control panel (2026-07-15 incident).
+
+Deno.test("parseDeviceState — missing switch field is 'unknown', never 'off'", () => {
+  assertEquals(parseDeviceState({ params: {} }).state, "unknown");
 });
 
-Deno.test("parseDeviceState — empty data defaults to 'off'", () => {
-  assertEquals(parseDeviceState({}).state, "off");
+Deno.test("parseDeviceState — empty data is 'unknown'", () => {
+  assertEquals(parseDeviceState({}).state, "unknown");
 });
 
-Deno.test("parseDeviceState — unrecognised switch value defaults to 'off'", () => {
-  assertEquals(parseDeviceState({ params: { switch: "unknown" } }).state, "off");
+Deno.test("parseDeviceState — battery-only params (bridge heartbeat) is 'unknown'", () => {
+  const parsed = parseDeviceState({ params: { battery: 87 } });
+  assertEquals(parsed.state, "unknown");
+  assertEquals(parsed.battery_percent, 87);
+});
+
+Deno.test("parseDeviceState — present-but-unrecognised switch value still reads 'off'", () => {
+  assertEquals(parseDeviceState({ params: { switch: "stay" } }).state, "off");
 });

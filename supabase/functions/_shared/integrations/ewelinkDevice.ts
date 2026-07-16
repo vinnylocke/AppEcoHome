@@ -9,6 +9,27 @@ export function resolveEffectiveDuration(
   return DEFAULT_DURATION_SECONDS;
 }
 
+/**
+ * The single device-targeting rule, shared by the control payload AND the
+ * state query. Sub-devices must be addressed by their own device ID — the
+ * eWeLink cloud routes through the bridge transparently. Querying the
+ * PARENT bridge instead returns params with no `switch`, which used to
+ * read as "off" (the 2026-07-15 phantom-Off incident: control targeted the
+ * sub-device, state targeted the bridge, so the modal showed Off while the
+ * valve ran).
+ */
+export function resolveTargetDeviceId(
+  meta: Record<string, unknown>,
+  externalDeviceId?: string,
+): string | undefined {
+  if (meta.use_sub_device) {
+    return (externalDeviceId ?? meta.sub_device_id ?? meta.parent_device_id) as
+      | string
+      | undefined;
+  }
+  return meta.direct_device_id as string | undefined;
+}
+
 export function buildControlPayload(
   meta: Record<string, unknown>,
   command: "turn_on" | "turn_off",
@@ -16,29 +37,11 @@ export function buildControlPayload(
   externalDeviceId?: string,
 ): { apiPath: string; payload: Record<string, unknown> } {
   const switchState = command === "turn_on" ? "on" : "off";
-
-  // Sub-devices: address the valve directly by its own device ID.
-  // The eWeLink cloud routes through the bridge transparently.
-  if (meta.use_sub_device) {
-    const targetId = externalDeviceId ?? meta.sub_device_id ?? meta.parent_device_id;
-    return {
-      apiPath: "/v2/device/thing/status",
-      payload: {
-        type: 1,
-        id: targetId,
-        params: {
-          switch: switchState,
-          ...(command === "turn_on" ? { countdown: durationSeconds } : {}),
-        },
-      },
-    };
-  }
-
   return {
     apiPath: "/v2/device/thing/status",
     payload: {
       type: 1,
-      id: meta.direct_device_id,
+      id: resolveTargetDeviceId(meta, externalDeviceId),
       params: {
         switch: switchState,
         ...(command === "turn_on" ? { countdown: durationSeconds } : {}),
@@ -48,7 +51,10 @@ export function buildControlPayload(
 }
 
 export interface ParsedEwelinkState {
-  state: "on" | "off";
+  /** "unknown" when the status payload carries no switch param at all —
+   *  e.g. the query hit a bridge, or the cloud returned sparse params.
+   *  That is NOT evidence the valve is off; callers must not persist it. */
+  state: "on" | "off" | "unknown";
   /** 0-100 integer, or null when the device's state payload didn't
    *  include any recognised battery field. Sonoff Zigbee valves
    *  report battery directly as a percent in one of several param
@@ -109,7 +115,11 @@ export function parseDeviceState(
 ): ParsedEwelinkState {
   const params = (stateJsonData?.params ?? {}) as Record<string, unknown>;
   const switches = params.switches as Array<Record<string, unknown>> | undefined;
-  const raw: string = (params.switch as string) ?? (switches?.[0]?.switch as string) ?? "off";
-  const state: "on" | "off" = raw === "on" ? "on" : "off";
+  const raw = (params.switch as string) ?? (switches?.[0]?.switch as string);
+  // No switch param at all → "unknown", never "off" — defaulting to off is
+  // what made a running sub-device valve read as Off when the state query
+  // hit the bridge. A present-but-unrecognised value still reads as off.
+  const state: "on" | "off" | "unknown" =
+    raw === "on" ? "on" : raw === undefined ? "unknown" : "off";
   return { state, battery_percent: parseEwelinkBattery(params) };
 }

@@ -126,6 +126,18 @@ wizard (control URL + override-able method/headers/body with `{{variable}}` plac
 preview); the endpoint must be publicly reachable over HTTPS. See
 [Integration Contract → Valve control](../99-cross-cutting/37-integration-contract.md).
 
+**Valve state reads target the valve itself (2026-07-16 fix).** `integrations-ewelink-state`
+resolves its query id with the same `resolveTargetDeviceId` rule as the control payload
+(`_shared/integrations/ewelinkDevice.ts`): sub-device valves (e.g. Sonoff SWV behind a Zigbee
+bridge) are queried by their **own** sub-device id, not the parent bridge. Previously the state
+query hit the bridge, whose params carry no `switch`, and the parser silently defaulted to
+"off" — so the control panel showed **Off while the valve was running**, and (because Turn Off
+was gated on `state === "on"`) the only way to close it was turning it on again first. Three
+invariants now hold: a payload with **no** switch param parses as `"unknown"` (never a phantom
+"off"); an unknown state is **never persisted** to `device_readings`; and the panel's Turn Off
+button is disabled only when the valve is confidently **off** — an unknown-state valve can always
+be force-closed.
+
 ### OAuth callback (eWeLink)
 
 `IntegrationsPage` watches `window.location.search` on mount for `?code=...&state=...&region=...`. If present:

@@ -29,6 +29,7 @@ import { Logger } from "../lib/errorHandler";
 import { logEvent, EVENT } from "../events/registry";
 import { getPlantWikiInfo } from "../lib/wikipedia";
 import { reduceAutoRead, initialAutoReadState } from "../lib/chatAutoRead";
+import { chatErrorToUserMessage, parseFunctionsErrorBody } from "../lib/chatError";
 import ImageDisclaimer from "./ImageDisclaimer";
 import { sanitizeAssistantText } from "../lib/stripMarkdownImages";
 import { visibleToolResults } from "../lib/visibleToolResults";
@@ -74,6 +75,8 @@ interface Message {
   tool_results?: ToolResult[];
   /** Phase 2 — pending tool calls awaiting user confirmation. */
   pending_tool_calls?: PendingCall[];
+  /** Set on locally-generated error bubbles (never persisted). */
+  error_kind?: "unavailable" | "quota" | "generic";
 }
 
 const WELCOME_CONTENT =
@@ -910,13 +913,18 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       }
     } catch (err: any) {
       Logger.error("Plant Doctor AI Error:", err);
+      // The real signal (ai_unavailable / quota_exceeded) is only in the
+      // response body — FunctionsHttpError.message is always the generic
+      // "non-2xx" line. Parse it so an AI outage or a quota hit reads
+      // differently from an app bug.
+      const presentation = chatErrorToUserMessage(await parseFunctionsErrorBody(err));
       setMessages((prev) => [
         ...prev,
         {
           _key: nextKey(),
           role: "assistant",
-          content:
-            "Oops! My roots got tangled. I couldn't process that right now.",
+          content: presentation.text,
+          error_kind: presentation.kind,
         },
       ]);
     } finally {
@@ -992,13 +1000,14 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     } catch (err: any) {
       Logger.error("Regenerate error:", err);
       toast.error("Failed to regenerate response.");
+      const presentation = chatErrorToUserMessage(await parseFunctionsErrorBody(err));
       setMessages((prev) => [
         ...prev,
         {
           _key: nextKey(),
           role: "assistant",
-          content:
-            "Oops! My roots got tangled. I couldn't process that right now.",
+          content: presentation.text,
+          error_kind: presentation.kind,
         },
       ]);
     } finally {
@@ -1177,7 +1186,11 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                             className="w-full max-h-48 object-cover rounded-xl mb-1"
                           />
                         )}
-                        <div className="whitespace-pre-wrap">{msg.role === "assistant" ? sanitizeAssistantText(msg.content) : msg.content}</div>
+                        <div
+                          className="whitespace-pre-wrap"
+                          data-testid={msg.error_kind ? "chat-error-message" : undefined}
+                          data-error-kind={msg.error_kind}
+                        >{msg.role === "assistant" ? sanitizeAssistantText(msg.content) : msg.content}</div>
 
                         {msg.role === "assistant" &&
                           !!msg.preferences_captured &&

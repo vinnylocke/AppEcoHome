@@ -12,7 +12,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { fanoutActions } from "../_shared/fanoutActions.ts";
 import { sendReceipt } from "../_shared/automationReceipt.ts";
-import { drainValveQueue } from "../_shared/valveQueue.ts";
+import { drainValveQueue, finaliseRunSuccess } from "../_shared/valveQueue.ts";
 import { buildControlPayload, resolveEffectiveDuration } from "../_shared/integrations/ewelinkDevice.ts";
 import { regionToApiBase } from "../_shared/integrations/ewelinkAuth.ts";
 import { controlValve } from "../_shared/integrations/valveControl.ts";
@@ -462,20 +462,35 @@ async function runAutomation(
   const fanout = await fanoutActions(db, { id: automationId, home_id: homeId, name: automationName }, runId, now);
   await drainValveQueue(db).catch((e) => warn(FN, "manual_drain_error", { error: e.message }));
 
-  const membersAlerted = await sendReceipt(
-    db, { id: automationId, home_id: homeId, name: automationName }, "ran",
-    { valvesFired: fanout.valves_queued, tasksCompleted: fanout.tasks_completed.length },
-  );
+  // Status-guarded flip (pending → success): the inline drain above may have
+  // already downgraded the run via markRunValveFailure — an unconditional
+  // success write here was clobbering that downgrade, so a failed manual
+  // valve run still read "Success" in history (review 2026-07-16).
+  const succeeded = await finaliseRunSuccess(db, runId);
+  let finalStatus = "success";
+  if (!succeeded) {
+    const { data: cur } = await db.from("automation_runs").select("status").eq("id", runId).single();
+    finalStatus = ((cur as { status?: string } | null)?.status) ?? "failed";
+  }
+
+  // The drain already sends the corrective "failed" receipt for a failed
+  // turn_on — only send "ran" when the run actually succeeded, otherwise the
+  // user gets a "failed" push followed by a contradictory "ran".
+  const membersAlerted = succeeded
+    ? await sendReceipt(
+        db, { id: automationId, home_id: homeId, name: automationName }, "ran",
+        { valvesFired: fanout.valves_queued, tasksCompleted: fanout.tasks_completed.length },
+      )
+    : 0;
 
   await db.from("automation_runs").update({
-    status: "success",
     devices_triggered: { members_alerted: Math.max(membersAlerted, fanout.notifications_sent), valves_queued: fanout.valves_queued },
     tasks_completed: fanout.tasks_completed,
     completed_at: now.toISOString(),
   }).eq("id", runId);
 
-  log(FN, "automation_complete", { automationId, runId, valves: fanout.valves_queued, membersAlerted, tasks: fanout.tasks_completed.length });
-  return { status: "success", runId };
+  log(FN, "automation_complete", { automationId, runId, status: finalStatus, valves: fanout.valves_queued, membersAlerted, tasks: fanout.tasks_completed.length });
+  return { status: finalStatus, runId };
 }
 
 // ── Entrypoint ────────────────────────────────────────────────────────────────

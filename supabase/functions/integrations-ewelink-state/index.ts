@@ -14,7 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptCredentials, encryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { insertReading } from "../_shared/integrations/readings.ts";
 import type { ValveReading } from "../_shared/integrations/providerTypes.ts";
-import { parseDeviceState } from "../_shared/integrations/ewelinkDevice.ts";
+import { parseDeviceState, resolveTargetDeviceId } from "../_shared/integrations/ewelinkDevice.ts";
 import { regionToApiBase, withTokenRefresh } from "../_shared/integrations/ewelinkAuth.ts";
 import { captureException } from "../_shared/sentry.ts";
 
@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
 
     const { data: device } = await db
       .from("devices")
-      .select("id, home_id, metadata, integration_id")
+      .select("id, home_id, metadata, integration_id, external_device_id")
       .eq("id", deviceId)
       .eq("device_type", "water_valve")
       .single();
@@ -99,7 +99,11 @@ Deno.serve(async (req) => {
     const appSecret = Deno.env.get("EWELINK_APP_SECRET") ?? "";
     const apiBase = regionToApiBase(integration.region as string | undefined);
     const meta = device.metadata as Record<string, unknown>;
-    const targetId = meta.use_sub_device ? meta.parent_device_id : meta.direct_device_id;
+    // Same targeting rule as the control path (resolveTargetDeviceId) — a
+    // sub-device valve must be queried by its OWN id. Querying the parent
+    // bridge returns no `switch` param, which read as "off" while the valve
+    // was physically running (2026-07-15 incident).
+    const targetId = resolveTargetDeviceId(meta, device.external_device_id as string | undefined);
 
     let stateJson: { error?: number; msg?: string; data?: unknown };
     try {
@@ -143,11 +147,16 @@ Deno.serve(async (req) => {
     // Store as a reading so it appears in history. Battery rides
     // inside the reading row when present — the insertReading helper
     // also refreshes the devices.battery_* columns for the pip.
-    const reading: ValveReading = {
-      state: parsed.state,
-      ...(parsed.battery_percent !== null ? { battery_percent: parsed.battery_percent } : {}),
-    };
-    await insertReading({ db, deviceId, homeId: device.home_id, data: reading, recordedAt: now });
+    // An "unknown" state (no switch param in the response) is never
+    // persisted — recording it as a reading poisoned history with
+    // phantom states the valve never had.
+    if (parsed.state !== "unknown") {
+      const reading: ValveReading = {
+        state: parsed.state,
+        ...(parsed.battery_percent !== null ? { battery_percent: parsed.battery_percent } : {}),
+      };
+      await insertReading({ db, deviceId, homeId: device.home_id, data: reading, recordedAt: now });
+    }
 
     return new Response(JSON.stringify({ state: parsed.state, battery_percent: parsed.battery_percent, updatedAt: now.toISOString() }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

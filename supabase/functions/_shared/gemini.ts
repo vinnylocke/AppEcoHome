@@ -175,8 +175,9 @@ export async function callGeminiCascade(
   const summary = perModelErrors
     .map((e) => `  • ${e.model} (${e.attempts}x): ${e.error}`)
     .join("\n");
-  throw new Error(
+  throw new GeminiCascadeExhaustedError(
     `All ${models.length} Gemini models exhausted (cascade tried each up to ${maxRetries} times):\n${summary}`,
+    perModelErrors,
   );
 }
 
@@ -247,8 +248,11 @@ async function callOnce(
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
+    // Always prefix the HTTP status — the retryable check and
+    // classifyCascadeErrors match on "429"/"503", and Google's own message
+    // text doesn't reliably contain the code.
     throw new Error(
-      errData.error?.message ?? `Gemini HTTP ${res.status} from ${model}`,
+      `Gemini HTTP ${res.status} from ${model}: ${errData.error?.message ?? res.statusText}`,
     );
   }
 
@@ -319,6 +323,54 @@ export interface GeminiToolResponse {
   usage: GeminiUsage;
 }
 
+/** One cascade rung's terminal failure — model, attempts made, last error. */
+export interface CascadeModelError {
+  model: string;
+  attempts: number;
+  error: string;
+}
+
+/**
+ * Thrown by `callGeminiWithTools` when every model in the cascade has been
+ * tried (with per-model retries) and none produced a response. Carries the
+ * per-rung failures so callers can distinguish an account-level outage
+ * (spend cap / billing) from transient overload and respond accordingly.
+ * The message keeps the legacy summary format, so callers that match on
+ * message text keep working unchanged.
+ */
+export class GeminiCascadeExhaustedError extends Error {
+  readonly perModelErrors: CascadeModelError[];
+  constructor(message: string, perModelErrors: CascadeModelError[]) {
+    super(message);
+    this.name = "GeminiCascadeExhaustedError";
+    this.perModelErrors = perModelErrors;
+  }
+}
+
+/**
+ * Classify an exhausted cascade by its per-rung errors:
+ *  - "billing"    — every rung hit the account's spend cap / billing;
+ *                   retrying is pointless until the operator raises the cap.
+ *  - "rate_limit" — every rung was a 429 without a billing signature;
+ *                   may recover on its own.
+ *  - "transient"  — anything else (503s, timeouts, mixed) — worth retrying.
+ */
+export function classifyCascadeErrors(
+  perModelErrors: CascadeModelError[],
+): "billing" | "rate_limit" | "transient" {
+  if (perModelErrors.length === 0) return "transient";
+  // "billing" alone is too loose — Google's plain quota-429 copy says
+  // "check your plan and billing details". Only a spend-cap message or an
+  // explicitly suspended/disabled/closed billing account means retrying is
+  // pointless until the operator intervenes.
+  const billing = (e: CascadeModelError) =>
+    /spending cap|billing.*(suspend|disabl|clos)/i.test(e.error);
+  const rateLimited = (e: CascadeModelError) => e.error.includes("429");
+  if (perModelErrors.every(billing)) return "billing";
+  if (perModelErrors.every(rateLimited)) return "rate_limit";
+  return "transient";
+}
+
 /**
  * Tool-aware Gemini call with the same model cascade + retry behaviour
  * as `callGeminiCascade`. Use this when you want function-calling; the
@@ -387,8 +439,9 @@ export async function callGeminiWithTools(
   const summary = perModelErrors
     .map((e) => `  • ${e.model} (${e.attempts}x): ${e.error}`)
     .join("\n");
-  throw new Error(
+  throw new GeminiCascadeExhaustedError(
     `All ${models.length} Gemini models exhausted (cascade tried each up to ${maxRetries} times):\n${summary}`,
+    perModelErrors,
   );
 }
 
@@ -429,8 +482,11 @@ async function callOnceWithTools(
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
+    // Always prefix the HTTP status — the retryable check and
+    // classifyCascadeErrors match on "429"/"503", and Google's own message
+    // text doesn't reliably contain the code.
     throw new Error(
-      errData.error?.message ?? `Gemini HTTP ${res.status} from ${model}`,
+      `Gemini HTTP ${res.status} from ${model}: ${errData.error?.message ?? res.statusText}`,
     );
   }
 

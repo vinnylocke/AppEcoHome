@@ -24,9 +24,14 @@ import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import {
   callGeminiWithTools,
+  classifyCascadeErrors,
+  GeminiCascadeExhaustedError,
   type GeminiMessage,
   type GeminiFunctionCall,
+  type GeminiToolResponse,
+  type GeminiUsage,
 } from "../_shared/gemini.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 import { getToolsForTier, getToolMeta } from "./tools.ts";
 import { READ_EXECUTORS } from "./executors/read.ts";
 import { MUTATION_EXECUTORS } from "./executors/mutations.ts";
@@ -209,8 +214,12 @@ async function handleSendMessage(
     }, 429);
   }
 
-  // Log the message turn upfront (quota counter).
-  // Returns the new message_id so we can attach chat_tool_calls.
+  // Log the message turn upfront. The ai_usage_log row below is a PURE quota
+  // counter (always zero tokens — check_ai_message_quota counts rows, not
+  // tokens); the real per-model usage + cost is logged at the end of the turn
+  // via logAiUsage under function_name "agent-chat". Don't "fix" the zeros.
+  // The chat_messages insert returns the message_id so chat_tool_calls rows
+  // can reference it mid-loop.
   const { data: assistantMsg } = await db
     .from("chat_messages")
     .insert({
@@ -271,6 +280,29 @@ async function handleSendMessage(
   let finalReply: string | undefined;
   let totalTokensSpent = 0;
 
+  // One entry per actual Gemini call this turn (loop rounds, forced retries,
+  // knowledge fallback) — logged to ai_usage_log at the end so cost is priced
+  // per the model that really answered each round (Pro vs flash is 10–20×).
+  const usageEvents: Array<{ usage: GeminiUsage; action: string }> = [];
+
+  // Every model in the cascade failed (spend cap / billing / sustained
+  // 429s or 503s). Remove the placeholder assistant row so it doesn't sit
+  // empty in history forever, alert the operator via Sentry with the
+  // classification, and return a structured 503 the client renders as a
+  // distinct "AI temporarily unavailable" message (not the generic error).
+  const aiUnavailable = async (err: GeminiCascadeExhaustedError) => {
+    const reason = classifyCascadeErrors(err.perModelErrors);
+    logError(FN, "cascade_exhausted", { userId, reason, error: err.message });
+    await db.from("chat_messages").delete().eq("id", assistantMsg!.id);
+    await captureException(FN, err, { reason, userId });
+    return json({
+      error: "ai_unavailable",
+      reason,
+      message:
+        "Rhozly's AI is temporarily unavailable — your message wasn't lost. Please try again in a little while.",
+    }, 503);
+  };
+
   // Build a date prefix the model can use to resolve relative dates
   // ("tomorrow", "next Tuesday"). Done per-call (not cached) so a chat
   // that crosses midnight doesn't see a stale "today".
@@ -300,13 +332,20 @@ async function handleSendMessage(
   let groundingRetryUsed = false;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    let resp = await callGeminiWithTools(apiKey, FN, messages, tools, {
-      models: chatModels,
-      systemPrompt: fullPrompt,
-      toolChoice: "AUTO",
-      logContext: { round, userId },
-    });
+    let resp: GeminiToolResponse;
+    try {
+      resp = await callGeminiWithTools(apiKey, FN, messages, tools, {
+        models: chatModels,
+        systemPrompt: fullPrompt,
+        toolChoice: "AUTO",
+        logContext: { round, userId },
+      });
+    } catch (err) {
+      if (err instanceof GeminiCascadeExhaustedError) return await aiUnavailable(err);
+      throw err;
+    }
     totalTokensSpent += resp.usage.totalTokenCount;
+    usageEvents.push({ usage: resp.usage, action: `round_${round}` });
 
     // Forced-retry triggers, same machinery:
     //  (a) action-explicit request finishing in prose with nothing staged —
@@ -351,13 +390,20 @@ async function handleSendMessage(
             `Call get_weather_now (and any relevant read) to ground the answer in their real conditions before replying.`
           : `You were about to state facts about the user's garden data without having read anything this turn. ` +
             `Call the appropriate read tool(s) now (list_* / get_*) to ground your answer in their real data before replying.`;
-      const forced = await callGeminiWithTools(apiKey, FN, messages, tools, {
-        models: chatModels,
-        systemPrompt: `${fullPrompt}\n\n${nudge}`,
-        toolChoice: "ANY",
-        logContext: { round: "forced_retry", userId },
-      });
+      let forced: GeminiToolResponse;
+      try {
+        forced = await callGeminiWithTools(apiKey, FN, messages, tools, {
+          models: chatModels,
+          systemPrompt: `${fullPrompt}\n\n${nudge}`,
+          toolChoice: "ANY",
+          logContext: { round: "forced_retry", userId },
+        });
+      } catch (err) {
+        if (err instanceof GeminiCascadeExhaustedError) return await aiUnavailable(err);
+        throw err;
+      }
       totalTokensSpent += forced.usage.totalTokenCount;
+      usageEvents.push({ usage: forced.usage, action: "forced_retry" });
       if (forced.functionCalls && forced.functionCalls.length > 0) resp = forced;
     }
 
@@ -538,6 +584,7 @@ async function handleSendMessage(
         logContext: { round: "knowledge_fallback", userId },
       });
       totalTokensSpent += fallback.usage.totalTokenCount;
+      usageEvents.push({ usage: fallback.usage, action: "knowledge_fallback" });
       finalReply = fallback.text?.trim() || "";
     } catch (err: any) {
       warn(FN, "knowledge_fallback_failed", { error: err.message });
@@ -585,14 +632,29 @@ async function handleSendMessage(
     .update({ content: finalReply, suggested_plants: suggestedPlants.length ? suggestedPlants : null })
     .eq("id", assistantMsg!.id);
 
-  // Best-effort token update (don't block response).
-  db.from("ai_usage_log")
-    .update({ total_tokens: totalTokensSpent })
-    .eq("user_id", userId)
-    .eq("function_name", "agent-chat-message")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .then(() => {});
+  // Per-call usage rows — the cost authority (estimateGeminiCostUsd inside
+  // logAiUsage) prices each round by the model that actually answered. This
+  // replaced a best-effort total_tokens update on the counter row, which
+  // recorded zero cost and made the July 2026 spend-cap incident invisible
+  // in the audit views. Only the final call carries the audit prompt/result —
+  // duplicating them per round would bloat the log. logAiUsage never throws.
+  await Promise.all(
+    usageEvents.map((ev, i) =>
+      logAiUsage(db as unknown as Parameters<typeof logAiUsage>[0], {
+        homeId,
+        userId,
+        functionName: "agent-chat",
+        action: ev.action,
+        usage: ev.usage,
+        ...(i === usageEvents.length - 1
+          ? {
+              prompt: typeof message === "string" && message ? message : "(audio message)",
+              rawResult: finalReply,
+            }
+          : {}),
+      }),
+    ),
+  );
 
   log(FN, "complete", {
     auto: toolResults.length,

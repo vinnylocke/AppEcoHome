@@ -114,6 +114,8 @@ automation_blueprints ─ blueprint_id, automation_id, role: "controlling" | "dr
 
 Audit trail of every fire. `status`: `ran` / `skipped_rain` / `failed` / `retried` / `skipped_rate_limited` (Batch B). `trigger_reason jsonb` (Batch B) records `{ summary, matched }` — the satisfied condition leaves ("why it ran"). **Constraint fix (2026-06-19, `20260806000000`):** `automation_runs_status_check` originally allowed only `pending/success/partial/failed/skipped_weather/skipped_no_tasks`, so `skipped_rate_limited` + `deferred_weather` INSERTs silently failed the CHECK and were never recorded (a rate-limited automation looked like it never ran). The constraint now covers every status the engine writes; the engine logs the insert error as a backstop.
 
+**Status is written optimistically, then corrected (2026-07-16).** The engine inserts the row (`success`, `devices_triggered.valves_queued`) when the valve is *queued*, before actuation. When the drain (`_shared/valveQueue.ts`) terminally fails a `turn_on`, it downgrades the row — `failed`, or `partial` when a sibling `turn_on` in the same run fired — and sets `error_message` (rendered by `AutomationRunHistory`). Rows before 2026-07-16 could read `success` despite a failed valve (the 2026-07-15 incident); they are not backfilled.
+
 ### Batch B automation columns (2026-06-18, migration `20260801000000`)
 
 - `automations.location_id` (FK `locations`, nullable) — joins `area_id` for the builder's Scope picker.

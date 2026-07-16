@@ -97,6 +97,12 @@ The manual run path fired the legacy `automation_devices` table, which is **empt
 
 The auto path sent the **Automation Receipt** ("…ran") the instant `evaluate-automations` *queued* the valve, but the valve only physically opened when the separate `drain-valve-queue-5min` cron next ran — so the notification arrived up to 5 minutes early. (Only **valve** automations showed this; `send_notification` + `complete_task` already run inline in `fanoutActions`.) The manual "Run now" path never had the gap because it drains inline. **Fix:** `drainValveQueue` (+ `fireValve`) was extracted from `run-automations` into the shared `_shared/valveQueue.ts`, and `evaluate-automations` now calls `drainValveQueue(db, { runId })` right after the receipt so the just-queued `turn_on` actuates within the same invocation. The optimistic-receipt-then-failure-correction design is unchanged (a `turn_on` failure in the drain still sends the `failed` receipt); the 5-min drain cron stays as the safety net + `turn_off` closer. Deno-tested in `supabase/tests/valveQueue.test.ts`.
 
+### Failed valves now downgrade the run row (2026-07-16 fix)
+
+The receipt correction above fixed the *notification*, but the `automation_runs` row (written optimistically as `success` when the valve is **queued**) was never touched — so run history claimed success for a watering that never happened (2026-07-15 incident: queue row `failed` "ewelink control failed", history green). `drainValveQueue` now calls `markRunValveFailure` at **every** site that terminally fails a `turn_on` (control failure, missing device/automation/integration, catch-all drain error, and the stale-claim dead-letter sweep): the run's `status` becomes `failed` — or `partial` when a sibling `turn_on` in the same run already fired (`runStatusAfterValveFailure`, pure) — and `error_message` carries the reason, which `AutomationRunHistory` already renders. `turn_off` failures deliberately don't downgrade the run (the watering happened; the device-side countdown closes the valve).
+
+The **manual "Run now" path** (`run-automations` → `runAutomation`) drains inline and then finalises the run — that finalisation now uses `finaliseRunSuccess` (`_shared/valveQueue.ts`), a CAS flip of `pending → success` guarded on `status = 'pending'`, so a drain downgrade survives (an unconditional success write was clobbering it — caught in review). When the flip loses, the manual response reports the run's real status and the "ran" receipt is **skipped** (the drain already sent the corrective "failed" receipt — previously the user got "failed" followed by a contradictory "ran").
+
 ### Garden AI can manage automations (2026-06-19)
 
 Garden AI (agent-chat) gained automation tools: `list_devices`, `list_automations` (read) and
@@ -223,7 +229,7 @@ None.
 
 | State | Result |
 |-------|--------|
-| Provider failure | `automation_runs.status = "failed"`; retry if enabled |
+| Provider failure on a queued `turn_on` | Queue row `failed` + **the parent `automation_runs` row is downgraded** to `failed` (or `partial` when another valve in the same run did fire) with `error_message` set — rendered by `AutomationRunHistory` (`run-valve-error`). The corrective "failed" receipt still goes out. **Before 2026-07-16 the run row stayed `success`** — the 2026-07-15 incident: valve never opened, history claimed success. |
 | No devices selected | Builder validation error |
 | Skip-if-rained triggered | `automation_runs.status = "skipped"`; no provider call |
 

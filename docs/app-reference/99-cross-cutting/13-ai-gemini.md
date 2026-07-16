@@ -96,6 +96,8 @@ The Garden AI chat picks its cascade by subscription tier (`modelsForTier`, spli
 
 `gemini-3.1-pro-preview` appears in **no other tier's cascade** — it is Evergreen-exclusive by product decision (docs/plans/evergreen-top-model-and-overdue-nudge.md). Flash rungs remain in the paid cascades as availability fallbacks.
 
+**Cascade exhaustion contract.** When *every* rung fails (all retries spent), `callGeminiCascade` / `callGeminiWithTools` throw `GeminiCascadeExhaustedError` — a plain-`Error` subclass carrying `perModelErrors` (model, attempts, last error per rung). `classifyCascadeErrors(perModelErrors)` maps that to `"billing"` (every rung hit the spend cap / billing — retrying is pointless until the operator raises the cap at https://ai.studio/spend), `"rate_limit"` (every rung 429 without billing wording), or `"transient"` (503s / timeouts / mixed). `agent-chat` uses this to return a structured **503 `ai_unavailable`** instead of a generic 500 — added after the July 2026 spend-cap outage, when a total Gemini failure was indistinguishable from an app bug. Tests: `supabase/tests/geminiCascadeError.test.ts`.
+
 **Object detection (`identify_scene` / Multi-ID).** Gemini returns native bounding boxes as `box_2d = [ymin, xmin, ymax, xmax]` normalised to **0–1000** (top-left origin). The `SCENE_MAP_SCHEMA` responseSchema requests one box + ranked candidate IDs per detected plant; the client maps `box_2d` → CSS percentages via `src/lib/sceneMap.ts` to overlay boxes on the rendered photo. Boxes are approximate — pair them with the confidence weighting rather than treating them as pixel-exact.
 
 ### Pricing (per 1M tokens, confirmed against https://ai.google.dev/gemini-api/docs/pricing)
@@ -189,6 +191,14 @@ One row per Gemini/Imagen call, written by `_shared/aiUsage.ts` → `logAiUsage`
 - **Cost is accurate** — `logAiUsage` costs each call with `_shared/geminiCost.ts`
   (`estimateGeminiCostUsd`: per-model input/output/cache/thoughts rates + batch discount), NOT a flat
   per-token rate. Migration `20260813000000` backfilled historical rows.
+- **`agent-chat` logs two kinds of rows — don't "fix" the zeros.** Each user message inserts one
+  `function_name: "agent-chat-message"` row with **zero tokens/cost** — it is a pure quota counter
+  (`check_ai_message_quota` counts rows, not tokens). The real usage is logged at the end of the turn
+  as one `function_name: "agent-chat"` row **per actual Gemini call** (`action: round_N /
+  forced_retry / knowledge_fallback`), each priced by the model that answered that round. The final
+  row carries the user message as `prompt` and the reply as `rawResult`. Before 2026-07-14 the chat
+  only wrote the counter row — 24M tokens of July eval traffic appeared as $0.60, which is how the
+  spend cap blew invisibly. Rows before that date under-report chat cost; there is no backfill.
 - **Observability** — callers pass `contextBlock` / `prompt` / `rawResult` so a call can be reviewed.
 - Surfaces: Account Tab's AI Usage Panel (per-home), the **`/admin/ai-calls`** admin viewer (all
   calls; expand context→prompt→result), and the **`sync-stripe-ai-cost`** daily cron which mirrors

@@ -117,7 +117,7 @@ export default function AutomationRunHistory({ automationId }: Props) {
                 </p>
               )}
               {run.error_message && (
-                <p className="text-xs text-red-500 mt-0.5 truncate">{run.error_message}</p>
+                <p data-testid="run-valve-error" className="text-xs text-red-500 mt-0.5 truncate">{run.error_message}</p>
               )}
             </div>
           </div>

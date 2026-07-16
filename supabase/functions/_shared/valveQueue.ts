@@ -22,6 +22,78 @@ import { log } from "./logger.ts";
 const FN = "valve-queue";
 const EWELINK_APP_ID = Deno.env.get("EWELINK_APP_ID") ?? "";
 
+/**
+ * Status the parent automation_runs row takes after a turn_on queue entry
+ * fails: 'partial' when another turn_on in the same run already actuated,
+ * otherwise 'failed'. Pure — Deno-tested.
+ */
+export function runStatusAfterValveFailure(
+  anySiblingTurnOnFired: boolean,
+): "failed" | "partial" {
+  return anySiblingTurnOnFired ? "partial" : "failed";
+}
+
+/**
+ * Flip a run's status pending → success ONLY if nothing downgraded it in the
+ * meantime. The manual "Run now" path drains the valve queue inline, so
+ * markRunValveFailure may have already written failed/partial — an
+ * unconditional success write afterwards was clobbering that downgrade
+ * (review 2026-07-16), reviving the "history says success for a valve that
+ * never opened" incident on the manual path. Returns whether the flip won.
+ */
+export async function finaliseRunSuccess(
+  // deno-lint-ignore no-explicit-any
+  db: any,
+  runId: string,
+): Promise<boolean> {
+  const { data: flipped } = await db
+    .from("automation_runs")
+    .update({ status: "success" })
+    .eq("id", runId)
+    .eq("status", "pending")
+    .select("id");
+  return !!flipped && (flipped as unknown[]).length > 0;
+}
+
+/**
+ * A failed turn_on must surface in run history. The automation_runs row is
+ * written optimistically ('success', valves_queued) when the valve is only
+ * QUEUED — without this correction the 2026-07-15 incident shape recurs:
+ * queue row failed ("ewelink control failed"), history still says success.
+ * Writes the error to automation_runs.error_message (already rendered by
+ * AutomationRunHistory) and downgrades the status. Never throws — a
+ * bookkeeping failure must not strand the drain.
+ */
+async function markRunValveFailure(
+  // deno-lint-ignore no-explicit-any
+  db: any,
+  runId: string,
+  failedEntryId: string,
+  errorMessage: string,
+): Promise<void> {
+  try {
+    const { data: siblings } = await db
+      .from("automation_valve_queue")
+      .select("id, command, status")
+      .eq("automation_run_id", runId);
+    const anyFired = ((siblings ?? []) as Array<Record<string, unknown>>).some(
+      (s) =>
+        s.id !== failedEntryId && s.command === "turn_on" &&
+        s.status === "fired",
+    );
+
+    await db
+      .from("automation_runs")
+      .update({
+        status: runStatusAfterValveFailure(anyFired),
+        error_message: errorMessage,
+      })
+      .eq("id", runId);
+  } catch (err) {
+    log(FN, "run_valve_failure_mark_error", { runId, error: String(err) });
+  }
+}
+
 /** Fire a single valve command at the device, with one optional retry. */
 export async function fireValve(
   apiBase: string,
@@ -93,14 +165,25 @@ export async function drainValveQueue(
     .eq("status", "firing")
     .eq("command", "turn_off")
     .lte("fire_at", staleCutoff);
-  await db.from("automation_valve_queue")
+  const { data: deadLettered } = await db.from("automation_valve_queue")
     .update({
       status: "failed",
       error_message: "Stale firing claim — drain died mid-fire",
     })
     .eq("status", "firing")
     .eq("command", "turn_on")
-    .lte("fire_at", staleCutoff);
+    .lte("fire_at", staleCutoff)
+    .select("id, automation_run_id");
+  // Dead-lettered turn_ons are failures the run row doesn't know about yet.
+  for (const row of (deadLettered ?? []) as Array<Record<string, unknown>>) {
+    if (!row.automation_run_id) continue;
+    await markRunValveFailure(
+      db,
+      row.automation_run_id as string,
+      row.id as string,
+      "Stale firing claim — drain died mid-fire",
+    );
+  }
 
   let query = db
     .from("automation_valve_queue")
@@ -164,6 +247,14 @@ export async function drainValveQueue(
             error_message: "Device or automation not found",
           })
           .eq("id", entry.id as string);
+        if ((entry.command as string) !== "turn_off") {
+          await markRunValveFailure(
+            db,
+            entry.automation_run_id as string,
+            entry.id as string,
+            "Device or automation not found",
+          );
+        }
         continue;
       }
 
@@ -180,6 +271,14 @@ export async function drainValveQueue(
         await db.from("automation_valve_queue")
           .update({ status: "failed", error_message: "Integration not found" })
           .eq("id", entry.id as string);
+        if ((entry.command as string) !== "turn_off") {
+          await markRunValveFailure(
+            db,
+            entry.automation_run_id as string,
+            entry.id as string,
+            "Integration not found",
+          );
+        }
         continue;
       }
 
@@ -271,7 +370,14 @@ export async function drainValveQueue(
         });
       } else if (command === "turn_on") {
         // The optimistic "ran" receipt already went out when the automation fired;
-        // a turn-on failure here corrects it (only if a receipt action is configured).
+        // a turn-on failure here corrects it (only if a receipt action is configured)
+        // AND the run row is downgraded so run history stops claiming success.
+        await markRunValveFailure(
+          db,
+          entry.automation_run_id as string,
+          entry.id as string,
+          (result.error as string | undefined) ?? "valve control failed",
+        );
         await sendReceipt(
           db,
           {
@@ -290,14 +396,20 @@ export async function drainValveQueue(
         success: ok,
       });
     } catch (err) {
+      const message = `Drain error: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
       await db.from("automation_valve_queue")
-        .update({
-          status: "failed",
-          error_message: `Drain error: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        })
+        .update({ status: "failed", error_message: message })
         .eq("id", entry.id as string);
+      if ((entry.command as string) !== "turn_off") {
+        await markRunValveFailure(
+          db,
+          entry.automation_run_id as string,
+          entry.id as string,
+          message,
+        );
+      }
       log(FN, "queue_drain_error", {
         entryId: entry.id,
         deviceId,

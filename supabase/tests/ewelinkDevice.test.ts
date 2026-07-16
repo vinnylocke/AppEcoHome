@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import {
   parseDeviceState,
   parseEwelinkBattery,
+  resolveTargetDeviceId,
 } from "@shared/integrations/ewelinkDevice.ts";
 
 // 2026-06-16 (battery follow-up) — Sonoff Zigbee valves report battery
@@ -101,8 +102,35 @@ Deno.test("parseDeviceState — no battery yields null", () => {
   assertEquals(parsed.battery_percent, null);
 });
 
-Deno.test("parseDeviceState — empty payload defaults to off + null battery", () => {
+Deno.test("parseDeviceState — empty payload is 'unknown' + null battery (2026-07-16: never a phantom 'off')", () => {
   const parsed = parseDeviceState({});
-  assertEquals(parsed.state, "off");
+  assertEquals(parsed.state, "unknown");
   assertEquals(parsed.battery_percent, null);
+});
+
+// ── resolveTargetDeviceId ──────────────────────────────────────────────────
+//
+// The ONE targeting rule shared by control and state. The 2026-07-15 incident:
+// control addressed the sub-device (worked), the state query addressed the
+// parent bridge (no `switch` in params → phantom "off" in the modal).
+
+Deno.test("resolveTargetDeviceId — direct device uses direct_device_id, ignores externalDeviceId", () => {
+  const meta = { use_sub_device: false, direct_device_id: "dev-abc" };
+  assertEquals(resolveTargetDeviceId(meta), "dev-abc");
+  assertEquals(resolveTargetDeviceId(meta, "ext-1"), "dev-abc");
+});
+
+Deno.test("resolveTargetDeviceId — sub-device prefers externalDeviceId", () => {
+  const meta = { use_sub_device: true, sub_device_id: "sub-1", parent_device_id: "bridge-1" };
+  assertEquals(resolveTargetDeviceId(meta, "ext-1"), "ext-1");
+});
+
+Deno.test("resolveTargetDeviceId — sub-device falls back to sub_device_id, NOT the bridge", () => {
+  const meta = { use_sub_device: true, sub_device_id: "sub-1", parent_device_id: "bridge-1" };
+  assertEquals(resolveTargetDeviceId(meta), "sub-1");
+});
+
+Deno.test("resolveTargetDeviceId — sub-device without sub_device_id falls back to parent", () => {
+  const meta = { use_sub_device: true, parent_device_id: "bridge-1" };
+  assertEquals(resolveTargetDeviceId(meta), "bridge-1");
 });

@@ -45,6 +45,7 @@ This file is the **index**. Each section's test rows + seed dependencies + page-
 | 28 | Head Gardener (AI manager) | `head-gardener.spec.ts` | [28-head-gardener.md](e2e-test-plan/28-head-gardener.md) |
 | 29 | Garden Walk | `garden-walk.spec.ts` | [29-garden-walk.md](e2e-test-plan/29-garden-walk.md) |
 | 30 | Home (Main Dashboard) | `home-main.spec.ts` | [30-home-main.md](e2e-test-plan/30-home-main.md) |
+| 31 | Integrations — Devices & Automations | `automations.spec.ts` | [31-integrations.md](e2e-test-plan/31-integrations.md) |
 
 ## Workflow
 

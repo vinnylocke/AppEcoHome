@@ -186,7 +186,11 @@ export default function ValveControlPanel({
 
             <button
               onClick={() => sendCommand("turn_off")}
-              disabled={loading !== null || !isOn}
+              // Disabled only when confidently OFF — an "unknown" state must
+              // still allow a force-close. The old `!isOn` gate meant a valve
+              // whose state read wrong couldn't be turned off without turning
+              // it on first (2026-07-15 incident).
+              disabled={loading !== null || state === "off"}
               data-testid="valve-turn-off"
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm border-2 border-rhozly-outline/20 text-rhozly-on-surface hover:border-red-300 hover:text-red-600 disabled:opacity-40 transition-colors"
             >

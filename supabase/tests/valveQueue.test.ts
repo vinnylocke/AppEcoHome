@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import { encryptCredentials } from "@shared/integrations/encrypt.ts";
-import { drainValveQueue } from "@shared/valveQueue.ts";
+import { drainValveQueue, finaliseRunSuccess, runStatusAfterValveFailure } from "@shared/valveQueue.ts";
 
 // 32-byte (all-zero) key, base64 — enough for encrypt/decrypt to round-trip.
 Deno.env.set("INTEGRATION_ENCRYPTION_KEY", btoa(String.fromCharCode(...new Uint8Array(32))));
@@ -161,5 +161,94 @@ Deno.test("drainValveQueue — countdown uses the action's valve_duration_second
     const ev = writes.find((w) => w.table === "valve_events" && w.op === "insert");
     assert(ev, "should log a valve_event");
     assertEquals((ev!.payload as { duration_seconds: number }).duration_seconds, 300);
+  } finally { restore(); }
+});
+
+// ── run-status correction (2026-07-15 incident) ──────────────────────────
+//
+// The automation_runs row is written optimistically ('success') when the
+// valve is QUEUED; a failed turn_on in the drain must downgrade it, or run
+// history claims success for a watering that never happened.
+
+const runUpdate = (writes: Array<{ table: string; op: string; payload?: unknown }>, status: string) =>
+  writes.find((w) => w.table === "automation_runs" && w.op === "update" && (w.payload as { status?: string })?.status === status);
+
+Deno.test("runStatusAfterValveFailure — failed when no sibling fired, partial when one did", () => {
+  assertEquals(runStatusAfterValveFailure(false), "failed");
+  assertEquals(runStatusAfterValveFailure(true), "partial");
+});
+
+Deno.test("drainValveQueue — failed turn_on downgrades the parent run to 'failed' with the error", async () => {
+  const { restore } = stubFetch(1); // eWeLink error → control fails
+  try {
+    const { db, writes } = makeDb(await queueRows());
+    await drainValveQueue(db);
+    const upd = runUpdate(writes, "failed");
+    assert(upd, "automation_runs should be downgraded to failed");
+    const msg = (upd!.payload as { error_message?: string }).error_message ?? "";
+    assert(msg.length > 0, "error_message should carry the failure reason");
+  } finally { restore(); }
+});
+
+Deno.test("drainValveQueue — failed turn_on marks the run 'partial' when a sibling turn_on already fired", async () => {
+  const { restore } = stubFetch(1);
+  try {
+    const rows = await queueRows();
+    // A second turn_on in the same run that already actuated. The mock's
+    // sibling select returns all rows, so the failing Q1 sees Q2 as fired.
+    rows.automation_valve_queue = [
+      ...rows.automation_valve_queue,
+      { id: "Q2", device_id: "D1", automation_run_id: "R1", command: "turn_on", status: "fired" },
+    ] as unknown as typeof rows.automation_valve_queue;
+    const { db, writes } = makeDb(rows);
+    await drainValveQueue(db);
+    assert(runUpdate(writes, "partial"), "run with one fired + one failed valve should read 'partial'");
+  } finally { restore(); }
+});
+
+Deno.test("drainValveQueue — successful turn_on leaves the parent run untouched", async () => {
+  const { restore } = stubFetch(0);
+  try {
+    const { db, writes } = makeDb(await queueRows());
+    await drainValveQueue(db);
+    assert(
+      !writes.some((w) => w.table === "automation_runs" && w.op === "update"),
+      "no automation_runs update on the happy path",
+    );
+  } finally { restore(); }
+});
+
+Deno.test("finaliseRunSuccess — CAS flip: only pending → success, and reports whether it won", async () => {
+  // The flip must carry the status=pending guard so a drain downgrade
+  // (markRunValveFailure) survives the manual path's finalisation — an
+  // unconditional success write was clobbering it (review 2026-07-16).
+  const won = makeDb({}, { claim: [{ id: "R1" }] });
+  assertEquals(await finaliseRunSuccess(won.db, "R1"), true);
+  const upd = won.ops.find((o) => o.table === "automation_runs" && o.op === "update");
+  assert(upd, "expected an automation_runs update");
+  const filters = upd!.filters as unknown[][];
+  assert(filters.some((f) => f[0] === "eq" && f[1] === "id" && f[2] === "R1"), "scoped to the run");
+  assert(filters.some((f) => f[0] === "eq" && f[1] === "status" && f[2] === "pending"), "guarded on status=pending — the CAS that preserves a drain downgrade");
+  const payload = won.writes.find((w) => w.table === "automation_runs")!.payload as { status?: string };
+  assertEquals(payload.status, "success");
+
+  // Zero rows returned (the run was already failed/partial) → flip lost.
+  const lost = makeDb({}, { claim: [] });
+  assertEquals(await finaliseRunSuccess(lost.db, "R1"), false);
+});
+
+Deno.test("drainValveQueue — stale-sweep dead-lettered turn_on also downgrades its run", async () => {
+  const { restore } = stubFetch(0);
+  try {
+    // Empty pending queue; the sweep's update(...).select() returns the
+    // dead-lettered row (the mock returns `claim` for returning updates).
+    const { db, writes } = makeDb(
+      { automation_valve_queue: [], automation_runs: [{}] },
+      { claim: [{ id: "QS", automation_run_id: "R9" }] },
+    );
+    await drainValveQueue(db);
+    const upd = runUpdate(writes, "failed");
+    assert(upd, "dead-lettered turn_on should downgrade its run");
+    assertEquals((upd!.payload as { error_message?: string }).error_message, SWEEP_ERROR);
   } finally { restore(); }
 });

@@ -103,7 +103,7 @@ When `voice_settings.auto_read_assistant_replies` is `true`, an effect speaks ea
 
 | Function | Purpose |
 |----------|---------|
-| `agent-chat` | Primary text chat — Gemini function-calling loop (read tools auto-run, mutations confirmed). Returns `{ reply, toolResults, pendingToolCalls, suggested_plants, quota }`. **Display-only tools (e.g. `show_plant_images`) are filtered out of `toolResults`** — they surface via `suggested_plants` instead, so they never render as a `ToolResultCard` JSON dump. |
+| `agent-chat` | Primary text chat — Gemini function-calling loop (read tools auto-run, mutations confirmed). Returns `{ reply, toolResults, pendingToolCalls, suggested_plants, quota }`. **Display-only tools (e.g. `show_plant_images`) are filtered out of `toolResults`** — they surface via `suggested_plants` instead, so they never render as a `ToolResultCard` JSON dump. Structured failures: 429 `quota_exceeded` (tier daily limit), 503 `ai_unavailable` (whole Gemini cascade down). Logs real per-model usage/cost to `ai_usage_log` under `function_name: "agent-chat"` (the `agent-chat-message` row is a zero-token quota counter). |
 | `plant-doctor-ai` | Gemini chat with **vision** (when an image is attached) |
 | `plant-image-search` | Multi-photo gallery — returns up to 9 licensed images (Unsplash / Pixabay / Wikipedia, with attribution) for a `show` plant card. Cached in `plant_image_cache`. |
 | `tts-speak` | Text-to-speech for read-aloud (auto-read effect + per-message `ReadAloudButton`). Returns cached audio from `tts_cache` / `tts-audio` bucket when available, otherwise synthesises via Google Cloud TTS. |
@@ -174,9 +174,17 @@ None.
 
 | State | Result |
 |-------|--------|
-| AI call fails | Inline retry button on the failed message |
+| AI call fails (bug / unknown) | Local assistant bubble: "Oops! My roots got tangled…" + inline retry |
+| **Gemini cascade exhausted** (503 `ai_unavailable` — spend cap / billing / sustained 429s) | Distinct bubble: "Rhozly's AI is temporarily unavailable — your message wasn't lost…". Server deletes its placeholder assistant row (no empty bubble on reload) and reports to Sentry with a `billing` / `rate_limit` / `transient` classification |
+| **Daily quota hit** (429 `quota_exceeded`) | Bubble with the server's tier-specific limit message + upgrade nudge |
 | Image too large | Service compresses before send |
 | No connectivity | Toast; pending message can be resent |
+
+Error bubbles are local-only (never persisted to `chat_messages`) and carry
+`data-testid="chat-error-message"` + `data-error-kind` on the content div. The
+body-parsing + copy mapping is `src/lib/chatError.ts` (`parseFunctionsErrorBody`
+→ `chatErrorToUserMessage`) — supabase-js hides the response body inside
+`FunctionsHttpError.context`, so unparsed failures collapse to the generic copy.
 
 > **Behaviour rules (`supabase/functions/agent-chat/rules.ts`, `AGENT_RULES`)** — tuned against the Garden AI evaluation ([docs/ai-chat-eval/](../../ai-chat-eval/)), guarded by `supabase/tests/agentChatRules.test.ts`:
 > - **Knowledge grounding / never refuses:** answers general horticultural questions (harvest timing, ripeness, pruning, spacing) from its own expertise **even when the plant isn't in the Shed or catalogue**. Absent plant → additive "want me to add it?" offer, never a refusal. It does **not** offer to add a plant that's already in the Shed.
@@ -284,6 +292,8 @@ It's also context-aware. Open it from the Light Sensor with a reading of 800 lx 
 ### What to do if something looks wrong
 
 - **AI says it can't help:** quota may be exhausted — check Account → AI usage.
+- **"Rhozly's AI is temporarily unavailable":** this is a service-side outage (the AI provider, not your device or account). Your message wasn't lost — wait a little and try again; nothing on your end will fix it faster.
+- **"You've reached today's chat message limit":** the daily tier quota. It resets on a rolling 24-hour window; upgrading raises the cap.
 - **History didn't load:** connectivity. Retry on next open.
 - **Suggested-plant card has no Wikipedia info:** the plant name didn't match a Wikipedia entry. AI still answers correctly.
 
@@ -307,6 +317,7 @@ It's also context-aware. Open it from the Light Sensor with a reading of 800 lx 
 - `src/components/chat/PlanSuggestionCard.tsx` — Plan CTA card
 - `src/components/chat/ReadAloudButton.tsx` — per-message read-aloud control
 - `src/lib/chatAutoRead.ts` — pure auto-read decision (primes the existing tail on open so only new replies are spoken)
+- `src/lib/chatError.ts` — error-body parsing + distinct copy for `ai_unavailable` / `quota_exceeded`
 - `src/hooks/useTextToSpeech.ts` — TTS playback hook (calls `tts-speak`)
 - `src/components/ImageDisclaimer.tsx` — illustrative-image note (accepts custom `text`)
 - `supabase/functions/tts-speak/index.ts` — TTS edge fn (Google Cloud TTS + `tts_cache`)

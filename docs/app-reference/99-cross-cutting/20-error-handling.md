@@ -71,6 +71,19 @@ Forwards to ops via email or internal channel.
 
 Configured in `src/main.tsx` (DSN from env). User context attached on sign-in.
 
+**Edge-function side:** `supabase/functions/_shared/sentry.ts` → `captureException(fn, err, extras)` posts directly to the Sentry envelope API — but it is a **silent no-op unless the `SENTRY_DSN` secret is set on the Supabase project** (`supabase secrets list` to verify). During the July 2026 Gemini spend-cap outage no server-side events arrived for exactly this reason — if edge errors are missing from Sentry, check the secret first. Events are tagged `source: edge` + the function name, so an alert rule on `tags.source:edge` notifies the operator of backend failures.
+
+### Structured edge-function error codes
+
+Edge functions that can fail for *product* reasons (not bugs) return a structured body the client maps to distinct copy instead of a generic error:
+
+| Code | Status | Source | Client handling |
+|------|--------|--------|-----------------|
+| `ai_unavailable` | 503 | `agent-chat` — entire Gemini cascade exhausted (`reason: billing \| rate_limit \| transient`) | Chat renders "AI temporarily unavailable — your message wasn't lost" via `src/lib/chatError.ts` |
+| `quota_exceeded` | 429 | `agent-chat` — tier daily message limit | Chat renders the server's tier-specific limit message |
+
+`src/lib/chatError.ts` (`parseFunctionsErrorBody` + `chatErrorToUserMessage`) is the client-side mapper — supabase-js buries the body inside `FunctionsHttpError.context`, so anything not parsed there collapses into the generic failure copy.
+
 ### Error ID generation
 
 `ErrorPage` generates a short `RZ-XXXXXX` id from `error.message + Date.now()` — user-readable for support tickets.
@@ -114,4 +127,6 @@ When something breaks, you should see a user-friendly message (toast) most of th
 
 - `src/lib/errorHandler.ts`
 - `src/main.tsx` — Sentry init
+- `src/lib/chatError.ts` — chat error-body parsing + user-facing mapping
 - `supabase/functions/report-error/index.ts`
+- `supabase/functions/_shared/sentry.ts` — edge-side `captureException` (requires `SENTRY_DSN` secret)

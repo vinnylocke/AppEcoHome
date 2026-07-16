@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "label": "Automations & Valves",
+    "items": [
+      "Run history now tells the truth when a valve couldn't be reached — failed runs show as Failed (or Partial) with the reason, instead of a green Success.",
+      "Fixed the valve control showing 'Off' while a bridge-connected (Zigbee) valve was actually running — the state check now asks the valve itself, and Turn Off is always available unless the valve is confirmed off."
+    ]
+  },
+  {
+    "label": "Garden AI",
+    "items": [
+      "Clearer chat errors — when the AI service itself is down you now see \"Rhozly's AI is temporarily unavailable\" instead of a generic error, and hitting your daily message limit shows the actual limit message.",
+      "Failed messages no longer leave empty AI bubbles in your chat history."
+    ]
+  }
+]
