@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Garden Walk",
-    "items": [
-      "Walk your garden as many times a day as you like — 'Start fresh' now truly starts a full walk, and the end-of-walk screen offers 'Start a full walk' alongside 'Walk what's left'.",
-      "Fixed the loop where Resume and Start fresh both led to the 'nothing left to walk' screen after a completed walk."
-    ]
-  }
-]
+[]
