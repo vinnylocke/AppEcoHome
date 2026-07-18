@@ -180,6 +180,20 @@ export interface PlantsRow {
   scientific_name: unknown;
 }
 
+/** Ids of inventory items with any walk visit stamped today — the
+ *  same-day exclusion set. Shared by composeAndOrderWalk and the
+ *  buildWalkRoute `filteredByProgress` derivation so they can't drift. */
+export function visitedTodayIds(
+  visits: VisitRow[],
+  todayLocalIso: string,
+): Set<string> {
+  const s = new Set<string>();
+  for (const v of visits) {
+    if (v.visited_at.startsWith(todayLocalIso)) s.add(v.inventory_item_id);
+  }
+  return s;
+}
+
 /**
  * Pure helper — given the raw rows pulled from supabase, returns the
  * ordered list of plants the walk should visit. Exposed for unit tests
@@ -196,20 +210,21 @@ export function composeAndOrderWalk(
   speciesById: Map<number, PlantsRow>,
   settings: WalkSettings,
   todayLocalIso: string = todayLocal(),
+  // Fresh-walk mode: keep visit metadata (last-visited, all-good banding)
+  // but do NOT exclude plants already visited today — "Start fresh" /
+  // "Start a full walk" mean the whole garden again.
+  ignoreTodayProgress = false,
 ): WalkPlant[] {
   const filteredItems = settings.skipIndoor
     ? items.filter((i) => i.environment !== "Indoors")
     : items;
 
-  const visitedTodaySet = new Set<string>();
+  const visitedTodaySet = visitedTodayIds(visits, todayLocalIso);
   const allGoodWithinWindow: Map<string, string> = new Map();
   const latestVisitByItem: Map<string, VisitRow> = new Map();
   for (const v of visits) {
     if (!latestVisitByItem.has(v.inventory_item_id)) {
       latestVisitByItem.set(v.inventory_item_id, v);
-    }
-    if (v.visited_at.startsWith(todayLocalIso)) {
-      visitedTodaySet.add(v.inventory_item_id);
     }
     if (v.outcome === "all_good" && !allGoodWithinWindow.has(v.inventory_item_id)) {
       allGoodWithinWindow.set(v.inventory_item_id, v.visited_at);
@@ -281,7 +296,7 @@ export function composeAndOrderWalk(
   }
 
   const instanceRecords: InstanceWithCtx[] = filteredItems
-    .filter((item) => !visitedTodaySet.has(item.id))
+    .filter((item) => ignoreTodayProgress || !visitedTodaySet.has(item.id))
     .map((item) => {
       const speciesIdNum = Number(item.plant_id);
       const species = Number.isFinite(speciesIdNum)
@@ -465,7 +480,8 @@ export async function buildWalkList(
   homeId: string,
   userId: string,
   settings: WalkSettings = DEFAULT_WALK_SETTINGS,
-): Promise<WalkPlant[]> {
+  ignoreTodayProgress = false,
+): Promise<{ plants: WalkPlant[]; anyVisitedToday: boolean }> {
   // ── 1. Pull every active inventory item in the home ────────────────
   const itemsQ = supabase
     .from("inventory_items")
@@ -525,7 +541,17 @@ export async function buildWalkList(
   }
 
   const itemRows = (items.data ?? []) as InventoryItemRow[];
-  if (itemRows.length === 0) return [];
+  const visitRows = (visits.data ?? []) as VisitRow[];
+  // Whether ANY active item was visited today — feeds the route's
+  // filteredByProgress flag (a route can compose to empty purely from
+  // plant visits: fully-visited sections are omitted as "empty").
+  // Deliberately ignores settings.skipIndoor: after a mid-day toggle on
+  // an indoor-only home the "Walk everything again" tap can produce one
+  // more empty state — but that fresh build sets filteredByProgress
+  // false, so it degrades to the plain empty copy rather than looping.
+  const todaySet = visitedTodayIds(visitRows, todayLocal());
+  const anyVisitedToday = itemRows.some((i) => todaySet.has(i.id));
+  if (itemRows.length === 0) return { plants: [], anyVisitedToday: false };
 
   // Plant catalogue lookup for thumbnails + scientific name.
   const speciesIds = Array.from(
@@ -549,16 +575,19 @@ export async function buildWalkList(
     }
   }
 
-  return composeAndOrderWalk(
+  const plants = composeAndOrderWalk(
     itemRows,
     (journals.data ?? []) as JournalRow[],
     (ailments.data ?? []) as PiaRow[],
     (tasks.data ?? []) as TaskRow[],
     (insights.data ?? []) as InsightRow[],
-    (visits.data ?? []) as VisitRow[],
+    visitRows,
     speciesById,
     settings,
+    undefined,
+    ignoreTodayProgress,
   );
+  return { plants, anyVisitedToday };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -866,6 +895,12 @@ export interface WalkSection {
 export interface WalkRoute {
   steps: WalkStep[];
   sections: WalkSection[];
+  /** True when a day-scoped build excluded plants or sections already
+   *  walked today. Lets the empty state distinguish "everything's been
+   *  walked" (offer a fresh full walk) from a genuinely walkless home
+   *  (offering one would loop straight back to empty). Absent on
+   *  fresh-mode builds and pure composeWalkRoute calls. */
+  filteredByProgress?: boolean;
 }
 
 /** Raw task row (physical or ghost) as returned by TaskEngine. */
@@ -1440,8 +1475,10 @@ export async function buildWalkRoute(
   homeId: string,
   userId: string,
   settings: WalkSettings = DEFAULT_WALK_SETTINGS,
+  opts: { ignoreTodayProgress?: boolean } = {},
 ): Promise<WalkRoute> {
   const today = todayLocal();
+  const ignoreTodayProgress = !!opts.ignoreTodayProgress;
 
   const locationsQ = supabase
     .from("locations")
@@ -1467,12 +1504,16 @@ export async function buildWalkRoute(
       return [] as WalkDevice[];
     });
 
-  const sessionsTodayQ = supabase
-    .from("garden_walk_sessions")
-    .select("id")
-    .eq("home_id", homeId)
-    .eq("user_id", userId)
-    .gte("started_at", startOfTodayIso());
+  // Fresh-walk mode skips today's sessions entirely — no section visit
+  // rows means nothing is filtered as done/skipped downstream.
+  const sessionsTodayQ = ignoreTodayProgress
+    ? Promise.resolve({ data: [] as Array<{ id: string }>, error: null })
+    : supabase
+        .from("garden_walk_sessions")
+        .select("id")
+        .eq("home_id", homeId)
+        .eq("user_id", userId)
+        .gte("started_at", startOfTodayIso());
 
   // Phase 3 — watchlist + plans weaving. All four are ENRICHMENT like
   // the telemetry call: each soft-fails to empty so the walk skeleton
@@ -1528,7 +1569,7 @@ export async function buildWalkRoute(
   TaskEngine.invalidateCache(homeId);
 
   const [
-    plants,
+    walkList,
     locationsRes,
     tasksRes,
     sessionsRes,
@@ -1538,7 +1579,7 @@ export async function buildWalkRoute(
     itemAreas,
     plans,
   ] = await Promise.all([
-    buildWalkList(homeId, userId, settings),
+    buildWalkList(homeId, userId, settings, ignoreTodayProgress),
     locationsQ,
     TaskEngine.fetchTasksWithGhosts({
       homeId,
@@ -1591,8 +1632,8 @@ export async function buildWalkRoute(
     }
   }
 
-  return composeWalkRoute({
-    plants,
+  const route = composeWalkRoute({
+    plants: walkList.plants,
     locations,
     areas,
     tasks: (tasksRes.tasks ?? []) as RouteTaskRow[],
@@ -1605,6 +1646,14 @@ export async function buildWalkRoute(
     itemAreas,
     plans,
   });
+
+  // Day-scoped builds report whether today's progress excluded anything —
+  // the empty state uses this to offer "Walk everything again" only when
+  // a fresh walk would actually produce steps.
+  const filteredByProgress = !ignoreTodayProgress &&
+    (walkList.anyVisitedToday ||
+      sectionVisits.some((v) => v.outcome === "section_done"));
+  return { ...route, filteredByProgress };
 }
 
 /**

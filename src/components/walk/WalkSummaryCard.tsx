@@ -31,6 +31,12 @@ interface Props {
    * left to walk).
    */
   onWalkAgain?: () => void;
+  /**
+   * Optional — "Start a full walk": rebuilds the route IGNORING today's
+   * progress (fresh-walk mode), for gardeners who do more than one round
+   * a day. Distinct from onWalkAgain, which walks only what's left.
+   */
+  onFullWalk?: () => void;
 }
 
 function formatDuration(ms: number): string {
@@ -52,6 +58,7 @@ export default function WalkSummaryCard({
   skippedSections = [],
   onDone,
   onWalkAgain,
+  onFullWalk,
 }: Props) {
   // §11 persona pass (RHO-17 Phase 3) — the "new" persona (null ⇒ new)
   // gets encouraging framing plus a "what tomorrow holds" line;
@@ -143,6 +150,17 @@ export default function WalkSummaryCard({
             >
               <Footprints size={16} />
               Walk what's left
+            </button>
+          )}
+          {onFullWalk && (
+            <button
+              type="button"
+              data-testid="walk-summary-full-walk"
+              onClick={onFullWalk}
+              className="w-full min-h-[48px] rounded-2xl bg-white border border-rhozly-outline/15 text-rhozly-on-surface/70 text-sm font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-rhozly-surface-low transition"
+            >
+              <Footprints size={16} />
+              Start a full walk
             </button>
           )}
           <button

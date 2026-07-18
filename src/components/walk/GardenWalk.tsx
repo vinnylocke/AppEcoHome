@@ -33,7 +33,9 @@ interface Props {
 type WalkState =
   | { kind: "loading" }
   | { kind: "resume-prompt"; openSessionId: string }
-  | { kind: "empty" }
+  /** filteredByProgress: the route was empty because today's walking
+   *  excluded everything — offer "Walk everything again". */
+  | { kind: "empty"; filteredByProgress: boolean }
   | { kind: "error"; message: string }
   | {
       kind: "walking";
@@ -79,7 +81,9 @@ function applyPlantOutcome(
 
 function reducer(state: WalkState, action: WalkAction): WalkState {
   if (action.type === "loaded") {
-    if (action.route.steps.length === 0) return { kind: "empty" };
+    if (action.route.steps.length === 0) {
+      return { kind: "empty", filteredByProgress: !!action.route.filteredByProgress };
+    }
     return {
       kind: "walking",
       sessionId: action.sessionId,
@@ -92,7 +96,7 @@ function reducer(state: WalkState, action: WalkAction): WalkState {
   if (action.type === "resume-prompt") {
     return { kind: "resume-prompt", openSessionId: action.openSessionId };
   }
-  if (action.type === "empty") return { kind: "empty" };
+  if (action.type === "empty") return { kind: "empty", filteredByProgress: false };
   if (action.type === "error") return { kind: "error", message: action.message };
   if (action.type === "plant-outcome" && state.kind === "walking") {
     return {
@@ -204,7 +208,14 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
   const bootstrapGen = useRef(0);
 
   const bootstrap = useCallback(
-    async (opts?: { resumeSessionId?: string; forceFresh?: boolean }) => {
+    async (opts?: {
+      resumeSessionId?: string;
+      forceFresh?: boolean;
+      /** Fresh-walk mode — build the full route, ignoring what was
+       *  already walked today ("Start fresh" / "Walk everything again" /
+       *  "Start a full walk"). */
+      ignoreTodayProgress?: boolean;
+    }) => {
       const gen = ++bootstrapGen.current;
       dispatch({ type: "restart" });
       setStartedAtMs(Date.now());
@@ -236,7 +247,9 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
           resumeSessionId
             ? Promise.resolve({ id: resumeSessionId, startedAt: "" })
             : walkService.startSession(homeId, userId),
-          buildWalkRoute(homeId, userId, settings),
+          buildWalkRoute(homeId, userId, settings, {
+            ignoreTodayProgress: opts?.ignoreTodayProgress,
+          }),
         ]);
         if (gen !== bootstrapGen.current) {
           // A newer bootstrap superseded this one — close the orphan
@@ -245,6 +258,16 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
             walkService.closeSession(session.id).catch(() => {});
           }
           return;
+        }
+        if (route.steps.length === 0) {
+          // Nothing to walk — close the session (resumed or not) so it
+          // can't linger open and trigger a phantom Resume prompt on the
+          // next visit (the pre-fix loop: completed walk → empty route →
+          // orphan open session → "Resume or start fresh" → empty again).
+          // closeSession sets ended_at only — a resumed session's rollup
+          // metrics stay at defaults; garden_walk_visits rows remain the
+          // source of truth (matches the existing stale-close behaviour).
+          walkService.closeSession(session.id).catch(() => {});
         }
         dispatch({ type: "loaded", sessionId: session.id, route });
       } catch (err: unknown) {
@@ -440,7 +463,7 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
             <button
               type="button"
               data-testid="walk-resume-fresh"
-              onClick={() => void bootstrap({ forceFresh: true })}
+              onClick={() => void bootstrap({ forceFresh: true, ignoreTodayProgress: true })}
               className="w-full min-h-[48px] rounded-2xl bg-white border border-rhozly-outline/15 text-rhozly-on-surface/70 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2"
             >
               <RotateCcw size={14} />
@@ -486,16 +509,33 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
       >
         <div className="max-w-md rounded-3xl bg-white border border-rhozly-outline/15 p-6 text-center">
           <p className="font-display font-black text-rhozly-on-surface text-lg mb-1">
-            Nothing to walk today
+            {state.filteredByProgress ? "You've walked everything today" : "Nothing to walk today"}
           </p>
           <p className="text-sm text-rhozly-on-surface/65 mb-4 leading-snug">
-            Add some plants to your Shed and assign them to areas to start your daily walk.
+            {state.filteredByProgress
+              ? "Every bed and plant has been visited. Fancy another round?"
+              : "Add some plants to your Shed and assign them to areas to start your daily walk."}
           </p>
+          {state.filteredByProgress && (
+            <button
+              type="button"
+              data-testid="garden-walk-empty-again"
+              onClick={() => void bootstrap({ forceFresh: true, ignoreTodayProgress: true })}
+              className="w-full min-h-[48px] mb-2 rounded-2xl bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2"
+            >
+              <Footprints size={14} />
+              Walk everything again
+            </button>
+          )}
           <button
             type="button"
             data-testid="garden-walk-empty-back"
             onClick={() => navigate(returnTo)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest"
+            className={
+              state.filteredByProgress
+                ? "w-full min-h-[48px] rounded-2xl bg-white border border-rhozly-outline/15 text-rhozly-on-surface/70 text-xs font-black uppercase tracking-widest inline-flex items-center justify-center gap-1.5"
+                : "inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest"
+            }
           >
             <ArrowLeft size={14} />
             Back
@@ -513,6 +553,10 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
         skippedSections={state.skippedSectionLabels}
         onDone={() => navigate(returnTo)}
         onWalkAgain={() => void bootstrap()}
+        // forceFresh too: if the just-finished session's endSession write
+        // failed silently, a lingering open session would otherwise bounce
+        // this explicit "full walk" request into a Resume prompt.
+        onFullWalk={() => void bootstrap({ forceFresh: true, ignoreTodayProgress: true })}
       />
     );
   }

@@ -63,6 +63,8 @@ export class GardenWalkPage {
   // Summary
   readonly summary: Locator;
   readonly summaryDone: Locator;
+  readonly summaryFullWalk: Locator;
+  readonly emptyAgain: Locator;
 
   // Snap sheet (RHO-6)
   readonly snapSheet: Locator;
@@ -121,6 +123,8 @@ export class GardenWalkPage {
 
     this.summary = page.getByTestId("walk-summary");
     this.summaryDone = page.getByTestId("walk-summary-done");
+    this.summaryFullWalk = page.getByTestId("walk-summary-full-walk");
+    this.emptyAgain = page.getByTestId("garden-walk-empty-again");
 
     this.snapSheet = page.getByTestId("walk-snap-sheet");
     this.snapSheetBody = page.getByTestId("walk-snap-sheet-body");
@@ -212,5 +216,26 @@ export class GardenWalkPage {
       await this.page.waitForTimeout(150);
     }
     return false;
+  }
+
+  /**
+   * WALK-027 — press through the ENTIRE walk (section Continue / plant
+   * All-good) until the summary card appears. Bounded so a regression
+   * can't loop forever. Returns true when the summary was reached.
+   */
+  async completeEntireWalk(maxSteps = 60): Promise<boolean> {
+    for (let i = 0; i < maxSteps; i++) {
+      if (await this.summary.isVisible().catch(() => false)) return true;
+      if (await this.sectionCard.isVisible().catch(() => false)) {
+        await this.sectionContinue.click();
+      } else if (await this.allGoodAction.isVisible().catch(() => false)) {
+        await this.allGoodAction.click();
+      } else {
+        await this.page.waitForTimeout(200);
+        continue;
+      }
+      await this.page.waitForTimeout(150);
+    }
+    return await this.summary.isVisible().catch(() => false);
   }
 }

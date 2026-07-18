@@ -375,6 +375,42 @@ test.describe("Garden Walk — telemetry & readings (RHO-17 Phase 2)", () => {
     await expect(walk.profileWater).toHaveValue(newWater);
     await authenticatedPage.getByTestId("walk-reading-close").click();
   });
+
+  test("WALK-027: after a completed walk, 'Start a full walk' and 'Walk everything again' both produce a real second walk", async ({ authenticatedPage }) => {
+    await mockEdgeFunction(authenticatedPage, "home-overview", walkOverviewPayload());
+
+    const walk = new GardenWalkPage(authenticatedPage);
+    await walk.startFromDashboard();
+    await walk.waitForCardOrEmpty();
+    test.skip(
+      !(await walk.sectionCard.isVisible().catch(() => false)),
+      "No walkable route in the current seed state",
+    );
+
+    // Complete the entire first walk (section Continue / plant All-good).
+    expect(await walk.completeEntireWalk()).toBe(true);
+
+    // Summary → "Start a full walk" must produce real steps, not the
+    // empty screen (the pre-fix bug: fresh rebuilds still day-filtered).
+    await walk.summaryFullWalk.click();
+    await walk.waitForCardOrEmpty();
+    await expect(walk.sectionCard).toBeVisible({ timeout: 10000 });
+
+    // Abandon the second walk (Stop → Done), then re-enter: the
+    // day-filtered route is empty, and the empty state must offer
+    // "Walk everything again" — which starts a real walk.
+    await walk.stopButton.click();
+    const doneBtn = authenticatedPage.getByRole("button", { name: /Done/i }).first();
+    await doneBtn.waitFor({ state: "visible", timeout: 10000 });
+    await doneBtn.click();
+
+    await walk.startFromDashboard();
+    await walk.waitForCardOrEmpty();
+    await expect(authenticatedPage.getByTestId("garden-walk-empty")).toBeVisible({ timeout: 10000 });
+    await walk.emptyAgain.click();
+    await walk.waitForCardOrEmpty();
+    await expect(walk.sectionCard).toBeVisible({ timeout: 10000 });
+  });
 });
 
 test.describe("Garden Walk — return navigation (RHO-7/8)", () => {

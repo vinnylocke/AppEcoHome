@@ -7,6 +7,7 @@ import {
   isWalkableTask,
   DEFAULT_WALK_SETTINGS,
   MAX_PLANTS_PER_WALK,
+  visitedTodayIds,
   type ComposeWalkRouteInput,
   type InventoryItemRow,
   type RouteAreaRow,
@@ -171,6 +172,42 @@ describe("composeAndOrderWalk", () => {
     );
 
     expect(out.map((p) => p.inventoryItemId)).toEqual(["fresh"]);
+  });
+
+  test("fresh-walk mode (ignoreTodayProgress) re-walks today's visited plants but keeps visit metadata", () => {
+    const visitedToday = mkItem({ id: "today", plant_name: "Onion" });
+    const fresh = mkItem({ id: "fresh", plant_name: "Garlic" });
+    const visits = [
+      { inventory_item_id: visitedToday.id, outcome: "all_good" as const, visited_at: "2026-05-21T06:30:00Z" },
+    ];
+
+    const out = composeAndOrderWalk(
+      [visitedToday, fresh],
+      [], [], [], [],
+      visits,
+      new Map(),
+      DEFAULT_WALK_SETTINGS,
+      "2026-05-21",
+      true, // ignoreTodayProgress
+    );
+
+    expect(new Set(out.map((p) => p.inventoryItemId))).toEqual(new Set(["today", "fresh"]));
+    // Visit metadata survives the bypass: the all_good visit still bands
+    // the plant as everything_else (not stale) and stamps lastVisited.
+    const rewalked = out.find((p) => p.inventoryItemId === "today")!;
+    expect(rewalked.band).toBe("everything_else");
+  });
+
+  test("visitedTodayIds — same-day set matches the exclusion predicate", () => {
+    const set = visitedTodayIds(
+      [
+        { inventory_item_id: "a", outcome: "noted", visited_at: "2026-05-21T06:30:00Z" },
+        { inventory_item_id: "b", outcome: "all_good", visited_at: "2026-05-20T23:59:00Z" },
+      ],
+      "2026-05-21",
+    );
+    expect(set.has("a")).toBe(true);
+    expect(set.has("b")).toBe(false);
   });
 
   test("within a band, sorts by area then plant name for stable physical order", () => {
