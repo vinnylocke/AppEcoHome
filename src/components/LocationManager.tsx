@@ -30,12 +30,15 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
+import AddAreaWizard from "./area/AddAreaWizard";
 
 interface Props {
   homeId: string;
   onDataChanged?: () => void;
   /** Whether the user's tier includes AI (drives the AI Area Coach tab). */
   aiEnabled?: boolean;
+  /** enable_perenual — drives the Add-Area wizard's plant search gates. */
+  isPremium?: boolean;
 }
 
 type DeleteTarget = {
@@ -44,7 +47,7 @@ type DeleteTarget = {
   locationId?: string;
 };
 
-export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnabled = false }) => {
+export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnabled = false, isPremium = false }) => {
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
   const { can } = usePermissions();
@@ -341,19 +344,16 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnab
     }
   };
 
-  const addArea = async (locationId: string) => {
-    const { error } = await supabase
-      .from("areas")
-      .insert([{ name: "New Area", location_id: locationId }]);
+  // 2026-07-18 — the old quick-add stub ({ name: "New Area" } insert) is
+  // replaced by the Add-Area wizard (bed conditions + plants + optional
+  // AI review). The wizard's own "Skip — just create" covers the
+  // quick-add case with a real name.
+  const [wizardLocation, setWizardLocation] = useState<{ id: string; name: string } | null>(null);
 
-    if (error) {
-      Logger.error("Failed to add area", error, {}, "Failed to add area.");
-    } else {
-      toast.success("New area added!");
-      requestFeedback("area_create");
-      fetchHierarchy();
-      onDataChanged?.();
-    }
+  const onAreaCreated = () => {
+    requestFeedback("area_create");
+    fetchHierarchy();
+    onDataChanged?.();
   };
 
   const confirmDelete = async () => {
@@ -566,7 +566,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnab
                   {can("areas.create") && (
                     <button
                       data-testid="area-add-btn"
-                      onClick={() => addArea(loc.id)}
+                      onClick={() => setWizardLocation({ id: loc.id, name: loc.name })}
                       className="text-xs font-bold text-rhozly-primary bg-rhozly-primary/10 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                     >
                       <Plus size={14} /> Add Area
@@ -981,6 +981,17 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnab
         confirmText="Delete"
         isDestructive={true}
       />
+
+      {wizardLocation && (
+        <AddAreaWizard
+          homeId={homeId}
+          location={wizardLocation}
+          aiEnabled={aiEnabled}
+          isPremium={isPremium}
+          onClose={() => setWizardLocation(null)}
+          onCreated={onAreaCreated}
+        />
+      )}
     </>
   );
 };

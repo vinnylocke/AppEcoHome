@@ -160,6 +160,7 @@ The Area Details modal is the "zoom on one specific bed" view. It's where you co
 - [Light Sensor](./09-light-sensor.md)
 - [Microclimate Report](./07-microclimate-report.md)
 - [Garden Walk](../02-dashboard/13-garden-walk.md)
+- [Add-Area Wizard](./15-add-area-wizard.md) — areas can now be born fully configured (conditions + plants + AI review)
 
 ## Code references for ongoing maintenance
 

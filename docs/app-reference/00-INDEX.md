@@ -77,6 +77,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Global Journal](./03-garden-hub/11-global-journal.md) — every journal entry across the home, polymorphically attached (plant / location / area / plan / unassigned), with auto-update on task completion
 - [x] [Senescence](./03-garden-hub/12-senescence.md) — the history of ended plant instances; filter by natural / other; reversible Restore that re-fires task generation
 - [x] [Sketch to Layout](./03-garden-hub/13-sketch-to-layout.md) — hand-drawn sketch → AI shape detection → confirmation wizard → 2D layout
+- [x] [Add-Area Wizard](./03-garden-hub/15-add-area-wizard.md) — create an area with its bed conditions + plants (Shed or search) in one flow; AI-tier suitability review with score + plant/task/automation recommendations
 
 ## 04 — Planner & Shopping
 

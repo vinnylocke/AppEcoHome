@@ -139,7 +139,10 @@ The Area metrics — pH, lux, water movement, growing medium — drive recommend
 
 #### 2. Add Areas inside a Location
 
-- Tap "Add Area" within a Location row → name it + add metrics if you know them.
+- Tap "Add Area" within a Location row → the **[Add-Area Wizard](./15-add-area-wizard.md)**
+  opens (2026-07-18 — replaces the old instant "New Area" stub insert): name + bed conditions
+  → plants from the Shed or search → create; AI tiers get a suitability review with
+  recommendations. "Skip — just create" keeps the quick path (with a real name).
 - Areas are where plants actually live.
 
 #### 3. Edit Area metrics

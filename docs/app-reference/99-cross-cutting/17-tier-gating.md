@@ -10,7 +10,7 @@
 |------|-------------|--------------------|------------|
 | Sprout (free) | false | false | Manual everything + **5 free Plant Doctor identifications per rolling 7-day window** (Sprint 3, 2026-06-15). No diagnosis. No Perenual. |
 | Botanist | false | true | + Perenual plant database. Same free identify quota as Sprout. |
-| Sage | true | false | + AI Plant Doctor (identify + diagnose + pest + Multi-ID, all unlimited) + Chat + photo-to-task + AI optimise. **No Perenual** — the species DB is a Botanist / Evergreen perk (tiers are a lattice, not a ladder). |
+| Sage | true | false | + AI Plant Doctor (identify + diagnose + pest + Multi-ID, all unlimited) + Chat + photo-to-task + AI optimise + **Add-Area wizard setup review** (2026-07-18 — client-gated on `aiEnabled`, server `guardAiByHome`). **No Perenual** — the species DB is a Botanist / Evergreen perk (tiers are a lattice, not a ladder). |
 | Evergreen | true | true | Same flags as Sage; reserved for future exclusives (Visualiser AI, advanced AI) |
 
 **Free Plant Doctor identify carve-out (Sprint 3, 2026-06-15):** `identify_vision` is the only AI action a Sprout / Botanist user can call. It runs against a sliding-window quota (5 per 7 days, no calendar reset — every call's 7-day-old slot drops off as new ones land). Helper: [`supabase/functions/_shared/identifyQuota.ts`](../../../supabase/functions/_shared/identifyQuota.ts). Recorded via the existing `ai_usage_log` table — no new schema. Quota state is returned on every successful identify response so the client can update its badge without a second round-trip.

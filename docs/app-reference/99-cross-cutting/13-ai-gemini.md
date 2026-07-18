@@ -148,6 +148,7 @@ Highlights:
 - `scan-area`
 - `optimise-area-ai`
 - `area-sensor-analysis` (AI Area Coach — persona-aware JSON-mode call grounded in an area's soil-sensor readings + plants + automations **+ the bed profile: growing medium, pH, water movement, nutrient source, peak light via `luxBandLabel` (2026-07-18; unset fields omitted)**; cached in `area_ai_insights`, reading-driven invalidation — a profile edit alone surfaces on Refresh/next reading)
+- `area-setup-review` (Add-Area wizard, 2026-07-18 — on-demand JSON-mode suitability review of a newly created area: bed conditions vs plant care ranges + compatibility; recommendations validated to the `TaskActionButtons` contract in `_shared/areaSetupReview.ts`; no cache; `enforceRateLimit` + full `logAiUsage` observability)
 - `generate-guide`
 - `search-plants-ai`
 - `companion-planting`

@@ -51,10 +51,9 @@ garden_layouts (N per home)
 | `home_id` | uuid | FK (denormalised for RLS speed) |
 | `location_id` | uuid | FK |
 | `name` | text | |
-| `area_type` | text | bed / pot / lawn / container / etc. |
 | `light_intensity_lux` | int | Latest reading |
 | `medium_ph` | float8 | 0–14 (doc previously drifted to `ph` — the column is `medium_ph`) |
-| `soil_moisture_pct` | float8 | |
+| `medium_texture` | text | Fine / Medium / Coarse / Open |
 | `water_movement` | text | Stored strings from `src/constants/areaProfileOptions.ts` (Well-Drained / Low-Drained / Recirculating / Static) |
 | `growing_medium` | text | |
 | `nutrient_source` | text | Stored strings from `src/constants/areaProfileOptions.ts` (Organic Breakdown / Synthetic / Biowaste) |

@@ -1,11 +1,24 @@
 import { expect } from "@playwright/test";
 import { test } from "../fixtures/auth";
 import { LocationManagementPage } from "../pages/LocationManagementPage";
+import { mockEdgeFunction } from "../fixtures/api-mocks";
+import { cleanupWizardAreas, countWizardInstances } from "../utils/wizardAreaCleanup";
 
 // All tests require an authenticated session.
 
 // Helper: area inputs live inside .rounded-3xl .space-y-2 containers (location cards)
 // Location inputs are NOT inside .space-y-2. This scoping avoids matching location name inputs.
+
+// 2026-07-18 — "Add Area" opens the Add-Area wizard (no more instant
+// "New Area" stub insert). Quick-create for tests = name + Skip.
+import type { Locator, Page } from "@playwright/test";
+async function quickCreateArea(page: Page, card: Locator, name: string): Promise<void> {
+  await card.getByRole("button", { name: /Add Area/i }).click();
+  await expect(page.getByTestId("add-area-wizard")).toBeVisible({ timeout: 10000 });
+  await page.getByTestId("add-area-name").fill(name);
+  await page.getByTestId("add-area-skip").click();
+  await expect(page.getByTestId("add-area-wizard")).not.toBeVisible({ timeout: 10000 });
+}
 
 test.describe("Area setup — Location Management page", () => {
   test("navigating to /management renders the Location Management heading", async ({ authenticatedPage }) => {
@@ -180,23 +193,13 @@ test.describe("Area setup — form validation and additional flows", () => {
       has: authenticatedPage.getByLabel(`Delete location: ${locationName}`),
     });
 
-    // Click Add Area for the test location specifically
-    const addAreaBtn = testLocationCard.getByRole("button", { name: /Add Area/i });
-    await expect(addAreaBtn).toBeVisible({ timeout: 10000 });
-    await addAreaBtn.click();
-    await authenticatedPage.waitForTimeout(500);
-
-    // The newly added area is the last input inside the test location card
-    const areaInput = testLocationCard.locator(".space-y-2 input").last();
-    await expect(areaInput).toHaveValue("New Area", { timeout: 5000 });
+    // Add Area now goes through the wizard — the Skip path is the
+    // quick-create equivalent of the old stub insert (with a real name).
     const areaName = `E2E Area ${Date.now()}`;
-    await areaInput.fill(areaName);
+    await quickCreateArea(authenticatedPage, testLocationCard, areaName);
 
-    // Areas save on blur — no explicit save button
-    await areaInput.blur();
-    await authenticatedPage.waitForTimeout(300);
-
-    // Area name should persist after blur (inputValue reads DOM property, not attribute)
+    // The created area renders in the location card with its name.
+    const areaInput = testLocationCard.locator(".space-y-2 input").last();
     await expect(areaInput).toHaveValue(areaName, { timeout: 10000 });
 
     // --- Cleanup: delete the test location (cascades to area) ---
@@ -349,24 +352,14 @@ test.describe("Area setup — extended flows (Section 12)", () => {
       has: authenticatedPage.getByLabel(`Delete location: ${locationName}`),
     });
 
-    // Click Add Area → creates "New Area" inline
-    const addAreaBtn = testLocationCard.getByRole("button", { name: /Add Area/i });
-    await expect(addAreaBtn).toBeVisible({ timeout: 10000 });
-    await addAreaBtn.click();
-    await authenticatedPage.waitForTimeout(500);
-
-    // Find the new "New Area" input scoped to the test location
-    const areaInput = testLocationCard.locator(".space-y-2 input").last();
-    const inputVisible = await areaInput.isVisible({ timeout: 5000 }).catch(() => false);
-    if (inputVisible) {
-      await areaInput.fill("");
-      await areaInput.blur();
-      await authenticatedPage.waitForTimeout(300);
-
-      // The area row should still be present (blank save silently ignored)
-      // We just verify no error toast and the area input row still exists
-      expect(true).toBe(true); // documents the "silently ignore blank" behavior
-    }
+    // Add Area → wizard. A blank name is rejected (the wizard stays open),
+    // replacing the old "blank rename silently ignored" stub behaviour.
+    await testLocationCard.getByRole("button", { name: /Add Area/i }).click();
+    await expect(authenticatedPage.getByTestId("add-area-wizard")).toBeVisible({ timeout: 10000 });
+    await authenticatedPage.getByTestId("add-area-skip").click();
+    await expect(authenticatedPage.getByTestId("add-area-wizard")).toBeVisible({ timeout: 3000 });
+    await authenticatedPage.getByTestId("add-area-close").click();
+    await expect(authenticatedPage.getByTestId("add-area-wizard")).not.toBeVisible({ timeout: 5000 });
 
     // Cleanup: delete the test location
     await authenticatedPage.getByLabel(`Delete location: ${locationName}`).click();
@@ -394,8 +387,8 @@ test.describe("Area setup — extended flows (Section 12)", () => {
       has: authenticatedPage.getByLabel(`Delete location: ${locationName}`),
     });
 
-    await testLocationCard015.getByRole("button", { name: /Add Area/i }).click();
-    await authenticatedPage.waitForTimeout(500);
+    const areaName015 = `E2E CancelArea ${Date.now()}`;
+    await quickCreateArea(authenticatedPage, testLocationCard015, areaName015);
 
     // Area row scoped to the test location
     const lastAreaRow = testLocationCard015.locator(".space-y-2 > div").last();
@@ -414,7 +407,7 @@ test.describe("Area setup — extended flows (Section 12)", () => {
       // Area should still be present — scoped to test location
       await expect(
         testLocationCard015.locator(".space-y-2 input").last(),
-      ).toHaveValue("New Area", { timeout: 5000 });
+      ).toHaveValue(areaName015, { timeout: 5000 });
     }
 
     // Cleanup
@@ -443,8 +436,7 @@ test.describe("Area setup — extended flows (Section 12)", () => {
       has: authenticatedPage.getByLabel(`Delete location: ${locationName}`),
     });
 
-    await testLocationCard014.getByRole("button", { name: /Add Area/i }).click();
-    await authenticatedPage.waitForTimeout(500);
+    await quickCreateArea(authenticatedPage, testLocationCard014, `E2E DelArea ${Date.now()}`);
 
     // Click the trash on the last area row scoped to the test location
     const lastAreaRow = testLocationCard014.locator(".space-y-2 > div").last();
@@ -572,5 +564,57 @@ test.describe("Area setup — extended flows (Section 12)", () => {
     if (await cancelBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await cancelBtn.click();
     }
+  });
+});
+
+test.describe("Area setup — Add-Area wizard (2026-07-18)", () => {
+  test.beforeEach(async () => {
+    await cleanupWizardAreas();
+  });
+  test.afterEach(async () => {
+    await cleanupWizardAreas();
+  });
+
+  test("WIZ-001: wizard creates an area with conditions + a Shed plant, then shows the AI review", async ({ authenticatedPage }) => {
+    await mockEdgeFunction(authenticatedPage, "area-setup-review", {
+      score: 82,
+      headline: "A strong setup.",
+      summary: "The pH and light suit these plants well.",
+      plant_fit: [{ name: "Tomato", verdict: "great", note: "pH 6.4 fits" }],
+      compatibility: { verdict: "well", note: "" },
+      recommendations: { plants: [], tasks: [], automations: [] },
+    });
+
+    const mgmt = new LocationManagementPage(authenticatedPage);
+    await mgmt.goto();
+
+    await authenticatedPage.getByTestId("area-add-btn").first().click();
+    await expect(authenticatedPage.getByTestId("add-area-wizard")).toBeVisible({ timeout: 10000 });
+
+    const areaName = `E2E Wizard Bed ${Date.now()}`;
+    await authenticatedPage.getByTestId("add-area-name").fill(areaName);
+    await authenticatedPage.locator('input[name="medium_ph"]').fill("6.4");
+    await authenticatedPage.getByTestId("add-area-next").click();
+
+    // Seeded Shed plants render as pickable cards; pick the first one.
+    const shedFirst = authenticatedPage
+      .getByTestId("add-area-shed-list")
+      .locator("button")
+      .first();
+    await expect(shedFirst).toBeVisible({ timeout: 10000 });
+    await shedFirst.click();
+    await expect(authenticatedPage.getByTestId("add-area-pending")).toBeVisible();
+
+    await authenticatedPage.getByTestId("add-area-create").click();
+
+    // The (mocked) AI review renders on the committed area.
+    await expect(authenticatedPage.getByTestId("add-area-review")).toBeVisible({ timeout: 15000 });
+    await expect(authenticatedPage.getByTestId("add-area-score")).toHaveText("82", { timeout: 10000 });
+    await authenticatedPage.getByTestId("add-area-done").click();
+
+    // The area exists in the manager list (fetchHierarchy refreshed) and
+    // exactly one instance row landed in it.
+    await expect(authenticatedPage.getByDisplayValue(areaName)).toBeVisible({ timeout: 10000 });
+    expect(await countWizardInstances(areaName)).toBe(1);
   });
 });

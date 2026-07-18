@@ -21,7 +21,8 @@
 | MGMT-009 | ❌ | Empty name → error toast, form stays open | — | ✅ Passing |
 | MGMT-010 | ✅ | Indoor/Outdoor toggle in form | — | ✅ Passing |
 | MGMT-011 | ✅ | Create indoor location | — | ✅ Passing |
-| MGMT-012 | ✅ | Add area happy path | — | ✅ Passing |
+| MGMT-012 | ✅ | Add area happy path — via the Add-Area wizard's Skip path (2026-07-18; the old inline "New Area" stub is gone) | — | ✅ Passing |
+| WIZ-001 | ✅ | Add-Area wizard full flow: name + pH → pick a seeded Shed plant → create → mocked `area-setup-review` renders score 82 → Done → area visible + exactly one `inventory_items` row (service-key cleanup via `wizardAreaCleanup.ts`) | `area-setup-review` | ✅ Passing |
 | MGMT-013 | ❌ | Add area — blank name validation | — | ✅ Passing |
 | MGMT-014 | ✅ | Delete area confirm | — | ✅ Passing |
 | MGMT-015 | ✅ | Delete area cancel | — | ✅ Passing |
