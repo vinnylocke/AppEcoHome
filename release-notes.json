@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Garden Walk",
+    "items": [
+      "Log soil EC alongside moisture and temperature during a walk.",
+      "New Bed profile section on the walk's reading sheet — set a bed's pH, peak light, water movement and nutrient source without leaving the walk.",
+      "The AI Area Coach and Garden AI now take the full bed profile into account in their advice."
+    ]
+  }
+]

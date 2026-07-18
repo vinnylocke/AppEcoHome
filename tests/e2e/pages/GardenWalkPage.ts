@@ -44,6 +44,10 @@ export class GardenWalkPage {
   readonly readingSheet: Locator;
   readonly readingMoisture: Locator;
   readonly readingTemp: Locator;
+  readonly readingEc: Locator;
+  readonly profileToggle: Locator;
+  readonly profilePh: Locator;
+  readonly profileWater: Locator;
   readonly readingSave: Locator;
 
   // Watchlist + plans weaving (RHO-17 Phase 3)
@@ -101,6 +105,10 @@ export class GardenWalkPage {
     this.readingSheet = page.getByTestId("walk-reading-sheet");
     this.readingMoisture = page.getByTestId("walk-reading-moisture");
     this.readingTemp = page.getByTestId("walk-reading-temp");
+    this.readingEc = page.getByTestId("walk-reading-ec");
+    this.profileToggle = page.getByTestId("walk-bed-profile-toggle");
+    this.profilePh = page.getByTestId("walk-profile-ph");
+    this.profileWater = page.getByTestId("walk-profile-water");
     this.readingSave = page.getByTestId("walk-reading-save");
 
     this.watchlistPanel = page.getByTestId("walk-watchlist-panel");

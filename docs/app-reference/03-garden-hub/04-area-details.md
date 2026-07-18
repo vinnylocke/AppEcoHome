@@ -145,12 +145,21 @@ The Area Details modal is the "zoom on one specific bed" view. It's where you co
 
 ---
 
+> **Advanced settings quartet — also editable from the Garden Walk (2026-07-18).** The
+> edit-area modal's `AreaAdvancedFields` (medium pH, peak light, water movement, nutrient
+> source, plus growing medium/texture) is no longer the only writer: the walk's Log-reading
+> sheet carries a Bed profile section that diff-updates the same `areas` columns (and logs a
+> manual `area_lux_readings` row on a new peak-light value). Select options are shared via
+> `src/constants/areaProfileOptions.ts` — never re-hardcode them. These fields ground the AI
+> Area Coach + Garden AI chat. See [Garden Walk](../02-dashboard/13-garden-walk.md).
+
 ## Related reference files
 
 - [Location Page](../02-dashboard/07-location-page.md)
 - [Location Manager](./03-location-manager.md)
 - [Light Sensor](./09-light-sensor.md)
 - [Microclimate Report](./07-microclimate-report.md)
+- [Garden Walk](../02-dashboard/13-garden-walk.md)
 
 ## Code references for ongoing maintenance
 

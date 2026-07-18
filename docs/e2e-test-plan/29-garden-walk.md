@@ -31,7 +31,7 @@ The walk bootstrap calls `home-overview` with `view: "walk"`; these tests mock t
 |---|---|---|---|---|
 | WALK-030 | ✅ | Sensor chip (moisture % + band) and valve row (duration presets 5/10/15 + custom + Open) render on the Home card from the walk-view payload | `home-overview` | ✅ Passing |
 | WALK-031 | ✅ | Opening a valve with the 5-min preset invokes `integrations-ewelink-control` (the exact ValveControlPanel path) → row shows `data-valve-state="running"` + Close; Close returns it to idle | `home-overview`, `integrations-ewelink-control` | ✅ Passing |
-| WALK-032 | ✅ | Log reading on an area card: moisture + temp saved through `areaReadingsService.logManualReading` (stamped now), sheet closes, walk stays on the area card, success toast | `home-overview` | ✅ Passing (self-skips if no area card in the seed state) |
+| WALK-032 | ✅ | Log reading on an area card: moisture + temp + **EC** saved through `areaReadingsService.logManualReading` (stamped now) **and the Bed profile section** (`walk-bed-profile-toggle`) diff-saves pH + water movement to `areas` (values chosen to differ from the prefill so re-runs always change something); sheet closes, walk stays on the area card, combined toast, then re-opening the sheet proves persistence via the fresh prefill (`walk-profile-ph` / `walk-profile-water`) | `home-overview` | ✅ Passing (self-skips if no area card in the seed state) |
 
 ## Watchlist, plans & harvest (RHO-17 Phase 3)
 

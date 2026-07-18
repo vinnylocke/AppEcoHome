@@ -6,6 +6,7 @@
  */
 
 import type { Persona } from "./persona.ts";
+import { luxBandLabel } from "./luxBand.ts";
 export type { Persona };
 
 export interface SensorLatest {
@@ -24,6 +25,12 @@ export interface AreaAnalysisInput {
     growingMedium: string | null;
     mediumPh: number | null;
     climateZone: string | null;
+    /** Bed profile (2026-07-18) — the Advanced-settings quartet, now also
+     *  editable from the Garden Walk. Unset fields are omitted from the
+     *  prompt, never rendered as "null". */
+    waterMovement?: string | null;
+    nutrientSource?: string | null;
+    peakLightLux?: number | null;
   };
   home: { hardinessZone: number | string | null };
   /** Current per-sensor latest + the multi-sensor average. */
@@ -296,6 +303,14 @@ export function buildAreaAnalysisPrompt(input: AreaAnalysisInput): string {
       }).join("\n")
     : "  (none configured)";
 
+  // Bed profile lines — only fields the user has actually set (token
+  // discipline; "unknown" noise tells the model nothing).
+  const profileLines = [
+    area.waterMovement ? `  Water movement: ${area.waterMovement}` : null,
+    area.nutrientSource ? `  Nutrient source: ${area.nutrientSource}` : null,
+    luxBandLabel(area.peakLightLux) ? `  Peak light: ${luxBandLabel(area.peakLightLux)}` : null,
+  ].filter(Boolean).join("\n");
+
   return `${personaInstruction(input.persona)}
 
 == AREA ==
@@ -303,7 +318,7 @@ export function buildAreaAnalysisPrompt(input: AreaAnalysisInput): string {
   Setting: ${area.isOutside ? "outdoor" : "indoor"}
   Growing medium: ${area.growingMedium ?? "unknown"}
   Soil pH (area): ${area.mediumPh ?? "unknown"}
-  Climate zone: ${area.climateZone ?? "unknown"} · Hardiness zone: ${home.hardinessZone ?? "unknown"}
+${profileLines ? `${profileLines}\n` : ""}  Climate zone: ${area.climateZone ?? "unknown"} · Hardiness zone: ${home.hardinessZone ?? "unknown"}
 
 == CURRENT READINGS (averaged across ${summary.sensorsWithData} sensor${summary.sensorsWithData === 1 ? "" : "s"}) ==
 ${currentLines}

@@ -147,7 +147,7 @@ Highlights:
 - `generate-task-from-photo`
 - `scan-area`
 - `optimise-area-ai`
-- `area-sensor-analysis` (AI Area Coach — persona-aware JSON-mode call grounded in an area's soil-sensor readings + plants + automations; cached in `area_ai_insights`, reading-driven invalidation)
+- `area-sensor-analysis` (AI Area Coach — persona-aware JSON-mode call grounded in an area's soil-sensor readings + plants + automations **+ the bed profile: growing medium, pH, water movement, nutrient source, peak light via `luxBandLabel` (2026-07-18; unset fields omitted)**; cached in `area_ai_insights`, reading-driven invalidation — a profile edit alone surfaces on Refresh/next reading)
 - `generate-guide`
 - `search-plants-ai`
 - `companion-planting`

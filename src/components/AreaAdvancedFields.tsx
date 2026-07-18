@@ -4,6 +4,10 @@ import { IconSoilMedium, IconSoilPH, IconNutrients } from "../constants/icons";
 
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import AreaLuxReadings from "./AreaLuxReadings";
+import {
+  NUTRIENT_SOURCE_OPTIONS,
+  WATER_MOVEMENT_OPTIONS,
+} from "../constants/areaProfileOptions";
 
 interface AreaAdvancedFieldsProps {
   data: any;
@@ -216,10 +220,9 @@ export default function AreaAdvancedFields({
               className={selectClass}
             >
               <option value="">Select Flow...</option>
-              <option value="Well-Drained">Well-Drained</option>
-              <option value="Low-Drained">Low-Drained (Pools)</option>
-              <option value="Recirculating">Recirculating (Pump)</option>
-              <option value="Static">Static / Deep Water</option>
+              {WATER_MOVEMENT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
             <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-rhozly-on-surface/40">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -247,9 +250,9 @@ export default function AreaAdvancedFields({
               className={selectClass}
             >
               <option value="">Select Source...</option>
-              <option value="Organic Breakdown">Organic (Compost)</option>
-              <option value="Synthetic">Synthetic / Salts</option>
-              <option value="Biowaste">Biowaste (Fish/Aqua)</option>
+              {NUTRIENT_SOURCE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
             <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-rhozly-on-surface/40">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">

@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       { data: profile },
     ] = await Promise.all([
       db.from("areas")
-        .select("id, name, growing_medium, medium_ph, locations(is_outside)")
+        .select("id, name, growing_medium, medium_ph, water_movement, nutrient_source, light_intensity_lux, locations(is_outside)")
         .eq("id", areaId).maybeSingle(),
       db.from("homes").select("id, hardiness_zone, climate_zone").eq("id", homeId).maybeSingle(),
       db.from("inventory_items")
@@ -396,6 +396,9 @@ Deno.serve(async (req) => {
         growingMedium: (areaRow as { growing_medium?: string | null }).growing_medium ?? null,
         mediumPh: (areaRow as { medium_ph?: number | null }).medium_ph ?? null,
         climateZone: (homeRow as { climate_zone?: string | null })?.climate_zone ?? null,
+        waterMovement: (areaRow as { water_movement?: string | null }).water_movement ?? null,
+        nutrientSource: (areaRow as { nutrient_source?: string | null }).nutrient_source ?? null,
+        peakLightLux: (areaRow as { light_intensity_lux?: number | null }).light_intensity_lux ?? null,
       },
       home: { hardinessZone: (homeRow as { hardiness_zone?: number | null })?.hardiness_zone ?? null },
       summary: {

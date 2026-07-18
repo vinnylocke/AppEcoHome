@@ -41,6 +41,41 @@ Deno.test("prompt includes area, current readings, plants and automations", () =
   assert(p.includes("soil moisture < 25%"));
 });
 
+// ── Bed profile block (2026-07-18 — walk-editable quartet) ──────────────────
+
+Deno.test("prompt renders the bed profile quartet with the lux band label", () => {
+  const p = buildAreaAnalysisPrompt(baseInput({
+    area: {
+      name: "Veg Bed", isOutside: true, growingMedium: "Mineral Soil", mediumPh: 6.5, climateZone: "9a",
+      waterMovement: "Well-Drained", nutrientSource: "Organic Breakdown", peakLightLux: 35000,
+    },
+  }));
+  assert(p.includes("Water movement: Well-Drained"));
+  assert(p.includes("Nutrient source: Organic Breakdown"));
+  assert(p.includes("Peak light: bright (35000 lux measured)"));
+});
+
+Deno.test("prompt omits unset bed-profile fields — no 'unknown' noise lines", () => {
+  const p = buildAreaAnalysisPrompt(baseInput({
+    area: {
+      name: "Veg Bed", isOutside: true, growingMedium: "Mineral Soil", mediumPh: 6.5, climateZone: "9a",
+      waterMovement: "Static", nutrientSource: null, peakLightLux: null,
+    },
+  }));
+  assert(p.includes("Water movement: Static"));
+  assert(!p.includes("Nutrient source:"));
+  assert(!p.includes("Peak light:"));
+});
+
+Deno.test("prompt without any bed-profile fields keeps its original shape (regression pin)", () => {
+  const p = buildAreaAnalysisPrompt(baseInput());
+  assert(!p.includes("Water movement:"));
+  assert(!p.includes("Nutrient source:"));
+  assert(!p.includes("Peak light:"));
+  // Climate line immediately follows the pH line as before.
+  assert(p.includes("Soil pH (area): 6.5\n  Climate zone: 9a"));
+});
+
 Deno.test("prompt surfaces the soil-moisture behaviour model when present (Pillar C)", () => {
   const p = buildAreaAnalysisPrompt(baseInput({
     moistureProfile: {

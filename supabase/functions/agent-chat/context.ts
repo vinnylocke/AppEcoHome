@@ -9,8 +9,32 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
+import { luxBandLabel } from "../_shared/luxBand.ts";
 import { AGENT_RULES } from "./rules.ts";
 import { APP_FACTS } from "./appFacts.ts";
+
+/**
+ * Compact bed-profile suffix for an area context line (2026-07-18) —
+ * grounds the chat on the area's Advanced-settings quartet + growing
+ * medium. Empty string when nothing is set: no token spend on unset
+ * fields, no "null" noise. Pure — Deno-tested.
+ */
+export function formatAreaProfile(a: {
+  growing_medium?: string | null;
+  medium_ph?: number | null;
+  water_movement?: string | null;
+  nutrient_source?: string | null;
+  light_intensity_lux?: number | null;
+}): string {
+  const parts: string[] = [];
+  if (a.growing_medium) parts.push(a.growing_medium.toLowerCase());
+  if (a.medium_ph != null) parts.push(`pH ${a.medium_ph}`);
+  if (a.water_movement) parts.push(a.water_movement.toLowerCase());
+  if (a.nutrient_source) parts.push(`${a.nutrient_source.toLowerCase()} nutrition`);
+  const lux = luxBandLabel(a.light_intensity_lux);
+  if (lux) parts.push(`light: ${lux}`);
+  return parts.length ? ` — ${parts.join(", ")}` : "";
+}
 
 interface CachedContext {
   prompt: string;
@@ -75,7 +99,7 @@ export async function buildHomeContext(
     db.from("homes").select("name, timezone").eq("id", homeId).maybeSingle(),
     db.from("user_profiles").select("subscription_tier, display_name").eq("uid", userId).maybeSingle(),
     locationIds.length > 0
-      ? db.from("areas").select("id, name, location_id").in("location_id", locationIds)
+      ? db.from("areas").select("id, name, location_id, growing_medium, medium_ph, water_movement, nutrient_source, light_intensity_lux").in("location_id", locationIds)
       : Promise.resolve({ data: [] as any[] }),
     db
       .from("inventory_items")
@@ -131,7 +155,7 @@ export async function buildHomeContext(
   if ((areas ?? []).length > 0) {
     lines.push(`  Areas:`);
     for (const a of areas!) {
-      lines.push(`    - ${a.name} (id=${a.id}, location=${a.location_id})`);
+      lines.push(`    - ${a.name} (id=${a.id}, location=${a.location_id})${formatAreaProfile(a)}`);
     }
   }
 

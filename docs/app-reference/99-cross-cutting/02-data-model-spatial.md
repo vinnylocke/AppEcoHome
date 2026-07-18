@@ -53,11 +53,22 @@ garden_layouts (N per home)
 | `name` | text | |
 | `area_type` | text | bed / pot / lawn / container / etc. |
 | `light_intensity_lux` | int | Latest reading |
-| `ph` | float8 | |
+| `medium_ph` | float8 | 0–14 (doc previously drifted to `ph` — the column is `medium_ph`) |
 | `soil_moisture_pct` | float8 | |
-| `water_movement` | text | well-drained / low-drained / etc. |
+| `water_movement` | text | Stored strings from `src/constants/areaProfileOptions.ts` (Well-Drained / Low-Drained / Recirculating / Static) |
 | `growing_medium` | text | |
-| `nutrient_source` | text | |
+| `nutrient_source` | text | Stored strings from `src/constants/areaProfileOptions.ts` (Organic Breakdown / Synthetic / Biowaste) |
+
+> **Bed profile writers + AI readers (2026-07-18).** `medium_ph`, `light_intensity_lux`,
+> `water_movement`, `nutrient_source` are written by Area details → Advanced settings
+> (`AreaAdvancedFields`) AND the Garden Walk's Bed profile section (diff-save via
+> `src/lib/walkBedProfile.ts`; a new peak-light value also inserts an `area_lux_readings` row).
+> AI surfaces grounding on them: the **AI Area Coach** (`area-sensor-analysis` prompt) and the
+> **Garden AI chat** (`agent-chat` context area lines via `formatAreaProfile`), plus the five
+> planner/optimiser functions that band `light_intensity_lux` via `_shared/luxBand.ts`.
+> Still true after this change: the `areas.latest_soil_*` denormalised reading columns have
+> **no server-side reader** (walk strip only), and *manual* `area_*_readings` rows don't feed
+> the history charts (those read `device_readings`) — recorded gaps, not bugs introduced here.
 
 ### `area_lux_readings` columns
 

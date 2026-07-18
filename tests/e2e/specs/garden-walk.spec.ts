@@ -343,6 +343,19 @@ test.describe("Garden Walk — telemetry & readings (RHO-17 Phase 2)", () => {
 
     await walk.readingMoisture.fill("44");
     await walk.readingTemp.fill("17.5");
+    await walk.readingEc.fill("850");
+
+    // Bed profile (2026-07-18): expand, change pH + water movement. Pick a
+    // pH that DIFFERS from the prefilled value so the diff-save always has
+    // a change regardless of what a previous run persisted.
+    await walk.profileToggle.click();
+    await expect(walk.profilePh).toBeVisible();
+    const currentPh = await walk.profilePh.inputValue();
+    const newPh = currentPh === "6.1" ? "6.2" : "6.1";
+    await walk.profilePh.fill(newPh);
+    const currentWater = await walk.profileWater.inputValue();
+    const newWater = currentWater === "Recirculating" ? "Static" : "Recirculating";
+    await walk.profileWater.selectOption(newWater);
     await walk.readingSave.click();
 
     // Sheet closes; the walk stays on the same area card (readings don't
@@ -350,8 +363,17 @@ test.describe("Garden Walk — telemetry & readings (RHO-17 Phase 2)", () => {
     await expect(walk.readingSheet).not.toBeVisible({ timeout: 10000 });
     await expect(walk.sectionCard).toHaveAttribute("data-section-kind", "area");
     await expect(
-      authenticatedPage.getByText(/Reading logged for/i).first(),
+      authenticatedPage.getByText(/Reading \+ bed profile saved for/i).first(),
     ).toBeVisible({ timeout: 10000 });
+
+    // Persistence: re-open the sheet — the prefill reads fresh from the DB,
+    // so seeing the new values proves the areas.update landed.
+    await walk.logReadingButton.click();
+    await expect(walk.readingSheet).toBeVisible({ timeout: 10000 });
+    await walk.profileToggle.click();
+    await expect(walk.profilePh).toHaveValue(newPh, { timeout: 10000 });
+    await expect(walk.profileWater).toHaveValue(newWater);
+    await authenticatedPage.getByTestId("walk-reading-close").click();
   });
 });
 
