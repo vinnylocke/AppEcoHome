@@ -8,7 +8,7 @@
 
 ## Quick Summary
 
-Branded green bar with: hamburger (mobile) / collapse toggle (desktop), Rhozly logo + name, HomeDropdown, OfflineBadge, QueuedActionsBadge, GlobalSearch, GlobalQuickAdd, UserProfileDropdown. Sticky at top of viewport. BetaFeedbackBanner stacks immediately below for beta users.
+Branded green bar — the brand book's immersive header, `bg-brand-gradient` (deep green → primary, 135°) with a `border-white/10` hairline and green-tinted `shadow-raised` — with: hamburger (mobile) / collapse toggle (desktop), Rhozly logo + name, HomeDropdown, OfflineBadge, QueuedActionsBadge, GlobalSearch, GlobalQuickAdd, UserProfileDropdown. Sticky at top of viewport. BetaFeedbackBanner stacks immediately below for beta users.
 
 ---
 

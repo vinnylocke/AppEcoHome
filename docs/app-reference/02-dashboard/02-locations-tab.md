@@ -187,7 +187,7 @@ No difference.
 
 ## Related reference files
 
-- [Dashboard Tab](./01-dashboard-tab.md)
+- [Home (Main Dashboard)](./17-home-main.md)
 - [Location Page](./07-location-page.md)
 - [Location Manager](../03-garden-hub/03-location-manager.md)
 - [Area Details](../03-garden-hub/04-area-details.md)

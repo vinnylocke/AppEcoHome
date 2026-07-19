@@ -15,17 +15,18 @@ const LOC_GARDEN_ID = `0000000${workerNum}-0000-0000-0001-000000000001`;
 const LOC_INDOOR_ID = `0000000${workerNum}-0000-0000-0001-000000000002`;
 
 test.describe("Home dashboard (Section 30)", () => {
-  test("HOME-001: plain /dashboard lands on the new Home view with the 5-tab switcher", async ({ authenticatedPage }) => {
+  test("HOME-001: plain /dashboard lands on the Home view with the 4-tab switcher", async ({ authenticatedPage }) => {
     const home = new HomeMainPage(authenticatedPage);
     await home.goto();
     await home.waitForLoad();
 
     await expect(home.root).toBeVisible();
     await expect(home.viewSwitcher.getByRole("button", { name: "Dashboard" })).toBeVisible();
-    await expect(home.viewSwitcher.getByRole("button", { name: "Overview" })).toBeVisible();
     await expect(home.viewSwitcher.getByRole("button", { name: "Locations" })).toBeVisible();
     await expect(home.viewSwitcher.getByRole("button", { name: "Calendar" })).toBeVisible();
     await expect(home.viewSwitcher.getByRole("button", { name: "Weather" })).toBeVisible();
+    // Phase 4.2: the Overview tab was merged into Home.
+    await expect(home.viewSwitcher.getByRole("button", { name: "Overview" })).toHaveCount(0);
   });
 
   test("HOME-002: garden overview grid renders both seeded locations with area rows", async ({ authenticatedPage }) => {
@@ -48,13 +49,11 @@ test.describe("Home dashboard (Section 30)", () => {
     await expect(home.root).toBeVisible();
   });
 
-  test("HOME-004: ?view=overview shows the classic dashboard content", async ({ authenticatedPage }) => {
+  test("HOME-004: legacy ?view=overview deep link falls through to the merged Home view", async ({ authenticatedPage }) => {
+    // Phase 4.2: the Overview tab no longer exists — the unknown view param
+    // resolves to home, exactly like the legacy ?view=dashboard alias.
     await authenticatedPage.goto("/dashboard?view=overview");
-    // The classic page's stats header — not rendered on the Home view.
-    await expect(
-      authenticatedPage.getByText("This Week at a Glance", { exact: false }),
-    ).toBeVisible({ timeout: 20000 });
-    await expect(authenticatedPage.getByTestId("home-main")).toHaveCount(0);
+    await expect(authenticatedPage.getByTestId("home-main")).toBeVisible({ timeout: 20000 });
   });
 
   test("HOME-005: quick actions render the default launcher tiles", async ({ authenticatedPage }) => {

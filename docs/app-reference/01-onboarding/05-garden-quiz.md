@@ -163,7 +163,7 @@ Same quiz for every tier. The personalisation benefits scale with tier — AI ti
 
 ### New user vs returning user
 
-- **Brand new user**: prompted from the Welcome Modal slide 4 and from the dashboard prompt card until completed.
+- **Brand new user**: prompted from the Welcome Modal slide 4 and — until completed or snoozed — from the "Set up your Garden Quiz" prompt card in the merged home dashboard's single-slot onboarding area. The prompt is priority 2 in that slot: it only appears once the Getting Started Checklist is dismissed or complete, and its "Start the quiz" CTA navigates to `/profile`. Snoozing ("Snooze 2 weeks" / "Don't ask again") persists via `onboarding_state.quiz_prompt_snoozed_until`.
 - **Returning user**: can edit the answers from `/profile` at any time.
 
 ### Beta user experience
@@ -192,7 +192,9 @@ No difference.
 
 - [Welcome Modal](./02-welcome-modal.md)
 - [Garden Profile](../05-tools/10-garden-profile.md)
-- [Dashboard Tab](../02-dashboard/01-dashboard-tab.md) — quiz prompt card
+- [Home (Main Dashboard)](../02-dashboard/17-home-main.md) — hosts the single-slot onboarding area
+- [Getting Started Checklist](./06-getting-started-checklist.md) — priority 1 in the slot, ahead of the quiz prompt
+- [Onboarding State (cross-cutting)](../99-cross-cutting/30-onboarding-state.md) — `quiz_prompt_snoozed_until` + the promo card cascade
 - [AI Assistant Card](../02-dashboard/06-assistant-card.md)
 - [Pattern Engine (cross-cutting)](../99-cross-cutting/26-pattern-engine.md)
 

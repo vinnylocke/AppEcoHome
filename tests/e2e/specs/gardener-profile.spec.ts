@@ -99,7 +99,10 @@ test.describe("Gardener's Profile — plans deep link (RHO-12)", () => {
     if (!ctaVisible) {
       // If Head Gardener isn't gated in this build, fall back to the compact
       // nudge on the dashboard (same navigate target).
-      await authenticatedPage.goto("/dashboard?view=overview");
+      await authenticatedPage.addInitScript(() => {
+        try { localStorage.setItem("rhozly:home:density", "detailed"); } catch { /* ignore */ }
+      });
+      await authenticatedPage.goto("/dashboard");
       const compact = authenticatedPage.getByTestId("upgrade-nudge-head_gardener").first();
       await expect(compact).toBeVisible({ timeout: 10000 });
       await compact.click();

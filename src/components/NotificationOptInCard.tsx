@@ -14,7 +14,15 @@ const LS_DISMISSED = "rhozly_notif_optin_dismissed";
  * On accept, triggers `Notification.requestPermission()` and links into
  * Account Settings → Notification preferences for fine-grained control.
  */
-export default function NotificationOptInCard() {
+export default function NotificationOptInCard({
+  onSettled,
+}: {
+  /** Called when the card hides itself (enabled OR dismissed) — the
+   *  dashboard's single-slot renderer re-evaluates so the next promo card
+   *  (PWA install) can claim the freed slot without waiting for an
+   *  unrelated re-render. */
+  onSettled?: () => void;
+} = {}) {
   const navigate = useNavigate();
   const [hidden, setHidden] = useState(true);
 
@@ -42,12 +50,14 @@ export default function NotificationOptInCard() {
     } finally {
       localStorage.setItem(LS_DISMISSED, "true");
       setHidden(true);
+      onSettled?.();
     }
   };
 
   const handleDismiss = () => {
     localStorage.setItem(LS_DISMISSED, "true");
     setHidden(true);
+    onSettled?.();
   };
 
   return (

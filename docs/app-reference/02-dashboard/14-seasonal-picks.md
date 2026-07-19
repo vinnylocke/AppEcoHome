@@ -3,7 +3,7 @@
 > "What can I grow right now?" — a weekly card surfacing 4-6 personalised sowing / planting / propagating suggestions calibrated to the user's hemisphere, frost dates, garden quiz preferences, and existing Shed contents. Reads like the inverse of The Library: instead of "show me what I'm looking for", it's "show me what you'd suggest for me this week".
 
 **Routes:**
-- `/dashboard` — desktop grid card above the two-column stats/tasks layout.
+- `/dashboard` — rendered by the merged home ([Home (Main Dashboard)](./17-home-main.md)) in **Simple density only** (Detailed hides it to stay telemetry-first).
 - `/weekly` — mounted as a section on the Weekly Overview page between "Sow this week" and "Ready to harvest" (Wave 21.0005).
 
 > Previously also on `/quick/calendar` (`variant="today"`, removed Wave 21.0004) and `/quick` (`variant="carousel"`, removed Wave 21.0005). Both placements duplicated content; the Today screen now stays tight on "what's happening right now" and the Quick Launcher home now leads with the customisable launcher + walk tile. Personalised picks live on `/weekly` where they pair naturally with the deterministic "Sow this week" chip strip and the rest of the week-ahead context.
@@ -43,7 +43,7 @@ SeasonalPicksCard (variant: "today" | "dashboard")
 
 | Prop | Type | Source | Purpose |
 |------|------|--------|---------|
-| `homeId` | `string` | `HomeDashboard.tsx` / `LocalizedTaskCalendar.tsx` | Scope |
+| `homeId` | `string` | `home/HomeMain.tsx` / `WeeklyOverviewPage` | Scope |
 | `variant` | `"today" \| "dashboard"` | parent | Layout: horizontal scroll (today) vs responsive grid (dashboard) |
 | `hideRefresh` | `boolean?` | parent | Hides the refresh button (unused today; reserved for read-only embeds) |
 
@@ -238,7 +238,7 @@ No difference.
 
 ## Related reference files
 
-- [Dashboard Tab](./01-dashboard-tab.md)
+- [Home (Main Dashboard)](./17-home-main.md) — renders this card in Simple density
 - [Localized Task Calendar](./10-localized-task-calendar.md)
 - [The Library](./12-the-library.md)
 - [Garden Quiz](../01-onboarding/05-garden-quiz.md)

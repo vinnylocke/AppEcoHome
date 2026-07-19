@@ -77,6 +77,10 @@ export class ShedPage {
   // Sort dropdown (aria-label only — no testid in source)
   readonly sortSelect: Locator;
 
+  // Filters disclosure (Phase 4.3)
+  readonly filtersButton: Locator;
+  readonly filtersPanel: Locator;
+
   // Credit badge (any plant on the page)
   readonly anyCreditBadge: Locator;
   readonly creditPopover: Locator;
@@ -148,6 +152,8 @@ export class ShedPage {
     this.bulkAddFileIssues = page.locator('[data-testid="bulk-add-file-issues"]');
 
     this.sortSelect = page.getByLabel("Sort plants");
+    this.filtersButton = page.locator('[data-testid="shed-filters-btn"]');
+    this.filtersPanel = page.locator('[data-testid="shed-filters-panel"]');
 
     this.anyCreditBadge = page.locator('[data-testid="image-credit-badge"]').first();
     this.creditPopover = page.locator('[data-testid="image-credit-popover"]');
@@ -229,6 +235,31 @@ export class ShedPage {
       .filter({
         has: this.page.locator("h2, h3").filter({ hasText: new RegExp(`^\\s*${name}\\s*$`) }),
       });
+  }
+
+  /** Open the Filters disclosure panel (Phase 4.3 — the source/sort selects
+   *  and smart chips live inside it; their aria-labels are unchanged). */
+  async openFilters() {
+    if ((await this.filtersButton.getAttribute("aria-expanded")) !== "true") {
+      await this.filtersButton.click();
+    }
+    await this.filtersPanel.waitFor({ state: "visible", timeout: 5000 });
+  }
+
+  /** Open a plant card's kebab overflow menu (Phase 4.3 — layout / light /
+   *  Ask AI / archive / delete live inside it; menu items keep their original
+   *  aria-labels, so the *ButtonFor helpers below work once this has run). */
+  async openCardMenu(name: string) {
+    const kebab = this.plantCard(name).locator('[data-testid^="plant-card-kebab-"]');
+    // The kebab is a toggle — clicking an already-open menu would close it,
+    // so guard on aria-expanded like openFilters().
+    if ((await kebab.getAttribute("aria-expanded")) !== "true") {
+      await kebab.click();
+    }
+    await this.page
+      .locator('[data-testid^="plant-card-menu-"]')
+      .first()
+      .waitFor({ state: "visible", timeout: 5000 });
   }
 
   archiveButtonFor(name: string): Locator {

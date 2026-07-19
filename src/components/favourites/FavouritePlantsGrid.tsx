@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import SmartImage from "../SmartImage";
+import { PlantInitialTile } from "../ui/PlantInitialTile";
 import EmptyState from "../shared/EmptyState";
 import { Logger } from "../../lib/errorHandler";
 import { logEvent, EVENT } from "../../events/registry";
@@ -259,16 +260,24 @@ export default function FavouritePlantsGrid({
                 className="relative bg-rhozly-surface-lowest rounded-3xl overflow-hidden border-2 border-rhozly-outline/20 shadow-sm flex flex-col"
               >
                 <div className="h-40 relative overflow-hidden bg-rhozly-primary/5">
-                  <SmartImage
-                    src={
-                      image ||
-                      "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&w=400"
-                    }
-                    alt={name}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover"
-                  />
+                  {image ? (
+                    <SmartImage
+                      src={image}
+                      alt={name}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <PlantInitialTile
+                      plant={{
+                        scientific_name:
+                          ((live?.scientific_name ?? fav.scientific_name) as string[] | null) ??
+                          null,
+                        common_name: name ?? null,
+                      }}
+                    />
+                  )}
                   <div className="absolute bottom-3 left-3 z-10 flex flex-col items-start gap-1.5">
                     {sourceBadge(source, isLibrary)}
                   </div>

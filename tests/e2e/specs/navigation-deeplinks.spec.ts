@@ -6,7 +6,17 @@ import { test } from "../fixtures/auth";
 
 test.describe("Navigation deep-links", () => {
   test("NAV-001: Dashboard 'Completed' tile → calendar agenda", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/dashboard?view=overview");
+    // The stat wall lives behind the merged home's Detailed density (Phase 4.2)
+    await authenticatedPage.addInitScript(() => {
+      try { localStorage.setItem("rhozly:home:density", "detailed"); } catch { /* ignore */ }
+    });
+    await authenticatedPage.goto("/dashboard");
+    // Expand the Garden Snapshot if it's collapsed (persona-dependent default)
+    const toggle = authenticatedPage.getByTestId("dash-snapshot-toggle");
+    if (await toggle.isVisible({ timeout: 10000 }).catch(() => false)) {
+      const expanded = await toggle.getAttribute("aria-expanded");
+      if (expanded !== "true") await toggle.click();
+    }
     const tile = authenticatedPage.getByTestId("dash-stat-tasks-completed");
     const visible = await tile.isVisible({ timeout: 10000 }).catch(() => false);
     if (!visible) { test.skip(); return; }

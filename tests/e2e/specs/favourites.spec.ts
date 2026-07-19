@@ -133,6 +133,7 @@ test.describe("Cross-home favourites (Section FAV)", () => {
     await shed.waitForLoad();
     const leftover = shed.plantCard("Snapdragon");
     if (await leftover.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await shed.openCardMenu("Snapdragon");
       await shed.deleteButtonFor("Snapdragon").click();
       await authenticatedPage.getByRole("button", { name: "Delete", exact: true }).click();
       await expect(leftover).toHaveCount(0, { timeout: 10000 });
@@ -155,6 +156,7 @@ test.describe("Cross-home favourites (Section FAV)", () => {
     await expect(copy).toBeVisible({ timeout: 15000 });
 
     // Clean up so the spec is re-runnable: delete the copied plant.
+    await shed.openCardMenu("Snapdragon");
     await shed.deleteButtonFor("Snapdragon").click();
     await authenticatedPage.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(copy).toHaveCount(0, { timeout: 10000 });

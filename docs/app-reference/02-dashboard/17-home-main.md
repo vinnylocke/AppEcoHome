@@ -1,24 +1,26 @@
 # Home (Main Dashboard)
 
-> The new default landing view of the Dashboard tab — "how is my garden doing right now?" answered on one screen: a status strip, a location-by-location garden overview grid, quick actions, and today's tasks.
+> The single `/dashboard` view — "how is my garden doing right now?" answered on one screen, rendered in two densities. The old sibling **"Overview"** sub-tab was merged in here (design overhaul Phase 4.2): its Daily Brief hero, full task list, and stat wall (now **Garden Snapshot**) live behind the **Detailed** density, while the Head Gardener, AI Insights, and Week Ahead cards render in **both** densities (product call 2026-07-19).
 
-**Route / how to reach it:** `/dashboard` (no `?view=` param, explicit `?view=home`, legacy `?view=dashboard`, or any unknown value). Labelled **"Dashboard"** in the sub-tab switcher; the previous dashboard page lives on unchanged as the sibling **"Overview"** tab (`?view=overview`).
+**Route / how to reach it:** `/dashboard` (no `?view=` param, explicit `?view=home`, legacy `?view=dashboard`, legacy `?view=overview`, or any unknown value — **all** fall through to home). Labelled **"Dashboard"** in the four-tab sub-tab switcher (Dashboard / Locations / Calendar / Weather). The Overview tab no longer exists — see [Dashboard Tab (Overview) — ARCHIVED](./01-dashboard-tab.md).
 **Source files (entry points):**
-- `src/components/home/HomeMain.tsx` — the page (lazy-loaded from App.tsx)
-- `src/components/home/HomeStatusStrip.tsx` — greeting + signal chips
-- `src/components/home/AttentionRow.tsx` — ranked "needs attention" cards (Phase 2)
-- `src/components/home/GardenOverviewGrid.tsx` / `LocationOverviewCard.tsx` / `AreaRow.tsx` — the centrepiece grid (AreaRow carries the Phase 2 sensor/valve/tasks chips)
-- `src/components/home/WeekPulse.tsx` — detailed-mode 7-day dot strip + harvest/yield line (Phase 3)
+- `src/components/home/HomeMain.tsx` — the page (lazy-loaded from App.tsx); owns density state and the single `useHomeDashboardStats` mount
+- `src/components/home/HomeStatusStrip.tsx` — Simple-density hero (greeting + signal chips)
+- `src/components/DailyBriefCard.tsx` — Detailed-density hero (the old Overview hero)
+- `src/components/home/GardenSnapshot.tsx` — the old Overview stat wall, relocated (Detailed only)
+- `src/components/home/AttentionRow.tsx` — ranked "needs attention" cards
+- `src/components/home/GardenOverviewGrid.tsx` / `LocationOverviewCard.tsx` / `AreaRow.tsx` — the centrepiece grid (AreaRow carries the sensor/valve/tasks chips)
 - `src/components/home/QuickActionsRow.tsx` — launcher-pin tiles
-- `src/hooks/useHomeOverview.ts` — the `home-overview` edge-function fetch (Phase 2)
+- `src/components/manager/HeadGardenerCard.tsx` + `src/components/AssistantCard.tsx` — AI cards (both densities)
+- `src/hooks/useHomeOverview.ts` — the `home-overview` edge-function fetch
 - `supabase/functions/home-overview/index.ts` + `supabase/functions/_shared/homeOverview.ts` — the telemetry aggregate
-- `src/App.tsx` — view-param parsing (~line 505), localStorage persistence (~line 514), switcher + render branch (~line 1530–1600)
+- `src/App.tsx` — view-param parsing (~line 511), localStorage persistence (~line 522), four-tab switcher (~line 1672), single-slot onboarding + home render branch (~line 1705)
 
 ---
 
 ## Quick Summary
 
-Phases 1–3 of the new-home-dashboard plan (`docs/plans/new-home-dashboard.md`) — all shipped 2026-07-02. One shared page rendered in two densities — **simple** (guidance-first, the default) and **detailed** (telemetry-first, the default for `persona === "experienced"`) — composed of a slim status strip, a ranked "needs attention" row (hidden when calm), one LocationOverviewCard per location with one AreaRow per area (plants + Phase 2 soil-sensor / valve / per-area task chips), a persona-tuned quick-actions row reusing the `/quick` launcher pins, a compact today's-tasks list, the detailed-mode-only WeekPulse (7-day dot strip + harvest/yield line), and (simple mode only) the Seasonal Picks card. The grid renders instantly from client-held state; the **`home-overview`** edge function layers live telemetry on top and soft-fails — the page never blocks on it. **Deviation from the plan:** the sun-hours chip was dropped — no per-area sun columns exist in the schema (sun analysis is computed client-side from shapes/lux).
+One page, two densities — **Simple** (guidance-first, the default) and **Detailed** (telemetry-first, the default for `persona === "experienced"`; localStorage `rhozly:home:density` once toggled). Both share a spine: attention row, Garden Brain brief, adaptive-care card, the location-by-location garden grid, quick actions, a Garden Walk launcher, and a task list. Simple opens with the compact status strip and closes with a compact today's-tasks section plus Seasonal Picks. The **Head Gardener**, **AI Insight**, and Evergreen-gated **Week Ahead** cards render in both densities. Detailed swaps the strip for the full **DailyBriefCard** hero (one greeting — never both), replaces the compact list with the **full TaskList** (Pending/Completed tabs), and appends the collapsible **Garden Snapshot** stat wall. Above the page, App.tsx renders **at most one** onboarding/promo card (single-slot cascade). The grid renders instantly from client-held state; the **`home-overview`** edge function layers live telemetry on top and soft-fails — the page never blocks on it. A **single `useHomeDashboardStats` mount** in HomeMain feeds both the "X of Y done today" summary and the Garden Snapshot — never add a second consumer (the edge fn is uncached).
 
 ---
 
@@ -26,26 +28,52 @@ Phases 1–3 of the new-home-dashboard plan (`docs/plans/new-home-dashboard.md`)
 
 ### Component graph
 
-- `src/App.tsx` — `/dashboard` route; renders the five-tab switcher (`data-testid="dashboard-view-switcher"`), the shared onboarding cards, and the `home`/`overview` branch
-  - `GettingStartedChecklist` (`src/components/GettingStartedChecklist.tsx`) — **shared by Home + Overview** (hoisted above the branch split)
-  - `NotificationOptInCard` (`src/components/NotificationOptInCard.tsx`) — shared by Home + Overview
-  - `InstallPwaPrompt` (`src/components/InstallPwaPrompt.tsx`) — shared by Home + Overview
-  - `HomeMain` (`src/components/home/HomeMain.tsx`) — the page, inside `Suspense` (lazy chunk); calls `useHomeOverview(homeId)` and builds a `telemetryByArea` map (area id → `OverviewArea`) memoised from the response
-    - `HomeStatusStrip` (`src/components/home/HomeStatusStrip.tsx`) — greeting + weather / **"X of Y done today"** headline + breakdown chips (to-do / skipped / postponed) / overdue / frost chips (RHO-20). The breakdown is built by `buildTodaySummary` (`src/lib/todaySummary.ts`): **pending** comes from the ghost-aware client `locationTaskCounts` sum; **done** comes from the server's completion-aware `tasks.doneToday` (`computeDoneToday`) — a task counts if it was completed today (incl. an **overdue** or **harvest** task cleared today) or is due today and done. **skipped / postponed** still come from the server `dayStrip` today bucket. (Before 2026-07 `done` used the day-strip today bucket, which buckets completions on their DUE day — so an overdue task completed today was filed on its past due day and never counted, giving a deflated "2 of 3". See `docs/plans/dashboard-today-counts.md`.) `useHomeDashboardStats` is mounted in HomeMain for **both** densities. Zero-count chips are hidden.
-    - Density toggle (`home-density-toggle`, inline in HomeMain) — Simple / Detailed icon pair
-    - `AttentionRow` (`src/components/home/AttentionRow.tsx`) — max-4 ranked "needs attention" cards from `home-overview`; renders `null` when the list is empty (calm garden); each card is kind-coloured + icon-matched and deep-links via its `route`
-    - `GardenBrainBriefCard` (`src/components/home/GardenBrainBriefCard.tsx`) — "Your daily brief" (Garden Brain Phase 2): today's `daily_briefs` row — summary voice (AI on Sage/Evergreen, template below), ranked deep-linking items (simple density: top 3; detailed: all + reasons), good-news block, 👍/👎 → `ai_feedback`, Refresh (AI briefs only). Self-hides pre-cron. See [Garden Brain](../99-cross-cutting/39-garden-brain.md).
-    - `AdaptiveCareCard` (`src/components/home/AdaptiveCareCard.tsx`) — Garden Brain adaptive-care proposals + "✓ Since the change" verification lines (2026-07-10). Reads `care_adjustments` (snapshot-cached); Apply updates/creates the watering blueprint; self-hides when the home has no rows (server writes them only for sensor-equipped Sage/Evergreen homes — no client tier plumbing). Both densities. See [Garden Brain](../99-cross-cutting/39-garden-brain.md). testids: `adaptive-care-card`, `adaptive-care-apply`, `adaptive-care-dismiss`, `adaptive-care-evidence`.
-    - `GardenOverviewGrid` (`src/components/home/GardenOverviewGrid.tsx`) — 1→2 column responsive grid, only when ≥ 1 location; threads `telemetryByArea` down
-      - `LocationOverviewCard` (`src/components/home/LocationOverviewCard.tsx`) — one per location; passes each area's telemetry to its row
-        - `AreaRow` (`src/components/home/AreaRow.tsx`) — one per area, plus a synthetic "Not in an area yet" row for unassigned plants. Hosts the Phase 2 chips (all optional, driven by the `telemetry` prop): `SensorChip` (soil moisture band / % + temp + low-battery icon; grey when stale), `ValveChip` (Watering countdown / failed / detailed-mode next-run), and a per-area tasks chip (`home-area-tasks-chip`)
-    - Empty-garden setup card (`home-empty-garden`, inline in HomeMain) — 3 CTAs when the home has no locations
-    - `QuickActionsRow` (`src/components/home/QuickActionsRow.tsx`) — up to 6 `QuickTile`s (`src/components/quick/QuickTile.tsx`, `layout="compact"`) + Customise link. The `/walk` tile launches with `state:{ from: "/dashboard" }` so the Garden Walk returns to the dashboard on finish (re-firing `fetchDashboardData` so the "done today" count refreshes) instead of the `/quick` fallback (RHO-20).
-    - `TaskList` (`src/components/TaskList.tsx`) — existing component with the `compact` prop, `targetDate` = today
-    - `WeekPulse` (`src/components/home/WeekPulse.tsx`) — **detailed mode only** (conditionally mounted, so simple mode never pays its fetch); compact 7-day dot strip + harvests-due/yield line reusing `useHomeDashboardStats`; the whole card taps through to `?view=overview`
-    - `SeasonalPicksCard` (`src/components/seasonal/SeasonalPicksCard.tsx`, `variant="dashboard"`) — **simple mode only**
+- `src/App.tsx` — `/dashboard` route; renders the **four-tab** switcher (`data-testid="dashboard-view-switcher"`: Dashboard / Locations / Calendar / Weather), the sync-status pill, the single-slot onboarding cascade, and the `home` branch
+  - **Single-slot onboarding (Phase 4.2)** — at most ONE promo card above HomeMain, priority order:
+    1. `GettingStartedChecklist` (`src/components/GettingStartedChecklist.tsx`) — decides its own visibility and reports it via the `onVisibilityChange` prop (`setChecklistSlotVisible`; defaults `true` so nothing below flashes before its queries resolve). See [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md).
+    2. Quiz Prompt card (inline in App.tsx; moved here from the old Overview branch) — headline **"Set up your Garden Quiz"**, CTA **"Start the quiz →"** (→ `/profile`); dismiss X opens a confirm row with `quiz-prompt-snooze-14d` / `quiz-prompt-dont-ask-again`, persisted via `onboarding_state.quiz_prompt_snoozed_until`. See [Garden Quiz](../01-onboarding/05-garden-quiz.md).
+    3. `NotificationOptInCard` — localStorage-only dismissal. See [Notification Opt-In](../01-onboarding/07-notification-opt-in.md).
+    4. `InstallPwaPrompt` — localStorage-only, `beforeinstallprompt`-gated. See [PWA Install Prompt](../01-onboarding/08-pwa-install.md).
+  - `HomeMain` (`src/components/home/HomeMain.tsx`) — the page, inside `Suspense` (lazy chunk); calls `useHomeOverview(homeId)` (→ `telemetryByArea` map) and `useHomeDashboardStats(homeId)` (→ today summary + Garden Snapshot)
 
-The quiz-prompt card, `DailyBriefCard`, `HeadGardenerCard`, `AssistantCard` and `HomeDashboard` render **only on the Overview branch** — see [Dashboard Tab (Overview)](./01-dashboard-tab.md).
+**Card order — Simple density** (`data-testid="home-main"`):
+
+1. Hero row: `HomeStatusStrip` (greeting + weather / **"X of Y done today"** breakdown / overdue / frost chips) + the density toggle (`home-density-toggle`, buttons `home-density-simple` / `home-density-detailed`)
+2. `AttentionRow` — max-4 ranked "needs attention" cards from `home-overview`; `null` when calm
+3. `GardenBrainBriefCard` — "Your daily brief" (top 3 items in simple density); self-hides pre-cron. See [Garden Brain](../99-cross-cutting/39-garden-brain.md)
+4. `AdaptiveCareCard` — Garden Brain adaptive-care proposals; self-hides when the home has no rows
+5. `GardenOverviewGrid` (one `LocationOverviewCard` per location, one `AreaRow` per area) — or the empty-garden setup card (`home-empty-garden`, 3 CTAs) when the home has no locations
+6. `QuickActionsRow` — up to 6 launcher-pin tiles + Customise
+7. **Garden Walk launcher** (`dash-garden-walk`) — full-width gradient button, renders only when `totalPlants >= 5` (from `stats.garden.totalPlants`); navigates to `/walk` with `state:{ from: "/dashboard" }`
+8. Compact today's-tasks section (`home-todays-tasks`) — `TaskList` with `compact` + `targetDate` = today; "See all" (`home-tasks-see-all`) → `/dashboard?view=calendar`
+9. `SeasonalPicksCard` (`variant="dashboard"`)
+
+**Card order — Detailed density:**
+
+1. Density toggle (top-right), then the `DailyBriefCard` hero — **replaces** the status strip (one greeting, never both; they are the same job at two depths). Receives the same props App used to pass it directly pre-merge (`locations` carries lat/lng at runtime). See [Daily Brief Card](./05-daily-brief-card.md)
+2. `AttentionRow`
+3. `GardenBrainBriefCard` (all items + reasons in detailed density)
+4. `AdaptiveCareCard`
+5. `HeadGardenerCard` in a `data-testid="dashboard-head-gardener-card"` wrapper div (only when `userId`) — self-gates (Evergreen; compact upsell otherwise). See [Head Gardener](./16-head-gardener.md)
+6. `AssistantCard userId showUpgradeWhenLocked` in a `data-testid="dashboard-assistant-card"` wrapper div (only when `userId`) — see [AI Assistant Card](./06-assistant-card.md)
+7. `GardenOverviewGrid` (or `home-empty-garden`)
+8. `QuickActionsRow`
+9. Garden Walk launcher (`dash-garden-walk` — **both** densities)
+10. **Full `TaskList`** in a `data-testid="dashboard-task-list"` wrapper div — the whole task-management surface (Daily Tasks heading, Pending/Completed tabs), the old Overview TasksPanel role
+11. `WeekAheadPreview` inside `<FeatureGate feature="ai_insights" fallback={null}>` — Evergreen-only (RHO-9)
+12. `GardenSnapshot` — the collapsible "This Week at a Glance" stat wall (below)
+
+### GardenSnapshot (`src/components/home/GardenSnapshot.tsx`)
+
+The old Overview stat wall relocated. **Pure presentation** — HomeMain owns `useHomeDashboardStats` and threads `stats / loading / error / refresh / weekStart / weekEnd` down, so mounting it never double-fetches.
+
+- **Header:** "This Week at a Glance" + week range + `dash-refresh` (re-invokes the fetch; spinner while loading).
+- **Collapse toggle** (`dash-snapshot-toggle`, `aria-expanded`): localStorage `rhozly:dashboard:snapshot-open`; **default open for `persona === "experienced"`**, collapsed otherwise. Persisted **only on user toggle** (never on mount — persisting the first-render default would freeze it before `usePersona()` resolves); with no stored value an effect follows the persona once it lands.
+- **Zero-value tiles are hidden** (`hideWhenZero` + `isZeroValue`): a tile whose value is literal `0` / `"0"` renders nothing, and a section whose tiles all hide drops its header too (`visibleTiles`). **Exceptions that always render:** `dash-stat-tasks-total` and `dash-stat-plants-total`. Formatted strings (`"0mm"`, `"—"`) are deliberately **not** hidden — "no rainfall recorded" and "no streak yet" are real data.
+- **Tiles** (all `dash-stat-*`): tasks — `tasks-total`, `tasks-completed`, `tasks-overdue`, `tasks-pending`, `tasks-auto`, `tasks-streak`; garden — `plants-total`, `harvest-blueprints`, `harvest-instances`, `pruning-blueprints`, `pruned-instances`, `general-pruning`; weather — `weather-alerts`, `rainfall`, `skipped-rain`; automations — `auto-runs`, `auto-success`, `auto-failed`, `auto-tasks`; more — `doctor-sessions`, `watchlist-new`. Plus the carried-over line (`dash-tasks-carried-over` / `-prior` / `dash-tasks-completed-this-week`), per-category chips (`dash-cat-*`) and the member breakdown (`dash-member-breakdown-toggle`).
+- **7-day Week Overview strip:** each day (`dash-day-{date}`, click → `/dashboard?view=calendar&date={date}`) now renders **stacked dots** — WeekPulse's visual language, max **3 dots per bucket** (`DOTS_PER_BUCKET_CAP`), fixed bucket order, zero-count buckets omitted: **red = overdue, orange = completed late, emerald = on time, neutral = pending** (lighter variants on the today pill). Exact counts stay reachable via per-dot `title`s, the "{n} tasks" sub-label, and the hover/tap `DayLegend` pills (unchanged).
+- **Empty garden:** returns `null` when `stats.garden.totalPlants === 0` — the merged home's own `home-empty-garden` card covers new users (the old `EmptyGardenPanel` was deliberately not ported).
+- Stat semantics (RHO-13/14/15/16, tz bucketing, split queries) are unchanged from the Overview era — the pure logic lives in `supabase/functions/_shared/dashboardStats.ts` (Deno tests `supabase/tests/dashboardStats.test.ts`).
 
 ### Props received
 
@@ -53,79 +81,78 @@ The quiz-prompt card, `DailyBriefCard`, `HeadGardenerCard`, `AssistantCard` and 
 
 | Prop | Type | Source | Purpose |
 |------|------|--------|---------|
-| `homeId` | `string` | `profile.home_id` | Scopes TaskList + SeasonalPicksCard |
-| `userId` | `string \| null` | `session.user.id` | Passed to `useQuickLauncherPins` for remote pin revalidation |
-| `firstName` | `string \| null` | `profile.first_name` | Greeting |
-| `weather` | `any` | App's extracted current weather (`{ temp, description, Icon }`) | Weather chip |
-| `rawWeather` | `any` | Latest `weather_snapshots.data` JSONB | Frost-tonight derivation |
-| `locations` | `OverviewLocation[]` | App's `locations` state (homes query) | The grid |
-| `locationTaskCounts` | `Record<string, number>` | App's per-location **remaining-today** counts (ghost-aware). Built by `buildLocationTaskCounts` (`src/lib/locationTaskCounts.ts`): counts persisted pending rows + un-acted blueprint ghosts; Completed **and** Skipped rows are excluded from the count but kept as tombstones that suppress their blueprint's ghost — mirroring `TaskEngine`. | Per-card task chip + summed for the strip |
-| `overdueTaskCount` | `number` | App's home-scoped overdue count (RHO-3) | Overdue chip |
-| `aiEnabled` | `boolean` | `profile.ai_enabled` | SeasonalPicksCard AI branch |
+| `homeId` | `string` | `profile.home_id` | Scopes TaskList, stats, SeasonalPicksCard |
+| `userId` | `string \| null` | `session.user.id` | Launcher pin revalidation; gates the Detailed AI cards |
+| `firstName` | `string \| null` | `profile.first_name` | Greeting (both heroes) |
+| `weather` | `any` | App's extracted current weather | Weather chip / DailyBriefCard |
+| `rawWeather` | `any` | Latest `weather_snapshots.data` JSONB | Frost derivation |
+| `locations` | `OverviewLocation[]` | App's `locations` state | The grid + DailyBriefCard sun fallback |
+| `locationTaskCounts` | `Record<string, number>` | App's per-location **remaining-today** counts (ghost-aware, `buildLocationTaskCounts`) | Per-card task chip + summed for the strip / brief |
+| `overdueTaskCount` | `number` | App's home-scoped overdue count (RHO-3) | Overdue chip (both heroes) |
+| `alerts` | `any[]` | Active `weather_alerts` | DailyBriefCard footer hint |
+| `homeLat` / `homeLng` | `number \| null` | App's `homeLatLng` | DailyBriefCard sun calculations |
+| `hardinessZone` | `number \| null` | `homes.hardiness_zone` | DailyBriefCard zone chip |
+| `aiEnabled` | `boolean` | `profile.ai_enabled` | SeasonalPicksCard AI branch + brief chat chip |
 | `isPremium` | `boolean` | `profile.enable_perenual` | SeasonalPicksCard |
-| `availabilityCtx` | `QuickLauncherAvailabilityCtx` | Built inline in App.tsx (`subscriptionTier`, `aiEnabled`, `isBeta`, `homeId`) | Filters launcher tiles via `resolvePins` |
+| `availabilityCtx` | `QuickLauncherAvailabilityCtx` | Built inline in App.tsx | Filters launcher tiles via `resolvePins` |
 
 ### State (local)
 
 - `storedDensity` (`useState`, init-only) — synchronous read of localStorage `rhozly:home:density` at mount.
-- `densityOverride` (`"simple" | "detailed" | null`) — the user's explicit choice; seeded from `storedDensity` when valid. Written by the density toggle buttons; when `null` the effective density follows the persona (`persona === "experienced"` → `"detailed"`, everything else — including `null` while `usePersona()` is still loading — → `"simple"`).
-- The density is **persisted only on user toggle** (`setDensity` writes localStorage) — never on first render, so the persona default isn't frozen before `usePersona()` resolves (the Garden Snapshot preference lesson).
-- `usePersona()` (module-cached read of `user_profiles.persona`) drives both the density default and the quick-action defaults.
+- `densityOverride` (`"simple" | "detailed" | null`) — the user's explicit choice; seeded from `storedDensity` when valid. When `null` the effective density follows the persona (`persona === "experienced"` → `"detailed"`, everything else — including `null` while `usePersona()` is still loading — → `"simple"`).
+- Density is **persisted only on user toggle** (`setDensity` writes localStorage) — never on first render, so the persona default isn't frozen before `usePersona()` resolves (the Garden Snapshot preference lesson).
+- App.tsx holds `checklistSlotVisible` (default `true`) — the single-slot gate the checklist reports into via `onVisibilityChange`.
 
 ### Data flow — read paths
 
-The Phase 1 grid renders from data App.tsx already holds; Phase 2/3 add exactly two reads of their own:
-
-- **`useHomeOverview(homeId)`** (`src/hooks/useHomeOverview.ts`) — one `supabase.functions.invoke("home-overview", { body: { homeId, today } })` call on mount / home switch, `today` being the **client-local** date (`getLocalDateString`). Generation-guarded (an `activeHomeRef` drops stale responses after a home switch) and cleared to `null` when `homeId` changes. **Soft-fails:** on any error it logs and leaves `overview` null — the grid still renders without telemetry chips and the attention row stays hidden. Returns `{ locations[], attention[] }`; HomeMain flattens `locations[].areas[]` into the `telemetryByArea` map.
-- **`useHomeDashboardStats(homeId)`** — mounted **only in detailed mode** via `WeekPulse`, reusing the same `home-dashboard-stats` aggregate the Overview tab renders in full (`dayStrip`, `garden.harvestBlueprintsDue`, `garden.totalYieldByUnit`).
-
-Everything else is the Phase 1 client-held state:
-
-- **Homes query (App.tsx `fetchDashboardData`, ~line 705):** `supabase.from("homes").select("*, weather_snapshots(data, updated_at), locations(*, areas(id, name), inventory_items(id, status, area_id, growth_state, plant_name))")`. The nested `inventory_items` select was **widened for this feature** to include `area_id`, `growth_state`, `plant_name` — the grid groups plants by area client-side (`LocationOverviewCard` builds a `plantsByArea` map; items whose `area_id` is null or points at a deleted area fall into the "Not in an area yet" row). Fires on mount, pull-to-refresh, realtime events, revisit. RLS: standard home-membership policies on `homes`/`locations`/`inventory_items`. Caching: the existing dashboard sessionStorage/localStorage snapshot pattern — see [Caching](../99-cross-cutting/14-caching.md).
-- **Inventory realtime refetch (App.tsx `handleInventoryRealtime`, ~line 1062):** `supabase.from("inventory_items").select("id, status, location_id, area_id, growth_state, plant_name").eq("home_id", homeId).limit(500)` — the same three columns were added here so a realtime-driven refresh doesn't strip the grid's grouping data.
-- **`useQuickLauncherPins(userId)`** — synchronous localStorage read (`rhozly_quick_launcher_v1`) + background revalidate against `user_profiles.quick_launcher_pins`. See [Quick Access Home](./09-quick-access-home.md).
-- **`usePersona()`** — one `user_profiles.select("persona").eq("uid", uid)` read, module-cached.
-- **`TaskList`** (compact) and **`SeasonalPicksCard`** make their own reads exactly as documented on their own surfaces — unchanged by this page.
+- **`useHomeDashboardStats(homeId)`** — **mounted once, in HomeMain, for BOTH densities.** Feeds (a) the "X of Y done today" breakdown via `buildTodaySummary` (`src/lib/todaySummary.ts`) — **pending** from the ghost-aware client `locationTaskCounts` sum, **done** from the server's completion-aware `tasks.doneToday` (`computeDoneToday` — a task counts if completed today, incl. overdue/harvest cleared today, or due today and done), **skipped/postponed** from the server `dayStrip` today bucket; (b) `totalPlants` for the walk-launcher gate; (c) the whole GardenSnapshot in detailed density. Soft-fails — null stats still render the strip's pending count. Don't add second consumers: the `home-dashboard-stats` edge fn is uncached.
+- **`useHomeOverview(homeId)`** (`src/hooks/useHomeOverview.ts`) — one `home-overview` invoke on mount / home switch (`today` = client-local date). Generation-guarded; **soft-fails** (grid renders without telemetry chips, attention row stays hidden). Returns `{ locations[], attention[] }`; flattened into the `telemetryByArea` map.
+- **Homes query (App.tsx `fetchDashboardData`):** `supabase.from("homes").select("*, weather_snapshots(data, updated_at), locations(*, areas(id, name), inventory_items(id, status, area_id, growth_state, plant_name))")` — the grid groups plants by area client-side. Fires on mount, pull-to-refresh, realtime events, revisit. Caching: the dashboard sessionStorage/localStorage snapshot pattern — see [Caching](../99-cross-cutting/14-caching.md).
+- **Inventory realtime refetch (App.tsx `handleInventoryRealtime`)** — carries `area_id, growth_state, plant_name` so a realtime refresh doesn't strip the grid's grouping data.
+- **`useQuickLauncherPins(userId)`** — localStorage read + background revalidate. See [Quick Access Home](./09-quick-access-home.md).
+- **`usePersona()`** — one `user_profiles.select("persona")` read, module-cached; drives the density default, quick-action defaults, and the snapshot-open default.
+- **`TaskList`**, **`SeasonalPicksCard`**, **`DailyBriefCard`** (props-only, no fetches), **`HeadGardenerCard`**, **`AssistantCard`**, **`WeekAheadPreview`**, **`GardenBrainBriefCard`**, **`AdaptiveCareCard`** make their own reads exactly as documented on their own surfaces.
 
 ### Data flow — write paths
 
-- **Density toggle** → localStorage `rhozly:home:density` only. No DB write, no offline queue, no error path beyond a swallowed try/catch.
-- Everything else on the page is navigation or delegated to child components (TaskList completion writes are TaskList's own, documented in [Data Model — Tasks](../99-cross-cutting/04-data-model-tasks.md)).
-- **View persistence (App.tsx):** visiting `/dashboard` with an explicit `?view=` writes the *resolved* view to localStorage `rhozly_dashboard_view` (legacy `dashboard` persists as `home`). A stored legacy `"dashboard"` value is deliberately **not restored** — it falls through to the new `home` default once at release; the user's next explicit choice is respected from then on.
+- **Density toggle** → localStorage `rhozly:home:density` only.
+- **Snapshot collapse toggle** → localStorage `rhozly:dashboard:snapshot-open` only (on user toggle).
+- **Quiz prompt snooze** → `onboarding_state.quiz_prompt_snoozed_until` (14 days or effectively-forever) via `persistQuizPromptSnooze`.
+- Everything else is navigation or delegated to child components (TaskList completion, checklist state writes, AssistantCard dismissals — documented on their own surfaces).
+- **View persistence (App.tsx, `rhozly_dashboard_view`):** visiting `/dashboard` with an explicit `?view=` writes the *resolved* view (legacy `dashboard` / `overview` persist as `home`). Restore (plain `/dashboard`, once per mount) only accepts `locations | calendar | weather` — stored legacy `"dashboard"` **and** `"overview"` values deliberately fall through to `home`. See [Routing](../99-cross-cutting/21-routing.md).
 
 ### Edge functions invoked
 
-- **`home-overview`** (`supabase/functions/home-overview/index.ts`) — the Phase 2 one-call aggregate for the grid chips + attention row. `requireAuth` (user JWT) + an explicit `home_members` membership check (403 `not_a_member` otherwise); body `{ homeId, today }` where `today` is the client-local date. Runs **home-bounded parallel reads** (no fleet scans): `locations` + nested `areas`; `inventory_items` grouped per area into `{ total, byGrowthState, unplanted }`; active `devices`; the `latest_device_readings(p_home_id)` RPC + `devices.battery_percent`; open Pending `tasks` widened to `due_date ≤ today+3` OR `window_end_date ≥ today` (so closing harvest windows are visible); active `weather_alerts` (max 5); failed `automation_runs` in the last 24 h (max 5); and — only when the home has valves — `valve_events` (last 200) + `automation_valve_queue` pending/failed rows for those valves. Task splits are snooze-aware (`next_check_at` in the future excludes a task from due/overdue) and harvest-window-aware. Returns `{ locations[] (each area with plants/sensor/valve/tasksToday), attention[] }`. Pure logic lives in `_shared/homeOverview.ts` and is Deno-tested (`supabase/tests/homeOverview.test.ts`, HOME-OV-001..010):
-  - `deriveValveState` — "running" only while inside the newest `turn_on`'s `duration_seconds` countdown AND no newer `turn_off` exists (never claims running past the countdown); a **failed** queue row newer than the last event → `failed`; `nextRunAt` = earliest pending `turn_on` in the queue.
-  - `soilBand` — moisture `< 30` = dry, `> 70` = wet, otherwise ok (the same capacitive-sensor bands the automation templates use).
-  - `rankAttention` — overdue tasks → weather alert → failed automation → low battery (< 25 %) → dry soil (fresh readings only, ≤ 24 h) → closing harvest window; capped at `MAX_ATTENTION_ITEMS` = 4.
-  - `summariseSoilReading` — null-safe per-field extraction (`soil_moisture` / `soil_temp` / `soil_ec`), battery falls back from the device column to the reading payload, computes `readingAgeMin`.
-- **`home-dashboard-stats`** — indirectly, via `WeekPulse` → `useHomeDashboardStats` (detailed mode only). Documented on the [Dashboard Tab (Overview)](./01-dashboard-tab.md).
+- **`home-overview`** (`supabase/functions/home-overview/index.ts`) — the one-call telemetry aggregate for the grid chips + attention row. `requireAuth` + explicit `home_members` membership check (403 `not_a_member`); body `{ homeId, today }`. Home-bounded parallel reads (locations+areas, inventory grouped per area, devices, `latest_device_readings` RPC, snooze-/window-aware open tasks, active `weather_alerts` max 5, failed `automation_runs` max 5, and — only when the home has valves — `valve_events` last 200 + `automation_valve_queue`). Pure logic in `_shared/homeOverview.ts` (Deno tests HOME-OV-001..010): `deriveValveState`, `soilBand` (< 30 dry / > 70 wet), `rankAttention` (overdue → weather alert → failed automation → low battery < 25% → dry soil ≤ 24 h fresh → closing harvest window; capped at 4), `summariseSoilReading`.
+- **`home-dashboard-stats`** — via the single `useHomeDashboardStats` mount in HomeMain (both densities). Stat semantics in `_shared/dashboardStats.ts` (split + bounded task queries, `tzOffsetMinutes` local-day bucketing, RHO-13/14/15/16 rules).
 
-See the [Edge Functions Catalogue](../99-cross-cutting/10-edge-functions-catalogue.md) for the one-line registry entry.
+See the [Edge Functions Catalogue](../99-cross-cutting/10-edge-functions-catalogue.md) for registry entries.
 
 ### Cron / scheduled jobs that affect this surface
 
-Same set as the Overview tab, because they feed the shared App.tsx state this page renders:
-
 | Cron | What shows up here |
 |------|--------------------|
-| `sync-weather` (hourly) | Weather chip + frost-tonight chip (`weather_snapshots`) |
-| `generate-tasks` (daily) | Today's task counts (strip chip, per-location chips, compact TaskList) |
-| `update-plant-states` (daily) | `inventory_items.growth_state` — the colour of the area-row dots |
-| `run-automations` (5 min) | May complete tasks; counts refresh via realtime. Also fires valves → `valve_events` / `automation_valve_queue`, which drive the ValveChip state on the next `home-overview` fetch |
-| `integrations-ewelink-sync` (periodic) | Refreshes `device_readings` — the freshness (and stale-grey state) of the SensorChip |
+| `sync-weather` (hourly) | Weather + frost chips, DailyBriefCard, snapshot weather tiles (`weather_snapshots` / `weather_alerts`) |
+| `analyse-weather` (hourly) | `weather_alerts` → attention row + banner |
+| `generate-tasks` (daily) | Task counts (strip/brief chips, per-location chips, both TaskList variants, snapshot tiles) |
+| `update-plant-states` (daily) | `inventory_items.growth_state` — the area-row dot colours |
+| `garden-brain` (daily) | `daily_briefs` → GardenBrainBriefCard; `care_adjustments` → AdaptiveCareCard |
+| `pattern-scan` / `pattern-evaluate` (daily) | `user_insights` → AssistantCard (both densities) |
+| `run-automations` (5 min) | May complete tasks; fires valves → ValveChip state on next `home-overview` fetch; snapshot automation tiles |
+| `integrations-ewelink-sync` (periodic) | `device_readings` freshness → SensorChip stale-grey |
+| `weekly-overview` (weekly) | Feeds WeekAheadPreview's target page |
 
 ### Realtime channels
 
-No subscriptions of its own — it **inherits App.tsx's home realtime wiring** (`DashboardRealtimeSubscriber`): `home_id`-filtered `postgres_changes` on `locations` / `areas` → full dashboard refetch; `inventory_items` → the lightweight `handleInventoryRealtime` path (which now carries `area_id` / `growth_state` / `plant_name`, keeping the grid live); `tasks` → refetch of the task counts.
+No subscriptions of its own — it **inherits App.tsx's home realtime wiring** (`DashboardRealtimeSubscriber`): `home_id`-filtered `postgres_changes` on `locations` / `areas` → full dashboard refetch; `inventory_items` → the lightweight `handleInventoryRealtime` path; `tasks` → task-count refetch.
 
 ### Tier gating
 
-- **The grid, status strip, quick actions and task list have no tier gate** — identical for Sprout / Botanist / Sage / Evergreen.
-- `SeasonalPicksCard` keeps its own existing gating (AI-personalised picks for Sage+, deterministic fallback below) — unchanged, see [Seasonal Picks Card](./14-seasonal-picks.md).
-- Launcher tiles are filtered by each catalogue entry's `isAvailable(ctx)` predicate (tier / AI / beta), same as `/quick`.
-- The AI cards (`HeadGardenerCard`, `AssistantCard`) do **not** render here — they stay on Overview with their existing gates.
+- **The grid, heroes, quick actions, walk launcher and task lists have no tier gate** — identical for Sprout / Botanist / Sage / Evergreen.
+- **The merged AI cards render in both densities with their own gates:** `HeadGardenerCard` renders fully on Evergreen, a compact `UpgradeNudge` teaser below (RHO-2). `AssistantCard` is passed `showUpgradeWhenLocked`, so locked tiers (Sprout/Botanist) see a compact one-line upgrade teaser here instead of the card hiding (its behaviour elsewhere). `WeekAheadPreview` sits inside `FeatureGate feature="ai_insights"` with `fallback={null}` — **hidden** below Evergreen (RHO-9).
+- `SeasonalPicksCard` keeps its own gating (AI picks for Sage+, deterministic fallback below) — see [Seasonal Picks Card](./14-seasonal-picks.md).
+- `AdaptiveCareCard` self-hides by data absence (server writes `care_adjustments` only for sensor-equipped Sage/Evergreen homes). `GardenBrainBriefCard` uses AI voice on Sage/Evergreen, template below.
+- Launcher tiles filter by each catalogue entry's `isAvailable(ctx)` predicate.
 
 ### Beta gating
 
@@ -133,30 +160,34 @@ None.
 
 ### Permissions / role-based UI
 
-None on this surface itself. Child flows enforce their own keys (TaskList completion, and the drill-in LocationPage's area/plant actions).
+None on this surface itself. Child flows enforce their own keys (TaskList completion, drill-in actions).
 
 ### Error states
 
 | State | What happens |
 |-------|--------------|
-| Dashboard fetch failed | The page renders whatever cached state exists; the strip's task chips show cached counts. (The explicit "Could not load dashboard data" retry card lives on the Locations sub-tab.) |
-| `home-overview` call failed | **Soft-fail by design** — the hook logs to console and leaves `overview` null; the grid renders from client-side data without sensor/valve/tasks chips and the attention row stays hidden. No error UI, no retry prompt. |
-| Sensor reading older than 24 h | The SensorChip greys out (number still shown in detailed mode) rather than presenting a stale value as current; tooltip says "Last reading over a day old". |
-| Valve command failed | The ValveChip shows red "⚠ Valve failed" (a failed `automation_valve_queue` row newer than the last `valve_event`), and an `automation_failed` attention card may also surface. |
-| No weather yet | Weather chip and frost chip simply don't render (`weather` null / no matching daily entry). |
-| No locations | The 3-CTA setup card (`home-empty-garden`) replaces the grid: Create a location → `/management?open=add-location`, Add your first plant → `/shed?open=add-plant`, Take the garden quiz → `/profile`. |
-| Location with no areas | Inline "+ Add an area to start tracking plants here" CTA (navigates to the LocationPage drill-in). |
-| Area with no plants | "No plants yet" label on the row. |
-| localStorage unavailable (private mode) | Density falls back to persona default each visit; try/catch swallows the write. |
+| Dashboard fetch failed | The page renders whatever cached state exists. (The explicit "Could not load dashboard data" retry card lives on the Locations sub-tab.) |
+| `home-overview` call failed | **Soft-fail by design** — grid renders without sensor/valve/tasks chips; attention row hidden. No error UI. |
+| `home-dashboard-stats` failed | Strip still shows the pending count (no done/skipped breakdown); GardenSnapshot shows an inline error + Retry; walk launcher hides (totalPlants unknown → 0). |
+| Sensor reading older than 24 h | SensorChip greys out ("Last reading over a day old"). |
+| Valve command failed | ValveChip shows red "⚠ Valve failed"; an `automation_failed` attention card may surface. |
+| No weather yet | Weather chips / DailyBriefCard weather elements simply don't render. |
+| No locations | The 3-CTA setup card (`home-empty-garden`) replaces the grid; GardenSnapshot returns null on zero plants. |
+| Location with no areas / area with no plants | Inline "+ Add an area…" CTA / "No plants yet" label. |
+| localStorage unavailable | Density + snapshot-open fall back to persona defaults each visit; try/catch swallows writes. |
 
 ### Performance notes
 
-- `HomeMain` is `lazy()`-loaded (App.tsx line ~90) and wrapped in `Suspense` — it doesn't bloat the Overview chunk.
-- First paint of the grid is pure render over already-fetched state; telemetry arrives afterwards from the single `home-overview` call (one round trip for the whole estate — no per-area queries) and hydrates the chips in place.
-- The edge function's valve reads are gated behind "does this home have valves at all", and every query is bounded to the home (`valve_events` capped at 200, alerts/failed-runs at 5).
-- `WeekPulse` is conditionally mounted, so simple mode never pays the `home-dashboard-stats` fetch.
-- Growth-state dots are capped at 5 per row with a `+N` overflow so a 40-plant bed doesn't render 40 DOM nodes.
+- `HomeMain` is `lazy()`-loaded and wrapped in `Suspense`.
+- First paint of the grid is pure render over already-fetched state; telemetry hydrates in place from the single `home-overview` round trip.
+- **One `useHomeDashboardStats` mount** serves the summary, the walk-launcher gate and the snapshot — the comment in HomeMain explicitly warns against second consumers.
+- GardenSnapshot is presentation-only; collapsing it costs nothing (the fetch already happened for the summary).
+- Growth-state dots are capped at 5 per row (`+N` overflow); snapshot day-strip dots capped at 3 per bucket.
 - `usePersona` is module-cached — one profile read per session across all consumers.
+
+### Onboarding tour
+
+`dashboard_tour` (`src/onboarding/flowRegistry.ts`) targets the merged home in its default Simple density: `dashboard-view-switcher` ("Four views in one"), `home-status-strip`, `home-overview-grid`, `home-quick-actions`, `seasonal-picks-card`, `home-todays-tasks`.
 
 ### Linked storage buckets
 
@@ -168,131 +199,110 @@ None.
 
 ### Why open this screen
 
-This is the front door now. Where the old dashboard (still one tab over, as **Overview**) tells you the story of your week — stats, briefs, AI insights — the Home view answers the faster, more physical question: *how is my garden doing right now, and what needs me today?* You open the app, and in one glance you get the weather, the day's workload, anything overdue, a frost warning if one's coming, and a card for every location showing every area and the state of every plant in it.
+This is the front door — and now the *only* dashboard. The old two-tab split (a "Home" grid view and a separate "Overview" stats feed) is gone: one page does both jobs, at the depth you choose. Open the app and in one glance you get the weather, the day's workload, anything overdue, a frost warning if one's coming, and a card for every location showing every area and the state of every plant in it.
 
-For Sarah, the newer gardener, the win is calm: a friendly greeting, a small set of chips instead of a wall of stats, coloured dots that say "your plants are at these stages" without demanding you interpret numbers, and quick actions biased towards learning — identify a plant, see today's tasks, snap a photo, open your plants. If she hasn't set anything up yet, the page becomes a three-step setup card rather than an empty void.
+For Sarah, the newer gardener, **Simple** is calm: a friendly greeting strip, a small set of chips, coloured dots that say "your plants are at these stages", quick actions biased towards learning, a short today's-tasks list and the Seasonal Picks card. If she hasn't set anything up yet, the page becomes a three-step setup card rather than an empty void.
 
-For Marcus, the experienced gardener, flip the toggle to Detailed (or let it default there once your persona says "experienced") and each area row adds a written growth-state breakdown — "3 flowering · 2 seedling · 1 unplanted" — so a whole estate reads like a stock sheet. His quick actions default to the operating set: garden walk, today, journal, light sensor. And if he has hardware connected, the same rows now carry **live telemetry**: soil moisture and temperature from each area's sensor, the watering valve's state (running with a countdown, next scheduled run, or a failure flag), and a per-area task chip. Above the grid, a "Needs attention" row surfaces the day's real problems — ranked, capped at four, and invisible when the garden is calm. Detailed mode also gets the **week pulse**: a compact seven-day dot strip plus a harvests-due/yield line, so the week's shape is visible without leaving Home.
+For Marcus, the experienced gardener, **Detailed** (the default once your persona says "experienced") is the whole operations room on one scroll: the full Daily Brief hero, the Head Gardener and AI Insight cards, live sensor/valve telemetry on every area row, the complete task list with Pending/Completed tabs, the Week Ahead preview, and the collapsible **Garden Snapshot** — the week's full stat wall, now decluttered (zero-value tiles hide themselves) with a dot-based seven-day strip.
 
-Nothing was taken away: the entire previous dashboard is intact under **Overview**, one tap to the right.
+Nothing was removed in the merge — everything the Overview tab showed lives here, behind the Detailed toggle.
 
 ### Every flow on this page
 
-#### 1. Status strip (top)
+#### 1. The hero — one greeting, two depths
 
-1. **What you see:** "Good morning, Vinny" plus up to four pill chips — current weather (icon + temp + description), "4 tasks today", a red "1 overdue" (only when > 0), and a blue "Frost tonight 1°" (only when tonight's minimum is ≤ 3 °C).
-2. **Action:** tap any chip.
-3. **What happens:** weather and frost chips open the Weather sub-tab; the tasks and overdue chips open the Calendar sub-tab.
-4. **Why a gardener cares:** the whole day's triage in one line — is today a doing day, and is anything at risk tonight?
-5. **Beginner framing:** read it like a garden weather forecast. **Expert framing:** it's the same signals as the Overview's Daily Brief hero, compressed to a single row so the grid gets the screen.
+- **Simple:** the status strip — "Good morning, Vinny" plus up to a handful of pill chips: current weather, **"X of Y done today"** with to-do / skipped / postponed breakdown chips, a red overdue chip, a blue "Frost tonight" chip when tonight dips ≤ 3 °C. Tap chips to jump (weather/frost → Weather tab; tasks/overdue → Calendar).
+- **Detailed:** the full **Daily Brief** card — the old Overview hero, intact: greeting, synthesised one-liner, stat chips (today/overdue, temp, golden hour, sunset, frost, zone, microclimate), the "Got a plant question?" AI chat chip, and the sunrise/day-length footer. See [Daily Brief Card](./05-daily-brief-card.md).
+- You never see both — they're the same job at two depths.
 
 #### 2. Simple / Detailed toggle (top-right)
 
-1. **What you see:** two small icon buttons (list = Simple, rows = Detailed).
-2. **Action:** tap either.
-3. **What happens:** area rows gain/lose the growth-state breakdown text; Seasonal Picks appears only in Simple. Your choice is remembered on this device.
-4. **Why a gardener cares:** density on your terms. Until you ever touch it, the page follows your quiz persona — experienced gardeners start Detailed, everyone else Simple.
+Two small icon buttons (list = Simple, rows = Detailed). Your choice is remembered on this device; until you ever touch it, the page follows your quiz persona — experienced gardeners start Detailed, everyone else Simple.
 
-#### 2b. Needs attention row (both modes; hidden when calm)
+#### 3. Needs attention row (both densities; hidden when calm)
 
-1. **What you see:** up to four small coloured cards under "Needs attention", most urgent first: red = overdue tasks, sky-blue = an active weather alert, amber = an automation that failed in the last 24 hours, orange = a device battery under 25%, yellow = an area whose soil sensor reads dry, lime = a harvest window closing within 3 days. If nothing needs you, the row doesn't render at all.
-2. **Action:** tap a card.
-3. **What happens:** it deep-links to the right place — overdue/harvest → Calendar, weather → Weather tab, automation/battery → Integrations, dry soil → Locations.
-4. **Why a gardener cares:** it's the triage list. A beginner typically sees zero or one card (calm by design); a pro with sensors, valves and a heavy schedule sees their genuine problem list without hunting for it.
-5. **Beginner framing:** an empty row is good news. **Expert framing:** the ranking is deliberate (overdue → weather → failed automation → battery → dry soil → closing harvest) and capped at four, so it never becomes a wall of noise.
+Up to four ranked cards: red = overdue tasks, sky-blue = weather alert, amber = failed automation, orange = battery under 25%, yellow = dry soil, lime = harvest window closing. Tap to deep-link. No row = nothing needs you.
 
-#### 3. Garden Overview grid — one card per location
+#### 4. Daily brief & adaptive care (Garden Brain, both densities)
 
-1. **What you see:** under "Your garden", a card per location: an indoors/outdoors icon, the name, "Outdoors · 3 areas · 12 plants", a green tasks-today chip when that location has work due, an amber hazard banner if the location has one recorded, then one row per area.
-2. **Action:** tap the card header or any area row.
-3. **What happens:** both navigate to the existing Location drill-in (`/dashboard?locationId=…`), where area details open.
-4. **Why a gardener cares:** every bed, border, greenhouse shelf and windowsill on one screen — the "walk the garden without boots" view.
-5. **Beginner framing:** each dot is a plant; the colour is its life stage. **Expert framing:** the row is a per-area status line; Detailed mode adds the exact stage census.
+"Your daily brief" ranks the day's priorities (top 3 in Simple; everything + reasons in Detailed) with a good-news line and 👍/👎. The adaptive-care card proposes watering-blueprint adjustments from sensor evidence. Both self-hide when there's nothing to say.
 
-#### 4. Area rows and the plant dots
+#### 5. AI cards (Detailed only)
 
-Each row shows the area name, up to **5 coloured dots** (one per plant, `+N` when there are more), and the plant count. Hover/long-press a dot for the plant's name and stage. Unassigned plants collect in a **"Not in an area yet"** row — a gentle prompt to file them. An empty location shows "+ Add an area to start tracking plants here"; an empty area says "No plants yet".
+- **Head Gardener** — the Evergreen estate-manager card (compact upgrade teaser below Evergreen).
+- **AI Insight** — the pattern engine's read on your behaviour; on this page locked tiers see a one-line upgrade teaser rather than nothing.
 
-#### 4b. Telemetry chips on area rows (when hardware is connected)
+#### 6. Garden Overview grid — one card per location
 
-Areas with a linked soil sensor or water valve gain small chips under the area name. They come from a single live snapshot fetched when the page opens; if that fetch fails, the grid simply shows without them — nothing blocks.
+One card per location: indoors/outdoors icon, name, "Outdoors · 3 areas · 12 plants", tasks-today chip, hazard banner, then one row per area with up to 5 growth-state dots (`+N` overflow), plus — when hardware is connected — soil sensor, valve, and per-area task chips. Tap through to the Location drill-in. Areas with a sensor grey their chip when the reading is over 24 h old; a valve only claims "Watering" while its own countdown is genuinely live.
 
-- **Soil chip.** In Simple mode it speaks plainly: **"Soil: OK"**, **"Soil: Dry"** (moisture below 30%), or **"Soil: Wet"** (above 70%) — green, yellow and blue respectively. In Detailed mode it shows the actual moisture % plus the soil temperature, and a small orange battery icon appears when the sensor's battery is under 25%. **The stale-grey rule:** if the last reading is more than 24 hours old, the chip turns grey — an old number presented as current is worse than no number, so grey means "don't trust this yet; check the sensor".
-- **Valve chip.** A pulsing blue **"Watering"** (Detailed: "Watering · N min left") while a run is genuinely in progress — the app only claims "running" while the valve's own countdown is live, never past it. A red **"⚠ Valve failed"** means the most recent watering command didn't reach the device — that zone may not have watered, so check it. Detailed mode also shows a quiet **"Next water HH:MM"** chip when a run is queued.
-- **Tasks chip.** A small green chip when the area has tasks due today — Detailed mode shows the count.
+#### 7. Quick actions
 
-#### 4c. Week pulse (Detailed mode only)
+Up to 6 tiles — your saved Quick Launcher pins, or persona-aware defaults. Customise opens the picker at `/gardener?section=quick-launcher`; changes apply here *and* on `/quick`.
 
-Under today's tasks, a one-card seven-day strip: each day shows a letter, up to three dots (red = overdue, amber = pending, green = done) and the day's task total, with today highlighted. Below it, a harvest line — "2 harvests due · picked 3.5 kg" — when there's harvesting on. Tap anywhere on the card to open the full Overview tab. Simple mode never loads it, keeping the beginner page light.
+#### 8. Garden Walk launcher (both densities)
 
-#### 5. Quick actions
+Once you have **5 or more plants**, a full-width "Start a Garden Walk" button appears — a guided check-in on every plant (snap, note, or tick as you go), returning here when you finish.
 
-1. **What you see:** up to 6 tiles. If you've ever customised your Quick Launcher (on `/quick` or in Account Settings), **your saved pins render here** — same set, same order. If you never have, the defaults are persona-aware: new/unknown gardeners get Plant Lens / Today / Capture / Plants; experienced gardeners get Walk / Today / Journal / Light Sensor.
-2. **Action:** tap a tile, or "Customise".
-3. **What happens:** the tile navigates to its destination; Customise opens the existing picker at `/gardener?section=quick-launcher`. Changes made there apply to this row *and* to `/quick`.
-4. **Why a gardener cares:** your four-to-six most-used tools, one tap from the front door — now on desktop too, not just the mobile `/quick` screen.
+#### 9. Tasks — compact vs full
 
-#### 6. Today's tasks
+- **Simple:** a compact "Today's tasks" list; "See all" opens the Calendar sub-tab.
+- **Detailed:** the **full task list** — Daily Tasks heading, Pending/Completed tabs, every action (complete, postpone, photo, detail). The whole task-management surface without leaving the dashboard.
 
-A compact list of today's tasks (the same TaskList engine as everywhere else — complete, postpone, open detail all work). "See all →" opens the full Calendar sub-tab.
+#### 10. Week Ahead (Detailed, Evergreen only)
 
-#### 7. Seasonal Picks (Simple mode only)
+A sneak-peek card into the weekly overview page. Hidden entirely on other tiers.
 
-The weekly "what can I grow right now?" card, exactly as on Overview. Detailed mode hides it to keep the page telemetry-first.
+#### 11. Garden Snapshot (Detailed only)
 
-#### 8. First-run cards
+"This Week at a Glance" — the old Overview stat wall behind a collapse toggle (open by default for experienced gardeners; your preference sticks). Inside: task tiles (total, completed, overdue, pending, auto-done, streak), the seven-day strip — now **stacked coloured dots** per day (red overdue, orange late, green on time, neutral pending; hover or tap a day for exact pill counts; tap through to that day's calendar) — garden tiles (plants, harvests, pruning), weather, automations and activity tiles, category chips, and the per-member breakdown. **Zero-value tiles hide themselves** (and empty sections drop their headers) so the wall only shows numbers that mean something — only Total Tasks and Active Plants always render. Refresh re-pulls the week.
 
-The Getting Started checklist, notification opt-in, and PWA install prompt appear above the page for eligible users — and they appear on Overview too, so new gardeners see them wherever they land.
+#### 12. Seasonal Picks (Simple only)
+
+The weekly "what can I grow right now?" card. Detailed hides it to keep the page telemetry-first.
+
+#### 13. First-run cards — one at a time
+
+At most **one** promo card ever shows above the page, in priority order: Getting Started checklist → Garden Quiz prompt ("Set up your Garden Quiz" — snooze 2 weeks or don't-ask-again) → notification opt-in → PWA install. Dismissing one lets the next eligible card claim the slot on a later visit. See the [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md) and [Garden Quiz](../01-onboarding/05-garden-quiz.md) references for each card's own rules.
 
 ### Information on display — what every field means
 
 | Element | Meaning |
 |---------|---------|
-| "Good morning / afternoon / evening, [name]" | Time-of-day greeting (before 12:00 / before 18:00 / after) |
-| Weather chip | Current temp (rounded) + condition from the latest weather snapshot |
-| "X of Y done today" headline | X = tasks done that count toward today = **completed today** (incl. overdue/harvest cleared today) **or** due-today-and-done (server `tasks.doneToday` / `computeDoneToday`). Y = X + remaining (ghost-aware, open, due today). **Remaining excludes completed rows** — a completed recurring task suppresses its own ghost rather than regenerating one, so Y never double-counts it against X. Moves as you complete tasks — including clearing overdue work — so it reflects the day's real progress (fixed 2026-07: X previously used the due-date day-strip bucket and ignored overdue-completed-today, giving "2 of 3"). **Harvest windows:** the pending (remaining) query in `fetchDashboardData` fetches rows whose harvest window covers today (`window_end_date >= today`), not just `due_date == today` — otherwise an **auto-completed** harvest (whose `due_date` is the window start, days ago) wasn't fetched, so its ghost went unsuppressed and padded Y (an already-done harvest showing as one of "N to do today"; fixed 2026-07-09). Reads "No tasks today" when Y = 0. |
-| "N to do" chip | Remaining tasks due today (hidden when 0) |
-| "N skipped" / "N postponed" chips | Today's skipped tombstones / snoozed-forward tasks (each hidden when 0) |
-| Red "N overdue" chip | Pending tasks past due across the **whole home** (only when > 0) |
+| "Good morning / afternoon / evening, [name]" | Time-of-day greeting (both heroes) |
+| Weather chip | Current temp + condition from the latest weather snapshot |
+| "X of Y done today" | X = tasks completed today (incl. overdue/harvest cleared today) or due-today-and-done; Y = X + remaining (ghost-aware). "No tasks today" when Y = 0 |
+| "N to do" / "N skipped" / "N postponed" chips | Today's breakdown (each hidden when 0) |
+| Red "N overdue" chip | Pending tasks past due across the whole home |
 | Blue "Frost tonight N°" chip | Tonight's forecast minimum, shown only when ≤ 3 °C |
-| Indoors / Outdoors icon | Location's `is_outside` flag (tree = outdoors, house = indoors) |
-| "Outdoors · N areas · N plants" | Location subtitle — environment, area count, plant count |
-| Amber banner on a card | The location's recorded hazard note (e.g. "Foxes dig here") |
-| Green chip with a number (card header) | Tasks due today in that location |
-| Plant dot colours | Sky = Germination, lime = Seedling, green = Vegetative, amber = Budding, pink = Flowering, orange = Fruiting, yellow = Ripening, stone = Senescence, **grey = not planted yet**; unknown stages default green |
-| `+N` after the dots | More plants than the 5 shown |
-| "3 flowering · 2 seedling" (Detailed only) | Growth-state census of the area, most common first (`unplanted` = not yet in the ground) |
-| "Not in an area yet" row | Plants assigned to the location but no area |
-| "No plants yet" | Area exists but holds nothing |
-| Soil chip "OK / Dry / Wet" (Simple) | Moisture band: Dry < 30%, Wet > 70%, OK between — the same bands the watering automations use |
-| Soil chip "45% · 18.5°" (Detailed) | Latest sensor moisture % + soil temperature; orange battery icon = sensor battery < 25% |
-| Grey soil chip | Last reading is over 24 hours old — treat the value as unknown, not current |
-| "Watering · N min left" (pulsing blue) | Valve run in progress; the countdown comes from the run's own duration and never overruns it |
-| "⚠ Valve failed" (red) | The most recent watering command failed to reach the device — that zone may not have watered |
-| "Next water HH:MM" (Detailed) | The earliest queued watering run for this area's valve |
-| Green chip on an area row | Tasks due today in that area (Detailed shows the count) |
-| "Needs attention" cards | Ranked triage, max 4: overdue (red) → weather alert (blue) → failed automation (amber) → low battery (orange) → dry soil (yellow) → closing harvest (lime); hidden entirely when calm |
-| Week pulse dots (Detailed) | Per day: red = overdue, amber = pending, green = done on time, grey = nothing scheduled; the number is that day's total; today is highlighted |
-| "N harvests due · picked X kg" | This week's harvest workload + logged yield so far |
+| Daily Brief chips (Detailed) | See [Daily Brief Card](./05-daily-brief-card.md) — today/overdue, temp, golden hour, sunset, frost < 2 °C, zone, microclimate |
+| "Needs attention" cards | Ranked triage, max 4: overdue → weather alert → failed automation → low battery → dry soil → closing harvest; hidden when calm |
+| Indoors / Outdoors icon | Location's `is_outside` flag |
+| Plant dot colours | Sky = Germination, lime = Seedling, green = Vegetative, amber = Budding, pink = Flowering, orange = Fruiting, yellow = Ripening, stone = Senescence, grey = not planted yet |
+| "3 flowering · 2 seedling" (Detailed) | Growth-state census of the area |
+| Soil chip "OK / Dry / Wet" (Simple) / "45% · 18.5°" (Detailed) | Moisture band (Dry < 30%, Wet > 70%) / exact reading + soil temp; grey = over 24 h stale; battery icon = under 25% |
+| "Watering · N min left" / "⚠ Valve failed" / "Next water HH:MM" | Valve run in progress / last command failed / earliest queued run |
+| "Start a Garden Walk" | Appears at ≥ 5 plants; guided per-plant check-in |
+| Snapshot day-strip dots | Per day, capped at 3 per colour: red = overdue, orange = completed late, green = on time, neutral = pending; "—" = nothing scheduled; hover/tap for exact counts |
+| Snapshot tiles | Week-scoped counts; a missing tile means its value was zero (by design) — only Total Tasks and Active Plants always show |
+| "N carried over from earlier weeks" | Open overdue from before this week (not folded into the tiles) |
 | Quick-action tiles | Your launcher pins (or the persona defaults) |
-| "See all →" | Opens the Calendar sub-tab |
+| "See all" (Simple) | Opens the Calendar sub-tab |
 
 ### Tier-by-tier experience
 
 | Tier | Differences on Home |
 |------|--------------------|
-| Sprout | Full page. Seasonal Picks uses the deterministic (non-AI) picks. Launcher tiles gated to higher tiers are silently filtered out. |
+| Sprout | Full page. Detailed density: Head Gardener + AI Insight show compact one-line upgrade teasers; Week Ahead hidden. Seasonal Picks deterministic. Gated launcher tiles filtered out. |
 | Botanist | Same as Sprout. |
-| Sage | Seasonal Picks becomes AI-personalised. |
-| Evergreen | Same as Sage. (The Evergreen-only AI cards live on Overview, not here.) |
-
-No upgrade gates appear on the grid, strip, quick actions or task list.
+| Sage | AI Insight card renders when insights exist; Garden Brain brief uses AI voice; Seasonal Picks AI-personalised; adaptive care active on sensor-equipped homes. Head Gardener still a teaser; Week Ahead still hidden. |
+| Evergreen | Everything: Head Gardener full, Week Ahead visible. |
 
 ### New user vs returning user vs power user
 
-- **Brand new user** (no locations): greeting + "0 tasks today" strip, then the 3-CTA setup card — create a location, add a plant, take the quiz. The Getting Started checklist sits above.
-- **Returning user:** glance the strip, scan the dots for anything unexpected, tick off today's tasks from the compact list.
-- **Power user** (many locations, 50+ plants): flip to Detailed for the census lines, live sensor/valve chips and the week pulse; the 2-column grid and 5-dot cap keep even large estates on one scrollable screen.
+- **Brand new user** (no locations): greeting + "No tasks today" strip, one onboarding card (the checklist), then the 3-CTA setup card. No snapshot, no walk launcher.
+- **Returning user:** glance the strip, scan the dots, tick off today's tasks from the compact list.
+- **Power user:** Detailed by default — brief hero, AI cards, telemetry on every row, full task list, snapshot open. The 2-column grid, 5-dot cap and zero-tile hiding keep even large estates on one scrollable screen.
 
 ### Beta user experience
 
@@ -300,72 +310,78 @@ No differences (the BetaFeedbackBanner renders app-wide above the page as usual)
 
 ### Common mistakes / pitfalls
 
-- **"Where did my dashboard go?"** It's one tab to the right — **Overview**. Nothing was removed; the default landing view changed. Old bookmarks with `?view=dashboard` land here (Home), because "Dashboard" is now this tab's label.
-- **Assuming grey dots mean unhealthy.** Grey means *not planted yet* (still in the shed/nursery), not sick. Health lives in the Watchlist and the drill-ins.
-- **Expecting the dots to show all plants.** Only 5 render per row; the `+N` covers the rest — tap through for the full list.
-- **Customising quick actions here and expecting a separate set on `/quick`.** They're the same pins deliberately — one customisation carries across both surfaces.
-- **Toggling density and expecting it to sync across devices.** It's a per-device preference (localStorage), not a profile setting.
-- **Reading a grey soil chip as a live value.** Grey means the sensor hasn't reported in over 24 hours — the number (if shown) is the *last known* reading, not now. Check the device before acting on it.
-- **Panicking at a missing attention row.** No row = nothing needs attention. It's hidden when calm, not broken.
-- **Expecting sensor/valve chips without hardware.** Areas without a linked device simply don't show those chips — there's no upsell and no placeholder; integrations are open to all tiers.
-- **Looking for a sun-hours chip.** There isn't one — per-area sun analysis isn't persisted server-side yet, so the planned chip was deliberately dropped.
+- **"Where did the Overview tab go?"** Merged into this page (Phase 4.2). Flip the density toggle to **Detailed** — the brief hero, AI cards, full task list, Week Ahead and the stat wall are all there. Old `?view=overview` links land here.
+- **Assuming grey dots mean unhealthy.** Grey means *not planted yet*, not sick.
+- **Expecting the dots to show all plants.** Only 5 render per row; `+N` covers the rest.
+- **"My stats disappeared."** Zero-value snapshot tiles hide themselves — a missing "Overdue" tile means zero overdue, which is good news. Only Total Tasks and Active Plants always render.
+- **"The snapshot is collapsed / missing."** It's Detailed-only, collapsible (your toggle sticks), and renders nothing for an empty garden.
+- **Toggling density and expecting it to sync across devices.** Per-device preference (localStorage), not a profile setting.
+- **Reading a grey soil chip as a live value.** Grey = sensor silent for over 24 hours.
+- **Panicking at a missing attention row.** Hidden when calm, not broken.
+- **Seeing two promo cards stacked.** Never happens — the slot shows exactly one; the rest queue behind it.
+- **Looking for the walk launcher with 3 plants.** It appears at 5+.
 
 ### Recommended workflows
 
-- **Morning glance (30 s):** strip → attention row (anything ranked?) → scan the grid for a grey/dry soil chip, a failed valve, the hazard banner or a heavy task chip → tick today's tasks.
-- **Estate telemetry sweep (Detailed):** flip to Detailed once — every sensor's moisture/temp, every valve's state and next run, and the week pulse read top-to-bottom like a status board.
-- **Filing stray plants:** see a "Not in an area yet" row → tap it → assign plants to areas from the Location page.
-- **Making the page yours:** tap the density toggle to your taste, then Customise the quick actions once — both stick.
+- **Morning glance (30 s, Simple):** strip → attention row → scan the grid → tick today's tasks.
+- **Estate sweep (Detailed):** brief hero → AI cards → telemetry rows → full task list → snapshot dots for the week's shape.
+- **Weekly review:** open the snapshot, read the carried-over line and the day strip, tap any red-dotted day through to its calendar.
+- **Making the page yours:** set the density toggle once, collapse or open the snapshot once, customise the quick actions once — all three stick.
 
 ### What to do if something looks wrong
 
-- **Counts or dots look stale:** pull to refresh (the "Synced Xs ago" pill above the page shows staleness); realtime normally keeps the grid live within seconds of a change.
-- **A plant is missing from its area's dots:** check the "Not in an area yet" row first — it probably has no `area_id`.
-- **The page keeps opening in the wrong density:** you (or someone on this device) toggled it once — toggle it back; the persona default only applies while no choice is stored.
-- **You land on Overview instead of Home:** you previously chose Overview and the app remembered — tap the "Dashboard" sub-tab to come back (that choice is then remembered instead).
-- **Sensor/valve chips vanished:** the live-snapshot call likely failed this visit (offline, or the endpoint erred) — the page carries on without them by design. Reload; if they stay gone, check the device on the Integrations page.
-- **A valve says "⚠ Valve failed":** the last watering command didn't complete. Water the zone manually if it's due, then check the automation's run history and the device's connection.
-- **A soil chip is grey:** the sensor hasn't reported in over a day — check its battery/signal on the Integrations page.
+- **Counts or dots look stale:** pull to refresh; the sync pill above shows staleness.
+- **A plant is missing from its area's dots:** check the "Not in an area yet" row.
+- **The page keeps opening in the wrong density:** a stored toggle wins over the persona default — toggle it back.
+- **The snapshot shows an error card:** tap Retry (the stats fetch failed; the rest of the page is unaffected).
+- **Sensor/valve chips vanished:** the telemetry call soft-failed this visit — reload; if persistent, check the device on Integrations.
+- **An old `?view=overview` bookmark "doesn't work":** it works — it lands here by design; switch to Detailed for the old content.
 
 ---
 
 ## Related reference files
 
-- [Dashboard Tab (Overview)](./01-dashboard-tab.md) — the previous dashboard, now the sibling `?view=overview` tab
-- [Locations Tab](./02-locations-tab.md), [Calendar Tab](./03-calendar-tab.md), [Weather Tab](./04-weather-tab.md) — the other sub-tabs
+- [Dashboard Tab (Overview) — ARCHIVED](./01-dashboard-tab.md) — where the merged-away Overview tab's pieces went
+- [Daily Brief Card](./05-daily-brief-card.md) — the Detailed-density hero
+- [AI Assistant Card](./06-assistant-card.md) — Detailed density, with `showUpgradeWhenLocked`
+- [Head Gardener](./16-head-gardener.md) — the card's parent surface (`/manager`)
+- [Weekly Overview Page](./15-weekly-overview.md) — WeekAheadPreview's target
+- [Locations Tab](./02-locations-tab.md), [Calendar Tab](./03-calendar-tab.md), [Weather Tab](./04-weather-tab.md) — the other three sub-tabs
 - [Location Page (Drill-In)](./07-location-page.md) — where card headers and area rows land
 - [Quick Access Home](./09-quick-access-home.md) — the shared launcher catalogue + pins
-- [Seasonal Picks Card](./14-seasonal-picks.md) — rendered here in simple mode
-- [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md) — shared onboarding card
-- [Routing](../99-cross-cutting/21-routing.md) — `?view=` params, legacy mapping, localStorage persistence
-- [Data Model — Plants](../99-cross-cutting/03-data-model-plants.md) — `inventory_items.growth_state` / `area_id`
-- [Data Model — Tasks](../99-cross-cutting/04-data-model-tasks.md) — the task counts
-- [Data Model — Integrations](../99-cross-cutting/09-data-model-integrations.md) — `devices`, `device_readings` (+ `latest_device_readings` RPC), `valve_events`, `automation_valve_queue` feeding the sensor/valve chips
-- [Edge Functions Catalogue](../99-cross-cutting/10-edge-functions-catalogue.md) — the `home-overview` registry entry
-- [Weather](../99-cross-cutting/27-weather.md) — `weather_alerts` feeding the attention row
-- [Realtime](../99-cross-cutting/15-realtime.md) — the inherited home realtime wiring
-- [Onboarding State](../99-cross-cutting/30-onboarding-state.md) — persona source (quiz)
+- [Garden Walk](./13-garden-walk.md) — the walk launcher's destination
+- [Seasonal Picks Card](./14-seasonal-picks.md) — Simple density
+- [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md), [Garden Quiz](../01-onboarding/05-garden-quiz.md), [Notification Opt-In](../01-onboarding/07-notification-opt-in.md), [PWA Install Prompt](../01-onboarding/08-pwa-install.md) — the single-slot cascade
+- [Routing](../99-cross-cutting/21-routing.md) — `?view=` params, legacy `dashboard`/`overview` fallthrough, localStorage persistence
+- [Garden Brain](../99-cross-cutting/39-garden-brain.md) — brief + adaptive care
+- [Pattern Engine](../99-cross-cutting/26-pattern-engine.md) — feeds AssistantCard
+- [Tier Gating](../99-cross-cutting/17-tier-gating.md) — FeatureGate / ai_insights
+- [Data Model — Plants](../99-cross-cutting/03-data-model-plants.md), [Data Model — Tasks](../99-cross-cutting/04-data-model-tasks.md), [Data Model — Integrations](../99-cross-cutting/09-data-model-integrations.md)
+- [Edge Functions Catalogue](../99-cross-cutting/10-edge-functions-catalogue.md) — `home-overview`, `home-dashboard-stats`
+- [Weather](../99-cross-cutting/27-weather.md), [Realtime](../99-cross-cutting/15-realtime.md), [Caching](../99-cross-cutting/14-caching.md), [Onboarding State](../99-cross-cutting/30-onboarding-state.md)
 
 ## Code references for ongoing maintenance
 
-- `src/components/home/HomeMain.tsx` — page entry; density state, `useHomeOverview` + `telemetryByArea` threading, empty-garden card
-- `src/components/home/HomeStatusStrip.tsx` — chips + frost derivation
+- `src/components/home/HomeMain.tsx` — page entry; density state, both density card orders, the single `useHomeDashboardStats` mount, `telemetryByArea` threading, walk launcher, empty-garden card
+- `src/components/home/GardenSnapshot.tsx` — collapse toggle, zero-tile hiding (`isZeroValue` / `visibleTiles`), dot-based day strip (`DOTS_PER_BUCKET_CAP`), DayLegend
+- `src/components/DailyBriefCard.tsx` — Detailed hero
+- `src/components/manager/HeadGardenerCard.tsx` / `src/components/AssistantCard.tsx` — Detailed AI cards
+- `src/components/shared/WeekAheadPreview.tsx` + `src/components/shared/FeatureGate.tsx` — the gated week-ahead card
+- `src/components/home/HomeStatusStrip.tsx` — Simple hero chips + frost derivation
 - `src/components/home/AttentionRow.tsx` — kind → icon/colour map, deep-link routing
-- `src/components/home/GardenOverviewGrid.tsx` / `LocationOverviewCard.tsx` / `AreaRow.tsx` — the grid; AreaRow hosts `SensorChip` / `ValveChip` / the tasks chip (soil banding mirrors `_shared/homeOverview.ts`)
-- `src/components/home/WeekPulse.tsx` — detailed-mode dot strip + harvest/yield line
+- `src/components/home/GardenOverviewGrid.tsx` / `LocationOverviewCard.tsx` / `AreaRow.tsx` — the grid + `SensorChip` / `ValveChip` / tasks chip
+- `src/components/home/GardenBrainBriefCard.tsx` / `AdaptiveCareCard.tsx` — Garden Brain cards
 - `src/components/home/QuickActionsRow.tsx` — pins → tiles
-- `src/hooks/useHomeOverview.ts` — generation-guarded, soft-failing fetch
-- `supabase/functions/home-overview/index.ts` — auth/membership + home-bounded parallel reads + payload shaping
-- `supabase/functions/_shared/homeOverview.ts` — `deriveValveState`, `soilBand`, `rankAttention`, `summariseSoilReading`
-- `supabase/tests/homeOverview.test.ts` — HOME-OV-001..010
-- `supabase/seeds/13_integrations.sql` — seeded ecowitt integration + soil sensor (Raised Bed A) + valve (South Border)
-- `src/App.tsx:503` — `DashboardView` parsing (unknown/legacy → `home`)
-- `src/App.tsx:514` — `rhozly_dashboard_view` persistence + legacy-"dashboard" fall-through
-- `src/App.tsx:1531` — five-tab switcher; `src/App.tsx:1561` — shared cards + home/overview branch
-- `src/App.tsx:~710` / `:~1062` — homes query + inventory realtime select (`area_id, growth_state, plant_name`)
-- `src/lib/quickLauncherCatalogue.ts` — `defaultQuickLauncherPins(persona)`
-- `src/lib/quickLauncherPrefs.ts` — `hasStoredPins()`
-- `src/hooks/usePersona.ts` — persona read
-- `tests/e2e/specs/home-main.spec.ts` + `tests/e2e/pages/HomeMainPage.ts` — HOME-001..008 (HOME-008 mocks `home-overview`)
-- `tests/unit/lib/quickLauncherCatalogue.test.ts` — persona-default cases
-- `docs/plans/new-home-dashboard.md` — the full build plan (Phases 1–3 shipped 2026-07-02)
+- `src/components/TaskList.tsx` — compact (Simple) and full (Detailed) variants
+- `src/hooks/useHomeDashboardStats.ts` / `src/lib/todaySummary.ts` — the shared stats mount + today summary
+- `src/hooks/useHomeOverview.ts` — generation-guarded, soft-failing telemetry fetch
+- `supabase/functions/home-overview/index.ts` + `supabase/functions/_shared/homeOverview.ts` — telemetry aggregate (Deno tests `supabase/tests/homeOverview.test.ts`)
+- `supabase/functions/home-dashboard-stats/index.ts` + `supabase/functions/_shared/dashboardStats.ts` — stat semantics (Deno tests `supabase/tests/dashboardStats.test.ts`)
+- `src/App.tsx:~511` — `DashboardView` parsing (`home | locations | calendar | weather`; legacy `dashboard`/`overview` → `home`)
+- `src/App.tsx:~522` — `rhozly_dashboard_view` persistence + legacy fall-through
+- `src/App.tsx:~1672` — four-tab switcher; `~1705` — single-slot onboarding cascade + HomeMain mount
+- `src/onboarding/flowRegistry.ts` — `dashboard_tour` (home anchors)
+- `src/lib/quickLauncherCatalogue.ts` / `src/lib/quickLauncherPrefs.ts` / `src/hooks/usePersona.ts`
+- `tests/e2e/specs/home-main.spec.ts` + `tests/e2e/pages/HomeMainPage.ts` — HOME-001..008 (HOME-001 asserts 4 tabs; HOME-004 asserts `?view=overview` falls through to `home-main`)
+- `tests/e2e/pages/DashboardPage.ts` — `goto()` seeds `rhozly:home:density = detailed` then visits plain `/dashboard` (classic-content specs ride on that)
+- `docs/plans/new-home-dashboard.md` + `docs/plans/hyperplexed-ui-craft-overhaul.md` (§4.2 — the merge)

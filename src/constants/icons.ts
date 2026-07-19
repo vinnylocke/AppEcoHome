@@ -13,6 +13,7 @@ export { Sprout       as IconPlants        } from "lucide-react"; // the "Plants
 export { ClipboardList as IconPlanner      } from "lucide-react"; // was: Map
 export { ShieldAlert  as IconAilment       } from "lucide-react"; // was: Bug (covers pests, diseases, invasives)
 export { Stethoscope  as IconDoctor        } from "lucide-react";
+export { Wrench       as IconTools         } from "lucide-react"; // the Tools hub — frees the stethoscope for Plant Doctor itself
 export { Plug         as IconIntegrations  } from "lucide-react";
 export { ShoppingCart as IconShopping      } from "lucide-react";
 export { BookOpen     as IconGuides        } from "lucide-react";

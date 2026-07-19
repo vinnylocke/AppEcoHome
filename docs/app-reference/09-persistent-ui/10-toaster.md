@@ -31,9 +31,9 @@ toast((t) => (
 ), { duration: 5000 });
 ```
 
-### Configuration (typical)
+### Configuration
 
-`<Toaster />` is rendered with defaults; per-call `duration`, `position`, `style` overrides supported.
+`<Toaster />` is themed via `toastOptions` in `src/App.tsx` so every call site inherits the brand look: background `var(--color-rhozly-surface-lowest)`, text `var(--color-rhozly-on-surface)`, 1px `var(--color-rhozly-outline)` border, `var(--radius-control)` radius, `var(--shadow-raised)` green-tinted shadow, `var(--font-body)` at weight 600 / 0.875rem. `success` toasts use a `--color-rhozly-primary` icon, `error` toasts `--color-rhozly-error` (see [40-design-system.md](../99-cross-cutting/40-design-system.md)). Per-call `duration`, `position`, `style` overrides are still supported.
 
 ### Edge functions invoked
 

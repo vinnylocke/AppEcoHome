@@ -11,6 +11,10 @@ interface Props {
   hasLocations: boolean;
   onboardingState: OnboardingState;
   onStateChange: (state: OnboardingState) => void;
+  /** Reports whether the checklist actually rendered — the dashboard's
+   *  single-slot onboarding uses this to let lower-priority promo cards
+   *  claim the slot when the checklist is dismissed or complete. */
+  onVisibilityChange?: (visible: boolean) => void;
 }
 
 const DISMISS_KEY = "getting_started_checklist";
@@ -22,6 +26,7 @@ export default function GettingStartedChecklist({
   hasLocations,
   onboardingState,
   onStateChange,
+  onVisibilityChange,
 }: Props) {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
@@ -51,8 +56,6 @@ export default function GettingStartedChecklist({
       setLoaded(true);
     });
   }, [homeId]);
-
-  if (onboardingState[DISMISS_KEY] === "dismissed") return null;
 
   const steps = [
     {
@@ -89,8 +92,16 @@ export default function GettingStartedChecklist({
 
   const completedCount = steps.filter((s) => s.done).length;
 
-  // Auto-hide once all steps are done and data is loaded
-  if (loaded && completedCount === steps.length) return null;
+  // Visible unless dismissed, or all steps done once data has loaded.
+  const visible =
+    onboardingState[DISMISS_KEY] !== "dismissed" &&
+    !(loaded && completedCount === steps.length);
+
+  useEffect(() => {
+    onVisibilityChange?.(visible);
+  }, [visible, onVisibilityChange]);
+
+  if (!visible) return null;
 
   const dismiss = async () => {
     const next: OnboardingState = { ...onboardingState, [DISMISS_KEY]: "dismissed" };

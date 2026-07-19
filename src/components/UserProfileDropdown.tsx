@@ -208,12 +208,18 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
 
   return (
     <>
-    <div
-      ref={ref}
-      className="relative flex items-center gap-3 cursor-pointer select-none"
-      onClick={() => setOpen((v) => !v)}
-      data-testid="user-profile-trigger"
-    >
+    <div ref={ref} className="relative flex items-center select-none">
+      {/* Real <button> trigger (a11y contract: no div-onClick) — the dropdown
+          renders as a sibling so its own buttons aren't nested inside this one. */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        data-testid="user-profile-trigger"
+        aria-label="Account menu"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex items-center gap-3 cursor-pointer rounded-full p-1 -m-1 transition-colors can-hover:hover:bg-white/10 active:bg-white/15"
+      >
       <div className="text-right hidden sm:block text-white">
         <p className="text-sm font-bold">{nameLabel}</p>
         <p className="text-[10px] uppercase tracking-widest text-white/60 font-semibold">
@@ -235,6 +241,7 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
           </span>
         )}
       </div>
+      </button>
 
       {open && (
         <>

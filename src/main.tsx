@@ -2,6 +2,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
+// Self-hosted variable fonts — imported here (not via CSS @import) so Vite
+// rebases and emits the woff2 files; Tailwind's PostCSS inliner does not.
+import "@fontsource-variable/inter";
+import "@fontsource-variable/plus-jakarta-sans";
 import "./index.css";
 import "shepherd.js/dist/css/shepherd.css";
 import "./onboarding/shepherdTheme.css";

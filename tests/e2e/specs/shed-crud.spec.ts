@@ -73,6 +73,8 @@ test.describe("Shed — Tabs and view filters", () => {
     await shed.goto();
     await shed.waitForLoad();
 
+    await shed.openFilters();
+
     await shed.sourceFilterSelect.selectOption("manual");
     await shed.waitForLoad();
 
@@ -86,6 +88,8 @@ test.describe("Shed — Tabs and view filters", () => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
+
+    await shed.openFilters();
 
     await shed.sourceFilterSelect.selectOption("api");
     await shed.waitForLoad();
@@ -217,7 +221,7 @@ test.describe("Shed — Add plant modal", () => {
     await nameInput.fill(plantName);
 
     // Submit
-    const saveBtn = authenticatedPage.getByRole("button", { name: /Save to Shed/i });
+    const saveBtn = authenticatedPage.getByRole("button", { name: /Add to Shed/i });
     await saveBtn.click();
 
     // BulkSearchModal calls onClose() synchronously before handleManualSave resolves,
@@ -233,6 +237,7 @@ test.describe("Shed — Add plant modal", () => {
     await expect(shed.plantCard(plantName)).toBeVisible({ timeout: 10000 });
 
     // --- Cleanup: delete the test plant ---
+    await shed.openCardMenu(plantName);
     await shed.deleteButtonFor(plantName).click();
     const confirmDelete = authenticatedPage.getByRole("button", { name: /^Delete$/i });
     await expect(confirmDelete).toBeVisible({ timeout: 8000 });
@@ -255,7 +260,7 @@ test.describe("Shed — Add plant modal", () => {
     await manualTab.click();
 
     // Submit without filling name
-    const saveBtn = authenticatedPage.getByRole("button", { name: /Save to Shed/i });
+    const saveBtn = authenticatedPage.getByRole("button", { name: /Add to Shed/i });
     await saveBtn.click();
 
     await expect(
@@ -277,7 +282,7 @@ test.describe("Shed — Add plant modal", () => {
     const nameInput = authenticatedPage.getByLabel(/Common Name/i);
     await nameInput.fill("Tomato");
 
-    const saveBtn = authenticatedPage.getByRole("button", { name: /Save to Shed/i });
+    const saveBtn = authenticatedPage.getByRole("button", { name: /Add to Shed/i });
     await saveBtn.click();
 
     // Duplicate check fires before insert — expect an error toast containing the plant name
@@ -435,6 +440,7 @@ test.describe("Shed — Plant card actions", () => {
     await expect(card).toBeVisible({ timeout: 10000 });
 
     // Tap the light-needs icon on the tile (not the card body).
+    await shed.openCardMenu("Tomato");
     await shed.lightButtonFor("Tomato").click();
 
     // The edit modal opens straight onto the Light tab — its content
@@ -471,6 +477,8 @@ test.describe("Shed — Plant card actions", () => {
     // Tomato (seed) has one inventory instance, so delete shows the choice.
     const tomato = shed.plantCard("Tomato");
     if (!(await tomato.isVisible({ timeout: 8000 }).catch(() => false))) return;
+
+    await shed.openCardMenu("Tomato");
 
     await shed.deleteButtonFor("Tomato").click();
     await expect(shed.deleteWithInstancesModal).toBeVisible({ timeout: 8000 });
@@ -537,7 +545,7 @@ test.describe("Shed — Plant card actions", () => {
     const manualTab = authenticatedPage.getByRole("tab", { name: /Manual/i });
     await manualTab.click();
     await authenticatedPage.getByLabel(/Common Name/i).fill(plantName);
-    await authenticatedPage.getByRole("button", { name: /Save to Shed/i }).click();
+    await authenticatedPage.getByRole("button", { name: /Add to Shed/i }).click();
     await manualTab.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
     await authenticatedPage.getByText(/added to shed/i)
       .waitFor({ state: "visible", timeout: 8000 })
@@ -547,6 +555,7 @@ test.describe("Shed — Plant card actions", () => {
     await expect(shed.plantCard(plantName)).toBeVisible({ timeout: 10000 });
 
     // Archive it
+    await shed.openCardMenu(plantName);
     await shed.archiveButtonFor(plantName).click();
     const archiveConfirm = authenticatedPage.getByRole("button", { name: /^Archive$/i });
     await expect(archiveConfirm).toBeVisible({ timeout: 5000 });
@@ -561,6 +570,7 @@ test.describe("Shed — Plant card actions", () => {
     await expect(shed.plantCard(plantName)).toBeVisible({ timeout: 10000 });
 
     // Restore it
+    await shed.openCardMenu(plantName);
     await shed.restoreButtonFor(plantName).click();
     const restoreConfirm = authenticatedPage.getByRole("button", { name: /^Restore$/i });
     await expect(restoreConfirm).toBeVisible({ timeout: 5000 });
@@ -572,6 +582,7 @@ test.describe("Shed — Plant card actions", () => {
     await expect(shed.plantCard(plantName)).toBeVisible({ timeout: 10000 });
 
     // Cleanup: delete the test plant
+    await shed.openCardMenu(plantName);
     await shed.deleteButtonFor(plantName).click();
     const deleteConfirm = authenticatedPage.getByRole("button", { name: /^Delete$/i });
     if (await deleteConfirm.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -588,6 +599,7 @@ test.describe("Shed — Plant card actions", () => {
     // forks at id 200013 / 200011 collide with Lavender / Cherry Tomato
     // by common name in the Shed list, which would trip strict-mode
     // matching on getByLabel("Archive Lavender")).
+    await shed.openCardMenu("Tomato");
     await shed.archiveButtonFor("Tomato").click();
     const archiveConfirm = authenticatedPage.getByRole("button", { name: /^Archive$/i });
     await expect(archiveConfirm).toBeVisible({ timeout: 5000 });
@@ -609,7 +621,7 @@ test.describe("Shed — Plant card actions", () => {
     const manualTab = authenticatedPage.getByRole("tab", { name: /Manual/i });
     await manualTab.click();
     await authenticatedPage.getByLabel(/Common Name/i).fill(plantName);
-    await authenticatedPage.getByRole("button", { name: /Save to Shed/i }).click();
+    await authenticatedPage.getByRole("button", { name: /Add to Shed/i }).click();
     await manualTab.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
     await authenticatedPage.getByText(/added to shed/i)
       .waitFor({ state: "visible", timeout: 8000 })
@@ -619,6 +631,7 @@ test.describe("Shed — Plant card actions", () => {
     await expect(shed.plantCard(plantName)).toBeVisible({ timeout: 10000 });
 
     // Delete it
+    await shed.openCardMenu(plantName);
     await shed.deleteButtonFor(plantName).click();
     const deleteConfirm = authenticatedPage.getByRole("button", { name: /^Delete$/i });
     await expect(deleteConfirm).toBeVisible({ timeout: 5000 });
@@ -631,6 +644,8 @@ test.describe("Shed — Plant card actions", () => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
+
+    await shed.openCardMenu("Rose");
 
     await shed.deleteButtonFor("Rose").click();
     // Rose has 1 seeded inventory item, so the bulk-delete choice dialog
@@ -653,6 +668,7 @@ test.describe("Shed — Plant card actions", () => {
     await shed.waitForLoad();
 
     // "Boston Fern" has 1 seeded inventory item (FRN-001, Planted → Kitchen Windowsill)
+    await shed.openCardMenu("Boston Fern");
     await shed.deleteButtonFor("Boston Fern").click();
 
     // The delete confirm dialog should warn about the plant being in the
@@ -681,6 +697,7 @@ test.describe("Shed — Plant card actions", () => {
     await expect(shed.plantCard("Mint")).toBeVisible({ timeout: 10000 });
 
     // Click restore on Mint
+    await shed.openCardMenu("Mint");
     await shed.restoreButtonFor("Mint").click();
     const restoreConfirm = authenticatedPage.getByRole("button", { name: /^Restore$/i });
     if (await restoreConfirm.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -694,6 +711,7 @@ test.describe("Shed — Plant card actions", () => {
     await expect(shed.plantCard("Mint")).toBeVisible({ timeout: 10000 });
 
     // Cleanup: re-archive Mint so subsequent tests see the seed state
+    await shed.openCardMenu("Mint");
     await shed.archiveButtonFor("Mint").click();
     const reArchiveConfirm = authenticatedPage.getByRole("button", { name: /^Archive$/i });
     if (await reArchiveConfirm.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -788,7 +806,7 @@ test.describe("Shed — Plant card actions", () => {
     const manualTab = authenticatedPage.getByRole("tab", { name: /Manual/i });
     await manualTab.click();
     await authenticatedPage.getByLabel(/Common Name/i).fill(plantName);
-    await authenticatedPage.getByRole("button", { name: /Save to Shed/i }).click();
+    await authenticatedPage.getByRole("button", { name: /Add to Shed/i }).click();
     // Wait for the async save to complete before navigating (see SHED-017 for rationale)
     await manualTab.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
     await authenticatedPage.getByText(/added to shed/i)
@@ -826,6 +844,7 @@ test.describe("Shed — Plant card actions", () => {
 
     // Cleanup: delete the temp plant
     await shed.waitForLoad();
+    await shed.openCardMenu(plantName);
     await shed.deleteButtonFor(plantName).click();
     const deleteConfirm = authenticatedPage.getByRole("button", { name: /^Delete$/i });
     if (await deleteConfirm.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -942,9 +961,11 @@ test.describe("Shed — Bulk add (RHO-4 CSV upload)", () => {
       // and the grid reflects the last deletion.
       await authenticatedPage.goto("/shed");
       await shed.waitForLoad();
-      const delBtn = shed.deleteButtonFor(name);
-      if (!(await delBtn.isVisible({ timeout: 4000 }).catch(() => false))) continue;
-      await delBtn.click();
+      // Phase 4.3: delete lives in the card kebab menu, so gate on the CARD
+      // being present, then open the menu before clicking.
+      if (!(await shed.plantCard(name).isVisible({ timeout: 4000 }).catch(() => false))) continue;
+      await shed.openCardMenu(name);
+      await shed.deleteButtonFor(name).click();
       const confirm = authenticatedPage.getByRole("button", { name: /^Delete$/i });
       if (await confirm.isVisible({ timeout: 4000 }).catch(() => false)) {
         await confirm.click();

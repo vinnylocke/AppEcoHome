@@ -1,5 +1,5 @@
 import { Toaster, toast } from "react-hot-toast";
-import React, { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useReducer, useRef, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./lib/supabase";
 import {
@@ -16,7 +16,7 @@ import {
   NotebookPen,
   Leaf,
 } from "lucide-react";
-import { IconPlants, IconPlanner, IconDoctor, IconAI, IconIntegrations } from "./constants/icons";
+import { IconPlants, IconPlanner, IconDoctor, IconAI, IconIntegrations, IconTools } from "./constants/icons";
 
 // 🚀 NATIVE IMPORT
 import { App as CapApp } from "@capacitor/app";
@@ -68,6 +68,7 @@ import GlobalSearch from "./components/GlobalSearch";
 import QueuedActionsBadge from "./components/QueuedActionsBadge";
 import OfflineBanner from "./components/OfflineBanner";
 import NavItem from "./components/NavItem";
+import BottomTabBar from "./components/BottomTabBar";
 import UpdateBanner from "./components/UpdateBanner";
 import MaintenanceScreen from "./components/MaintenanceScreen";
 import { useMaintenanceMode } from "./hooks/useMaintenanceMode";
@@ -80,7 +81,6 @@ import { useReleaseNotes } from "./hooks/useReleaseNotes";
 import HelpCenter from "./onboarding/HelpCenter";
 import GettingStartedChecklist from "./components/GettingStartedChecklist";
 import NotificationOptInCard from "./components/NotificationOptInCard";
-import DailyBriefCard from "./components/DailyBriefCard";
 import InstallPwaPrompt from "./components/InstallPwaPrompt";
 import WelcomeModal from "./components/WelcomeModal";
 import type { OnboardingState } from "./onboarding/types";
@@ -89,7 +89,6 @@ import BetaFeedbackSheet from "./components/BetaFeedbackSheet";
 import BetaFeedbackBanner from "./components/BetaFeedbackBanner";
 
 // Heavy route components — lazy loaded so they don't bloat the initial bundle
-const HomeDashboard       = lazyWithRetry(() => import("./components/HomeDashboard"));
 const HomeMain            = lazyWithRetry(() => import("./components/home/HomeMain"));
 const AdminGuideGenerator = lazyWithRetry(() => import("./components/AdminGuideGenerator"));
 const PlantLibraryAdmin = lazyWithRetry(() => import("./components/admin/PlantLibraryAdmin"));
@@ -101,7 +100,6 @@ const LocalizedTaskCalendar = lazyWithRetry(() => import("./components/quick/Loc
 const GlobalJournal         = lazyWithRetry(() => import("./components/GlobalJournal"));
 const WeeklyOverviewPage    = lazyWithRetry(() => import("./components/WeeklyOverviewPage"));
 const HeadGardenerPage      = lazyWithRetry(() => import("./components/manager/HeadGardenerPage"));
-const HeadGardenerCard      = lazyWithRetry(() => import("./components/manager/HeadGardenerCard"));
 const NotesPage             = lazyWithRetry(() => import("./components/notes/NotesPage"));
 const CreditsPage           = lazyWithRetry(() => import("./components/CreditsPage"));
 const GardenWalk            = lazyWithRetry(() => import("./components/walk/GardenWalk"));
@@ -125,7 +123,6 @@ const IntegrationsPage    = lazyWithRetry(() => import("./components/integration
 const GardenProfile       = lazyWithRetry(() => import("./components/GardenProfile"));
 const GardenerProfile     = lazyWithRetry(() => import("./components/GardenerProfile"));
 const LocationManager     = lazyWithRetry(() => import("./components/LocationManager").then(m => ({ default: m.LocationManager })));
-const AssistantCard       = lazyWithRetry(() => import("./components/AssistantCard"));
 const AuditPage           = lazyWithRetry(() => import("./components/AuditPage"));
 import { extractCurrentWeather } from "./lib/clientCache";
 import { getLocalDateString } from "./lib/taskEngine";
@@ -506,15 +503,16 @@ function AppShell() {
 
   const [searchParams, setSearchParamsForView] = useSearchParams();
   const selectedLocationId = searchParams.get("locationId");
-  // "home" (labelled Dashboard) is the new default main page; the previous
-  // dashboard lives on unchanged as "overview". Legacy deep links with
-  // ?view=dashboard map to home — the tab that now carries that label.
-  // See docs/plans/new-home-dashboard.md.
-  type DashboardView = "home" | "overview" | "locations" | "calendar" | "weather";
+  // "home" (labelled Dashboard) is the single main page. The old "overview"
+  // sub-tab was merged into it (design overhaul Phase 4.2) — its unique cards
+  // now live behind HomeMain's Detailed density. Legacy deep links with
+  // ?view=dashboard OR ?view=overview both fall through to home.
+  // See docs/plans/hyperplexed-ui-craft-overhaul.md and new-home-dashboard.md.
+  type DashboardView = "home" | "locations" | "calendar" | "weather";
   const dashboardView: DashboardView = (() => {
     const raw = searchParams.get("view");
-    if (raw === "overview" || raw === "locations" || raw === "calendar" || raw === "weather") return raw;
-    return "home"; // default, explicit "home", legacy "dashboard", or anything unknown
+    if (raw === "locations" || raw === "calendar" || raw === "weather") return raw;
+    return "home"; // default, explicit "home", legacy "dashboard"/"overview", or anything unknown
   })();
 
   // Persist last selected dashboard view; restore on first visit to /dashboard with no view param.
@@ -540,10 +538,10 @@ function AppShell() {
     }
     hasRestoredViewRef.current = true;
     const saved = localStorage.getItem("rhozly_dashboard_view");
-    // Legacy saved "dashboard" intentionally falls through to the default —
-    // everyone lands on the new Home page once at release; their next
-    // explicit choice is respected from then on.
-    if (saved && ["overview", "locations", "calendar", "weather"].includes(saved)) {
+    // Legacy saved "dashboard" AND "overview" intentionally fall through to
+    // the default — the Overview tab no longer exists (merged into Home);
+    // the next explicit choice is respected from then on.
+    if (saved && ["locations", "calendar", "weather"].includes(saved)) {
       const next = new URLSearchParams(searchParams);
       next.set("view", saved);
       setSearchParamsForView(next, { replace: true });
@@ -554,6 +552,14 @@ function AppShell() {
     () => localStorage.getItem("rhozly_nav") === "true",
   );
   const [quizCompleted, setQuizCompleted] = useState<boolean | null>(null);
+  // Single-slot onboarding (Phase 4.2): the checklist reports whether it
+  // actually rendered; lower-priority promo cards only claim the slot when it
+  // didn't. Defaults true so nothing below flashes before its queries resolve.
+  const [checklistSlotVisible, setChecklistSlotVisible] = useState(true);
+  // Bumped when a promo card settles itself (e.g. notification opt-in
+  // dismissed) so the render-time eligibility consts recompute and the next
+  // card can claim the freed slot immediately.
+  const [, bumpPromoSlot] = useReducer((n: number) => n + 1, 0);
   const [quizPromptDismissed, setQuizPromptDismissed] = useState(false);
   const [quizPromptFading, setQuizPromptFading] = useState(false);
   const [quizPromptConfirmDismiss, setQuizPromptConfirmDismiss] = useState(false);
@@ -1330,23 +1336,52 @@ function AppShell() {
     matchPaths: string[];
     badge?: number;
     badgeTone?: "amber" | "rose" | "primary";
+    group?: "garden" | "plan" | "ai";
   }> = [
     // "Quick" is mobile-only — the shortcut home for phone users. Hidden on
     // desktop to keep the nav focused on the full surfaces.
     ...(isMobile
       ? [{ id: "quick", icon: <Zap />, label: "Quick", matchPaths: ["/quick"] }]
       : []),
-    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", ...(isMobile ? [] : ["/"])], badge: overdueTaskCount, badgeTone: "rose" },
-    { id: "shed",      icon: <IconPlants />, label: "Plants", matchPaths: ["/shed", "/watchlist"] },
-    { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping"] },
-    { id: "journal",   icon: <BookOpen />, label: "Journal",    matchPaths: ["/journal"] },
-    { id: "notes",     icon: <NotebookPen />, label: "Notes",   matchPaths: ["/notes"] },
-    { id: "tools",        icon: <IconDoctor />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
-    { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"] },
-    { id: "manager",      icon: <Leaf />, label: "Head Gardener", matchPaths: ["/manager"] },
+    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", ...(isMobile ? [] : ["/"])], badge: overdueTaskCount, badgeTone: "rose", group: "garden" },
+    { id: "shed",      icon: <IconPlants />, label: "Plants", matchPaths: ["/shed", "/watchlist"], group: "garden" },
+    { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping"], group: "plan" },
+    { id: "journal",   icon: <BookOpen />, label: "Journal",    matchPaths: ["/journal"], group: "plan" },
+    { id: "notes",     icon: <NotebookPen />, label: "Notes",   matchPaths: ["/notes"], group: "plan" },
+    { id: "tools",        icon: <IconTools />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"], group: "ai" },
+    { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"], group: "ai" },
+    { id: "manager",      icon: <Leaf />, label: "Head Gardener", matchPaths: ["/manager"], group: "ai" },
+  ];
+
+  const NAV_GROUP_LABELS: Record<string, string> = {
+    garden: "Garden",
+    plan: "Plan",
+    ai: "AI & Tools",
+  };
+
+  // The thumb-reach bar (mobile only, hidden in focus mode). "Doctor" gets its
+  // own slot — the app's flagship AI flow was previously two taps deep under
+  // Tools — so the Tools tab's matchPaths deliberately exclude /doctor here.
+  const bottomTabs = [
+    { id: "dashboard", label: "Home", icon: <Home />, to: TAB_URL.dashboard, matchPaths: ["/dashboard"], badge: overdueTaskCount },
+    { id: "shed", label: "Plants", icon: <IconPlants />, to: TAB_URL.shed, matchPaths: ["/shed", "/watchlist"] },
+    { id: "doctor", label: "Doctor", icon: <IconDoctor />, to: TAB_URL.doctor, matchPaths: ["/doctor"], ariaLabel: "Plant Doctor" },
+    { id: "planner", label: "Planner", icon: <IconPlanner />, to: TAB_URL.planner, matchPaths: ["/planner", "/shopping"] },
+    { id: "tools", label: "Tools", icon: <IconTools />, to: TAB_URL.tools, matchPaths: ["/tools", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
   ];
 
   const canUsePortal = typeof document !== "undefined";
+
+  // Single-slot onboarding eligibility (Phase 4.2). The quiz prompt is only
+  // eligible on an explicit false (unknown/null must never false-fire it);
+  // the notification card's own effect re-checks these same conditions.
+  const quizPromptEligible =
+    quizCompleted === false && !quizPromptDismissed && !quizPromptIsSnoozed;
+  const notifOptInEligible =
+    typeof window !== "undefined" &&
+    "Notification" in window &&
+    Notification.permission === "default" &&
+    localStorage.getItem("rhozly_notif_optin_dismissed") !== "true";
   const sidebarIsCollapsed = isMdBreakpoint ? isNavCollapsed : !isMobileSidebarOpen;
 
   const RouteFallback = (
@@ -1366,7 +1401,26 @@ function AppShell() {
       />
     <PlantDoctorProvider homeId={profile?.home_id || ""}>
       <Sentry.ErrorBoundary fallback={({ error }) => <ErrorPage error={error instanceof Error ? error : new Error(String(error))} appVersion={appVersion ?? undefined} />}>
-          <Toaster />
+          <Toaster
+            toastOptions={{
+              style: {
+                background: "var(--color-rhozly-surface-lowest)",
+                color: "var(--color-rhozly-on-surface)",
+                border: "1px solid var(--color-rhozly-outline)",
+                borderRadius: "var(--radius-control)",
+                boxShadow: "var(--shadow-raised)",
+                fontFamily: "var(--font-body)",
+                fontWeight: 600,
+                fontSize: "0.875rem",
+              },
+              success: {
+                iconTheme: { primary: "var(--color-rhozly-primary)", secondary: "#ffffff" },
+              },
+              error: {
+                iconTheme: { primary: "var(--color-rhozly-error)", secondary: "#ffffff" },
+              },
+            }}
+          />
           <a
             href="#main-content"
             className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2.5 focus:bg-rhozly-primary focus:text-white focus:rounded-xl focus:font-bold focus:text-sm focus:shadow-lg"
@@ -1381,7 +1435,12 @@ function AppShell() {
             <div className="fixed top-0 left-1/4 w-96 h-96 bg-rhozly-primary/5 rounded-full blur-3xl pointer-events-none" />
 
             {!isFocusMode && (
-            <header className="sticky top-0 z-30 bg-rhozly-primary border-b border-rhozly-primary-container px-4 md:px-8 py-4 flex justify-between items-center shadow-md">
+            // z-50: sticky creates a stacking context that traps the account
+            // menu's z-50 dropdown + z-40 backdrop at the header's level, so
+            // the header must sit ABOVE the BottomTabBar (Z.nav = 40) or the
+            // bar paints over the open menu on mobile. Modals (z-120+) still
+            // cover everything.
+            <header className="sticky top-0 z-50 bg-brand-gradient border-b border-white/10 px-4 md:px-8 py-4 flex justify-between items-center shadow-raised">
               <div className="flex items-center gap-3 font-display font-black text-2xl tracking-tight text-white">
                 <button
                   onClick={() => isMdBreakpoint ? setIsNavCollapsed(!isNavCollapsed) : setIsMobileSidebarOpen(!isMobileSidebarOpen)}
@@ -1439,22 +1498,41 @@ function AppShell() {
                 `}
               >
                 <div className="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
-                  {navLinks.map((link) => (
-                    <NavItem
-                      key={link.id}
-                      icon={link.icon}
-                      label={link.label}
-                      active={link.matchPaths.some(p => routerLocation.pathname === p || routerLocation.pathname.startsWith(p + "/"))}
-                      onClick={() => {
-                        navigate(TAB_URL[link.id]);
-                        if (!isMdBreakpoint) setIsMobileSidebarOpen(false);
-                      }}
-                      isCollapsed={sidebarIsCollapsed}
-                      isMobile={!isMdBreakpoint}
-                      badge={link.badge}
-                      badgeTone={link.badgeTone}
-                    />
-                  ))}
+                  {navLinks.map((link, i) => {
+                    const groupLabel =
+                      link.group && link.group !== navLinks[i - 1]?.group
+                        ? NAV_GROUP_LABELS[link.group]
+                        : null;
+                    return (
+                      <React.Fragment key={link.id}>
+                        {groupLabel &&
+                          (sidebarIsCollapsed ? (
+                            // Collapsed rail: dividers only BETWEEN groups — a
+                            // divider above the very first icon is just noise.
+                            i > 0 && (
+                              <div aria-hidden className="border-t border-white/10 my-1.5 w-8 self-center shrink-0" />
+                            )
+                          ) : (
+                            <div className="px-3 pt-3 pb-1 text-3xs font-bold uppercase tracking-widest text-white/40 select-none shrink-0">
+                              {groupLabel}
+                            </div>
+                          ))}
+                        <NavItem
+                          icon={link.icon}
+                          label={link.label}
+                          active={link.matchPaths.some(p => routerLocation.pathname === p || routerLocation.pathname.startsWith(p + "/"))}
+                          onClick={() => {
+                            navigate(TAB_URL[link.id]);
+                            if (!isMdBreakpoint) setIsMobileSidebarOpen(false);
+                          }}
+                          isCollapsed={sidebarIsCollapsed}
+                          isMobile={!isMdBreakpoint}
+                          badge={link.badge}
+                          badgeTone={link.badgeTone}
+                        />
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
                 <div className="flex flex-col gap-1 mt-4 shrink-0">
                   <NavItem
@@ -1598,7 +1676,6 @@ function AppShell() {
                                   <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-2xl flex gap-0.5 w-full overflow-x-auto sm:overflow-visible scrollbar-none">
                                     {([
                                       { v: "home", label: "Dashboard" },
-                                      { v: "overview", label: "Overview" },
                                       { v: "locations", label: "Locations" },
                                       { v: "calendar", label: "Calendar" },
                                       { v: "weather", label: "Weather" },
@@ -1608,10 +1685,10 @@ function AppShell() {
                                         onClick={() =>
                                           navigate(v === "home" ? "/dashboard" : `/dashboard?view=${v}`, { replace: true })
                                         }
-                                        // On a narrow phone (Pixel 9 Pro portrait) five view labels can't
-                                        // fit the ~277px the 80px nav rail leaves, so the row scrolls
-                                        // horizontally with full, readable labels instead of clipping
-                                        // "Weather" off-screen. On sm+ it fills the width as a segmented control.
+                                        // On a narrow phone (Pixel 9 Pro portrait) the view labels can't
+                                        // always fit the ~277px the 80px nav rail leaves, so the row scrolls
+                                        // horizontally with full, readable labels instead of clipping the
+                                        // last tab off-screen. On sm+ it fills the width as a segmented control.
                                         className={`shrink-0 sm:flex-1 whitespace-nowrap px-3 sm:px-4 py-2 min-h-[44px] rounded-xl text-xs sm:text-sm text-center transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-normal"}`}
                                       >
                                         {label}
@@ -1629,10 +1706,13 @@ function AppShell() {
                                   </span>
                                 </div>
 
-                                {dashboardView === "home" || dashboardView === "overview" ? (
+                                {dashboardView === "home" ? (
                                   <div className="space-y-5">
-                                    {/* Getting Started checklist — shown to new users until all steps done or dismissed.
-                                        Shared by Home + Overview so new gardeners see it wherever they land. */}
+                                    {/* SINGLE-SLOT ONBOARDING (Phase 4.2) — at most ONE promo card,
+                                        priority: checklist → quiz prompt → notifications → PWA install.
+                                        The checklist decides its own visibility (queries + dismissal)
+                                        and reports it via onVisibilityChange; everything below only
+                                        claims the slot when all higher cards are ineligible. */}
                                     {profile?.home_id && session?.user?.id && (
                                       <GettingStartedChecklist
                                         homeId={profile.home_id}
@@ -1641,54 +1721,10 @@ function AppShell() {
                                         hasLocations={locations.length > 0}
                                         onboardingState={onboardingState}
                                         onStateChange={setOnboardingState}
+                                        onVisibilityChange={setChecklistSlotVisible}
                                       />
                                     )}
-                                    {/* One-time notification opt-in (hides itself when granted/denied/dismissed) */}
-                                    <NotificationOptInCard />
-                                    {/* PWA install prompt — only when beforeinstallprompt fires + not already installed */}
-                                    <InstallPwaPrompt />
-                                    {dashboardView === "home" ? (
-                                      /* The new main dashboard — see docs/plans/new-home-dashboard.md */
-                                      <Suspense fallback={RouteFallback}>
-                                        {profile?.home_id && (
-                                          <HomeMain
-                                            homeId={profile.home_id}
-                                            userId={session?.user?.id ?? null}
-                                            firstName={profile?.first_name ?? null}
-                                            weather={weather}
-                                            rawWeather={rawWeather}
-                                            locations={locations}
-                                            locationTaskCounts={locationTaskCounts}
-                                            overdueTaskCount={overdueTaskCount}
-                                            aiEnabled={!!profile?.ai_enabled}
-                                            isPremium={!!profile?.enable_perenual}
-                                            availabilityCtx={{
-                                              subscriptionTier: profile?.subscription_tier ?? null,
-                                              aiEnabled: !!profile?.ai_enabled,
-                                              isBeta: !!profile?.is_beta,
-                                              homeId: profile?.home_id ?? null,
-                                            }}
-                                          />
-                                        )}
-                                      </Suspense>
-                                    ) : (
-                                    <>
-                                    {/* Daily Brief — greets the user, surfaces today's tasks, weather, golden hour, frost risk in one card */}
-                                    <DailyBriefCard
-                                      firstName={profile?.first_name ?? null}
-                                      weather={weather}
-                                      rawWeather={rawWeather}
-                                      locations={locations}
-                                      alerts={alerts}
-                                      todayTaskCount={Object.values(locationTaskCounts).reduce((a, b) => a + b, 0)}
-                                      overdueCount={overdueTaskCount}
-                                      homeLat={homeLatLng.lat}
-                                      homeLng={homeLatLng.lng}
-                                      hardinessZone={hardinessZone}
-                                      aiEnabled={!!profile?.ai_enabled}
-                                    />
-                                    {/* Complete Home Profile quiz prompt */}
-                                    {quizCompleted === false && !quizPromptDismissed && !quizPromptIsSnoozed && (
+                                    {!checklistSlotVisible && quizPromptEligible && (
                                       <div className={`bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-3xl p-5 shadow-md relative overflow-hidden transition-all duration-300 ${quizPromptFading ? "opacity-0 scale-95 pointer-events-none" : "opacity-100 scale-100"}`}>
                                         {quizPromptConfirmDismiss ? (
                                           <div className="flex flex-wrap items-center gap-2">
@@ -1747,25 +1783,40 @@ function AppShell() {
                                         )}
                                       </div>
                                     )}
-                                    {/* Head Gardener entry point + AI Insight card */}
-                                    {session?.user?.id && (
-                                      <Suspense fallback={null}>
-                                        <div data-testid="dashboard-head-gardener-card">
-                                          <HeadGardenerCard />
-                                        </div>
-                                        <div data-testid="dashboard-assistant-card">
-                                          <AssistantCard userId={session.user.id} showUpgradeWhenLocked />
-                                        </div>
-                                      </Suspense>
+                                    {!checklistSlotVisible && !quizPromptEligible && notifOptInEligible && (
+                                      <NotificationOptInCard onSettled={bumpPromoSlot} />
                                     )}
-                                    {/* Weekly stats + today's tasks */}
+                                    {!checklistSlotVisible && !quizPromptEligible && !notifOptInEligible && (
+                                      <InstallPwaPrompt />
+                                    )}
+                                    {/* The merged home — Overview's cards live behind its Detailed
+                                        density. See docs/plans/hyperplexed-ui-craft-overhaul.md §4.2 */}
                                     <Suspense fallback={RouteFallback}>
                                       {profile?.home_id && (
-                                        <HomeDashboard homeId={profile.home_id} aiEnabled={!!profile?.ai_enabled} isPremium={!!profile?.enable_perenual} />
+                                        <HomeMain
+                                          homeId={profile.home_id}
+                                          userId={session?.user?.id ?? null}
+                                          firstName={profile?.first_name ?? null}
+                                          weather={weather}
+                                          rawWeather={rawWeather}
+                                          locations={locations}
+                                          locationTaskCounts={locationTaskCounts}
+                                          overdueTaskCount={overdueTaskCount}
+                                          alerts={alerts}
+                                          homeLat={homeLatLng.lat}
+                                          homeLng={homeLatLng.lng}
+                                          hardinessZone={hardinessZone}
+                                          aiEnabled={!!profile?.ai_enabled}
+                                          isPremium={!!profile?.enable_perenual}
+                                          availabilityCtx={{
+                                            subscriptionTier: profile?.subscription_tier ?? null,
+                                            aiEnabled: !!profile?.ai_enabled,
+                                            isBeta: !!profile?.is_beta,
+                                            homeId: profile?.home_id ?? null,
+                                          }}
+                                        />
                                       )}
                                     </Suspense>
-                                    </>
-                                    )}
                                   </div>
                                 ) : dashboardView === "locations" ? (
                                   <div className="space-y-5">
@@ -2150,6 +2201,14 @@ function AppShell() {
                 </div>
               )}
             </div>
+
+            {!isFocusMode && (
+              <BottomTabBar
+                tabs={bottomTabs}
+                currentPath={routerLocation.pathname}
+                onNavigate={(to) => navigate(to)}
+              />
+            )}
           </div>
 
           {isFocusMode && (

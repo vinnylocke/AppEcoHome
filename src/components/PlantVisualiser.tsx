@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import SmartImage from "./SmartImage";
+import { PlantInitialTile } from "./ui/PlantInitialTile";
 import { useCachedShed } from "../hooks/useCachedShed";
 import SpriteWizardModal from "./SpriteWizardModal";
 import PlantCameraView from "./PlantCameraView";
@@ -26,9 +27,6 @@ const SOURCE_BADGE: Record<string, { label: string; colour: string; icon: React.
   ai:     { label: "AI",       colour: "text-amber-500",            icon: <Sparkles size={10} /> },
   manual: { label: "Manual",   colour: "text-rhozly-on-surface/60", icon: <Edit3 size={10} /> },
 };
-
-const FALLBACK_IMAGE =
-  "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&w=400";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -348,15 +346,24 @@ function PlantVisualiserInner({ homeId, aiEnabled = false }: { homeId: string; a
               >
                 {/* Image header */}
                 <div className="h-44 relative overflow-hidden bg-rhozly-primary/5">
-                  <SmartImage
-                    src={plant.thumbnail_url || FALLBACK_IMAGE}
-                    alt={plant.common_name}
-                    loading="lazy"
-                    decoding="async"
-                    className={`w-full h-full object-cover transition-all duration-300 ${
-                      isSelected ? "brightness-90" : ""
-                    }`}
-                  />
+                  {plant.thumbnail_url ? (
+                    <SmartImage
+                      src={plant.thumbnail_url}
+                      alt={plant.common_name}
+                      loading="lazy"
+                      decoding="async"
+                      className={`w-full h-full object-cover transition-all duration-300 ${
+                        isSelected ? "brightness-90" : ""
+                      }`}
+                    />
+                  ) : (
+                    <PlantInitialTile
+                      plant={{
+                        scientific_name: plant.scientific_name ?? null,
+                        common_name: plant.common_name ?? null,
+                      }}
+                    />
+                  )}
 
                   {/* Source badge — top left */}
                   <div className="absolute top-4 left-4">

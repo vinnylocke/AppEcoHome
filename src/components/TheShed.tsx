@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
+import { staggerStyle, STAGGER_ENTRANCE } from "../lib/stagger";
 import { isTaskOverdueToday, isTaskVisibleOnDate } from "../lib/taskFilters";
 import {
   getFrequencyDays,
@@ -31,7 +32,15 @@ import {
   FileText,
   Library,
   Heart,
+  SlidersHorizontal,
+  MoreVertical,
+  ShieldAlert,
+  Wheat,
+  Globe,
+  Leaf,
+  Pencil,
 } from "lucide-react";
+import { PlantInitialTile } from "./ui/PlantInitialTile";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import ManualPlantCreation from "./ManualPlantCreation";
@@ -157,6 +166,17 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [smartFilter, setSmartFilter] = useState<"none" | "unassigned" | "in-plan">("none");
+  // Phase 4.3 toolbar: the source/sort selects + smart chips live in a
+  // disclosure panel behind one Filters button (with a real active count).
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Phase 4.3 card: per-card overflow menu (layout/light/AskAI/archive/delete).
+  const [openMenuPlantId, setOpenMenuPlantId] = useState<number | null>(null);
+  // A REAL count on the Filters button (not a "!" marker): non-default
+  // source filter, sort, and smart filter each count as one.
+  const activeFilterCount =
+    (filterSource !== "all" ? 1 : 0) +
+    (sortMode !== "alphabetical" ? 1 : 0) +
+    (smartFilter !== "none" ? 1 : 0);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPlantIds, setSelectedPlantIds] = useState<Set<number>>(new Set());
   const [bulkActionState, setBulkActionState] = useState<"idle" | "archiving" | "deleting">("idle");
@@ -1656,7 +1676,11 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   return (
     <>
       <div className="h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700 relative">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-10">
+        {/* Phase 4.3 — the old header stacked five control rows (title row,
+            tally, view toggle, then a 4-row sticky filter block). Now: title
+            row (tally folded into the subtitle) + view toggle + ONE sticky
+            toolbar with a Filters disclosure. */}
+        <div className="flex flex-col gap-4 mb-8">
           <div>
             <div className="flex flex-wrap items-center gap-3 sm:gap-4">
               <div>
@@ -1669,7 +1693,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                   )}
                 </h1>
                 <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">
-                  Your Shed — every plant in your home
+                  Your Shed —{" "}
+                  <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).length}</span> species ·{" "}
+                  <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).reduce((acc, p) => acc + (p.instance_count || 0), 0)}</span> plants
                 </p>
               </div>
               {/* 🚀 SILENT SYNC INDICATOR */}
@@ -1700,9 +1726,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                   onClick={() => navigate("/garden-layout")}
                   aria-label="Open garden layout"
                   title="Place plants on a layout"
-                  className="flex items-center gap-2 px-4 py-3 bg-rhozly-surface text-rhozly-on-surface/80 rounded-2xl font-black text-sm hover:bg-rhozly-surface-low transition-colors"
+                  className="w-11 h-11 flex items-center justify-center bg-rhozly-surface text-rhozly-on-surface/70 rounded-2xl hover:bg-rhozly-surface-low active:scale-95 transition-all"
                 >
-                  <LayoutGrid size={16} /> <span className="hidden sm:inline">Layout</span>
+                  <LayoutGrid size={16} />
                 </button>
                 {can("shed.add") && (view !== "plants" || scope === "home") && (
                   <>
@@ -1731,9 +1757,6 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 )}
               </div>
             </div>
-            <p className="text-sm font-bold text-rhozly-on-surface/50 uppercase tracking-widest mt-1">
-              <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).length}</span> species · <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).reduce((acc, p) => acc + (p.instance_count || 0), 0)}</span> plants in your garden
-            </p>
             {/* Plants / Nursery toggle — Nursery surfaces seed packets +
                 sowings + the plant-out lifecycle. */}
             <div
@@ -1765,140 +1788,167 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             )}
           </div>
           {view === "plants" && (
-          <div className="flex flex-col gap-4 sticky top-0 z-20 bg-rhozly-bg/95 backdrop-blur-sm pt-2 pb-2 -mx-1 px-1 rounded-b-2xl">
-            {/* Home | Favourites scope pills — "Home" is today's shared,
-                home-scoped grid; "Favourites" is the user's personal
-                cross-home list. Deep link: /shed?scope=favourites */}
-            <div
-              data-testid="shed-scope-toggle"
-              className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10 self-start"
-            >
-              {(["home", "favourites"] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  data-testid={`shed-scope-${s}`}
-                  onClick={() => switchScope(s)}
-                  className={`flex items-center gap-1.5 px-5 py-2 min-h-[40px] rounded-xl text-sm font-black transition-all ${
-                    scope === s
-                      ? "bg-white text-rhozly-primary shadow-sm"
-                      : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
-                  }`}
-                >
-                  {s === "favourites" && (
-                    <Heart
-                      size={13}
-                      className={scope === "favourites" ? "fill-current" : ""}
-                    />
-                  )}
-                  {s === "home" ? "Home" : "Favourites"}
-                  {s === "favourites" && favourites.length > 0 && (
-                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
-                      {favourites.length}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-            <div className="relative flex items-center">
-              <Search
-                className="absolute left-4 text-rhozly-on-surface/40"
-                size={16}
-              />
-              <input
-                type="text"
-                placeholder={
-                  scope === "favourites"
-                    ? "Search your favourites..."
-                    : "Search your saved plants..."
-                }
-                aria-label="Search your saved plants"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-10 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-2xl text-sm font-bold outline-none focus:border-rhozly-primary transition-all"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  aria-label="Clear search"
-                  className="absolute right-3 p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-rhozly-on-surface rounded-lg transition-colors"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-            {scope === "home" && (
-            <>
-            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
-              <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10">
-                {["active", "archived"].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setViewTab(tab as any)}
-                    className={`flex-1 sm:flex-none px-6 py-2 min-h-[44px] rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-                  >
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  </button>
-                ))}
-              </div>
-              <select
-                value={filterSource}
-                onChange={(e) => setFilterSource(e.target.value as any)}
-                aria-label="Filter by source"
-                className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-2.5 min-h-[44px] text-sm font-bold outline-none cursor-pointer"
+          <div className="flex flex-col gap-2 sticky top-0 z-20 bg-rhozly-bg/95 backdrop-blur-sm pt-2 pb-2 -mx-1 px-1 rounded-b-2xl">
+            {/* THE toolbar: scope · search · status · Filters — one row
+                (wraps on narrow phones). Load-bearing selectors: scope pill
+                testids + ?scope=favourites deep link, the search aria-label,
+                and the Active/Archived button text (e2e + PO). */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Home | Favourites scope pills — "Home" is today's shared,
+                  home-scoped grid; "Favourites" is the user's personal
+                  cross-home list. Deep link: /shed?scope=favourites */}
+              <div
+                data-testid="shed-scope-toggle"
+                className="bg-rhozly-surface-low p-1 rounded-2xl flex gap-1 border border-rhozly-outline/10 shrink-0"
               >
-                <option value="all">All Sources</option>
-                <option value="manual">Manual</option>
-                <option value="api">Plant Database</option>
-                <option value="ai">AI</option>
-              </select>
-              <select
-                value={sortMode}
-                onChange={(e) => setSortMode(e.target.value as any)}
-                aria-label="Sort plants"
-                className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-2.5 min-h-[44px] text-sm font-bold outline-none cursor-pointer"
-              >
-                <option value="alphabetical">A – Z</option>
-                <option value="preference">Best Match (based on your quiz)</option>
-              </select>
-            </div>
-            {/* Smart filter chips — surface plants by status */}
-            <div className="flex items-center gap-1.5 flex-wrap" data-testid="shed-smart-filters">
-              <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mr-1">
-                Quick filters:
-              </span>
-              {([
-                { id: "none",       label: "All",         count: null },
-                { id: "unassigned", label: "Unassigned",  count: unassignedPlantIds.size },
-                { id: "in-plan",    label: "In a plan",   count: planMembership.size },
-              ] as const).map((chip) => {
-                const active = smartFilter === chip.id;
-                const disabled = chip.id !== "none" && chip.count === 0;
-                return (
+                {(["home", "favourites"] as const).map((s) => (
                   <button
-                    key={chip.id}
-                    data-testid={`shed-filter-${chip.id}`}
-                    disabled={disabled}
-                    onClick={() => setSmartFilter(chip.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-full text-xs font-black transition-colors ${
-                      active
-                        ? "bg-rhozly-primary text-white"
-                        : disabled
-                          ? "bg-rhozly-surface-low text-rhozly-on-surface/25 cursor-not-allowed"
-                          : "bg-rhozly-surface-lowest text-rhozly-on-surface/65 border border-rhozly-outline/15 hover:border-rhozly-primary/30 hover:text-rhozly-primary"
+                    key={s}
+                    type="button"
+                    data-testid={`shed-scope-${s}`}
+                    onClick={() => switchScope(s)}
+                    className={`flex items-center gap-1.5 px-4 py-2 min-h-[40px] rounded-xl text-sm font-black transition-all ${
+                      scope === s
+                        ? "bg-white text-rhozly-primary shadow-sm"
+                        : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
                     }`}
                   >
-                    {chip.label}
-                    {chip.count !== null && chip.count > 0 && (
-                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${active ? "bg-white/20" : "bg-rhozly-primary/10 text-rhozly-primary"}`}>
-                        {chip.count}
+                    {s === "favourites" && (
+                      <Heart
+                        size={13}
+                        className={scope === "favourites" ? "fill-current" : ""}
+                      />
+                    )}
+                    {s === "home" ? "Home" : "Favourites"}
+                    {s === "favourites" && favourites.length > 0 && (
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
+                        {favourites.length}
                       </span>
                     )}
                   </button>
-                );
-              })}
+                ))}
+              </div>
+              <div className="relative flex items-center flex-1 min-w-[220px]">
+                <Search
+                  className="absolute left-4 text-rhozly-on-surface/40"
+                  size={16}
+                />
+                <input
+                  type="text"
+                  placeholder={
+                    scope === "favourites"
+                      ? "Search your favourites..."
+                      : "Search your saved plants..."
+                  }
+                  aria-label="Search your saved plants"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-10 py-2.5 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-2xl text-sm font-bold outline-none focus:border-rhozly-primary transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    aria-label="Clear search"
+                    className="absolute right-3 p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-rhozly-on-surface rounded-lg transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              {scope === "home" && (
+                <div className="bg-rhozly-surface-low p-1 rounded-2xl flex gap-1 border border-rhozly-outline/10 shrink-0">
+                  {["active", "archived"].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setViewTab(tab as any)}
+                      className={`flex-1 sm:flex-none px-4 py-2 min-h-[40px] rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+                    >
+                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {scope === "home" && (
+                <button
+                  data-testid="shed-filters-btn"
+                  onClick={() => setFiltersOpen((v) => !v)}
+                  aria-expanded={filtersOpen}
+                  aria-label="Filters"
+                  className={`flex items-center gap-1.5 px-4 py-2 min-h-[40px] rounded-2xl text-sm font-black border transition-colors shrink-0 ${
+                    filtersOpen || activeFilterCount > 0
+                      ? "bg-rhozly-primary/10 border-rhozly-primary/20 text-rhozly-primary"
+                      : "bg-rhozly-surface-lowest border-rhozly-outline/20 text-rhozly-on-surface/60 hover:text-rhozly-primary hover:border-rhozly-primary/30"
+                  }`}
+                >
+                  <SlidersHorizontal size={15} />
+                  <span className="hidden sm:inline">Filters</span>
+                  {activeFilterCount > 0 && (
+                    <span className="text-[10px] font-black min-w-[18px] h-[18px] px-1 rounded-full bg-rhozly-primary text-white flex items-center justify-center">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
-            </>
+            {scope === "home" && filtersOpen && (
+              <div
+                data-testid="shed-filters-panel"
+                className="flex flex-wrap items-center gap-3 p-3 bg-rhozly-surface-lowest border border-rhozly-outline/15 rounded-2xl animate-in fade-in slide-in-from-top-2"
+              >
+                <select
+                  value={filterSource}
+                  onChange={(e) => setFilterSource(e.target.value as any)}
+                  aria-label="Filter by source"
+                  className="bg-rhozly-surface-low border border-rhozly-outline/20 rounded-xl px-4 py-2.5 min-h-[44px] text-sm font-bold outline-none cursor-pointer"
+                >
+                  <option value="all">All Sources</option>
+                  <option value="manual">Manual</option>
+                  <option value="api">Plant Database</option>
+                  <option value="ai">AI</option>
+                </select>
+                <select
+                  value={sortMode}
+                  onChange={(e) => setSortMode(e.target.value as any)}
+                  aria-label="Sort plants"
+                  className="bg-rhozly-surface-low border border-rhozly-outline/20 rounded-xl px-4 py-2.5 min-h-[44px] text-sm font-bold outline-none cursor-pointer"
+                >
+                  <option value="alphabetical">A – Z</option>
+                  <option value="preference">Best Match (based on your quiz)</option>
+                </select>
+                {/* Smart filter chips — surface plants by status */}
+                <div className="flex items-center gap-1.5 flex-wrap" data-testid="shed-smart-filters">
+                  {([
+                    { id: "none",       label: "All",         count: null },
+                    { id: "unassigned", label: "Unassigned",  count: unassignedPlantIds.size },
+                    { id: "in-plan",    label: "In a plan",   count: planMembership.size },
+                  ] as const).map((chip) => {
+                    const active = smartFilter === chip.id;
+                    const disabled = chip.id !== "none" && chip.count === 0;
+                    return (
+                      <button
+                        key={chip.id}
+                        data-testid={`shed-filter-${chip.id}`}
+                        disabled={disabled}
+                        onClick={() => setSmartFilter(chip.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-full text-xs font-black transition-colors ${
+                          active
+                            ? "bg-rhozly-primary text-white"
+                            : disabled
+                              ? "bg-rhozly-surface-low text-rhozly-on-surface/25 cursor-not-allowed"
+                              : "bg-rhozly-surface-lowest text-rhozly-on-surface/65 border border-rhozly-outline/15 hover:border-rhozly-primary/30 hover:text-rhozly-primary"
+                        }`}
+                      >
+                        {chip.label}
+                        {chip.count !== null && chip.count > 0 && (
+                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${active ? "bg-white/20" : "bg-rhozly-primary/10 text-rhozly-primary"}`}>
+                            {chip.count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
           )}
@@ -1936,11 +1986,11 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         {view === "plants" && scope === "home" && !badgeGuideShown && (
           <div className="flex items-start gap-3 bg-rhozly-primary/5 border border-rhozly-primary/10 rounded-2xl px-4 py-3 mb-4">
             <div className="flex-1 text-xs font-bold text-rhozly-on-surface/60 leading-snug">
-              <span className="font-black text-rhozly-on-surface/80">Where plant info comes from:</span>
-              {" "}🌐 <span className="text-rhozly-primary">Perenual</span> — global plant database &nbsp;·&nbsp;
-              🌿 <span className="text-emerald-600">Verdantly</span> — curated growing guides &nbsp;·&nbsp;
-              ✨ <span className="text-amber-500">AI</span> — identified by Rhozly AI &nbsp;·&nbsp;
-              ✏️ <span className="text-rhozly-on-surface/60">Manual</span> — added by you
+              <span className="font-black text-rhozly-on-surface/80">Where plant info comes from:</span>{" "}
+              <span className="inline-flex items-center gap-1 text-rhozly-primary"><Globe size={11} aria-hidden /> Perenual</span> — global plant database &nbsp;·&nbsp;
+              <span className="inline-flex items-center gap-1 text-emerald-600"><Leaf size={11} aria-hidden /> Verdantly</span> — curated growing guides &nbsp;·&nbsp;
+              <span className="inline-flex items-center gap-1 text-amber-500"><Sparkles size={11} aria-hidden /> AI</span> — identified by Rhozly AI &nbsp;·&nbsp;
+              <span className="inline-flex items-center gap-1"><Pencil size={11} aria-hidden /> Manual</span> — added by you
             </div>
             <button
               data-testid="badge-guide-dismiss"
@@ -2000,6 +2050,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 data-testid={`plant-card-${plant.id}`}
                 tabIndex={index === focusedIndex ? 0 : -1}
                 onClick={() => {
+                  setOpenMenuPlantId(null);
                   if (selectMode) togglePlantSelected(plant.id as number);
                   else setEditingPlant(plant);
                 }}
@@ -2007,6 +2058,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
+                    // Close any open kebab menu — the keyboard path bypasses
+                    // the click-away backdrop, so clear it explicitly.
+                    setOpenMenuPlantId(null);
                     if (selectMode) togglePlantSelected(plant.id as number);
                     else setEditingPlant(plant);
                   }
@@ -2014,7 +2068,10 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 role="button"
                 aria-label={selectMode ? `${isSelected ? "Deselect" : "Select"} ${plant.common_name}` : `View details for ${plant.common_name}`}
                 aria-pressed={selectMode ? isSelected : undefined}
-                className={`relative bg-rhozly-surface-lowest rounded-3xl overflow-hidden border-2 shadow-sm group flex flex-col cursor-pointer focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 transition-all ${
+                style={staggerStyle(index)}
+                // overflow-hidden removed (Phase 4.3): the per-card kebab menu
+                // must overflow the card; the image block rounds its own top.
+                className={`relative bg-rhozly-surface-lowest rounded-3xl border-2 shadow-sm group flex flex-col cursor-pointer focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 transition-all ${STAGGER_ENTRANCE} ${
                   isSelected
                     ? "border-rhozly-primary shadow-md ring-2 ring-rhozly-primary/20"
                     : "border-rhozly-outline/20 hover:border-rhozly-primary/30"
@@ -2036,17 +2093,21 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     <Loader2 size={22} className="animate-spin text-rhozly-primary" />
                   </div>
                 )}
-                <div className="h-44 relative overflow-hidden bg-rhozly-primary/5">
-                  <SmartImage
-                    src={
-                      plant.thumbnail_url ||
-                      "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&w=400"
-                    }
-                    alt={plant.common_name}
-                    loading="lazy" // 🚀 STOPS IMAGE BOTTLENECKING
-                    decoding="async" // 🚀 STOPS MAIN THREAD FREEZING
-                    className="w-full h-full object-cover"
-                  />
+                <div className="h-44 relative overflow-hidden rounded-t-[1.375rem] bg-rhozly-primary/5">
+                  {plant.thumbnail_url ? (
+                    <SmartImage
+                      src={plant.thumbnail_url}
+                      alt={plant.common_name}
+                      loading="lazy" // 🚀 STOPS IMAGE BOTTLENECKING
+                      decoding="async" // 🚀 STOPS MAIN THREAD FREEZING
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    /* No photo: genus-tinted initial tile (same genus, same
+                       tint) — replaces the shared Unsplash forest photo that
+                       made every unphotographed plant look identical. */
+                    <PlantInitialTile plant={plant} />
+                  )}
                   <MultiImageGallery
                     query={`${plant.common_name}${plant.scientific_name ? ` ${plant.scientific_name}` : ""} plant`}
                     label={plant.common_name}
@@ -2113,30 +2174,33 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     const status = plantTaskStatus.get(plant.id as number);
                     if (!status) return null;
                     const chips: React.ReactNode[] = [];
+                    // Lucide icons + brand status-token families replace the
+                    // emoji prefixes (design-system: no emoji in chrome).
+                    // Labels unchanged.
                     if (status.ailmentCount > 0) {
                       chips.push(
-                        <span key="ailments" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
-                          ⚠ {status.ailmentCount} ailment{status.ailmentCount !== 1 ? "s" : ""}
+                        <span key="ailments" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-status-watch-fill text-status-watch-ink border border-status-watch-line">
+                          <ShieldAlert size={10} aria-hidden /> {status.ailmentCount} ailment{status.ailmentCount !== 1 ? "s" : ""}
                         </span>,
                       );
                     }
                     if (status.harvestDue) {
                       chips.push(
-                        <span key="harvest" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                          🌾 Harvest ready
+                        <span key="harvest" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-status-weather-fill text-status-weather-ink border border-status-weather-line">
+                          <Wheat size={10} aria-hidden /> Harvest ready
                         </span>,
                       );
                     }
                     if (status.overdueCount > 0) {
                       chips.push(
-                        <span key="overdue" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                          ⏰ {status.overdueCount} overdue
+                        <span key="overdue" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-status-danger-fill text-status-danger-ink border border-status-danger-line">
+                          <Clock size={10} aria-hidden /> {status.overdueCount} overdue
                         </span>,
                       );
                     }
                     if (status.dueTodayCount > 0 && status.overdueCount === 0) {
                       chips.push(
-                        <span key="today" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200">
+                        <span key="today" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-status-sensor-fill text-status-sensor-ink border border-status-sensor-line">
                           {status.dueTodayCount} due today
                         </span>,
                       );
@@ -2204,91 +2268,134 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                         </button>
                       );
                     })()}
-                    <button
-                      data-testid={`plant-card-layout-${plant.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate("/garden-layout");
-                      }}
-                      aria-label={`View ${plant.common_name} on the garden layout`}
-                      title="View on garden layout"
-                      className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-violet-600 flex items-center justify-center transition-colors active:scale-95"
-                    >
-                      <LayoutGrid size={16} />
-                    </button>
-                    <button
-                      data-testid={`plant-card-light-${plant.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingPlantTab("light");
-                        setEditingPlant(plant);
-                      }}
-                      aria-label={`Check light levels for ${plant.common_name}`}
-                      title="Light needs"
-                      className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-amber-600 flex items-center justify-center transition-colors active:scale-95"
-                    >
-                      <Sun size={16} />
-                    </button>
-                    {aiEnabled && (
+                    {/* Phase 4.3 — the five secondary ghost icons live in a
+                        kebab menu; the heart stays primary. Menu items keep
+                        the ORIGINAL aria-labels + testids (load-bearing for
+                        e2e via ShedPage helpers). Hidden-vs-disabled gating
+                        semantics preserved: Ask AI hidden by tier, Archive/
+                        Delete hidden by permission. */}
+                    <div className="ml-auto relative">
                       <button
-                        data-testid={`plant-card-ask-ai-${plant.id}`}
+                        data-testid={`plant-card-kebab-${plant.id}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setPageContext({
-                            action: "Asking about a plant in the Shed",
-                            plant: {
-                              id: plant.id,
-                              common_name: plant.common_name,
-                              scientific_name: plant.scientific_name?.[0] ?? null,
-                              source: plant.source,
-                              sunlight: plant.sunlight ?? null,
-                              cycle: plant.cycle ?? null,
-                              edible: plant.edible ?? null,
-                            },
-                          });
-                          setIsOpen(true);
+                          setOpenMenuPlantId(openMenuPlantId === plant.id ? null : (plant.id as number));
                         }}
-                        aria-label={`Ask Rhozly AI about ${plant.common_name}`}
-                        title="Ask Rhozly AI about this plant"
-                        className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-rhozly-primary flex items-center justify-center transition-colors active:scale-95"
+                        aria-label={`More actions for ${plant.common_name}`}
+                        aria-haspopup="menu"
+                        aria-expanded={openMenuPlantId === plant.id}
+                        title="More actions"
+                        className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-rhozly-on-surface flex items-center justify-center transition-colors active:scale-95"
                       >
-                        <Sparkles size={16} />
+                        <MoreVertical size={16} />
                       </button>
-                    )}
-                    {can("shed.delete") && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setConfirmState({
-                            isOpen: true,
-                            type: plant.is_archived ? "unarchive" : "archive",
-                            plant,
-                          });
-                        }}
-                        aria-label={plant.is_archived ? `Restore ${plant.common_name}` : `Archive ${plant.common_name}`}
-                        title={plant.is_archived ? "Restore" : "Archive"}
-                        className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-orange-600 flex items-center justify-center transition-colors active:scale-95"
-                      >
-                        {plant.is_archived ? (
-                          <ArchiveRestore size={16} />
-                        ) : (
-                          <Archive size={16} />
-                        )}
-                      </button>
-                    )}
-                    {can("shed.delete") && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openDeleteConfirm(plant);
-                        }}
-                        aria-label={`Delete ${plant.common_name}`}
-                        title="Delete"
-                        className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-red-600 flex items-center justify-center transition-colors active:scale-95"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
+                      {openMenuPlantId === plant.id && (
+                        <>
+                          <div
+                            aria-hidden
+                            className="fixed inset-0 z-30"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuPlantId(null);
+                            }}
+                          />
+                          <div
+                            role="menu"
+                            data-testid={`plant-card-menu-${plant.id}`}
+                            className="absolute right-0 top-full mt-1 z-40 w-56 bg-rhozly-surface-lowest border border-rhozly-outline/15 rounded-2xl shadow-raised p-1.5 animate-in fade-in zoom-in-95 duration-150"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              role="menuitem"
+                              data-testid={`plant-card-layout-${plant.id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuPlantId(null);
+                                navigate("/garden-layout");
+                              }}
+                              aria-label={`View ${plant.common_name} on the garden layout`}
+                              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface/75 hover:bg-rhozly-surface-low transition-colors text-left"
+                            >
+                              <LayoutGrid size={15} /> View on layout
+                            </button>
+                            <button
+                              role="menuitem"
+                              data-testid={`plant-card-light-${plant.id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuPlantId(null);
+                                setEditingPlantTab("light");
+                                setEditingPlant(plant);
+                              }}
+                              aria-label={`Check light levels for ${plant.common_name}`}
+                              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface/75 hover:bg-rhozly-surface-low transition-colors text-left"
+                            >
+                              <Sun size={15} /> Light needs
+                            </button>
+                            {aiEnabled && (
+                              <button
+                                role="menuitem"
+                                data-testid={`plant-card-ask-ai-${plant.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenMenuPlantId(null);
+                                  setPageContext({
+                                    action: "Asking about a plant in the Shed",
+                                    plant: {
+                                      id: plant.id,
+                                      common_name: plant.common_name,
+                                      scientific_name: plant.scientific_name?.[0] ?? null,
+                                      source: plant.source,
+                                      sunlight: plant.sunlight ?? null,
+                                      cycle: plant.cycle ?? null,
+                                      edible: plant.edible ?? null,
+                                    },
+                                  });
+                                  setIsOpen(true);
+                                }}
+                                aria-label={`Ask Rhozly AI about ${plant.common_name}`}
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface/75 hover:bg-rhozly-surface-low transition-colors text-left"
+                              >
+                                <Sparkles size={15} /> Ask Rhozly AI
+                              </button>
+                            )}
+                            {can("shed.delete") && (
+                              <button
+                                role="menuitem"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenMenuPlantId(null);
+                                  setConfirmState({
+                                    isOpen: true,
+                                    type: plant.is_archived ? "unarchive" : "archive",
+                                    plant,
+                                  });
+                                }}
+                                aria-label={plant.is_archived ? `Restore ${plant.common_name}` : `Archive ${plant.common_name}`}
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface/75 hover:bg-rhozly-surface-low transition-colors text-left"
+                              >
+                                {plant.is_archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+                                {plant.is_archived ? "Restore" : "Archive"}
+                              </button>
+                            )}
+                            {can("shed.delete") && (
+                              <button
+                                role="menuitem"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenMenuPlantId(null);
+                                  openDeleteConfirm(plant);
+                                }}
+                                aria-label={`Delete ${plant.common_name}`}
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-status-danger-ink hover:bg-status-danger-fill transition-colors text-left"
+                              >
+                                <Trash2 size={15} /> Delete
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-auto pt-5 border-t border-rhozly-outline/10 flex items-center justify-between">
                     <div>

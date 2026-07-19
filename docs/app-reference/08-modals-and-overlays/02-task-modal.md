@@ -194,7 +194,7 @@ Same for every tier.
 ## Related reference files
 
 - [Add Task / Edit Schedule Modal](./01-add-task-modal.md)
-- [Dashboard Tab](../02-dashboard/01-dashboard-tab.md)
+- [Home (Main Dashboard)](../02-dashboard/17-home-main.md)
 - [Calendar Tab](../02-dashboard/03-calendar-tab.md)
 - [Tasks Data Model (cross-cutting)](../99-cross-cutting/04-data-model-tasks.md)
 

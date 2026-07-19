@@ -20,10 +20,11 @@ const LOC_GARDEN_ID = `0000000${workerNum}-0000-0000-0001-000000000001`;
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe("Dashboard — view switcher (Section 02)", () => {
-  test("DASH-MOBILE-001: all five view tabs are reachable on a phone-portrait viewport, Weather included", async ({ authenticatedPage }) => {
-    // Regression: on a narrow phone the five-tab switcher clipped "Weather"
-    // off-screen with no way to reach it. It now scrolls horizontally with
+  test("DASH-MOBILE-001: all four view tabs are reachable on a phone-portrait viewport, Weather included", async ({ authenticatedPage }) => {
+    // Regression: on a narrow phone the tab switcher clipped "Weather"
+    // off-screen with no way to reach it. It scrolls horizontally with
     // full labels, so every tab (incl. Weather) is present and clickable.
+    // (Phase 4.2 merged the old Overview tab into Dashboard — four tabs now.)
     await authenticatedPage.setViewportSize({ width: 412, height: 915 });
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.goto();
@@ -31,9 +32,10 @@ test.describe("Dashboard — view switcher (Section 02)", () => {
 
     const switcher = authenticatedPage.locator('[data-testid="dashboard-view-switcher"]');
     await expect(switcher).toBeVisible({ timeout: 10000 });
-    for (const label of ["Dashboard", "Overview", "Locations", "Calendar", "Weather"]) {
+    for (const label of ["Dashboard", "Locations", "Calendar", "Weather"]) {
       await expect(switcher.getByRole("button", { name: label, exact: true })).toHaveCount(1);
     }
+    await expect(switcher.getByRole("button", { name: "Overview", exact: true })).toHaveCount(0);
     // Weather is reachable + navigates (scrollIntoView handles the horizontal scroll).
     const weather = switcher.getByRole("button", { name: "Weather", exact: true });
     await weather.scrollIntoViewIfNeeded();
@@ -238,8 +240,11 @@ test.describe("Dashboard — Locations view (Section 02)", () => {
 // Section 02 — Quiz banner (requires mocking quiz completions endpoint)
 // ─────────────────────────────────────────────────────────────────────────────
 
-test.describe("Dashboard — quiz banner (Section 02)", () => {
-  test("DASH-024: Quiz banner visible when quiz has not been completed", async ({ authenticatedPage }) => {
+test.describe("Dashboard — single-slot onboarding + quiz banner (Section 02)", () => {
+  // Phase 4.2: the dashboard shows at most ONE promo card — checklist first,
+  // then the quiz prompt once the checklist is gone. With quiz completions
+  // mocked away the checklist has an undone step, so it owns the slot.
+  test("DASH-024: Checklist owns the promo slot while the quiz is incomplete; quiz banner stays hidden", async ({ authenticatedPage }) => {
     const supabaseUrl = process.env.VITE_SUPABASE_URL ?? "";
     // Mock the quiz completions endpoint so the app sees no completion record
     await authenticatedPage.route(
@@ -247,42 +252,68 @@ test.describe("Dashboard — quiz banner (Section 02)", () => {
       route => route.fulfill({ status: 200, contentType: "application/json", body: "null" }),
     );
 
-    // Re-navigate so the useEffect re-runs with the mocked response
-    await authenticatedPage.goto("/dashboard?view=overview");
+    await authenticatedPage.goto("/dashboard");
     await authenticatedPage.waitForTimeout(800);
 
     const dashboard = new DashboardPage(authenticatedPage);
-    await expect(dashboard.quizBanner).toBeVisible({ timeout: 10000 });
+    await expect(
+      authenticatedPage.getByTestId("getting-started-checklist"),
+    ).toBeVisible({ timeout: 10000 });
+    await expect(dashboard.quizBanner).not.toBeVisible();
   });
 
-  test("DASH-025: Dismissing the quiz banner makes it disappear", async ({ authenticatedPage }) => {
+  test("DASH-025: Dismissing the checklist cascades the slot to the quiz banner; dismissing that hides it", async ({ authenticatedPage }) => {
     const supabaseUrl = process.env.VITE_SUPABASE_URL ?? "";
     await authenticatedPage.route(
       `${supabaseUrl}/rest/v1/home_quiz_completions*`,
       route => route.fulfill({ status: 200, contentType: "application/json", body: "null" }),
     );
+    // Swallow the dismissal writes so this test never pollutes the seeded
+    // onboarding_state for later runs (the app updates local state optimistically).
+    await authenticatedPage.route(`${supabaseUrl}/rest/v1/user_profiles*`, route => {
+      if (route.request().method() === "PATCH") {
+        return route.fulfill({ status: 204, body: "" });
+      }
+      return route.fallback();
+    });
 
-    await authenticatedPage.goto("/dashboard?view=overview");
+    await authenticatedPage.goto("/dashboard");
     await authenticatedPage.waitForTimeout(800);
 
     const dashboard = new DashboardPage(authenticatedPage);
-    await expect(dashboard.quizBanner).toBeVisible({ timeout: 10000 });
+    await expect(
+      authenticatedPage.getByTestId("getting-started-checklist"),
+    ).toBeVisible({ timeout: 10000 });
 
+    // Slot cascade: checklist dismissed → quiz prompt claims the slot
+    await authenticatedPage.getByTestId("checklist-dismiss").click();
+    await expect(dashboard.quizBanner).toBeVisible({ timeout: 5000 });
+
+    // Dismissing the quiz banner swaps it to the confirm row (headline gone)
     await dashboard.quizBannerDismiss.click();
-
-    // Banner dismissal is local state — it should disappear immediately
     await expect(dashboard.quizBanner).not.toBeVisible({ timeout: 5000 });
   });
 
-  test("DASH-026: Clicking 'Get started' CTA navigates to /profile", async ({ authenticatedPage }) => {
+  test("DASH-026: Quiz banner CTA navigates to /profile", async ({ authenticatedPage }) => {
     const supabaseUrl = process.env.VITE_SUPABASE_URL ?? "";
     await authenticatedPage.route(
       `${supabaseUrl}/rest/v1/home_quiz_completions*`,
       route => route.fulfill({ status: 200, contentType: "application/json", body: "null" }),
     );
+    // Swallow the dismissal writes so this test never pollutes the seeded
+    // onboarding_state for later runs.
+    await authenticatedPage.route(`${supabaseUrl}/rest/v1/user_profiles*`, route => {
+      if (route.request().method() === "PATCH") {
+        return route.fulfill({ status: 204, body: "" });
+      }
+      return route.fallback();
+    });
 
-    await authenticatedPage.goto("/dashboard?view=overview");
+    await authenticatedPage.goto("/dashboard");
     await authenticatedPage.waitForTimeout(800);
+
+    // Surface the quiz banner by clearing the checklist out of the slot
+    await authenticatedPage.getByTestId("checklist-dismiss").click({ timeout: 10000 });
 
     const dashboard = new DashboardPage(authenticatedPage);
     await expect(dashboard.quizBanner).toBeVisible({ timeout: 10000 });
@@ -828,8 +859,8 @@ test.describe("Dashboard — Week Ahead card gating (RHO-9)", () => {
 
   test("DASH-051: Week Ahead card is hidden for Sprout (ai_insights-gated)", async ({ authenticatedPage }) => {
     await forceSproutTier(authenticatedPage);
-    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
     await dashboard.waitForLoad();
 
     // RHO-9: WeekAheadPreview deep-links to /weekly (Evergreen-only). Now gated
@@ -840,8 +871,8 @@ test.describe("Dashboard — Week Ahead card gating (RHO-9)", () => {
 
   test("DASH-052: Week Ahead card is visible for the Evergreen seed account", async ({ authenticatedPage }) => {
     // No tier override — the seeded account is Evergreen and entitled to ai_insights.
-    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
     await dashboard.waitForLoad();
 
     await expect(authenticatedPage.getByTestId("dash-week-ahead-card")).toBeVisible({ timeout: 10000 });
@@ -869,8 +900,8 @@ test.describe("Dashboard — locked feature teasers for Sprout (RHO-2)", () => {
 
   test("DASH-040: Head Gardener card shows the compact upgrade teaser, not the full panel", async ({ authenticatedPage }) => {
     await forceSprout(authenticatedPage);
-    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
     await dashboard.waitForLoad();
 
     const card = authenticatedPage.getByTestId("dashboard-head-gardener-card");
@@ -882,8 +913,8 @@ test.describe("Dashboard — locked feature teasers for Sprout (RHO-2)", () => {
 
   test("DASH-041: AI Insights card shows the compact upgrade teaser, not the full panel", async ({ authenticatedPage }) => {
     await forceSprout(authenticatedPage);
-    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
     await dashboard.waitForLoad();
 
     const card = authenticatedPage.getByTestId("dashboard-assistant-card");
@@ -893,8 +924,8 @@ test.describe("Dashboard — locked feature teasers for Sprout (RHO-2)", () => {
 
   test("DASH-042: no full-size upgrade panel renders anywhere on the Sprout dashboard", async ({ authenticatedPage }) => {
     await forceSprout(authenticatedPage);
-    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
     await dashboard.waitForLoad();
     await expect(authenticatedPage.getByText(/Upgrade to .* to use Head Gardener/i)).toBeVisible({ timeout: 10000 });
 
@@ -949,8 +980,8 @@ test.describe("Dashboard — plant chat AI-gating for Sprout (RHO-10 / RHO-11)",
 
   test("DASH-043: Sprout dashboard hides the global Plant Doctor chat FAB", async ({ authenticatedPage }) => {
     await forceNonAi(authenticatedPage);
-    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
     await dashboard.waitForLoad();
 
     // The Daily Brief must be present so we know the dashboard actually rendered.
@@ -961,8 +992,8 @@ test.describe("Dashboard — plant chat AI-gating for Sprout (RHO-10 / RHO-11)",
 
   test("DASH-044: Sprout dashboard hides the Daily Brief 'Got a plant question?' chip", async ({ authenticatedPage }) => {
     await forceNonAi(authenticatedPage);
-    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
     await dashboard.waitForLoad();
 
     await expect(authenticatedPage.getByTestId("daily-brief-card")).toBeVisible({ timeout: 10000 });
@@ -971,8 +1002,8 @@ test.describe("Dashboard — plant chat AI-gating for Sprout (RHO-10 / RHO-11)",
 
   test("DASH-045: AI-enabled account still shows the chat FAB and the chip", async ({ authenticatedPage }) => {
     // No profile override — the seeded account is AI-enabled, so both entry points render.
-    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
     await dashboard.waitForLoad();
 
     await expect(authenticatedPage.getByTestId("daily-brief-ask-ai")).toBeVisible({ timeout: 10000 });

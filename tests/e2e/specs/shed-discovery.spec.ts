@@ -62,6 +62,7 @@ test.describe("Shed — discovery, sort, tabs", () => {
     await shed.waitForLoad();
 
     // The default sort is already "alphabetical" — assert it directly.
+    await shed.openFilters();
     await expect(shed.sortSelect).toHaveValue("alphabetical");
 
     // Capture the rendered card order.
@@ -84,6 +85,8 @@ test.describe("Shed — discovery, sort, tabs", () => {
     await shed.goto();
     await shed.waitForLoad();
 
+    await shed.openFilters();
+
     await shed.sourceFilterSelect.selectOption("api");
 
     await expect(shed.plantCard("Lavender")).toBeVisible();
@@ -99,10 +102,12 @@ test.describe("Shed — discovery, sort, tabs", () => {
     await shed.waitForLoad();
 
     // Narrow first → only Lavender (api) visible
+    await shed.openFilters();
     await shed.sourceFilterSelect.selectOption("api");
     await expect(shed.plantCard("Tomato")).toBeHidden();
 
     // Reset back to All Sources → manual plants reappear
+    await shed.openFilters();
     await shed.sourceFilterSelect.selectOption("all");
     await expect(shed.plantCard("Tomato")).toBeVisible();
     await expect(shed.plantCard("Basil")).toBeVisible();

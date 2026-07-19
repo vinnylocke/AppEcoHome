@@ -24,12 +24,21 @@ test.beforeEach(async () => {
 //   • "Strawberry Snooze Test"  — already snoozed (next_check_at = +2d)
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Open a task row in the dashboard's Daily Tasks list by title substring. */
+/** Open a task row in the dashboard's Daily Tasks list by title substring.
+ *  The full task list lives behind the merged home's Detailed density
+ *  (Phase 4.2), so seed the density before navigating. */
 async function openTaskByTitle(
   page: import("@playwright/test").Page,
   title: string,
 ) {
-  await page.goto("/dashboard?view=overview");
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rhozly:home:density", "detailed");
+    } catch {
+      /* ignore */
+    }
+  });
+  await page.goto("/dashboard");
   await page
     .locator(".animate-spin, .animate-pulse")
     .first()

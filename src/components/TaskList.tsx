@@ -39,6 +39,8 @@ import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { AutomationEngine } from "../lib/automationEngine";
 import { buildGhostPayload, hasBlockingDependencies } from "../lib/taskMutations";
 import { materialiseGhost, postponeTask } from "../lib/taskActions";
+import { spawnBurst } from "../lib/burst";
+import EmptyState from "./shared/EmptyState";
 import { scoreTaskByPlantPreferences } from "../hooks/useUserPreferences";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { logEvent, EVENT } from "../events/registry";
@@ -783,6 +785,14 @@ export default function TaskList({
     setIsUpdatingTask(task.id);
     const newStatus = task.status === "Completed" ? "Pending" : "Completed";
 
+    // Capture the burst origin synchronously — currentTarget is nulled once
+    // the event finishes dispatching, which is before our first await resolves.
+    let burstOrigin: { x: number; y: number } | null = null;
+    if (newStatus === "Completed" && e?.currentTarget instanceof HTMLElement) {
+      const r = e.currentTarget.getBoundingClientRect();
+      burstOrigin = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
+
     if (newStatus === "Completed" && !task.isGhost) {
       try {
         if (await hasBlockingDependencies(task.id)) {
@@ -805,6 +815,10 @@ export default function TaskList({
       const optimisticTask = { ...task, status: newStatus, completed_at: completedAt, isAutoCompleted: false };
       setTasks((prev) => prev.map((t) => (t.id === task.id ? optimisticTask : t)));
       if (selectedTask?.id === task.id) setSelectedTask(optimisticTask);
+
+      // Celebration moment — leaf burst from the tapped control the instant
+      // the task optimistically completes (motionTier-gated inside spawnBurst).
+      if (burstOrigin) spawnBurst(burstOrigin.x, burstOrigin.y);
 
       if (task.isGhost) {
         // Shared mutation core (src/lib/taskActions.ts) — handles the
@@ -1083,29 +1097,18 @@ export default function TaskList({
       )}
 
       {filteredTasks.length === 0 ? (
-        <div
+        <EmptyState
           data-testid="task-list-empty"
-          className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-[2rem] p-8 text-center animate-in fade-in flex flex-col items-center gap-3"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center">
-            <CheckSquare size={24} />
-          </div>
-          <p className="text-sm font-black text-rhozly-on-surface">
-            No tasks here yet
-          </p>
-          <p className="text-xs text-rhozly-on-surface/55 max-w-xs leading-relaxed">
-            Set up a watering, pruning, or harvesting schedule and tasks will
-            appear here automatically.
-          </p>
-          <button
-            type="button"
-            data-testid="task-list-empty-cta"
-            onClick={() => navigate("/schedule")}
-            className="mt-1 inline-flex items-center gap-2 bg-rhozly-primary text-white text-xs font-black px-5 py-2.5 min-h-[44px] rounded-2xl hover:opacity-90 transition shadow-sm"
-          >
-            Set up a task schedule →
-          </button>
-        </div>
+          className="animate-in fade-in"
+          icon={<CheckSquare size={28} />}
+          title="No tasks here yet"
+          body="Set up a watering, pruning, or harvesting schedule and tasks will appear here automatically."
+          primaryCta={{
+            label: "Set up a task schedule",
+            onClick: () => navigate("/schedule"),
+            "data-testid": "task-list-empty-cta",
+          }}
+        />
       ) : (
         <div data-testid="task-list-container" className={`space-y-3 relative ${isBulkEditing ? "pb-24" : ""}`}>
           {isBulkEditing && viewTab === "pending" && (

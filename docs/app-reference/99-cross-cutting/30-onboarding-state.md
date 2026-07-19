@@ -9,25 +9,18 @@
 ```ts
 user_profiles.onboarding_state: {
   welcome_modal: "completed" | "dismissed",
-  getting_started: {
-    quiz_done: boolean,
-    location_added: boolean,
-    plant_added: boolean,
-    plant_assigned: boolean,
-    schedule_added: boolean,
-  },
-  notification_opt_in: "granted" | "denied" | "dismissed",
-  pwa_install: "installed" | "dismissed",
+  getting_started_checklist: "dismissed",                  // only ever written on dismiss — no per-step keys exist
+  quiz_prompt_snoozed_until: string,                       // ISO YYYY-MM-DD — dashboard quiz prompt snooze
 
   // Wave 23.0001 — Shepherd.js flow registry state.
   // Per-flow status, plus throttle + signal book-keeping.
   [flowId: string]: "completed" | "dismissed",            // e.g. global_welcome: "completed"
   last_auto_trigger_at: string,                            // ISO timestamp — used by useAutoTrigger throttle
   trigger_signals: Record<string, true>,                   // first_chat_opened, first_notes_visit, etc.
-
-  // ... per-surface state
 }
 ```
+
+**Keys that do NOT exist (historical doc drift — never write them):** a `getting_started.{quiz_done, location_added, …}` per-step map (checklist steps are derived live from `quiz_completed`, locations, `inventory_items`, and `task_blueprints` — nothing per-step is persisted); `notification_opt_in`; `pwa_install`. The notification opt-in and PWA install cards persist to **localStorage only** (see the single-slot section below).
 
 ---
 
@@ -59,13 +52,26 @@ supabase.from("user_profiles")
 | Surface | Key |
 |---------|-----|
 | [Welcome Modal](../01-onboarding/02-welcome-modal.md) | `welcome_modal` |
-| Garden Quiz prompt (dashboard) | `quiz_prompt_snoozed_until` — ISO `YYYY-MM-DD` date. When set + greater than today the prompt is hidden. "Snooze 2 weeks" writes today + 14d; "Don't ask again" writes today + ~100y. Sprint 2 (2026-06-15) — replaced the in-memory-only `quizPromptDismissed` flag so the dismissal survives page reload. |
-| [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md) | `getting_started.*` |
-| [Notification Opt-In](../01-onboarding/07-notification-opt-in.md) | `notification_opt_in` |
-| [PWA Install](../01-onboarding/08-pwa-install.md) | `pwa_install` (paired with localStorage) |
+| Garden Quiz prompt (merged home onboarding slot) | `quiz_prompt_snoozed_until` — ISO `YYYY-MM-DD` date. When set + greater than today the prompt is hidden. "Snooze 2 weeks" writes today + 14d; "Don't ask again" writes today + ~100y. Sprint 2 (2026-06-15) — replaced the in-memory-only `quizPromptDismissed` flag so the dismissal survives page reload. |
+| [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md) | `getting_started_checklist: "dismissed"` — written only on the single-tap dismiss. No per-step keys; steps are derived from live data. |
+| [Notification Opt-In](../01-onboarding/07-notification-opt-in.md) | **None** — localStorage `rhozly_notif_optin_dismissed = "true"` only |
+| [PWA Install](../01-onboarding/08-pwa-install.md) | **None** — localStorage `rhozly_pwa_install_dismissed` / `rhozly_pwa_installed` (`"true"`) only |
 | Shepherd flow registry (`src/onboarding/flowRegistry.ts`) | `<flowId>: "completed" \| "dismissed"` per tour. 25 flows as of Wave 23.0003: `global_welcome`, `home_setup_tips`, `dashboard_tour`, `garden_hub_tour`, `weather_insights_tour`, `planner_tour`, `task_schedule_tour`, `tools_hub_tour`, `plant_doctor_tour`, `visualiser_tour`, `add_manual_plant`, `add_location_and_area`, `guides_tour`, `profile_quiz_tour`, plus 11 Wave-23.0003 additions: `quick_access_tour`, `weekly_overview_tour`, `notes_tour`, `voice_chat_tour`, `image_credits_tour`, `garden_ai_chat_tour`, `plantnet_identification_tour`, `nursery_tour`, `garden_walk_tour`, `seasonal_picks_tour`, `quick_launcher_customise_tour`. |
 | Pacing throttle (`src/onboarding/useAutoTrigger.ts`) | `last_auto_trigger_at` ISO timestamp |
 | Action-based triggers (`src/onboarding/signals.ts`) | `trigger_signals: { [signal]: true }` |
+
+### Single-slot dashboard promo cards (Phase 4.2)
+
+The merged home tab of `/dashboard` renders **at most one** onboarding promo card, cascaded by priority in App.tsx:
+
+| Priority | Card | Eligibility | Persistence store |
+|----------|------|-------------|-------------------|
+| 1 | [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md) | Not dismissed AND not all 5 steps done; reports its actual visibility to App.tsx via its `onVisibilityChange` prop (`checklistSlotVisible`, defaults `true` so lower cards never flash before its queries resolve) | `onboarding_state.getting_started_checklist = "dismissed"` |
+| 2 | Garden Quiz prompt (inline in App.tsx) | `quizCompleted === false` (explicit false only) AND not session-dismissed AND not snoozed | `onboarding_state.quiz_prompt_snoozed_until` (ISO date) |
+| 3 | [Notification Opt-In](../01-onboarding/07-notification-opt-in.md) | Notifications supported AND `Notification.permission === "default"` AND not LS-dismissed | localStorage `rhozly_notif_optin_dismissed` |
+| 4 | [PWA Install Prompt](../01-onboarding/08-pwa-install.md) | Not native / standalone / LS-flagged AND a `beforeinstallprompt` event was captured (Chrome / Edge / Android only) | localStorage `rhozly_pwa_install_dismissed`, `rhozly_pwa_installed` |
+
+Each lower card renders only when every higher card is ineligible. Note the split of stores: priorities 1-2 are DB-backed (`onboarding_state`, cross-device); priorities 3-4 are localStorage-backed (per-device).
 
 ### Wave 23.0001 — pacing engine
 
@@ -120,12 +126,12 @@ Users can re-trigger onboarding via Account Settings (planned). Today, manual SQ
 
 ### Why this matters
 
-You don't see the welcome modal twice. The getting-started checklist disappears once you've completed each step. The notification opt-in only asks once. All driven by this column.
+You don't see the welcome modal twice. The getting-started checklist disappears once you've completed every step or dismissed it. The quiz reminder honours its snooze. All driven by this column — and the dashboard only ever shows one of these promo cards at a time (the single-slot cascade above).
 
 ### Implications
 
-- If you reinstall Rhozly natively, the column persists across devices (DB-backed, not localStorage).
-- Some surfaces use both jsonb + localStorage (PWA) for belt-and-braces.
+- If you reinstall Rhozly natively, this column persists across devices (DB-backed, not localStorage).
+- The notification opt-in and PWA install cards are the exception: they persist only to localStorage, so their dismissals are per-device and reset if you clear browser data.
 
 ---
 
@@ -139,7 +145,9 @@ You don't see the welcome modal twice. The getting-started checklist disappears 
 ## Code references for ongoing maintenance
 
 - `supabase/migrations/20260516000000_add_onboarding_state.sql`
-- `src/App.tsx` — onboarding state reads + writes
+- `src/App.tsx` — onboarding state reads + writes; single-slot promo card cascade + quiz prompt snooze
+- `src/components/GettingStartedChecklist.tsx` — `getting_started_checklist` dismissal + `onVisibilityChange`
+- `src/components/NotificationOptInCard.tsx` / `src/components/InstallPwaPrompt.tsx` — localStorage-only cards
 - `src/onboarding/types.ts` — `OnboardingState`, `FlowDef`, `FlowStatus` typings
 - `src/onboarding/signals.ts` — `recordSignal`, `recordOnboardingSignal`, `isFlowDone`, `isSameLocalDay`
 - `src/onboarding/useAutoTrigger.ts` — throttle + prerequisite + triggerSignal eligibility check

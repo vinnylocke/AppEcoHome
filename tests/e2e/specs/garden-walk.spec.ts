@@ -159,7 +159,7 @@ test.describe("Garden Walk — hierarchical route (RHO-17)", () => {
     // navigate away, leaving the session open).
     await walk.sectionContinue.click();
     await expect(walk.anyCard.first()).toBeVisible({ timeout: 10000 });
-    await authenticatedPage.goto("/dashboard?view=overview");
+    await authenticatedPage.goto("/dashboard");
 
     // Relaunch → same-day open session → resume prompt.
     await authenticatedPage.getByTestId("dash-garden-walk").click();

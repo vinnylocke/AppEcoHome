@@ -164,7 +164,7 @@ No difference.
 
 ## Related reference files
 
-- [Dashboard Tab](./01-dashboard-tab.md)
+- [Home (Main Dashboard)](./17-home-main.md)
 - [Weather Tab](./04-weather-tab.md)
 - [Weather (cross-cutting)](../99-cross-cutting/27-weather.md)
 - [Cron Jobs (cross-cutting)](../99-cross-cutting/11-cron-jobs.md)

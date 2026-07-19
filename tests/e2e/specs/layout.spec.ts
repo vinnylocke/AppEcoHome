@@ -43,13 +43,15 @@ test.describe("Global layout — navigation (Section 16)", () => {
   test("NAV-003: Navigating to a route updates the URL correctly", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/dashboard");
 
-    // Click the Plant Doctor nav item and verify URL
+    // Click the Tools nav item and verify URL. (There is no desktop nav button
+    // named "Plant Doctor" — the doctor lives under Tools on desktop and has
+    // its own bottom-bar tab on mobile, covered by NAV-009.)
     await authenticatedPage
-      .getByRole("button", { name: "Plant Doctor" })
+      .getByRole("button", { name: "Tools" })
       .first()
       .click();
 
-    await expect(authenticatedPage).toHaveURL("/doctor", { timeout: 8000 });
+    await expect(authenticatedPage).toHaveURL("/tools", { timeout: 8000 });
   });
 
   test("NAV-004: Navigating back to /dashboard works from another route", async ({ authenticatedPage }) => {
@@ -114,31 +116,48 @@ test.describe("Global layout — navigation (Section 16)", () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
+  test("NAV-009: Bottom tab bar navigates between core screens on mobile viewport", async ({ authenticatedPage }) => {
+    await authenticatedPage.setViewportSize({ width: 375, height: 812 });
+    await authenticatedPage.goto("/dashboard");
+
+    const bar = authenticatedPage.getByTestId("bottom-tab-bar");
+    await expect(bar).toBeVisible({ timeout: 10000 });
+
+    // Plant Doctor is a first-class tab on mobile — one tap to /doctor.
+    await authenticatedPage.getByTestId("bottom-tab-doctor").click();
+    await expect(authenticatedPage).toHaveURL("/doctor", { timeout: 8000 });
+    await expect(authenticatedPage.getByTestId("bottom-tab-doctor")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
+    // And back home; the active state follows.
+    await authenticatedPage.getByTestId("bottom-tab-dashboard").click();
+    await expect(authenticatedPage).toHaveURL("/dashboard", { timeout: 8000 });
+    await expect(authenticatedPage.getByTestId("bottom-tab-dashboard")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  test("NAV-010: Bottom tab bar is hidden on desktop viewport", async ({ authenticatedPage }) => {
+    await authenticatedPage.setViewportSize({ width: 1280, height: 800 });
+    await authenticatedPage.goto("/dashboard");
+
+    // md:hidden — the sidebar owns desktop navigation.
+    await expect(authenticatedPage.getByTestId("bottom-tab-bar")).toBeHidden();
+  });
+
   test("NAV-007: Sign Out button is accessible from the nav", async ({ authenticatedPage }) => {
     // Fixture already lands at a fully-loaded /dashboard — no re-navigation needed.
-    // A redundant goto("/dashboard") here re-triggers the auth/home-load race.
-    const signOutButton = authenticatedPage.getByRole("button", { name: /Sign Out/i }).first();
-    const isVisible = await signOutButton.isVisible({ timeout: 8000 }).catch(() => false);
+    // The profile trigger is a real button ("Account menu") since the design
+    // overhaul; opening it reveals the Sign Out action.
+    const trigger = authenticatedPage.getByTestId("user-profile-trigger");
+    await expect(trigger).toBeVisible({ timeout: 8000 });
+    await trigger.click();
 
-    // Sign out may be in a dropdown — check if visible directly or via a profile/menu button
-    if (!isVisible) {
-      // Try opening any account/profile menu
-      const profileBtn = authenticatedPage
-        .getByRole("button", { name: /profile|account|user/i })
-        .first();
-      if (await profileBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await profileBtn.click();
-        await authenticatedPage.waitForTimeout(300);
-      }
-    }
-
-    // After any menu open, sign out should now be visible or was already visible
-    const finalVisible = await authenticatedPage
-      .getByRole("button", { name: /Sign Out/i })
-      .first()
-      .isVisible({ timeout: 5000 })
-      .catch(() => false);
-
-    expect(finalVisible).toBe(true);
+    await expect(
+      authenticatedPage.getByRole("button", { name: /Sign Out/i }).first(),
+    ).toBeVisible({ timeout: 5000 });
   });
 });

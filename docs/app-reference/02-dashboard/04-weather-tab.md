@@ -214,7 +214,7 @@ No difference.
 
 ## Related reference files
 
-- [Dashboard Tab](./01-dashboard-tab.md)
+- [Home (Main Dashboard)](./17-home-main.md)
 - [Weather Alert Banner](./08-weather-alert-banner.md)
 - [Microclimate Report](../03-garden-hub/07-microclimate-report.md)
 - [Weather (cross-cutting)](../99-cross-cutting/27-weather.md)

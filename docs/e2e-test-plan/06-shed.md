@@ -3,7 +3,9 @@
 **Spec files:** `tests/e2e/specs/plants.spec.ts` · `tests/e2e/specs/shed-crud.spec.ts` · `tests/e2e/specs/shed-discovery.spec.ts` · `tests/e2e/specs/plant-edit-assignment.spec.ts` · `tests/e2e/specs/instance-edit-tabs.spec.ts` · `tests/e2e/specs/favourites.spec.ts`
 **Page Objects:** `tests/e2e/pages/ShedPage.ts` · `tests/e2e/pages/PlantEditPage.ts` · `tests/e2e/pages/PlantAssignmentPage.ts` · `tests/e2e/pages/BulkAssignPage.ts` · `tests/e2e/pages/InstanceEditPage.ts`
 **Seed dependencies:** `01_locations_areas.sql`, `02_plants_shed.sql`, `13_ai_freshness.sql` (AI-source lock case), `15_favourites.sql` (favourites fixtures + W1 second home)
-**App-reference:** [03-garden-hub/02-shed-plants.md](../app-reference/03-garden-hub/02-shed-plants.md)
+**App-reference:** [03-garden-hub/01-the-shed.md](../app-reference/03-garden-hub/01-the-shed.md)
+
+> **Design overhaul Phase 4.3 (2026-07):** the Shed toolbar collapsed to a single sticky row — the source/sort selects and smart-filter chips now live behind a **Filters** disclosure (`shed-filters-btn` → `shed-filters-panel`, with a real active-filter count badge), and the per-card ghost icons (layout / light / Ask AI / archive / delete) moved into a **kebab menu** (`plant-card-kebab-{id}` → `plant-card-menu-{id}`, `role=menu`) next to the favourite heart. All original aria-labels and menu-item testids are preserved, so existing locators still resolve once the container is open. `ShedPage` gained `filtersButton` / `filtersPanel` locators plus `openFilters()` and `openCardMenu(name)` helpers; specs call `openFilters()` before any source/sort select interaction and `openCardMenu()` before every archive/restore/delete/light click (~15 sites, incl. the favourites Snapdragon flows and the SHED-BULK-004 cleanup loop, which now gates on card visibility before opening the menu). Unphotographed plants render a genus-tinted `PlantInitialTile` (`plant-initial-tile`) instead of the old shared Unsplash forest photo.
 
 ## Navigation + basic render
 
@@ -20,15 +22,15 @@
 |---|---|---|---|---|
 | SHED-MOBILE-001 | ✅ | Phone-portrait (390×844): "Find a plant" + Bulk add both visible (regression: bulk add was `hidden sm:flex`) | — | ✅ Passing |
 | SHED-SOIL-001 | ✅ | Plant edit modal → "Soil Needs" tab renders the sensor-requirements list or empty state | — | ✅ Passing |
-| SHED-005 | ✅ | Active tab default | — | ✅ Passing |
-| SHED-006 | ✅ | Archived tab shows Mint | — | ✅ Passing |
+| SHED-005 | ✅ | Active pill is the default (Active\|Archived pills sit in the single sticky toolbar) | — | ✅ Passing |
+| SHED-006 | ✅ | Archived pill (toolbar) shows Mint | — | ✅ Passing |
 | SHED-007 | ✅ | Active plants absent from Archived | — | ✅ Passing |
-| SHED-008..009 | ✅ | Filter by source (Manual / API) | — | ✅ Passing |
-| SHED-010 | ✅ | Search matching ("Tomato") | — | ✅ Passing |
-| SHED-011 | ❌ | Search no-match ("xyzqwerty") → empty state | — | ✅ Passing |
-| SHED-012 | ✅ | Clear search restores plants | — | ✅ Passing |
-| SHED-013 | ✅ | Case-insensitive search ("tomato") | — | ✅ Passing |
-| SHED-014 | ✅ | Partial match ("Bos" → "Boston Fern") | — | ✅ Passing |
+| SHED-008..009 | ✅ | Filter by source (Manual / API) — the select now sits inside the Filters panel: `openFilters()` → "Filter by source" (aria-label unchanged) | — | ✅ Passing |
+| SHED-010 | ✅ | Search matching ("Tomato") — toolbar search input, aria-label unchanged | — | ✅ Passing |
+| SHED-011 | ❌ | Search no-match ("xyzqwerty") → empty state (toolbar search) | — | ✅ Passing |
+| SHED-012 | ✅ | Clear search restores plants (toolbar search) | — | ✅ Passing |
+| SHED-013 | ✅ | Case-insensitive search ("tomato") (toolbar search) | — | ✅ Passing |
+| SHED-014 | ✅ | Partial match ("Bos" → "Boston Fern") (toolbar search) | — | ✅ Passing |
 
 ## Add plants
 
@@ -54,7 +56,7 @@ The "Bulk add" header button opens `BulkPastePlantsModal`, which now has a **mod
 | SHED-BULK-001 | ✅ | Bulk add opens with a mode toggle (Paste / Upload CSV) | — | ✅ Passing |
 | SHED-BULK-002 | ✅ | CSV mode "Download template" downloads `rhozly-plants-template.csv` | — | ✅ Passing |
 | SHED-BULK-003 | ✅ | CSV upload renders review rows; bad row (watering min>max) flagged + excluded, save counts only valid rows | — | ✅ Passing |
-| SHED-BULK-004 | ✅ | Import valid CSV rows creates manual plants; `favourite=true` row lands in the Favourites scope | — | ✅ Passing |
+| SHED-BULK-004 | ✅ | Import valid CSV rows creates manual plants; `favourite=true` row lands in the Favourites scope. Post-import cleanup loop gates on each card being visible, then deletes via the kebab (`openCardMenu`) | — | ✅ Passing |
 | SHED-BULK-005 | ✅ | Free-text paste still reaches the shared review step (with "Mark all as favourites" toggle) | — | ✅ Passing |
 
 ## Plant card actions
@@ -63,16 +65,16 @@ The "Bulk add" header button opens `BulkPastePlantsModal`, which now has a **mod
 |---|---|---|---|---|
 | SHED-022 | ✅ | Card click opens PlantEditModal | — | ✅ Passing |
 | SHED-023 | ✅ | PlantEditModal close | — | ✅ Passing |
-| SHED-023b | ✅ | Tile light icon opens Light tab (not Sun Tracker) | — | ✅ Passing |
+| SHED-023b | ✅ | "Light needs" via the card kebab (`openCardMenu` → `plant-card-light-*`) opens the Light tab (not Sun Tracker) | — | ✅ Passing |
 | SHED-023c | ✅ | Delete plant with instances → "Keep history" vs "Delete everything" modal | — | ✅ Passing |
 | SHED-023d | ✅ | Bulk delete — same choice modal | — | ✅ Passing |
 | SHED-023e | ✅ | Bulk assign — modal opens with per-plant qty inputs | — | ✅ Passing |
-| SHED-024 | ✅ | Archive plant happy path | — | ✅ Passing |
-| SHED-025 | ✅ | Archive cancel keeps Tomato in Active (Tomato chosen because Lavender + Cherry Tomato have AI freshness forks that duplicate names) | — | ✅ Passing |
-| SHED-026 | ✅ | Restore archived Mint | — | ✅ Passing |
-| SHED-027 | ✅ | Delete plant happy path | — | ✅ Passing |
-| SHED-028 | ✅ | Cancel on delete dialog leaves plant in list (handles the bulk-delete-with-instances choice dialog for Rose) | — | ✅ Passing |
-| SHED-029 | ❌ | Delete plant with inventory items — dialog warns about cascade | — | ✅ Passing |
+| SHED-024 | ✅ | Archive plant happy path — Archive lives in the card kebab (`openCardMenu` first; aria-label `Archive {name}` unchanged) | — | ✅ Passing |
+| SHED-025 | ✅ | Archive cancel keeps Tomato in Active — via the kebab (Tomato chosen because Lavender + Cherry Tomato have AI freshness forks that duplicate names) | — | ✅ Passing |
+| SHED-026 | ✅ | Restore archived Mint via the kebab (`openCardMenu` → `Restore Mint`); cleanup re-archives the same way | — | ✅ Passing |
+| SHED-027 | ✅ | Delete plant happy path — Delete lives in the card kebab (`openCardMenu` first) | — | ✅ Passing |
+| SHED-028 | ✅ | Cancel on delete dialog leaves plant in list — delete opened via Rose's kebab (handles the bulk-delete-with-instances choice dialog for Rose) | — | ✅ Passing |
+| SHED-029 | ❌ | Delete plant with inventory items — via Boston Fern's kebab; dialog warns about cascade | — | ✅ Passing |
 | SHED-030 | ✅ | Assign opens modal | — | ✅ Passing |
 | SHED-031 | ✅ | Assign — select location + area + Save → Planted | — | ✅ Passing |
 | SHED-032 | ✅ | Assign cancel keeps status | — | ✅ Passing |
@@ -85,10 +87,21 @@ The "Bulk add" header button opens `BulkPastePlantsModal`, which now has a **mod
 | SHED-DSC-001 | ✅ | `/shed?tab=watchlist` switches GardenHub to Watchlist; plants grid hidden | — | ✅ Passing |
 | SHED-DSC-002 | ✅ | `shed-view-nursery` toggle hides plant grid + search | — | ✅ Passing |
 | SHED-DSC-003 | ✅ | Scientific-name search ("Solanum") matches Tomato | — | ✅ Passing |
-| SHED-DSC-004 | ✅ | Sort A-Z is the default and renders alphabetically | — | ✅ Passing |
-| SHED-DSC-005 | ✅ | Source filter "Plant Database" narrows to api-source (Lavender) | — | ✅ Passing |
-| SHED-DSC-006 | ✅ | "All Sources" restores manual plants | — | ✅ Passing |
+| SHED-DSC-004 | ✅ | Sort A-Z is the default and renders alphabetically — sort select read inside the Filters panel (`openFilters()` first) | — | ✅ Passing |
+| SHED-DSC-005 | ✅ | Source filter "Plant Database" narrows to api-source (Lavender) — inside the Filters panel (`openFilters()` first) | — | ✅ Passing |
+| SHED-DSC-006 | ✅ | "All Sources" restores manual plants — `openFilters()` before each select interaction (helper is idempotent via `aria-expanded`) | — | ✅ Passing |
 | SHED-DSC-007 | ⏭ | Credit badge popover shows source + licence — skipped (no api image credits in current seed) | — | ⏭ Skipped |
+
+## Phase 4.3 surface — Filters disclosure, card kebab, placeholder tile
+
+The redesigned chrome is exercised indirectly by every row above that goes through `openFilters()` / `openCardMenu()`, but the new surface itself deserves direct coverage:
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| SHED-P43-001 | ✅ | Card kebab (`plant-card-kebab-{id}`) opens its menu (`plant-card-menu-{id}`, `role=menu` visible, `aria-expanded=true`); clicking the backdrop or re-clicking the kebab closes it | — | 🔲 Planned |
+| SHED-P43-002 | ✅ | Filters button shows a real active-filter count badge: source=Manual → "1", + smart chip → "2", reset to defaults → badge gone | — | 🔲 Planned |
+| SHED-P43-003 | ✅ | `openFilters()` discloses `shed-filters-panel` with the source + sort selects and smart chips (All / Unassigned / In a plan, zero-count chips disabled); the old "Quick filters:" label is gone | — | 🔲 Planned |
+| SHED-P43-004 | ✅ | Plant with no `thumbnail_url` renders the genus-tinted `plant-initial-tile` (initial glyph, no shared fallback photo); a plant with a photo does not | — | 🔲 Planned |
 
 ## Plant edit + assignment (`plant-edit-assignment.spec.ts`)
 
@@ -109,7 +122,7 @@ Cross-Home Favourites Phase 1 (2026-07-03). Fixtures: `15_favourites.sql` (0017 
 | FAV-001 | ✅ | `/shed?scope=favourites` deep link → Favourites scope; seeded Tomato (live ref) + Snapdragon (tombstone) render; hint banner shows + dismisses | — | ✅ Passing |
 | FAV-002 | ✅ | Heart a Home-tab plant → appears in Favourites; remove cleans up + unfills the heart | — | ✅ Passing |
 | FAV-003 | ✅ | Seeded Tomato favourite — heart pre-filled on Home tab, "In this home" on Favourites (dedupe) | — | ✅ Passing |
-| FAV-004 | ✅ | "Add to this home" copies the tombstone (Snapdragon) into the active home → flips to "In this home" + appears on Home tab | — | ✅ Passing |
+| FAV-004 | ✅ | "Add to this home" copies the tombstone (Snapdragon) into the active home → flips to "In this home" + appears on Home tab. Pre-test leftover sweep + post-test cleanup both delete the Snapdragon copy via its card kebab (`openCardMenu`) | — | ✅ Passing |
 | FAV-005 | ✅ | Tier lock — forced Sprout sees disabled hearts on api (Lavender) + ai (Cherry Tomato) plants with upsell tooltip; manual heartable | Sprout profile route patch | ✅ Passing |
 | FAV-006 | ✅ | Home-switch persistence (W1 only) — favourites identical after switch to Rooftop Terrace; Fig flips to "In this home"; Home tab re-roots | — | ✅ Passing (W1); skipped on W2–W4 |
 
@@ -132,3 +145,5 @@ Instance detail → Photos tab (`PhotoTimelineTab.tsx`). Observations come from 
 | PTO-003 | ✅ | `create_task` Apply (`photo-action-apply`) inserts a one-off task (due = today + `due_in_days`, linked to the plant + its area) and writes `status: applied` + `applied_task_id` into the actions jsonb | same seed | 🔲 Pending (validation covered by SJP-011..017) |
 | PTO-004 | ✅ | Dismiss (`photo-action-dismiss`) writes `status: dismissed`; both Apply and Dismiss insert an `ai_feedback` row (`function_name: scan-journal-photos`, rating ±1) | same seed | 🔲 Pending |
 | PTO-005 | ✅ | Sub-Sage tier sees `photo-observation-upsell` line instead of observations when journal photos exist | Sprout profile route patch | 🔲 Pending |
+
+> **2026-07-19 selector fix:** six spec sites waited for a "Save to Shed" button that was relabelled "Add to Shed" in an earlier sprint — the whole SHED-015..027 manual-add family was retry-flaky because of it. Specs now match the real label; the tests pass first-try.

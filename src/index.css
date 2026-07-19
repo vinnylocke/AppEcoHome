@@ -1,22 +1,173 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+/* Self-hosted variable fonts are imported in src/main.tsx (full weight axes,
+   so font-black renders real weights instead of browser-synthesised faux
+   bold). They cannot be @imported here: Tailwind's PostCSS inliner keeps the
+   package-relative url(./files/…) paths, which break at runtime. */
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Plus Jakarta Sans", sans-serif;
-  --font-body: "Inter", sans-serif;
-  --font-sans:
-    "Inter", sans-serif; /* 🚀 Tells Tailwind to use Inter as the default sans */
+  --font-display: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-body: "Inter Variable", "Inter", system-ui, sans-serif;
+  --font-sans: "Inter Variable", "Inter", system-ui, sans-serif;
 
+  /* ---- Brand colours (Rhozly-Brand-Guidelines.pdf v1.0) ---- */
   --color-rhozly-bg: #faf9f7;
   --color-rhozly-surface-low: #f4f3f1;
   --color-rhozly-surface: #efeeec;
   --color-rhozly-surface-lowest: #ffffff;
   --color-rhozly-primary: #075737;
   --color-rhozly-primary-container: #2a704d;
+  --color-rhozly-deep: #063d28;
+  --color-rhozly-tint: #e6efe9;
   --color-rhozly-tertiary: #ffdad8;
   --color-rhozly-on-surface: #1a1c1b;
+  --color-rhozly-on-surface-variant: #454a47;
   --color-rhozly-outline: rgba(26, 28, 27, 0.15);
   --color-rhozly-error: #b91c1c;
+
+  /* ---- Functional status families (brand recipe: fill = 50, line = 200,
+     ink = 700, ink-strong = 800). One family per meaning — see DESIGN.md. ---- */
+  --color-status-weather-fill: #fffbeb;
+  --color-status-weather-line: #fde68a;
+  --color-status-weather-ink: #b45309;
+  --color-status-weather-ink-strong: #92400e;
+  --color-status-caution-fill: #fff7ed;
+  --color-status-caution-line: #fed7aa;
+  --color-status-caution-ink: #c2410c;
+  --color-status-caution-ink-strong: #9a3412;
+  --color-status-water-fill: #eff6ff;
+  --color-status-water-line: #bfdbfe;
+  --color-status-water-ink: #1d4ed8;
+  --color-status-water-ink-strong: #1e40af;
+  --color-status-sensor-fill: #f0f9ff;
+  --color-status-sensor-line: #bae6fd;
+  --color-status-sensor-ink: #0369a1;
+  --color-status-sensor-ink-strong: #075985;
+  --color-status-success-fill: #ecfdf5;
+  --color-status-success-line: #a7f3d0;
+  --color-status-success-ink: #047857;
+  --color-status-success-ink-strong: #065f46;
+  --color-status-ai-fill: #f5f3ff;
+  --color-status-ai-line: #ddd6fe;
+  --color-status-ai-ink: #6d28d9;
+  --color-status-ai-ink-strong: #5b21b6;
+  --color-status-watch-fill: #fff1f2;
+  --color-status-watch-line: #fecdd3;
+  --color-status-watch-ink: #be123c;
+  --color-status-watch-ink-strong: #9f1239;
+  --color-status-danger-fill: #fef2f2;
+  --color-status-danger-line: #fecaca;
+  --color-status-danger-ink: #b91c1c;
+  --color-status-danger-ink-strong: #991b1b;
+
+  /* ---- Radii (brand: cards 16-24px, controls 16px, chips 6-8px, pills full) ---- */
+  --radius-card: 1.5rem;
+  --radius-control: 1rem;
+  --radius-chip: 0.5rem;
+
+  /* ---- Elevation — green-tinted shadow ramp (never neutral-black shadows;
+     promoted from the hand-rolled rgba(7,87,55,…) one-offs) ---- */
+  --shadow-card: 0 1px 2px rgba(7, 87, 55, 0.05), 0 2px 12px -4px rgba(7, 87, 55, 0.08);
+  --shadow-raised: 0 2px 4px rgba(7, 87, 55, 0.06), 0 8px 22px -8px rgba(7, 87, 55, 0.18);
+  --shadow-overlay: 0 8px 22px -8px rgba(7, 87, 55, 0.28), 0 32px 80px -12px rgba(7, 87, 55, 0.25);
+
+  /* ---- Motion ---- */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-sparkle: rhozly-sparkle 1.8s ease-in-out infinite;
+
+  /* ---- Micro type steps (sanctioned replacements for text-[10px]/text-[11px]) ---- */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 0.875rem;
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 0.8125rem;
+}
+
+/* Interaction gate: hover styles only where a real pointer exists, so taps on
+   touch screens never leave sticky hover states. Usage: can-hover:hover:… */
+@custom-variant can-hover (@media (hover: hover) and (pointer: fine));
+
+/* =========================================
+   ✨ ENTRANCE ANIMATIONS
+   The app uses the tailwindcss-animate idiom (`animate-in fade-in zoom-in-95
+   slide-in-from-bottom-4 …`) in ~300 places, but the plugin was never
+   installed — these utilities implement the same contract natively.
+   `duration-*` / `ease-*` compose via Tailwind v4's --tw-duration / --tw-ease.
+========================================= */
+/* Four-point sparkle for AI signature moments (SparkleAccent) — scale+rotate
+   only, killed by the reduced-motion block like every other animation. */
+@keyframes rhozly-sparkle {
+  0%,
+  100% {
+    transform: scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1) rotate(90deg);
+    opacity: 1;
+  }
+}
+
+@keyframes rhozly-enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)
+      scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), 1)
+      rotate(var(--tw-enter-rotate, 0));
+  }
+}
+
+@utility animate-in {
+  animation: rhozly-enter var(--tw-duration, 150ms) var(--tw-ease, var(--ease-out-quart));
+  --tw-enter-opacity: initial;
+  --tw-enter-scale: initial;
+  --tw-enter-rotate: initial;
+  --tw-enter-translate-x: initial;
+  --tw-enter-translate-y: initial;
+}
+@utility fade-in {
+  --tw-enter-opacity: 0;
+}
+@utility fade-in-* {
+  --tw-enter-opacity: calc(--value(integer) / 100);
+}
+@utility zoom-in {
+  --tw-enter-scale: 0;
+}
+@utility zoom-in-* {
+  --tw-enter-scale: calc(--value(integer) / 100);
+}
+@utility slide-in-from-top {
+  --tw-enter-translate-y: -100%;
+}
+@utility slide-in-from-top-* {
+  --tw-enter-translate-y: calc(var(--spacing) * --value(integer) * -1);
+}
+@utility slide-in-from-bottom {
+  --tw-enter-translate-y: 100%;
+}
+@utility slide-in-from-bottom-* {
+  --tw-enter-translate-y: calc(var(--spacing) * --value(integer));
+}
+@utility slide-in-from-left {
+  --tw-enter-translate-x: -100%;
+}
+@utility slide-in-from-left-* {
+  --tw-enter-translate-x: calc(var(--spacing) * --value(integer) * -1);
+}
+@utility slide-in-from-right {
+  --tw-enter-translate-x: 100%;
+}
+@utility slide-in-from-right-* {
+  --tw-enter-translate-x: calc(var(--spacing) * --value(integer));
+}
+
+/* Brand gradients (Rhozly-Brand-Guidelines.pdf: immersive header deep→primary;
+   soft variant matches the existing hero-card / Shepherd theme gradient). */
+@utility bg-brand-gradient {
+  background-image: linear-gradient(135deg, var(--color-rhozly-deep), var(--color-rhozly-primary));
+}
+@utility bg-brand-gradient-soft {
+  background-image: linear-gradient(135deg, var(--color-rhozly-primary), var(--color-rhozly-primary-container));
 }
 
 .scrollbar-none {

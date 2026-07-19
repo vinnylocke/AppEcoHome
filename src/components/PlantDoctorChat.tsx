@@ -1058,8 +1058,9 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
 
   return (
     <>
-      {/* Floating Action Button — pulsing ring on first visit */}
-      <div className="fixed bottom-6 right-6 z-40">
+      {/* Floating Action Button — pulsing ring on first visit. Sits above the
+          mobile BottomTabBar (bottom-20); back to the corner on desktop. */}
+      <div className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-40">
         {showPulse && !isOpen && (
           <>
             <span className="absolute inset-0 rounded-full bg-rhozly-primary/40 animate-ping" aria-hidden="true" />

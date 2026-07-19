@@ -1,8 +1,8 @@
 # Daily Brief Card
 
-> The hero card at the top of the Dashboard. Time-of-day greeting + a synthesised one-liner about today + tappable stat chips for tasks / weather / sun / frost + a footer with zone, microclimate, and "ask AI" CTAs.
+> The hero card at the top of the Dashboard's **Detailed** density. Time-of-day greeting + a synthesised one-liner about today + tappable stat chips for tasks / weather / sun / frost + a footer with zone, microclimate, and "ask AI" CTAs.
 
-**Route:** rendered inline on `/dashboard?view=dashboard`
+**Route:** rendered as the hero of the merged home's **Detailed density** (`/dashboard`, [Home (Main Dashboard)](./17-home-main.md)) — it replaces the Simple-density status strip (one greeting, never both). Mounted by `HomeMain.tsx` since the Overview merge (Phase 4.2).
 **Source file:** `src/components/DailyBriefCard.tsx`
 
 ---
@@ -215,7 +215,7 @@ No difference.
 
 ## Related reference files
 
-- [Dashboard Tab](./01-dashboard-tab.md)
+- [Home (Main Dashboard)](./17-home-main.md) — hosts this card as the Detailed-density hero
 - [Calendar Tab](./03-calendar-tab.md)
 - [Weather Tab](./04-weather-tab.md)
 - [Sun Tracker AR](../03-garden-hub/08-sun-tracker-ar.md)
@@ -225,4 +225,4 @@ No difference.
 
 - `src/components/DailyBriefCard.tsx` — entire component
 - `node_modules/suncalc` — sun events library
-- `src/App.tsx` — passes props in
+- `src/components/home/HomeMain.tsx` — mounts the card (Detailed density) and passes props in (state originates in `src/App.tsx`)

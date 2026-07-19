@@ -8,7 +8,7 @@
     0 0 0 1px rgba(7, 87, 55, 0.10) !important;
   border: none !important;
   max-width: 380px !important;
-  font-family: 'Inter', sans-serif !important;
+  font-family: var(--font-body) !important;
   /* Stay sharp while the app blurs behind it */
   filter: none !important;
   z-index: 9999 !important;
@@ -22,13 +22,13 @@
 }
 
 .shepherd-header {
-  background: linear-gradient(135deg, #075737 0%, #2a704d 100%) !important;
+  background: linear-gradient(135deg, var(--color-rhozly-primary), var(--color-rhozly-primary-container)) !important;
   padding: 1rem 1.25rem 0.875rem !important;
   border-radius: 0 !important;
 }
 
 .shepherd-title {
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-family: var(--font-display) !important;
   font-weight: 900 !important;
   font-size: 0.9375rem !important;
   color: #ffffff !important;
@@ -101,7 +101,7 @@
 /* Buttons */
 .shepherd-button {
   border-radius: 0.75rem !important;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-family: var(--font-display) !important;
   font-weight: 900 !important;
   font-size: 0.8125rem !important;
   padding: 0.5rem 1.25rem !important;
@@ -111,7 +111,7 @@
 }
 
 .shepherd-button-primary {
-  background: linear-gradient(135deg, #075737 0%, #2a704d 100%) !important;
+  background: linear-gradient(135deg, var(--color-rhozly-primary), var(--color-rhozly-primary-container)) !important;
   color: #ffffff !important;
 }
 

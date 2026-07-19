@@ -94,30 +94,34 @@ export const flowRegistry: FlowDef[] = [
     trigger: "automatic",
     route: "/dashboard",
     title: "The Home Dashboard",
-    description: "Today Focus, Week Ahead, weather, and your daily task list.",
+    description: "Your status strip, garden overview, quick actions, and daily task list.",
     category: "Getting Started",
     estimated_minutes: 2,
+    // Anchors target the merged home (Phase 4.2) in its default Simple
+    // density — new users (the tour audience) always land there.
     steps: [
       {
-        title: "Three views in one",
-        body: "This switcher lets you jump between your location overview, a full task calendar, and a 7-day weather forecast. You're on Locations view right now.",
+        title: "Four views in one",
+        body: "This switcher jumps between your home dashboard, a location overview, a full task calendar, and a 7-day weather forecast.",
         attachTo: { element: "[data-testid='dashboard-view-switcher']", on: "bottom" },
         image: "/assets/onboarding/dashboard-view-switcher.png",
       },
       {
-        title: "Today's weather",
-        body: "This card shows the current temperature, humidity, and wind speed for your area. Tap 'Full Forecast' to see the 7-day outlook with garden-specific insights like frost warnings and heavy rain alerts.",
-        attachTo: { element: "[data-testid='dashboard-weather-widget']", on: "bottom" },
+        title: "Your day at a glance",
+        body: "The status strip greets you with today's weather, how many tasks are done, anything overdue, and a frost warning when tonight turns cold. Tap any chip to jump straight to it.",
+        attachTo: { element: "[data-testid='home-status-strip']", on: "bottom" },
       },
       {
-        title: "Today Focus — your priority card",
-        body: "The Today Focus card is Rhozly's answer to 'what should I do today?'. A single card summarising your priorities, weighted by weather, your quiz answers, and what's overdue.",
-        attachTo: { element: "[data-testid='today-focus-card']", on: "bottom" },
+        title: "Your garden overview",
+        body: "One card per location, with growth-state dots for every area. Tap a card to drill into that location. Flip the little toggle above to Detailed for sensor readings, stats, and the full week's numbers.",
+        // Wrapper testid exists in BOTH the populated-grid and empty-garden
+        // states — new users (this tour's audience) may have zero locations.
+        attachTo: { element: "[data-testid='home-garden-section']", on: "top" },
       },
       {
-        title: "Week Ahead at a glance",
-        body: "A compact preview of the next 7 days — task counts, weather events, sowings, and harvests. Tap to open the full Weekly Overview page.",
-        attachTo: { element: "[data-testid='dash-week-ahead-card']", on: "bottom" },
+        title: "Quick actions",
+        body: "Your most-used tools, one tap away — identify a plant, capture a photo, start a Garden Walk. Customise which tiles appear from Gardener Profile.",
+        attachTo: { element: "[data-testid='home-quick-actions']", on: "top" },
       },
       {
         title: "Seasonal Picks — what to grow right now",
@@ -127,7 +131,7 @@ export const flowRegistry: FlowDef[] = [
       {
         title: "Your daily tasks",
         body: "Rhozly generates smart care tasks for every plant in your garden — watering, pruning, harvesting, and more. Tick them off here as you go. They're based on your plant data and today's weather.",
-        attachTo: { element: "[data-testid='dashboard-task-list']", on: "top" },
+        attachTo: { element: "[data-testid='home-todays-tasks']", on: "top" },
       },
     ],
   },
@@ -152,7 +156,9 @@ export const flowRegistry: FlowDef[] = [
       {
         title: "Adding plants",
         body: "Tap Add to bring up the plant search. Type a name — Rhozly tries the library first, then offers Pl@ntNet, Perenual, Verdantly, and AI as fallbacks. No plant is too obscure.",
-        attachTo: { element: "[aria-label='Add plant']", on: "bottom" },
+        // Anchor by testid — the button's aria-label is "Find a plant"; the
+        // old "[aria-label='Add plant']" anchor had drifted and matched nothing.
+        attachTo: { element: "[data-testid='shed-add-plant-btn']", on: "bottom" },
       },
       {
         title: "Your plant cards",

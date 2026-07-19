@@ -295,7 +295,7 @@ No beta-only Calendar features.
 
 ## Related reference files
 
-- [Dashboard Tab](./01-dashboard-tab.md)
+- [Home (Main Dashboard)](./17-home-main.md)
 - [Blueprint Manager](../04-planner/07-blueprint-manager.md)
 - [Add Task Modal](../08-modals-and-overlays/01-add-task-modal.md)
 - [Task Detail Modal](../08-modals-and-overlays/02-task-modal.md)

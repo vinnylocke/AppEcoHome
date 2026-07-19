@@ -27,6 +27,7 @@
 | `rhozly_active_home` | Active home id |
 | `rhozly_pwa_install_dismissed` | PWA prompt dismissal |
 | `rhozly_pwa_installed` | Installation flag |
+| `rhozly_notif_optin_dismissed` | Notification opt-in card dismissal (its only persistence — no onboarding_state key) |
 | `rhozly_lux_calibration` | Light Sensor calibration |
 | `rhozly_exposure_offset` | Camera exposure offset |
 | `rhozly_notif_prefs` | Notification preferences |

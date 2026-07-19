@@ -1,9 +1,10 @@
 import type { Page, Locator } from "@playwright/test";
 
 /**
- * Page object for the NEW main dashboard ("Dashboard" sub-tab, ?view=home)
+ * Page object for the main dashboard ("Dashboard" sub-tab, ?view=home)
  * — docs/plans/new-home-dashboard.md. The classic dashboard's page object
- * is DashboardPage (now at ?view=overview).
+ * is DashboardPage, which now targets the same merged home in DETAILED
+ * density (the old Overview tab was merged in — Phase 4.2).
  */
 export class HomeMainPage {
   readonly page: Page;

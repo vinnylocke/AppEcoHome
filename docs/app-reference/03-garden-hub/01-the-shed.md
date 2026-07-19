@@ -9,7 +9,9 @@
 
 ## Quick Summary
 
-A grid of plant cards. Each card represents one `plants` row (a species/type, not an individual instance). Cards show common name, scientific name, source badge (Perenual / Verdantly / AI / Manual), planted count chip, and a row of action buttons (View on Layout, Light needs, Ask AI, Archive, Delete). At the top: a sticky search bar, multi-select toggle, smart filter chips (unassigned / in-plan / harvest-ready), "Find a plant" button (opens BulkSearchModal), and a "Bulk paste" entry (opens BulkPastePlantsModal, Sprint 4a 2026-06-15).
+A grid of plant cards. Each card represents one `plants` row (a species/type, not an individual instance). Cards show the plant photo — or, when `thumbnail_url` is empty, a genus-tinted **initial tile** (`PlantInitialTile`; same genus → same tint) — common name, scientific name, a source badge with a small Lucide icon (Perenual / Verdantly / Library / AI / Manual), Lucide-icon status chips, the instances count, a favourite heart, a **kebab overflow menu** (View on layout / Light needs / Ask Rhozly AI / Archive–Restore / Delete), and the Assign button.
+
+The header (design overhaul **Phase 4.3**) is a title row — "Plants" h1 + active-count badge, with the species·plants tally folded into the subtitle ("Your Shed — N species · M plants"; the old separate tally line is gone) — a background-sync spinner, and an action cluster [**Select** | icon-only **Layout** | **Find a plant** (opens BulkSearchModal) | **Bulk add** (opens BulkPastePlantsModal, Sprint 4a 2026-06-15)]. The Plants/Nursery toggle sits below it, unchanged. In the Plants view, **one sticky toolbar row** holds the Home|Favourites scope pills, the search input (flex-1), the Active|Archived pills (home scope), and a **Filters** button (`shed-filters-btn`, `aria-expanded`) carrying a real active-filter count badge; clicking it discloses a panel (`shed-filters-panel`) with the source + sort selects and the smart-filter chips.
 
 **Bulk add (Sprint 4a 2026-06-15; CSV upload RHO-4 Phase 1 2026-07-03):** the [`BulkPastePlantsModal`](../../../src/components/BulkPastePlantsModal.tsx) (header button `shed-bulk-paste-btn`, labelled **"Bulk add"** — icon-only below the `sm` breakpoint so it stays visible on a phone) has a **mode toggle**:
 
@@ -20,7 +22,7 @@ Both modes feed the **same review step**, which surfaces per-row + per-field err
 
 A **Plants / Nursery** toggle pill under the page title swaps the body to [The Nursery](./10-nursery.md) — seed packets + sowings + the plant-out lifecycle. Nursery mode hides the plant search bar and grid; seedlings graduate from the Nursery back into the Shed via the Plant Out flow.
 
-A **Home | Favourites** scope pill (above the Active/Archived pills, Plants view only) switches between the shared home-scoped grid and the user's personal, **cross-home favourites** list (Cross-Home Favourites Phase 1, 2026-07-03). "Home" is today's data unchanged; "Favourites" starts empty and follows the *user* (keyed on `user_id`, not `home_id`) so it survives home switches and leaving/joining homes. Deep link: **`/shed?scope=favourites`** — a new param; the existing GardenHub `?tab=` / `?open=` / `?query=` params are untouched. See [Cross-Home Favourites (data model)](../99-cross-cutting/03-data-model-plants.md#cross-home-favourites--user_favourite_plants) and [Tier Gating § source × tier action matrix](../99-cross-cutting/17-tier-gating.md#source--tier-action-matrix--cross-home-favourites).
+A **Home | Favourites** scope pill (first in the sticky toolbar row, ahead of the search input and the Active/Archived pills; Plants view only) switches between the shared home-scoped grid and the user's personal, **cross-home favourites** list (Cross-Home Favourites Phase 1, 2026-07-03). "Home" is today's data unchanged; "Favourites" starts empty and follows the *user* (keyed on `user_id`, not `home_id`) so it survives home switches and leaving/joining homes. Deep link: **`/shed?scope=favourites`** — a new param; the existing GardenHub `?tab=` / `?open=` / `?query=` params are untouched. See [Cross-Home Favourites (data model)](../99-cross-cutting/03-data-model-plants.md#cross-home-favourites--user_favourite_plants) and [Tier Gating § source × tier action matrix](../99-cross-cutting/17-tier-gating.md#source--tier-action-matrix--cross-home-favourites).
 
 ---
 
@@ -30,41 +32,62 @@ A **Home | Favourites** scope pill (above the Active/Archived pills, Plants view
 
 ```
 TheShed
-├── Header
-│   ├── "The Shed" title + plant count badge
-│   ├── Background sync loader (when refreshing)
-│   ├── Select multi-select toggle
-│   ├── Layout button → /garden-layout
-│   └── Add Plant button → opens BulkSearchModal
-├── Sticky search bar
-│   ├── Search input (debounced)
-│   ├── Clear button
-│   └── Smart filter chips (unassigned / harvest-ready / has ailments / in-plan)
+├── Header (Phase 4.3 — was five stacked control rows)
+│   ├── Title row
+│   │   ├── "Plants" h1 + active-count badge
+│   │   ├── Subtitle "Your Shed — N species · M plants" (the tally, folded in)
+│   │   └── Background sync loader (when refreshing)
+│   ├── Action cluster (right)
+│   │   ├── Select multi-select toggle (shed-select-mode-btn)
+│   │   ├── Icon-only Layout button (shed-open-layout-btn) → /garden-layout
+│   │   ├── Find a plant (shed-add-plant-btn, can("shed.add")) → BulkSearchModal
+│   │   └── Bulk add (shed-bulk-paste-btn, can("shed.add")) → BulkPastePlantsModal
+│   ├── Plants | Nursery toggle (shed-view-toggle — unchanged)
+│   └── Fetch-error banner ("Could not refresh — showing cached data")
+├── Sticky toolbar — ONE row, wraps on narrow phones (Plants view only)
+│   ├── Home | Favourites scope pills (shed-scope-toggle)
+│   ├── Search input (flex-1, aria-label "Search your saved plants") + clear
+│   ├── Active | Archived pills (home scope only)
+│   └── Filters button (shed-filters-btn, aria-expanded; home scope only)
+│       ├── Active-filter count badge — a REAL count (non-default source + sort + smart filter)
+│       └── Filters disclosure panel (shed-filters-panel, animate-in)
+│           ├── Source select (aria-label "Filter by source")
+│           ├── Sort select (aria-label "Sort plants")
+│           └── Smart-filter chips (shed-smart-filters → shed-filter-none / -unassigned / -in-plan;
+│               the old "Quick filters:" label was dropped)
+├── Source-badge explainer banner (one-time; Lucide Globe/Leaf/Sparkles/Pencil, no emoji;
+│   dismiss = badge-guide-dismiss, unchanged)
 ├── AssistantCard ("AI · Your shed")
 ├── Plant grid (responsive: 1/2/3/4 cols)
-│   └── PlantCard ×N
-│       ├── Image (SmartImage with fallback)
-│       ├── MultiImageGallery overlay
-│       ├── Source badge (Perenual / Verdantly / AI / Manual)
-│       ├── Action buttons (top right)
-│       │   ├── Layout (LayoutGrid icon)
-│       │   ├── Light needs (Sun icon → plant's Light tab)
-│       │   ├── Ask AI (Sparkles, Sage/Evergreen only)
-│       │   ├── Archive/Restore
-│       │   └── Delete (perm-gated)
-│       ├── Common name + scientific name
-│       ├── Contextual status chips:
-│       │   ├── Harvest ready
-│       │   ├── X overdue task(s)
-│       │   ├── X due today
-│       │   ├── X ailment(s)
-│       │   ├── Matches your taste (preference match)
-│       └── Tap to open PlantEditModal
+│   └── PlantCard ×N (root NOT overflow-hidden — the kebab menu must overflow the card)
+│       ├── Image block (h-44, rounds its own top)
+│       │   ├── SmartImage (when thumbnail_url) — lazy + async
+│       │   ├── PlantInitialTile (when no thumbnail_url — genus-tinted initial, plant-initial-tile)
+│       │   ├── MultiImageGallery overlay
+│       │   └── Bottom-left column: UpdatedChip (AI freshness) + source badge
+│       │       (Perenual / Verdantly / Library / AI / Manual, each with a Lucide icon)
+│       ├── Common name + scientific name (+ "Matches your taste")
+│       ├── Contextual status chips (Lucide icon + status-token families):
+│       │   ├── X ailment(s) — ShieldAlert, watch family
+│       │   ├── Harvest ready — Wheat, weather family
+│       │   ├── X overdue — Clock, danger family
+│       │   └── X due today — sensor family (label only)
+│       ├── Actions row (plant-card-actions-{id})
+│       │   ├── Favourite heart (favourite-plant-{id} — gating/testid/aria unchanged)
+│       │   └── Kebab (plant-card-kebab-{id}, aria-haspopup="menu" + aria-expanded)
+│       │       └── Menu (plant-card-menu-{id}, role="menu")
+│       │           ├── View on layout (plant-card-layout-{id})
+│       │           ├── Light needs (plant-card-light-{id} → plant's Light tab)
+│       │           ├── Ask Rhozly AI (plant-card-ask-ai-{id}, aiEnabled only — hidden otherwise)
+│       │           ├── Archive / Restore (can("shed.delete") only — hidden otherwise)
+│       │           └── Delete (can("shed.delete") only, danger-toned)
+│       ├── Instances footer + Assign button (unchanged)
+│       └── Tap card body to open PlantEditModal
 ├── Multi-select bottom action bar (when selectMode)
 │   ├── Bulk archive / restore
 │   ├── Bulk delete
 │   └── Cancel
-├── BulkSearchModal (when Add Plant is open)
+├── BulkSearchModal (when Find a plant is open)
 ├── PlantSourcePicker (companion plants flow)
 ├── PlantEditModal (when tapping a card)
 ├── PlantAssignmentModal (when assigning a plant to area)
@@ -76,12 +99,15 @@ TheShed
 | State | Purpose |
 |-------|---------|
 | `plants` | All `plants` rows for the home (via `useCachedShed`) |
-| `selectedPlants` | Multi-select set |
+| `selectedPlantIds` | Multi-select set |
 | `selectMode` | Whether multi-select bar is visible |
 | `searchQuery` | Filter input |
-| `filters` | Smart filter chips (unassigned/etc.) |
+| `filterSource` / `sortMode` / `smartFilter` | The three controls inside the Filters panel (source select, sort select, smart chips). `activeFilterCount` is derived from them — each non-default value counts one, driving the badge on the Filters button |
+| `filtersOpen` | Filters disclosure panel open/closed (Phase 4.3) |
+| `openMenuPlantId` | Which card's kebab menu is open (`null` = none; only one at a time) |
 | `showBulkSearch` | BulkSearchModal open |
-| `selectedPlant` | PlantEditModal target |
+| `editingPlant` / `editingPlantTab` | PlantEditModal target + the tab it opens on (`"care"` default; `"light"` from the kebab's Light needs item) |
+| `selectedPlant` | PlantAssignmentModal target (the Assign button) |
 | `bulkQueue` | Active bulk-add operations |
 | `plantTaskStatus` | Map of plant id → task status summary |
 | `isBackgroundSyncing` | Visual indicator |
@@ -157,9 +183,9 @@ Same as singular but iterating the selectedPlants set.
 
 Inserts new `inventory_items` row with `plant_id`, `home_id`, `area_id`, `status`, etc. May also create smart schedules (blueprints) if AI suggests them.
 
-#### Ask AI (Sparkles button)
+#### Ask Rhozly AI (kebab menu item)
 
-Calls `usePlantDoctor().setIsOpen(true)` with `setPageContext({ action: "Asking about a plant in the Shed", plant: {...} })`. Opens Plant Doctor chat with this plant's context loaded.
+Calls `usePlantDoctor().setIsOpen(true)` with `setPageContext({ action: "Asking about a plant in the Shed", plant: {...} })`. Opens Plant Doctor chat with this plant's context loaded. Lives in the card's kebab menu since Phase 4.3 (`plant-card-ask-ai-{id}`); aria-label unchanged (`Ask Rhozly AI about {name}`).
 
 ### Edge functions invoked
 
@@ -199,7 +225,7 @@ Tapping the chip opens the plant in Plant Edit Modal, where the full `<CareUpdat
 Scope pills **Home | Favourites** (`data-testid="shed-scope-toggle"`, buttons `shed-scope-home` / `shed-scope-favourites`). State derives from `?scope=favourites`; `switchScope` does a targeted `setSearchParams` get/set (never `setParams({})`) so it never clobbers `?tab=` etc.
 
 - **Favourite affordance (Home tab):** a heart button on each `PlantCard` (`data-testid="favourite-plant-<id>"`, `aria-pressed` reflects saved state). Fill is driven by `favouriteRefIds` — a Set of the **canonical reference ids** of the user's favourites. `handleToggleFavourite` optimistically inserts/removes via `favouritesService`. Identity = `canonicalPlantRefId(plant)` in [`src/lib/favouriteIdentity.ts`](../../../src/lib/favouriteIdentity.ts): the **global catalogue id** for AI/library forks (`forked_from_plant_id`), the row's own id otherwise. Because copy-on-write keeps referenced rows immutable, favourites need **no dedupe machinery** — a `UNIQUE (user_id, plant_id)` upsert suffices (re-favouriting refreshes the tombstone).
-- **Favourites tab:** `<FavouritePlantsGrid>` ([`src/components/favourites/FavouritePlantsGrid.tsx`](../../../src/components/favourites/FavouritePlantsGrid.tsx)) lists the user's favourites with the live joined `plants` row ("always live"); when the reference is gone (`plant_id` NULL after `ON DELETE SET NULL`) it renders from the jsonb `snapshot` **tombstone** with an "Original removed — saved copy" chip. Actions: **Add to this home** (`favourite-add-to-home-<id>`) and **Remove** (`favourite-remove-<id>`); a first-visit **hint banner** (`favourites-hint-banner`) and an empty state. Home-scope-only chrome (Select, Add Plant, Bulk paste, AssistantCard, smart filters, Active/Archived) is hidden in Favourites.
+- **Favourites tab:** `<FavouritePlantsGrid>` ([`src/components/favourites/FavouritePlantsGrid.tsx`](../../../src/components/favourites/FavouritePlantsGrid.tsx)) lists the user's favourites with the live joined `plants` row ("always live"); when the reference is gone (`plant_id` NULL after `ON DELETE SET NULL`) it renders from the jsonb `snapshot` **tombstone** with an "Original removed — saved copy" chip. Actions: **Add to this home** (`favourite-add-to-home-<id>`) and **Remove** (`favourite-remove-<id>`); a first-visit **hint banner** (`favourites-hint-banner`) and an empty state. Home-scope-only chrome (Select, Find a plant, Bulk add, AssistantCard, the Filters button + panel, Active/Archived) is hidden in Favourites.
 - **Add to this home:** `addFavouritePlantToHome` copies the favourite into the active home via the **existing `saveToShed` insert path** — zero AI/API calls, **allowed for any home member regardless of permission keys** (favouriting is personal; add-to-home is a plain member write). AI/library favourites are copied as the classic shallow fork (`source='ai'`, `forked_from_plant_id` = global id, empty overrides) + seed `user_plant_ack`. The button reads **"In this home"** (`favourite-in-home-<id>`, disabled) when `isFavouriteInHome` finds a home row that is or forks-from the reference.
 - **Copy-on-write plant edits (2026-07-03):** editing ANY **non-manual** plant (api / verdantly / ai / library) does **not** mutate the row — `PlantEditModal` presents "Save as my own copy" and calls `onForkSave` → `handleForkPlant` → `forkPlantForHomeEdit`: insert a NEW `source='manual'` row (provenance via `forked_from_plant_id`), **re-point** the home's `inventory_items` / `plant_schedules` / `seed_packets` / `plant_sprites` / `automations` from the original to the fork, then **delete** the original home row. Manual plants still edit in place. This keeps favourite references stable forever ("always live" is safe) and is why favourites carry only a tombstone snapshot. See [Data Model — Plants § copy-on-write](../99-cross-cutting/03-data-model-plants.md#copy-on-write-plant-edits-2026-07-03).
 - **Strict source × tier gating:** sources above the viewer's entitlements are **view-only** — the heart AND add-to-home are disabled with an upsell tooltip, enforced **client-side** (`isSourceLockedForTier`) AND **server-side** (a `BEFORE INSERT/UPDATE` trigger `enforce_favourite_plant_tier` on `user_favourite_plants` re-derives the source from the referenced `plants` row and compares `ai_enabled` / `enable_perenual`). See [Tier Gating § source × tier action matrix](../99-cross-cutting/17-tier-gating.md#source--tier-action-matrix--cross-home-favourites).
@@ -213,10 +239,12 @@ Scope pills **Home | Favourites** (`data-testid="shed-scope-toggle"`, buttons `s
 
 | Tier | Differences |
 |------|-------------|
-| Sprout | Add Plant flow only allows Manual entries — Perenual / Verdantly / AI sources gated. Plant Doctor "Ask AI" button hidden. |
-| Botanist | Perenual + Verdantly available; AI search + Ask AI gated. |
-| Sage | Full Add Plant flow (Perenual + Verdantly + AI). Ask AI works. AssistantCard renders. |
+| Sprout | Add Plant flow only allows Manual entries — Perenual / Verdantly / AI sources gated. The "Ask Rhozly AI" kebab menu item is hidden. |
+| Botanist | Perenual + Verdantly available; AI search + Ask Rhozly AI gated. |
+| Sage | Full Add Plant flow (Perenual + Verdantly + AI). "Ask Rhozly AI" appears in the card kebab. AssistantCard renders. |
 | Evergreen | Same as Sage. |
+
+Phase 4.3 moved the tier-gated action into the kebab menu but preserved the gating **semantics**: "Ask Rhozly AI" is *hidden* (not disabled) below Sage, exactly as its standalone Sparkles button was. The favourite heart keeps its separate disabled-with-tooltip source × tier gate (see Cross-home favourites above).
 
 ### Beta gating
 
@@ -226,10 +254,10 @@ None on TheShed surface itself; BetaFeedbackBanner sits at the global header.
 
 | Permission | Effect |
 |------------|--------|
-| `shed.add` | Add Plant button + bulk add flow |
-| `shed.delete` | Archive + Delete buttons + bulk archive/delete bar |
+| `shed.add` | "Find a plant" button + bulk add flow |
+| `shed.delete` | Archive/Restore + Delete items in the card kebab menu + bulk archive/delete bar |
 
-If lacking permissions, the buttons are hidden.
+If lacking permissions, the controls are hidden — the kebab menu simply omits the Archive/Restore and Delete items rather than greying them out (the same hidden-vs-disabled semantics as the pre-4.3 standalone buttons).
 
 **Favourites are ungated by permission keys:** favouriting/unfavouriting is personal (no `PermissionKey`), and **Add to this home** is allowed for any home member regardless of `shed.add` (it's a member write, not an admin action — 2026-07-03 decision). Only the source × tier gate can block a favourite action.
 
@@ -239,14 +267,15 @@ If lacking permissions, the buttons are hidden.
 |-------|--------|
 | Shed fetch fails | "Could not refresh — showing cached data" banner with Retry |
 | Bulk add fails partway | Bulk queue shows per-plant success/fail; user can dismiss |
-| Image proxy fails | Plant added with default image; non-blocking |
-| Plant doctor chat unavailable (tier) | Sparkles button hidden |
+| Image proxy fails / plant has no image | Plant saved without a `thumbnail_url`; the card renders the genus-tinted `PlantInitialTile` (`plant-initial-tile`) instead — non-blocking. The old shared Unsplash forest-photo fallback is gone (also removed from PlantVisualiser and FavouritePlantsGrid) |
+| Plant doctor chat unavailable (tier) | "Ask Rhozly AI" kebab menu item hidden |
 
 ### Performance notes
 
 - `useCachedShed` provides instant first paint from localStorage.
-- Plant card images use `loading="lazy"` + `decoding="async"`.
+- Plant card images use `loading="lazy"` + `decoding="async"` (applies when a `thumbnail_url` exists; the no-photo `PlantInitialTile` is pure CSS — a deterministic hash → tint via `plantPlaceholder.ts`, zero network requests).
 - Multi-select uses a Set for O(1) lookups.
+- Plant cards enter with a staggered cascade (`staggerStyle(index)` + `STAGGER_ENTRANCE` from `src/lib/stagger.ts` — capped 6 × 40ms, compositor-only, zeroed under reduced motion). Cards are keyed by plant id, so the entrance fires on mount only — filtering does not replay it. Both survived the Phase 4.3 card redesign unchanged. See [Design System](../99-cross-cutting/40-design-system.md).
 - Grid uses CSS grid with no virtualisation (assumes < 200 plants).
 - Search is in-memory debounced filter on the cached plants array.
 
@@ -269,10 +298,10 @@ The card-grid layout lets you scan visually. The status chips at the bottom of e
 
 #### 1. Add a new plant
 
-- Tap **Add Plant** (top right) → BulkSearchModal opens.
+- Tap **Find a plant** (top right) → BulkSearchModal opens.
 - Search by common or scientific name. Up to three sources (depending on tier) return candidate matches.
 - Pick one or many → review → confirm → plants land in your Shed.
-- The **"Bulk add"** button (next to Add Plant) is for adding many plants at once. It offers two ways in:
+- The **"Bulk add"** button (next to Find a plant) is for adding many plants at once. It offers two ways in:
   - **Paste a list** — type or paste a plant per line (e.g. you scribbled 30 plants on your phone). Sage+ gets smarter AI parsing; every tier gets a solid regex fallback.
   - **Upload CSV** — for spreadsheet people who want every field. Tap **Download template**, fill one row per plant in Excel/Sheets (only the common name is required; up to 200 rows), and upload it. This path is exact and works on every plan — no AI needed. Tick the **favourite** column (or "Mark all as favourites" on the review screen) to save rows straight to your cross-home Favourites as they import.
   - Both ways land on the same review screen, where you fix or remove any flagged rows before saving. Every plant is added as your own editable **Manual** plant — there's no database lookup, so nothing gets locked or overwritten.
@@ -298,13 +327,17 @@ Each card shows up to four chips:
 - **N ailment(s)**: active `plant_instance_ailments` rows.
 - **Matches your taste**: this plant scored high against your quiz preferences.
 
-#### 5. Use the per-card action buttons (top right of each card)
+#### 5. Use the per-card actions (heart + kebab)
 
-- **Layout** (grid icon): jumps to Garden Layout so you can place this plant.
-- **Light needs** (sun icon): opens this plant's edit modal on the **Light** tab — shows the plant's optimal lux range and, via the light reader, how close your current light is to what it needs. (Previously jumped to the Sun Tracker; the Sun Tracker is still reachable from inside the plant modal and from Tools.)
-- **Ask AI** (sparkles): opens Plant Doctor chat scoped to this plant.
-- **Archive** (box icon): hides the plant from active view without deleting.
-- **Delete** (trash): confirms first. If the plant has instances, you choose between **Keep the history** (mark them End of Life → Senescence, and archive the plant) or **Delete everything** (permanent, cascades to instances).
+Two actions stay front-and-centre on every card: the **favourite heart** (save the plant to your cross-home Favourites — see flow 6) and the **Assign** button in the footer (place it in an area). Everything else lives behind the **⋮ menu** at the right of the actions row — one tap to open, and the card stays clean:
+
+- **View on layout**: jumps to Garden Layout so you can place this plant.
+- **Light needs**: opens this plant's edit modal on the **Light** tab — shows the plant's optimal lux range and, via the light reader, how close your current light is to what it needs. (Previously jumped to the Sun Tracker; the Sun Tracker is still reachable from inside the plant modal and from Tools.)
+- **Ask Rhozly AI** (Sage/Evergreen): opens Plant Doctor chat scoped to this plant.
+- **Archive** / **Restore**: hides the plant from active view without deleting (or brings an archived one back).
+- **Delete** (shown in red): confirms first. If the plant has instances, you choose between **Keep the history** (mark them End of Life → Senescence, and archive the plant) or **Delete everything** (permanent, cascades to instances).
+
+If you don't see Ask Rhozly AI, that's a tier thing (Sage+); if Archive and Delete are missing, your household role doesn't include deleting plants. Tap anywhere outside the menu to close it.
 
 #### 6. Favourites — keep plants across every garden you tend
 
@@ -315,36 +348,44 @@ Tap the **Favourites** pill (next to **Home**) to see your personal saved list. 
 - **Old favourites still work:** if a plant you favourited was later removed or you left that garden, the card still shows what you saved (a "saved copy") so you never lose the reference.
 - **Editing a database or AI plant makes your own copy:** the built-in Perenual/Verdantly/AI plants are shared, so when you edit one Rhozly saves it as **your own copy** ("Save as my own copy") and leaves the original untouched — your instances, schedules and seed packets move onto your copy automatically. Plants you typed in yourself edit normally.
 
-#### 7. Smart filter chips
+#### 7. Filter and sort (the Filters button)
 
-- "Unassigned": plants with no `inventory_items` row (added but never planted).
-- "In a plan": plants referenced by a `plans.ai_blueprint.plant_manifest`.
-- "Harvest ready": instances ready to pick.
-- "Has ailments": plants with active ailments.
+Tap **Filters** at the right of the toolbar to fold out the filtering panel. The button carries a count badge whenever something non-default is active (a source filter, a non-A–Z sort, or a smart chip each count one) — so a "quietly filtered" grid always announces itself. Inside the panel:
+
+- **Source select** ("All Sources / Manual / Plant Database / AI"): narrow to where the plant data came from.
+- **Sort select** ("A – Z" or "Best Match", based on your quiz preferences).
+- **Smart-filter chips** — All / **Unassigned** / **In a plan**, each with a live count; a chip with nothing to show is disabled:
+  - "Unassigned": plants with no `inventory_items` row (added but never planted).
+  - "In a plan": plants referenced by a `plans.ai_blueprint.plant_manifest`.
+
+(Harvest-ready and ailment signals are **status chips on the cards**, not filters — scan for them in the grid.)
 
 ### Information on display — what every field means
 
 | Element | Meaning |
 |---------|---------|
+| Photo / initial tile | The plant's photo when it has one. With no photo, a soft tinted tile shows the plant's initial — the tint is keyed on the **genus** (scientific-name first word; common name as fallback), so a bed of *Solanum* (tomato, potato, aubergine) shares one colour and scans as a family at a glance. Same plant, same tint, forever |
 | Common name | Free text — what you call it |
 | Scientific name | Latin binomial (italic) |
-| Source badge | Where the species data came from — Perenual / Verdantly / AI / Manual |
+| Source badge | Where the species data came from — Perenual / Verdantly / Library / AI / Manual, each with a small Lucide icon (the one-time explainer banner above the grid uses Globe/Leaf/Sparkles/Pencil icons too — no emoji anywhere) |
 | Planted count chip | How many `inventory_items` rows exist for this plant |
-| Status chips | See above |
+| Status chips | Icon + colour family per signal: shield (amber "watch") for ailments, wheat sheaf for Harvest ready, clock (red "danger") for overdue, and a plain "due today" count. Labels read exactly as before — the emoji prefixes are gone |
+| Heading tally | "Your Shed — N species · M plants" — N distinct plant cards, M total instances across them |
+| Filters button badge | How many non-default filters are active right now (source + sort + smart chip) |
 | Background sync loader | Top-bar spinner showing the shed is refreshing in background |
 
 ### Tier-by-tier experience
 
 | Tier | Differences |
 |------|-------------|
-| Sprout | Add Plant offers Manual only. No AI search. No Ask AI buttons. AssistantCard hidden. **Favourites: can favourite/add-to-home only manual plants — the ♡ and "Add to this home" are disabled (view-only) on Perenual/Verdantly/AI plants a housemate added.** |
+| Sprout | Add Plant offers Manual only. No AI search. No "Ask Rhozly AI" in the card ⋮ menus. AssistantCard hidden. **Favourites: can favourite/add-to-home only manual plants — the ♡ and "Add to this home" are disabled (view-only) on Perenual/Verdantly/AI plants a housemate added.** |
 | Botanist | Add Plant offers Perenual + Verdantly + Manual. No AI. **Favourites: can act on manual + Perenual/Verdantly plants; AI plants view-only.** |
-| Sage | Full Add Plant + Ask AI + AssistantCard. **Favourites: can act on manual + AI plants; Perenual/Verdantly plants view-only** (Sage has AI, not the species database — tiers are a lattice, not a ladder). |
+| Sage | Full Add Plant + "Ask Rhozly AI" in every card ⋮ menu + AssistantCard. **Favourites: can act on manual + AI plants; Perenual/Verdantly plants view-only** (Sage has AI, not the species database — tiers are a lattice, not a ladder). |
 | Evergreen | Same as Sage, plus the species database. **Favourites: can act on every source.** |
 
 ### New user vs returning user vs power user
 
-- **Brand new user**: empty grid with a hint to add their first plant. Add Plant button is the only action that matters.
+- **Brand new user**: empty grid with a hint to add their first plant. The Find a plant button is the only action that matters.
 - **Returning user (a few plants)**: small grid; status chips do most of the navigation.
 - **Power user (50+ plants)**: search becomes critical. Smart filters narrow the view. Multi-select is the way to manage drift.
 
@@ -361,16 +402,16 @@ The BetaFeedbackBanner sits above the page (global), not Shed-specific.
 
 ### Recommended workflows
 
-- **Add a new plant from a garden-centre haul:** Add Plant → search → pick → assign to an area.
-- **End-of-season review:** Filter by "harvest ready" → harvest and archive (or delete if you're done with that variety).
-- **Check a plant's light needs:** tap the light (sun) icon on its tile → opens the Light tab → see its optimal lux range and how close your current light is. (To find a physical spot, use the Sun Tracker from the plant modal or Tools.)
-- **Quick AI consult:** tap the Sparkles button on a plant card → ask the doctor about it.
+- **Add a new plant from a garden-centre haul:** Find a plant → search → pick → assign to an area.
+- **End-of-season review:** scan the grid for the **Harvest ready** chips → harvest, then archive (or delete) via each card's ⋮ menu.
+- **Check a plant's light needs:** open the card's ⋮ menu → **Light needs** → opens the Light tab → see its optimal lux range and how close your current light is. (To find a physical spot, use the Sun Tracker from the plant modal or Tools.)
+- **Quick AI consult:** open the card's ⋮ menu → **Ask Rhozly AI** → ask the doctor about it.
 
 ### What to do if something looks wrong
 
 - **Plant count badge wrong:** pull-to-refresh. If still wrong, the `inventory_items.plant_id` may be missing — check via the InstanceEditModal.
-- **Image is broken:** the image-proxy may have failed at add-time. Open the plant card → re-pick image via the wiki picker.
-- **Ask AI button missing:** confirm you're on Sage or Evergreen tier.
+- **Card shows a coloured letter instead of a photo:** that's not broken — it's the placeholder for a plant with no photo (the image-proxy may have failed at add-time, or none was ever picked). Open the plant card → re-pick an image via the wiki picker and the photo takes over. Until then, same-genus plants deliberately share the same tint so they read as a family.
+- **Ask Rhozly AI missing from the ⋮ menu:** confirm you're on Sage or Evergreen tier.
 
 ---
 
@@ -393,7 +434,10 @@ The BetaFeedbackBanner sits above the page (global), not Shed-specific.
 
 ## Code references for ongoing maintenance
 
-- `src/components/TheShed.tsx` — entire component (incl. scope pills, heart, copy-on-write fork handler)
+- `src/components/TheShed.tsx` — entire component (incl. scope pills, heart, kebab menu, Filters disclosure, copy-on-write fork handler)
+- `src/components/ui/PlantInitialTile.tsx` — the genus-tinted no-photo tile (Phase 4.3; replaces the shared Unsplash fallback)
+- `src/lib/plantPlaceholder.ts` — pure placeholder helpers: genus key (scientific-name first word, common-name fallback), initial glyph, tint colour
+- `src/lib/garden/plantTokens.ts` — `getTokenColorForKey` stable hash → palette colour (shared with garden-layout plant tokens)
 - `src/components/favourites/FavouritePlantsGrid.tsx` — Favourites scope body
 - `src/services/favouritesService.ts` — favourite/unfavourite, add-to-home, copy-on-write fork+re-point
 - `src/lib/favouriteIdentity.ts` — pure identity / gating / fork helpers (unit-tested)

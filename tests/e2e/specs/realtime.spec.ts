@@ -104,7 +104,11 @@ test.describe("Realtime — Section 15", () => {
       return;
     }
 
-    await authenticatedPage.goto("/dashboard?view=overview");
+    // Full task list lives behind the merged home's Detailed density (Phase 4.2)
+    await authenticatedPage.addInitScript(() => {
+      try { localStorage.setItem("rhozly:home:density", "detailed"); } catch { /* ignore */ }
+    });
+    await authenticatedPage.goto("/dashboard");
     await authenticatedPage
       .locator(".animate-spin, .animate-pulse")
       .first()

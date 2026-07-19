@@ -25,7 +25,11 @@ async function assertNoXss(page: import("@playwright/test").Page) {
 
 authTest.describe("XSS — Task title", () => {
   authTest("XSS-001: XSS payload in task title is escaped", async ({ authenticatedPage: page }) => {
-    await page.goto("/dashboard?view=overview");
+    // Full task list (with its add-task affordance) lives behind Detailed density (Phase 4.2)
+    await page.addInitScript(() => {
+      try { localStorage.setItem("rhozly:home:density", "detailed"); } catch { /* ignore */ }
+    });
+    await page.goto("/dashboard");
 
     // Open the quick-add task modal or inline form
     const addTaskBtn = page.getByRole("button", { name: /add task/i }).first();

@@ -2,7 +2,7 @@
 
 > A purple gradient card showing the most recent unread insight from the pattern engine. Surfaces the AI's read on your gardening behaviour ("you usually water every 3 days but it's been 6 — heatwave?").
 
-**Rendered on:** `/dashboard?view=dashboard`, `/planner` (PlannerDashboard), `/shed` (TheShed)
+**Rendered on:** the merged home in **both densities** (`/dashboard` — [Home (Main Dashboard)](./17-home-main.md), in a `data-testid="dashboard-assistant-card"` wrapper, with `showUpgradeWhenLocked`), `/planner` (PlannerDashboard), `/shed` (TheShed)
 **Source file:** `src/components/AssistantCard.tsx`
 
 ---
@@ -38,6 +38,7 @@ AssistantCard
 |------|------|--------|---------|
 | `userId` | `string \| undefined` | Optional from parent | If omitted, the component self-resolves via `supabase.auth.getUser()` |
 | `contextLabel` | `string \| undefined` | Optional from parent | Replaces "AI Insight" with e.g. "AI · Your plans" |
+| `showUpgradeWhenLocked` | `boolean` (default `false`) | Opt-in per surface | The card wraps itself in `FeatureGate feature="ai_insights"`; when locked, the fallback is a compact `UpgradeNudge` **only if** this prop is set (RHO-2). The merged home passes it (both densities); Planner/Shed omit it, so the card hides entirely when locked there |
 
 ### Local state
 
@@ -108,12 +109,12 @@ None directly — relies on next fetch. Insights are slow-moving (1-3 per week t
 
 | Tier | Visibility |
 |------|------------|
-| Sprout | Hidden — pattern engine doesn't run for non-AI users |
-| Botanist | Hidden — same reason (no AI quota) |
+| Sprout | Locked by `FeatureGate feature="ai_insights"` — on the merged home (`showUpgradeWhenLocked`, both densities) a compact `UpgradeNudge` teaser renders; on Planner/Shed the card hides entirely |
+| Botanist | Same as Sprout |
 | Sage | Visible when at least one insight exists |
 | Evergreen | Visible same as Sage |
 
-The gating works **by data absence** — Sprout/Botanist users simply never have `user_insights` rows, so the early return `if (insights.length === 0) return null` hides the card.
+Two layers: the wrapper's `FeatureGate` (`ai_insights`) gates by tier, and data absence gates within — the pattern engine doesn't run for non-AI users, and the inner card returns `null` when `insights.length === 0`.
 
 ### Beta gating
 
@@ -215,7 +216,7 @@ Same as non-beta. The pattern engine doesn't have beta-specific paths.
 
 ## Related reference files
 
-- [Dashboard Tab](./01-dashboard-tab.md)
+- [Home (Main Dashboard)](./17-home-main.md) — hosts this card in both densities (with `showUpgradeWhenLocked`)
 - [Planner Dashboard](../04-planner/01-planner-dashboard.md)
 - [The Shed](../03-garden-hub/01-the-shed.md)
 - [Pattern Engine (cross-cutting)](../99-cross-cutting/26-pattern-engine.md)

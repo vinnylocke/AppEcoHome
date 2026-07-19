@@ -29,7 +29,7 @@ The avatar shows a yellow pulse dot when a "What's New" version is fresh (within
 
 ```
 UserProfileDropdown
-├── Trigger row (avatar, name, tier)
+├── Trigger row — a real `<button aria-label="Account menu" aria-haspopup="menu" aria-expanded>` (avatar, name, tier; `data-testid="user-profile-trigger"`; converted from a div-onClick in the design overhaul per the a11y contract)
 │   └── Pulse dot (if hasWhatsNew)
 └── Dropdown (when open)
     ├── Header card (name + email)

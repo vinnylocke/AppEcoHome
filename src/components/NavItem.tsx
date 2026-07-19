@@ -37,12 +37,17 @@ export default function NavItem({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       aria-label={isCollapsed ? (showBadge ? `${label}, ${badge} pending` : label) : undefined}
-      className={`relative flex items-center gap-4 md:gap-3 p-4 rounded-2xl w-full min-h-[44px] transition-all duration-300 group shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 ${isCollapsed ? "w-14 h-14 justify-center p-0" : ""} ${active ? "text-rhozly-primary shadow-[0_2px_8px_rgba(0,0,0,0.18)]" : "text-white/60 hover:text-white hover:bg-white/10"}`}
+      className={`relative flex items-center gap-4 md:gap-3 p-4 rounded-2xl w-full min-h-[44px] transition-colors duration-200 group shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 ${isCollapsed ? "w-14 h-14 justify-center p-0" : ""} ${active ? "bg-white/10 text-white" : "text-white/60 can-hover:hover:text-white can-hover:hover:bg-white/10 active:bg-white/15"}`}
     >
-      {active && <div className="absolute inset-0 bg-white rounded-2xl" />}
-      <div
-        className={`relative z-10 flex items-center justify-center transition-transform duration-150 ${active ? "scale-110" : "group-hover:scale-110"}`}
-      >
+      {/* Soft active treatment: left accent bar + tint, replacing the old
+          white-pill + icon-scale look so the rail reads calm at a glance. */}
+      {active && (
+        <span
+          aria-hidden
+          className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-full bg-white"
+        />
+      )}
+      <div className="flex items-center justify-center relative">
         {/* Cast: nav icons are lucide elements, which accept className. */}
         {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: "w-6 h-6" })}
         {/* Collapsed: badge sits as a small dot on the icon corner */}
@@ -56,14 +61,14 @@ export default function NavItem({
         )}
       </div>
       <span
-        className={`relative z-10 ${active ? "text-base font-black" : "text-sm font-bold"} ${isCollapsed ? "hidden" : "block"}`}
+        className={`text-sm ${active ? "font-black" : "font-bold"} ${isCollapsed ? "hidden" : "block"}`}
       >
         {label}
       </span>
       {/* Expanded: badge sits next to the label */}
       {showBadge && !isCollapsed && (
         <span
-          className={`relative z-10 ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-black flex items-center justify-center ${BADGE_TONE_CLASS[badgeTone]}`}
+          className={`ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-black flex items-center justify-center ${BADGE_TONE_CLASS[badgeTone]}`}
           aria-hidden="true"
         >
           {badgeText}

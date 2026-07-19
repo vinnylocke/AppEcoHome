@@ -14,15 +14,23 @@ const PALETTE = [
   "#0ea5e9", // sky (herb)
 ];
 
-/** Stable, hash-based colour for a plant token. Same plant name → same colour. */
-export function getPlantTokenColor(plant: PlantInArea): string {
-  const key = (plant.plant_name ?? plant.nickname ?? plant.id).toLowerCase();
+/**
+ * Stable, hash-based palette colour for an arbitrary key string. Same key →
+ * same colour, forever. Callers normalise the key themselves (lowercase etc.)
+ * so that "Tomato" and "tomato" only collide when the caller wants them to.
+ */
+export function getTokenColorForKey(key: string): string {
   let hash = 0;
   for (let i = 0; i < key.length; i++) {
     hash = (hash * 31 + key.charCodeAt(i)) | 0;
   }
   const idx = Math.abs(hash) % PALETTE.length;
   return PALETTE[idx];
+}
+
+/** Stable, hash-based colour for a plant token. Same plant name → same colour. */
+export function getPlantTokenColor(plant: PlantInArea): string {
+  return getTokenColorForKey((plant.plant_name ?? plant.nickname ?? plant.id).toLowerCase());
 }
 
 /** Single-letter initial for the token glyph. */

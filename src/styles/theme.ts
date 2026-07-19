@@ -20,8 +20,12 @@ export const rhozlyTheme = {
   },
 
   fonts: {
-    display: "'Plus Jakarta Sans', sans-serif", // Modern Clarity
-    body: "'Inter', sans-serif", // Editorial Precision
+    // Must match the self-hosted variable-font family names registered via
+    // @fontsource-variable (see src/main.tsx) — the plain "Inter" /
+    // "Plus Jakarta Sans" families no longer exist since the Google Fonts
+    // @import was removed.
+    display: '"Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, sans-serif', // Modern Clarity
+    body: '"Inter Variable", "Inter", system-ui, sans-serif', // Editorial Precision
   },
 
   shadows: {

@@ -40,19 +40,28 @@ export class DashboardPage {
     this.calendarPrevButton = page.locator(".lucide-chevron-left").locator("..");
     this.calendarNextButton = page.locator(".lucide-chevron-right").locator("..");
 
-    this.quizBanner = page.getByText("Set up your Garden Profile");
+    this.quizBanner = page.getByText("Set up your Garden Quiz");
     // Scope dismiss to the quiz banner container (avoids matching weather alert dismiss buttons)
     this.quizBannerDismiss = page
       .locator(".from-emerald-500")
       .getByLabel("Dismiss");
-    this.quizBannerCta = page.getByText("Get started");
+    this.quizBannerCta = page.getByText("Start the quiz");
   }
 
   async goto() {
-    // The classic dashboard now lives on the "Overview" sub-tab; plain
-    // /dashboard lands on the new Home view (see HomeMainPage). This page
-    // object models the classic content, so it navigates straight there.
-    await this.page.goto("/dashboard?view=overview");
+    // The Overview sub-tab was merged into the home view (design overhaul
+    // Phase 4.2) — its content (full task list, stat wall, Daily Brief, AI
+    // cards) lives behind the home's DETAILED density. Seed the density
+    // before navigation so the classic-dashboard specs see it all without
+    // UI toggling.
+    await this.page.addInitScript(() => {
+      try {
+        localStorage.setItem("rhozly:home:density", "detailed");
+      } catch {
+        /* ignore */
+      }
+    });
+    await this.page.goto("/dashboard");
   }
 
   async gotoCalendar() {

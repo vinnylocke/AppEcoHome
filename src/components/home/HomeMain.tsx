@@ -1,13 +1,18 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sprout, MapPin, Leaf, LayoutList, Rows3 } from "lucide-react";
+import { Sprout, MapPin, Leaf, LayoutList, Rows3, Footprints, ChevronRight } from "lucide-react";
 import HomeStatusStrip from "./HomeStatusStrip";
 import GardenOverviewGrid from "./GardenOverviewGrid";
 import QuickActionsRow from "./QuickActionsRow";
 import AttentionRow from "./AttentionRow";
 import AdaptiveCareCard from "./AdaptiveCareCard";
 import GardenBrainBriefCard from "./GardenBrainBriefCard";
-import WeekPulse from "./WeekPulse";
+import GardenSnapshot from "./GardenSnapshot";
+import DailyBriefCard from "../DailyBriefCard";
+import HeadGardenerCard from "../manager/HeadGardenerCard";
+import AssistantCard from "../AssistantCard";
+import WeekAheadPreview from "../shared/WeekAheadPreview";
+import FeatureGate from "../shared/FeatureGate";
 import TaskList from "../TaskList";
 import SeasonalPicksCard from "../seasonal/SeasonalPicksCard";
 import { usePersona } from "../../hooks/usePersona";
@@ -18,15 +23,19 @@ import type { OverviewLocation } from "./LocationOverviewCard";
 import type { QuickLauncherAvailabilityCtx } from "../../lib/quickLauncherCatalogue";
 
 /**
- * The new main dashboard ("Dashboard" tab, ?view=home) — see
- * docs/plans/new-home-dashboard.md. One shared spine rendered in two
- * densities: "simple" (default for new gardeners — guidance-first) and
- * "detailed" (default for persona === "experienced" — telemetry-first).
- * The previous dashboard lives on unchanged as the sibling "Overview" tab.
+ * THE dashboard (?view=home — the old sibling "Overview" tab was merged in
+ * here, design overhaul Phase 4.2). One shared spine rendered in two
+ * densities:
  *
- * Phase 1: status strip, garden overview grid (plants + tasks), quick
- * actions, today's tasks, seasonal picks. Phase 2 adds the home-overview
- * endpoint (sensor / valve / sun chips + attention row).
+ * - "simple" (default for new gardeners — guidance-first): compact status
+ *   strip hero, garden grid, quick actions, compact today's tasks, seasonal
+ *   picks.
+ * - "detailed" (default for persona === "experienced" — the old Overview
+ *   audience): Daily Brief hero, Head Gardener + AI Insights cards, the full
+ *   task list, Week Ahead, and the collapsible Garden Snapshot stat wall.
+ *
+ * The single useHomeDashboardStats mount here feeds BOTH the status summary
+ * and GardenSnapshot — don't add second consumers (the edge fn is uncached).
  */
 
 const DENSITY_KEY = "rhozly:home:density";
@@ -40,6 +49,10 @@ interface Props {
   locations: OverviewLocation[];
   locationTaskCounts: Record<string, number>;
   overdueTaskCount: number;
+  alerts: any[];
+  homeLat: number | null;
+  homeLng: number | null;
+  hardinessZone: number | null;
   aiEnabled: boolean;
   isPremium: boolean;
   availabilityCtx: QuickLauncherAvailabilityCtx;
@@ -54,6 +67,10 @@ export default function HomeMain({
   locations,
   locationTaskCounts,
   overdueTaskCount,
+  alerts,
+  homeLat,
+  homeLng,
+  hardinessZone,
   aiEnabled,
   isPremium,
   availabilityCtx,
@@ -86,9 +103,17 @@ export default function HomeMain({
   // due-date day-strip bucket, which missed overdue-completed-today). The day
   // bucket is still used for the SKIPPED / POSTPONED passthrough. Mounted in
   // BOTH densities so the breakdown shows for simple-mode (Sprout) users too.
+  // This single hook instance also feeds GardenSnapshot in detailed density.
   // Soft-fails: the hook returns null stats on error and the strip still
   // renders pending.
-  const { stats: dashStats } = useHomeDashboardStats(homeId);
+  const {
+    stats: dashStats,
+    loading: dashLoading,
+    error: dashError,
+    refresh: dashRefresh,
+    weekStart,
+    weekEnd,
+  } = useHomeDashboardStats(homeId);
   const todayBucket = dashStats?.dayStrip?.find((d) => d.isToday) ?? null;
   const todaySummary = buildTodaySummary(todayTaskCount, dashStats?.tasks.doneToday, todayBucket);
 
@@ -104,38 +129,69 @@ export default function HomeMain({
     return map;
   }, [overview]);
 
+  const totalPlants = dashStats?.garden.totalPlants ?? 0;
+
+  const densityToggle = (
+    <div
+      data-testid="home-density-toggle"
+      className="bg-rhozly-primary/5 p-0.5 rounded-xl flex shrink-0"
+    >
+      <button
+        data-testid="home-density-simple"
+        onClick={() => setDensity("simple")}
+        title="Simple view"
+        className={`p-1.5 rounded-lg transition ${density === "simple" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-primary"}`}
+      >
+        <LayoutList size={14} />
+      </button>
+      <button
+        data-testid="home-density-detailed"
+        onClick={() => setDensity("detailed")}
+        title="Detailed view"
+        className={`p-1.5 rounded-lg transition ${density === "detailed" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-primary"}`}
+      >
+        <Rows3 size={14} />
+      </button>
+    </div>
+  );
+
   return (
     <div data-testid="home-main" className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
-        <HomeStatusStrip
-          firstName={firstName}
-          weather={weather}
-          rawWeather={rawWeather}
-          todaySummary={todaySummary}
-          overdueCount={overdueTaskCount}
-        />
-        <div
-          data-testid="home-density-toggle"
-          className="bg-rhozly-primary/5 p-0.5 rounded-xl flex shrink-0"
-        >
-          <button
-            data-testid="home-density-simple"
-            onClick={() => setDensity("simple")}
-            title="Simple view"
-            className={`p-1.5 rounded-lg transition ${density === "simple" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-primary"}`}
-          >
-            <LayoutList size={14} />
-          </button>
-          <button
-            data-testid="home-density-detailed"
-            onClick={() => setDensity("detailed")}
-            title="Detailed view"
-            className={`p-1.5 rounded-lg transition ${density === "detailed" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-primary"}`}
-          >
-            <Rows3 size={14} />
-          </button>
+      {/* Hero: one greeting, density-matched — the compact status strip for
+          simple, the full Daily Brief card (the old Overview hero) for
+          detailed. Never both: they are the same job at two depths. */}
+      {density === "simple" ? (
+        <div className="flex items-start justify-between gap-3">
+          <HomeStatusStrip
+            firstName={firstName}
+            weather={weather}
+            rawWeather={rawWeather}
+            todaySummary={todaySummary}
+            overdueCount={overdueTaskCount}
+          />
+          {densityToggle}
         </div>
-      </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex justify-end">{densityToggle}</div>
+          <DailyBriefCard
+            firstName={firstName}
+            weather={weather}
+            rawWeather={rawWeather}
+            // Same array App used to pass the card directly pre-merge: the
+            // rows carry lat/lng at runtime; OverviewLocation just doesn't
+            // declare them.
+            locations={locations as unknown as Array<{ lat?: number; lng?: number }>}
+            alerts={alerts}
+            todayTaskCount={todayTaskCount}
+            overdueCount={overdueTaskCount}
+            homeLat={homeLat}
+            homeLng={homeLng}
+            hardinessZone={hardinessZone}
+            aiEnabled={aiEnabled}
+          />
+        </div>
+      )}
 
       <AttentionRow items={overview?.attention ?? []} />
 
@@ -148,6 +204,23 @@ export default function HomeMain({
           sensor-equipped Sage/Evergreen homes), so no client tier plumbing. */}
       <AdaptiveCareCard homeId={homeId} currentUserId={userId} />
 
+      {/* The old Overview's AI cards — BOTH densities (product call
+          2026-07-19): they self-gate (Evergreen / ai_insights), self-hide
+          when empty, and show compact upsells when locked. */}
+      {userId && (
+        <>
+          <div data-testid="dashboard-head-gardener-card">
+            <HeadGardenerCard />
+          </div>
+          <div data-testid="dashboard-assistant-card">
+            <AssistantCard userId={userId} showUpgradeWhenLocked />
+          </div>
+        </>
+      )}
+
+      {/* Stable wrapper: the dashboard_tour anchors here so the step works in
+          both the populated-grid and empty-garden states. */}
+      <div data-testid="home-garden-section">
       {hasGarden ? (
         <GardenOverviewGrid
           locations={locations}
@@ -186,6 +259,7 @@ export default function HomeMain({
           </div>
         </section>
       )}
+      </div>
 
       <QuickActionsRow
         userId={userId}
@@ -194,23 +268,66 @@ export default function HomeMain({
         availabilityCtx={availabilityCtx}
       />
 
-      <section data-testid="home-todays-tasks">
-        <div className="flex items-center justify-between px-1 mb-2">
-          <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
-            Today's tasks
-          </h2>
-          <button
-            data-testid="home-tasks-see-all"
-            onClick={() => navigate("/dashboard?view=calendar")}
-            className="text-[11px] font-bold text-rhozly-on-surface/45 hover:text-rhozly-primary transition"
-          >
-            See all →
-          </button>
-        </div>
-        <TaskList homeId={homeId} compact targetDate={new Date()} />
-      </section>
+      {/* Garden Walk launcher (both densities — flagship flow; e2e drives it
+          via dash-garden-walk from a plain /dashboard visit). */}
+      {totalPlants >= 5 && (
+        <button
+          data-testid="dash-garden-walk"
+          onClick={() => navigate("/walk", { state: { from: "/dashboard" } })}
+          className="w-full bg-brand-gradient-soft text-white rounded-card p-4 flex items-center gap-4 shadow-raised transition-transform duration-200 ease-spring active:scale-[0.98] active:duration-100 touch-manipulation text-left"
+        >
+          <span className="bg-white/15 p-3 rounded-2xl shrink-0">
+            <Footprints size={22} aria-hidden />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block font-black text-sm font-display">Start a Garden Walk</span>
+            <span className="block text-xs text-white/80 mt-0.5">
+              A guided check-in on your {totalPlants} plants — snap, note, or tick as you go.
+            </span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-white/70" aria-hidden />
+        </button>
+      )}
 
-      {density === "detailed" && <WeekPulse homeId={homeId} />}
+      {density === "simple" ? (
+        <section data-testid="home-todays-tasks">
+          <div className="flex items-center justify-between px-1 mb-2">
+            <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
+              Today's tasks
+            </h2>
+            <button
+              data-testid="home-tasks-see-all"
+              onClick={() => navigate("/dashboard?view=calendar")}
+              className="text-[11px] font-bold text-rhozly-on-surface/45 hover:text-rhozly-primary transition"
+            >
+              See all
+            </button>
+          </div>
+          <TaskList homeId={homeId} compact targetDate={new Date()} />
+        </section>
+      ) : (
+        /* Detailed: the full task list (the old Overview TasksPanel) — the
+           whole task-management surface, tabs and all. */
+        <div data-testid="dashboard-task-list">
+          <TaskList homeId={homeId} />
+        </div>
+      )}
+
+      {/* Week Ahead — both densities (product call 2026-07-19); Evergreen-gated. */}
+      <FeatureGate feature="ai_insights" fallback={null}>
+        <WeekAheadPreview homeId={homeId} />
+      </FeatureGate>
+
+      {density === "detailed" && (
+        <GardenSnapshot
+          stats={dashStats}
+          loading={dashLoading}
+          error={dashError}
+          refresh={dashRefresh}
+          weekStart={weekStart}
+          weekEnd={weekEnd}
+        />
+      )}
 
       {density === "simple" && (
         <SeasonalPicksCard

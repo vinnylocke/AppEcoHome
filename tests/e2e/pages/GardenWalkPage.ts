@@ -141,9 +141,10 @@ export class GardenWalkPage {
     return this.card.or(this.sectionCard);
   }
 
-  /** Launch a walk from the dashboard launcher (preserves origin state). */
+  /** Launch a walk from the dashboard launcher (preserves origin state).
+   *  The launcher lives on the merged home in BOTH densities (Phase 4.2). */
   async startFromDashboard() {
-    await this.page.goto("/dashboard?view=overview");
+    await this.page.goto("/dashboard");
     const launcher = this.page.getByTestId("dash-garden-walk");
     await launcher.waitFor({ state: "visible", timeout: 15000 });
     await launcher.click();

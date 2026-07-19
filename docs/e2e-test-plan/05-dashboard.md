@@ -5,19 +5,19 @@
 **Seed dependencies:** `00_bootstrap.sql`, `01_locations_areas.sql`, `03_tasks_blueprints.sql`, `04_weather.sql`
 **App-reference:** [02-dashboard/01-dashboard-tab.md](../app-reference/02-dashboard/01-dashboard-tab.md)
 
-Covers the classic dashboard surface — now the **Overview** sub-tab at `/dashboard?view=overview` (weather card, location tiles, daily-tasks panel) — plus the **Calendar** view at `/dashboard?view=calendar` and the **Location detail** view at `/dashboard?locationId=…`. Plain `/dashboard` lands on the new **Home** view, covered separately in [30-home-main.md](./30-home-main.md).
+Covers the classic dashboard content. Since the Phase 4.2 dashboard merge this **no longer lives at `?view=overview`** — the Overview tab is gone and `/dashboard` has four sub-tabs (Dashboard / Locations / Calendar / Weather). The former Overview content (full `TaskList`, Daily Brief, Head Gardener / AI Insights cards, Week Ahead, Garden Snapshot stat wall) now renders on the merged Home view behind the **Detailed** density: `DashboardPage.goto()` seeds `localStorage["rhozly:home:density"] = "detailed"` via an init script and navigates to plain `/dashboard`, so the classic-content specs in this section see it all without UI toggling. Also covers the **Weather** view (`?view=weather`), the **Calendar** view (`?view=calendar`) and the **Location detail** view (`?locationId=…`). The Home view's own surface (status strip, overview grid, quick actions, telemetry) is covered separately in [30-home-main.md](./30-home-main.md).
 
 ## Weather widget
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
 | DASH-001 | ✅ | Weather card renders with temperature + icon | — | ✅ Passing |
-| DASH-002 | ✅ | Three view tabs visible (Locations, Calendar, Weather) | — | ✅ Passing |
+| DASH-002 | ✅ | Locations, Calendar and Weather view tabs visible (a subset of the four-tab switcher — Dashboard / Locations / Calendar / Weather) | — | ✅ Passing |
 | DASH-003 | ✅ | Weather tab click → URL `?view=weather`, forecast panel visible | — | ✅ Passing |
 | DASH-004 | ✅ | Full Forecast button — 7-day forecast expands or navigates | — | ✅ Passing |
 | DASH-005..009 | ✅ | Weather code icons render correctly (WMO 0 clear, 61 rain, 71 snow, 95 thunder, 45 fog) | — | ✅ Passing |
 | DASH-010..013 | ✅ | Alert badges (heat, frost, rain, wind) | — | ✅ Passing |
-| DASH-MOBILE-001 | ✅ | Phone-portrait (412×915): all five view tabs present & reachable, Weather clickable (regression: Weather clipped off-screen) | — | ✅ Passing |
+| DASH-MOBILE-001 | ✅ | Phone-portrait (412×915): all **four** view tabs (Dashboard / Locations / Calendar / Weather) present exactly once, Overview button count 0 (Phase 4.2 merged it into Dashboard), Weather reachable + navigates (regression: Weather clipped off-screen) | — | 🔲 Pending (re-verify post-merge) |
 | DASH-014 | ✅ | No alerts on mild forecast | — | ✅ Passing |
 | DASH-015 | ✅ | Garden Intelligence panel renders with at least one rule heading | — | ✅ Passing |
 | DASH-016..019 | ✅ | GI rules — auto-watering, frost protection, heatwave, high wind | — | ✅ Passing |
@@ -30,12 +30,21 @@ Covers the classic dashboard surface — now the **Overview** sub-tab at `/dashb
 | DASH-021 | ✅ | Tile shows name ("Outside Garden") | — | ✅ Passing |
 | DASH-022 | ✅ | Indoor tile shows indoor indicator | — | ✅ Passing |
 | DASH-023 | ✅ | Click tile → URL `?locationId=LOC_GARDEN_ID` | — | ✅ Passing |
-| DASH-024 | ✅ | Quiz prompt banner — no quiz done | — | ✅ Passing |
-| DASH-025 | ✅ | Quiz prompt dismiss — banner disappears | — | ✅ Passing |
-| DASH-026 | ✅ | Quiz prompt CTA → `/profile` | — | ✅ Passing |
-| DASH-027 | ✅ | Quiz prompt gone when quiz complete | — | ✅ Passing |
+| DASH-027 | ✅ | Quiz prompt ("Set up your Garden Quiz") absent when quiz complete (seed 08) | — | ✅ Passing |
+
+## Single-slot onboarding + quiz banner (Phase 4.2)
+
+The home branch in `App.tsx` renders at most **one** promo card, cascading by priority: GettingStartedChecklist → Garden Quiz prompt (headline "Set up your Garden Quiz", CTA "Start the quiz") → NotificationOptInCard → InstallPwaPrompt. The tests mock `home_quiz_completions` to `null` so the quiz is incomplete, and mock the `user_profiles` dismissal PATCH to 204 so the seeded `onboarding_state` is never polluted (the app updates local state optimistically).
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| DASH-024 | ✅ | Checklist owns the promo slot while the quiz is incomplete — `getting-started-checklist` visible, quiz banner hidden | `home_quiz_completions`→null | 🔲 Pending (re-verify post-merge) |
+| DASH-025 | ✅ | Dismissing the checklist (`checklist-dismiss`, single-tap X) cascades the slot to the quiz banner; dismissing the banner hides it | `home_quiz_completions`→null; `user_profiles` PATCH→204 | 🔲 Pending (re-verify post-merge) |
+| DASH-026 | ✅ | Surface the quiz banner via checklist dismiss, then "Start the quiz" CTA → `/profile` | `home_quiz_completions`→null; `user_profiles` PATCH→204 | 🔲 Pending (re-verify post-merge) |
 
 ## Daily tasks sidebar
+
+The full `TaskList` (`dashboard-task-list`, "Daily Tasks" heading, Pending/Completed tabs) now renders only in the home's **Detailed** density — `DashboardPage.goto()` seeds it, so these rows keep working unchanged.
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
@@ -51,21 +60,21 @@ Covers the classic dashboard surface — now the **Overview** sub-tab at `/dashb
 
 ## Locked feature teasers — Sprout (RHO-2)
 
-Tier is forced to Sprout by mocking the narrow `user_profiles?select=subscription_tier` read; the rest of the app keeps its (Evergreen) profile so the dashboard still loads.
+Tier is forced to Sprout by mocking the narrow `user_profiles?select=subscription_tier` read; the rest of the app keeps its (Evergreen) profile so the dashboard still loads. The Head Gardener (`dashboard-head-gardener-card`) and AI Insights (`dashboard-assistant-card`) cards mount only in the home's **Detailed** density (seeded by `DashboardPage.goto()`).
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DASH-040 | ✅ | Head Gardener card shows compact upgrade teaser, not the full panel | `user_profiles` tier→sprout | ✅ Passing |
-| DASH-041 | ✅ | AI Insight card shows compact upgrade teaser, not the full panel | `user_profiles` tier→sprout | ✅ Passing |
-| DASH-042 | ✅ | No full-size upgrade panel anywhere on the Sprout dashboard (guards the `FeatureGate fallback={null}` fix) | `user_profiles` tier→sprout | ✅ Passing |
+| DASH-040 | ✅ | Head Gardener card shows compact upgrade teaser, not the full panel | `user_profiles` tier→sprout | 🔲 Pending (re-verify post-merge) |
+| DASH-041 | ✅ | AI Insight card shows compact upgrade teaser, not the full panel | `user_profiles` tier→sprout | 🔲 Pending (re-verify post-merge) |
+| DASH-042 | ✅ | No full-size upgrade panel anywhere on the Sprout dashboard (guards the `FeatureGate fallback={null}` fix) | `user_profiles` tier→sprout | 🔲 Pending (re-verify post-merge) |
 
 ## Garden Snapshot stat tiles (RHO-13)
 
-The Garden Snapshot is collapsed for non-experienced personas; the test expands it via `dash-snapshot-toggle` before clicking a tile.
+Phase 4.2 relocated the Overview stat wall to `src/components/home/GardenSnapshot.tsx` ("This Week at a Glance") on the Detailed home. **Zero-value tiles are now hidden** — except `dash-stat-tasks-total` and `dash-stat-plants-total`, which always render (so DASH-050 is unaffected), and empty sections hide their headers. The 7-day strip now renders **stacked dots** (WeekPulse's visual language, max 3 dots/bucket: red overdue, orange late, emerald on-time, neutral pending) instead of slash-separated numbers; the DayLegend hover/tap pills and `dash-day-{date}` → calendar click are unchanged. The snapshot defaults open only for the experienced persona; the test expands it via `dash-snapshot-toggle` before clicking a tile.
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DASH-050 | ✅ | "Total Tasks" tile navigates to the Calendar view (`view=calendar`), not `/schedule` (Routines) | — | ✅ Passing |
+| DASH-050 | ✅ | "Total Tasks" tile navigates to the Calendar view (`view=calendar`), not `/schedule` (Routines) — tile always renders even at zero | — | 🔲 Pending (re-verify post-merge) |
 
 ## Week Ahead card gating (RHO-9)
 
@@ -73,8 +82,8 @@ The Garden Snapshot is collapsed for non-experienced personas; the test expands 
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DASH-051 | ✅ | Week Ahead card (`dash-week-ahead-card`) is hidden for Sprout | `user_profiles` tier→sprout | ✅ Passing |
-| DASH-052 | ✅ | Week Ahead card is visible for the Evergreen seed account | — | ✅ Passing |
+| DASH-051 | ✅ | Week Ahead card (`dash-week-ahead-card`) is hidden for Sprout | `user_profiles` tier→sprout | 🔲 Pending (re-verify post-merge) |
+| DASH-052 | ✅ | Week Ahead card is visible for the Evergreen seed account (renders in Detailed density only) | — | 🔲 Pending (re-verify post-merge) |
 
 ## Plant chat AI-gating — Sprout (RHO-10 / RHO-11)
 
@@ -82,9 +91,9 @@ Chat is an AI feature; both entry points must disappear for a non-AI tier. The f
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DASH-043 | ✅ | Sprout dashboard hides the global Plant Doctor chat FAB (`plant-doctor-chat-fab`) while the Daily Brief still renders | `user_profiles` `ai_enabled`→false | ✅ Passing |
-| DASH-044 | ✅ | Sprout dashboard hides the Daily Brief "Got a plant question?" chip (`daily-brief-ask-ai`) | `user_profiles` `ai_enabled`→false | ✅ Passing |
-| DASH-045 | ✅ | AI-enabled (seeded) account still shows both the chat FAB and the chip | — | ✅ Passing |
+| DASH-043 | ✅ | Sprout dashboard hides the global Plant Doctor chat FAB (`plant-doctor-chat-fab`) while the Daily Brief still renders (Daily Brief is the Detailed-density hero) | `user_profiles` `ai_enabled`→false | 🔲 Pending (re-verify post-merge) |
+| DASH-044 | ✅ | Sprout dashboard hides the Daily Brief "Got a plant question?" chip (`daily-brief-ask-ai`) | `user_profiles` `ai_enabled`→false | 🔲 Pending (re-verify post-merge) |
+| DASH-045 | ✅ | AI-enabled (seeded) account still shows both the chat FAB and the chip | — | 🔲 Pending (re-verify post-merge) |
 
 ## Overdue chip ↔ task list parity (RHO-3)
 
