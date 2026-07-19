@@ -280,20 +280,46 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
     });
   };
 
+  // Phase 4.5 — one style record per task type so a wall of routines is
+  // scannable by care type at a distance: the icon colour (unchanged hues),
+  // its tile tint, the card's left accent bar, and the dot-track fill all
+  // key off the same family.
+  // accentHex drives the card's left-border accent via inline style (a real
+  // border follows the rounded corners, so the card needs NO overflow-hidden —
+  // which would otherwise clip the pause-duration dropdown on short cards).
+  const TASK_TYPE_STYLE: Record<
+    string,
+    { iconClass: string; tileClass: string; accentHex: string; dotClass: string }
+  > = {
+    Watering:    { iconClass: "text-blue-500",   tileClass: "bg-blue-50",   accentHex: "#3b82f6", dotClass: "bg-blue-500" },
+    Maintenance: { iconClass: "text-orange-500", tileClass: "bg-orange-50", accentHex: "#f97316", dotClass: "bg-orange-500" },
+    Pruning:     { iconClass: "text-lime-600",   tileClass: "bg-lime-50",   accentHex: "#65a30d", dotClass: "bg-lime-600" },
+    Harvesting:  { iconClass: "text-yellow-500", tileClass: "bg-yellow-50", accentHex: "#eab308", dotClass: "bg-yellow-500" },
+    Planting:    { iconClass: "text-amber-700",  tileClass: "bg-amber-50",  accentHex: "#b45309", dotClass: "bg-amber-700" },
+  };
+  const DEFAULT_TYPE_STYLE = {
+    iconClass: "text-rhozly-on-surface/50",
+    tileClass: "bg-rhozly-surface-lowest",
+    accentHex: "rgba(26,28,27,0.2)",
+    dotClass: "bg-rhozly-on-surface/40",
+  };
+  const taskTypeStyle = (type: string) => TASK_TYPE_STYLE[type] ?? DEFAULT_TYPE_STYLE;
+
   const getTaskIcon = (type: string) => {
+    const { iconClass } = taskTypeStyle(type);
     switch (type) {
       case "Watering":
-        return <Droplets size={16} className="text-blue-500" />;
+        return <Droplets size={16} className={iconClass} />;
       case "Maintenance":
-        return <IconPrune size={16} className="text-orange-500" />;
+        return <IconPrune size={16} className={iconClass} />;
       case "Pruning":
-        return <IconPrune size={16} className="text-lime-600" />;
+        return <IconPrune size={16} className={iconClass} />;
       case "Harvesting":
-        return <IconHarvest size={16} className="text-yellow-500" />;
+        return <IconHarvest size={16} className={iconClass} />;
       case "Planting":
-        return <Shovel size={16} className="text-amber-700" />;
+        return <Shovel size={16} className={iconClass} />;
       default:
-        return <CheckSquare size={16} className="text-rhozly-on-surface/50" />;
+        return <CheckSquare size={16} className={iconClass} />;
     }
   };
 
@@ -333,6 +359,14 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
     filterArea !== "all" ||
     filterPlan !== "all" ||
     filterPlant !== "all";
+
+  // Phase 4.5 — the Filters badge shows a REAL count, not a "!" marker.
+  const activeFilterCount =
+    (filterType !== "all" ? 1 : 0) +
+    (filterLocation !== "all" ? 1 : 0) +
+    (filterArea !== "all" ? 1 : 0) +
+    (filterPlan !== "all" ? 1 : 0) +
+    (filterPlant !== "all" ? 1 : 0);
 
   const clearFilters = () => {
     setFilterType("all");
@@ -482,8 +516,8 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
               <Filter size={18} />
               <span className="hidden sm:inline">Filters</span>
               {hasActiveFilters && (
-                <span className="bg-white text-rhozly-primary w-5 h-5 rounded-full flex items-center justify-center text-[10px] ml-1">
-                  !
+                <span className="bg-white text-rhozly-primary min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center text-[10px] font-black ml-1">
+                  {activeFilterCount}
                 </span>
               )}
             </button>
@@ -653,11 +687,16 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
                     setEditingBlueprint(bp);
                   }
                 }}
-                className="bg-white rounded-3xl p-6 border border-rhozly-outline/10 shadow-sm flex flex-col transition-all hover:border-rhozly-primary/30 hover:shadow-md cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary focus-visible:ring-offset-2"
+                // Phase 4.5 — the left accent is a 6px border (follows the
+                // rounded corners; inline color beats the hover border shorthand
+                // for the left side only). NO overflow-hidden — it would clip
+                // the pause dropdown on short cards.
+                style={{ borderLeftColor: taskTypeStyle(bp.task_type).accentHex }}
+                className="relative bg-white rounded-3xl p-6 border border-l-[6px] border-rhozly-outline/10 shadow-sm flex flex-col transition-all hover:border-rhozly-primary/30 hover:shadow-md cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary focus-visible:ring-offset-2"
               >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-rhozly-surface-lowest flex items-center justify-center shrink-0">
+                  <div className={`w-10 h-10 rounded-2xl ${taskTypeStyle(bp.task_type).tileClass} flex items-center justify-center shrink-0`}>
                     {getTaskIcon(bp.task_type)}
                   </div>
                   <div>
@@ -690,7 +729,9 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
                           className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-colors disabled:opacity-50 ${
                             isPaused
                               ? "text-amber-600 bg-amber-50 hover:bg-amber-100"
-                              : "text-rhozly-on-surface/20 hover:text-rhozly-primary hover:bg-rhozly-primary/5 opacity-30 group-hover:opacity-100"
+                              : /* Phase 4.5 — always visible: hover-revealed
+                                   controls are invisible to touch users. */
+                                "text-rhozly-on-surface/35 can-hover:hover:text-rhozly-primary can-hover:hover:bg-rhozly-primary/5 active:bg-rhozly-primary/10"
                           }`}
                           data-testid={`blueprint-${bp.id}-pause-toggle`}
                         >
@@ -737,7 +778,7 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
                       handleDeleteClick(bp);
                     }}
                     aria-label={`Delete ${bp.title}`}
-                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors opacity-30 group-hover:opacity-100"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/35 can-hover:hover:text-red-500 can-hover:hover:bg-red-50 active:bg-red-50 rounded-xl transition-colors"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -761,7 +802,10 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
                     {bp.description}
                   </p>
                 )}
-                {/* Next-occurrence preview — derived from start_date + frequency_days */}
+                {/* Phase 4.5 — next occurrence + a 30-day dot track (the
+                    schedule rhythm IS this card's core information; it was a
+                    10px text footnote). Occurrence days fill in the type's
+                    accent hue; today is ringed; per-dot titles carry dates. */}
                 {(() => {
                   if (!bp.frequency_days || bp.frequency_days <= 0) return null;
                   const anchorStr = (bp.start_date || bp.created_at || new Date().toISOString()).split("T")[0];
@@ -778,28 +822,51 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
                     cursor = anchorMs + (skips + 1) * bp.frequency_days * dayMs;
                   }
 
-                  const upcoming: string[] = [];
-                  for (let i = 0; i < 3 && (!endMs || cursor <= endMs); i++) {
-                    upcoming.push(new Date(cursor).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }));
-                    cursor += bp.frequency_days * dayMs;
+                  // Occurrence day-offsets within the next 30 days. Offsets are
+                  // computed from UTC-midnight-aligned instants (exact integers);
+                  // labels come from a LOCAL base by offset, so the displayed
+                  // dates are correct for negative-UTC-offset (Americas) users.
+                  const labelBase = new Date();
+                  labelBase.setHours(12, 0, 0, 0);
+                  const labelFor = (offset: number) =>
+                    new Date(labelBase.getTime() + offset * dayMs).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+                  const occurrenceOffsets = new Set<number>();
+                  let firstOffset: number | null = null;
+                  for (let c = cursor; (!endMs || c <= endMs) && c < todayMs + 30 * dayMs; c += bp.frequency_days * dayMs) {
+                    const offset = Math.round((c - todayMs) / dayMs);
+                    occurrenceOffsets.add(offset);
+                    if (firstOffset === null) firstOffset = offset;
                   }
-                  if (upcoming.length === 0) return null;
+                  if (firstOffset === null) return null;
+                  const firstUpcoming = labelFor(firstOffset);
+                  const { dotClass } = taskTypeStyle(bp.task_type);
                   return (
-                    <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold text-rhozly-on-surface/45">
-                      <span className="uppercase tracking-widest text-rhozly-on-surface/35">Next:</span>
-                      <span className="font-black text-rhozly-on-surface/70">{upcoming[0]}</span>
-                      {upcoming[1] && (
-                        <>
-                          <span className="text-rhozly-on-surface/20">·</span>
-                          <span>{upcoming[1]}</span>
-                        </>
-                      )}
-                      {upcoming[2] && (
-                        <>
-                          <span className="text-rhozly-on-surface/20">·</span>
-                          <span>{upcoming[2]}</span>
-                        </>
-                      )}
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-rhozly-on-surface/45">
+                        <span className="uppercase tracking-widest text-rhozly-on-surface/35">Next:</span>
+                        <span className="font-black text-rhozly-on-surface/70">{firstUpcoming}</span>
+                      </div>
+                      <div
+                        data-testid={`blueprint-${bp.id}-dot-track`}
+                        aria-label={`Occurrences over the next 30 days for ${bp.title}`}
+                        className="flex items-center gap-[3px]"
+                      >
+                        {Array.from({ length: 30 }, (_, i) => {
+                          const due = occurrenceOffsets.has(i);
+                          const date = labelFor(i);
+                          return (
+                            <span
+                              key={i}
+                              title={due ? `${date} — due` : date}
+                              className={`rounded-full ${
+                                due
+                                  ? `w-1.5 h-3 ${dotClass}`
+                                  : "w-1 h-1.5 bg-rhozly-outline/25"
+                              } ${i === 0 ? "ring-1 ring-rhozly-primary/40 ring-offset-1" : ""}`}
+                            />
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })()}

@@ -29,21 +29,46 @@ PlannerHub
     └── ShoppingLists
 
 PlannerDashboard
-├── Header (title, "What's a Plan?" link, New Plan button)
-├── Tab bar (Pending / Completed / Archived) with badges
-├── AssistantCard (top of Pending tab)
-├── Plan list
-│   └── Plan card
+├── Header (title, "What's a Plan?" link, split "New Plan" CTA)
+│   └── Create split button (Phase 4.6)
+│       ├── Primary "New Plan" (data-testid="planner-new-plan-btn") → NewPlanForm
+│       └── Caret (data-testid="planner-create-menu-btn", aria-label="More plan types",
+│           aria-haspopup="menu") → create menu (role="menu", data-testid="planner-create-menu")
+│           ├── "Reimagine" (data-testid="planner-overhaul-btn") → OverhaulPlanForm — Sage+ pill when locked
+│           └── "My Plants" (data-testid="planner-plant-first-btn") → PlantFirstPlanForm — Sage+ pill when locked
+├── Tab bar (Active / Completed / Archived) with badges
+├── AssistantCard (top of Active tab)
+├── Plan list (data-testid="planner-plan-list")
+│   └── Plan card (rounded-3xl)
+│       ├── Cover (h-40) — one of:
+│       │   ├── cover_image_url photo
+│       │   ├── overhaul states (Failed / Generating / Pick a concept)
+│       │   └── kind-tinted gradient fallback (Phase 4.6):
+│       │       ├── plant-first → emerald→teal gradient + Sprout icon
+│       │       └── else → brand-primary gradient + IconPlanner
 │       ├── Status badge (Draft / In Progress / Completed / Archived)
+│       ├── Sun / View-on-Layout quick actions (bottom-left, hover-reveal)
 │       ├── Name + description
 │       ├── Contents preview (counts)
+│       ├── Phase-progress bar (data-testid="plan-phase-progress-{id}", Phase 4.6) —
+│       │   suppressed for Completed / Archived and plant-first
 │       ├── Card-level inline feedback (saved/error)
 │       └── Kebab menu (portal-rendered)
-├── NewPlanForm modal (?open=new-plan or button)
-├── PlanStaging modal (opened when selectedPlan set)
+├── NewPlanForm modal (?open=new-plan or primary button)
+├── OverhaulPlanForm modal ("Reimagine" — Sage+ photo→AI redesign)
+├── PlantFirstPlanForm modal ("My Plants" — Sage+ pick-plants→AI arrange)
+├── PlanStaging / PlantFirstPlanView (opened when selectedPlan set)
 ├── Confirm modal (delete / archive / unarchive)
 └── Plan explainer modal ("What's a Plan?")
 ```
+
+**Create split button (Phase 4.6).** Consolidates what were three competing top-level CTAs into one primary + a dropdown. The whole cluster is gated by `can("plans.create")`. The primary `planner-new-plan-btn` opens the standard `NewPlanForm`; the caret `planner-create-menu-btn` toggles `createMenuOpen`, rendering a `role="menu"` (`planner-create-menu`) with two AI Sage+ modes — **Reimagine** (`planner-overhaul-btn` → `OverhaulPlanForm`) and **My Plants** (`planner-plant-first-btn` → `PlantFirstPlanForm`). Each menu item shows a "Sage+" pill when `!hasOverhaulAccess` (`userTier` is not `sage`/`evergreen`). The three original test IDs are preserved on their triggers so the planner tour and any tests keep resolving.
+
+**Card cover states.** The `h-40` cover resolves in priority order: a `cover_image_url` photo → overhaul-specific states (Failed / Generating overhaul… / Pick a concept) → a **kind-tinted gradient fallback** (Phase 4.6). The fallback replaces the old flat-grey `IconPlanner`: `plant-first` plans render an emerald→teal gradient with a `Sprout` icon; every other kind renders a brand-primary gradient with `IconPlanner`, so a photoless plan still reads as a designed thing.
+
+**Phase-progress bar (Phase 4.6).** `planPhaseProgress(plan)` computes how many of PlanStaging's 5 phases are done (linked area · plants linked · plants assigned · status In Progress/Completed · maintenance active) — it mirrors `PlanStaging.tsx`'s per-phase predicates and must be kept in sync with them. It returns `null` for `plant-first` plans (which use `PlantFirstPlanView`, not staging), so the card suppresses the bar. The bar (`plan-phase-progress-{id}`) is also suppressed for Completed/Archived plans; otherwise it shows "Phase N of 5 · X/5 done" over a fill bar.
+
+**Radius.** Cards and skeletons normalised `rounded-[2.5rem]` → `rounded-3xl` (Phase 4.6, 3 sites).
 
 ### Props
 
@@ -60,7 +85,10 @@ PlannerDashboard
 | `loading`, `fetchError` | Initial fetch state |
 | `activeTab` | "Pending" / "Completed" / "Archived" |
 | `showNewPlanModal`, `showPlanExplainer` | Modal visibility |
-| `selectedPlan` | Drills into PlanStaging when set |
+| `showOverhaulModal`, `showPlantFirstModal` | The two AI Sage+ create-mode modals (Reimagine / My Plants) |
+| `createMenuOpen` | Split-button caret dropdown open/closed (Phase 4.6) |
+| `userTier` | Subscription tier — `hasOverhaulAccess = "sage" \| "evergreen"` drives the Sage+ pills |
+| `selectedPlan` | Drills into PlanStaging (or PlantFirstPlanView for `kind='plant-first'`) when set |
 | `openMenuId` | Per-card kebab portal anchor |
 | `confirmState` | Active confirm modal (type + plan) |
 | `isProcessingAction` | Action in flight |
@@ -120,7 +148,9 @@ None — pure DB CRUD. AI suggestions inside PlanStaging are a different surface
 
 | Feature | Tier |
 |---------|------|
-| Planner | Every tier |
+| Planner + standard "New Plan" | Every tier |
+| Reimagine (Overhaul) create mode | Sage / Evergreen — menu item always visible with a "Sage+" pill when locked; the modal re-verifies access |
+| My Plants (plant-first) create mode | Sage / Evergreen — same "Sage+" pill treatment; `generate-plant-first-plan` re-verifies server-side |
 | AssistantCard | Sage / Evergreen (rendered but conditionally hides) |
 
 ### Beta gating
@@ -129,7 +159,7 @@ None.
 
 ### Permissions
 
-- `planner.write` — gates the New Plan button + kebab actions for viewers.
+- `can("plans.create")` — gates the whole create split button (primary "New Plan", the caret, and both Sage+ modes) plus the "Create your first Plan" empty-state CTA. Viewers without it see no create controls. (Kebab archive/delete actions render regardless and rely on RLS to enforce write access.)
 
 ### Error states
 
@@ -170,10 +200,21 @@ A Plan is a multi-step garden project that lives across weeks or seasons — "Sp
 
 - Tap a card → PlanStaging modal opens, showing phases / tasks / notes / reference photos.
 
-#### 3. New plan
+#### 3. New plan (one primary button + a dropdown for the AI modes)
 
-- Plus button → `NewPlanForm`.
-- Wizard captures name, description, optional template.
+The top-right is now a single **New Plan** button with a small caret beside it:
+
+- **New Plan** (the primary button) → the standard `NewPlanForm` wizard: name, description, optional AI generation. This is the everyday path and every tier has it.
+- **The caret** opens a two-item menu of AI-powered **Sage+** modes:
+  - **Reimagine** — photo → AI redesign of a space (Garden Overhaul). Upload a photo of a bed or border and the AI produces concept "after" images plus a redesign blueprint.
+  - **My Plants** — pick plants you already own and the AI arranges them into a multi-area plan.
+- Both AI modes carry a **Sage+** pill until you're on Sage or Evergreen; opening them on a lower tier routes you to the upgrade flow. Once created, both plans flow into the same phase staging as a regular plan (My Plants opens its own `PlantFirstPlanView`).
+
+#### 3a. Reading a card's phase progress
+
+- On active (Draft / In Progress) plans, a thin **phase-progress bar** sits above the footer showing "Phase N of 5 · X/5 done".
+- The five phases mirror the staging flow (link an area → link plants → assign plants → start the work → maintenance running). At a glance it tells you which plans are stalled and which are nearly finished.
+- The bar is hidden on Completed and Archived plans (no work left to stage) and on "My Plants" plans (they don't use the 5-phase staging engine).
 
 #### 4. Archive
 
@@ -201,6 +242,8 @@ A Plan is a multi-step garden project that lives across weeks or seasons — "Sp
 | Plan name | Free-text. Anything memorable. |
 | Status | Draft (planning), In Progress (executing), Completed (done — kept as reference), Archived (paused / abandoned) |
 | Contents preview | "3 plants · 5 tasks · 2 notes" — quick gauge of how much is in the plan |
+| Phase-progress bar | "Phase N of 5 · X/5 done" — how far the plan has moved through the 5-phase staging flow. Shown only on Draft / In Progress plans; hidden on Completed, Archived, and "My Plants" plans |
+| Cover image | Your uploaded photo if the plan has one; otherwise a **kind-tinted gradient fallback** — emerald with a sprout for "My Plants" plans, brand-green with the planner icon for everything else (so a photoless plan still looks designed, not blank grey) |
 | Plan card colour | Status-tinted accent |
 
 ### Tier-by-tier experience

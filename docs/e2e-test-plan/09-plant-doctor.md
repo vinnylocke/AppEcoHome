@@ -10,9 +10,11 @@
 
 ## Plant Doctor (`/doctor`)
 
+> **Phase 4.4 (design overhaul, 2026-07):** the Plant Lens redesign shipped a camera-first mobile layout (the "Upload or take a photo" heading and the "Upload File" button name are unchanged — they're the e2e contract), a unified neutral treatment for the four AI action buttons (labels / testids / disabled semantics unchanged), and a staged AI-wait overlay (`doctor-wait-overlay`) over the image frame while an action is in flight — its copy deliberately avoids "analyze" / "error" so it can never satisfy DOC-010's toast regex. Four pre-existing drifted tests were fixed in the same pass (DOC-001's PO heading, DOC-009, DOC-012, DOC-013 — see their rows). Suite: 13/13 passing.
+
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DOC-001 | ✅ | Heading renders | — | ✅ Passing |
+| DOC-001 | ✅ | Heading renders — PO heading updated to **"Plant Lens"** in Phase 4.4 (was "Plant Doctor"; the Phase 5 naming pass will standardise surface vs nav names) | — | ✅ Passing |
 | DOC-002 | ✅ | Upload dropzone visible | — | ✅ Passing |
 | DOC-003 | ✅ | Identify/Diagnose hidden before upload | — | ✅ Passing |
 | DOC-004 | ✅ | Upload image → action buttons appear | — | ✅ Passing |
@@ -20,11 +22,11 @@
 | DOC-006 | ✅ | Diagnose returns AI result ("early blight") | `plant-doctor` diagnose | ✅ Passing |
 | DOC-007 | ✅ | Clear image button returns dropzone | — | ✅ Passing |
 | DOC-008 | ✅ | Save to Journal toggle visible + interactive | `plant-doctor` identify | ✅ Passing |
-| DOC-009 | ✅ | AI disabled — Identify/Diagnose buttons disabled | Supabase profile mock | ✅ Passing |
+| DOC-009 | ✅ | AI disabled — Sprint-3 quota reality: `plant-doctor-ai-gate` card renders with an **enabled** `doctor-btn-identify-free` + visible `doctor-upgrade-link`; Diagnose button has count 0 (buttons are replaced by the gate, not disabled) | Supabase profile mock | ✅ Passing |
 | DOC-010 | ❌ | Edge function error — message/toast shown | `plant-doctor` 500 | ✅ Passing |
 | DOC-011 | ✅ | Nav link → `/doctor` | — | ✅ Passing |
-| DOC-012 | ✅ | PlantDoctorChat FAB visible globally on `/dashboard` | — | ✅ Passing |
-| DOC-013 | ❌ | Upload invalid file type (.txt) → error, buttons remain hidden | — | ✅ Passing |
+| DOC-012 | ✅ | PlantDoctorChat FAB visible globally on `/dashboard` — targeted via the `plant-doctor-chat-fab` testid (the FAB moved above the mobile tab bar in Phase 4.1; position classes are not a contract) | — | ✅ Passing |
+| DOC-013 | ❌ | Upload invalid file type (.txt) → toast "Skipped notes.txt — not an image."; buttons remain hidden | — | ✅ Passing |
 | DOC-014 | 🔲 | Multi-ID — `doctor-btn-multi-id` visible (Sage+) → `identify_scene` returns 2 regions → `scene-map-result` overlays + candidate names + confidence % | `plant-doctor` identify_scene | 🔲 Planned |
 | DOC-015 | 🔲 | Multi-ID — empty state ("No distinct plants found") | `plant-doctor` identify_scene (empty) | 🔲 Planned |
 | DOC-016 | 🔲 | Multi-ID — AI disabled → `doctor-btn-multi-id` disabled | Supabase profile mock | 🔲 Planned |
@@ -32,6 +34,7 @@
 | DOC-018 | 🔲 | Multi-ID — `scene-map-info-N-M` shows pills; `scene-map-see-care-N-M` opens PlantDetailModal | `plant-doctor` (identify_scene + resolve) | 🔲 Planned |
 | DOC-019 | 🔲 | Multi-ID — `scene-map-check-N` → `scene-map-add-to-shed` → confirmed plant inserted | `plant-doctor` + resolve/save mocks | 🔲 Planned |
 | DOC-020 | 🔲 | History — Group ID card from a Multi-ID run, expandable to per-plant rows | — | 🔲 Planned (scene session seed) |
+| DOC-021 | 🔲 | Staged wait overlay (Phase 4.4) — `doctor-wait-overlay` mounts over the image frame while an action is processing (blurred photo + stage copy, `aria-live="polite"`), and unmounts once the mocked response settles | `plant-doctor` (delayed mock) | 🔲 Planned |
 
 ## Garden AI Chat (regression net)
 

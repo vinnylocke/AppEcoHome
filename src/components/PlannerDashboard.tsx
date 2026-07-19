@@ -19,6 +19,7 @@ import {
   Sun,
   Construction,
   Sprout,
+  ChevronDown,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -44,6 +45,23 @@ interface PlannerDashboardProps {
   aiEnabled?: boolean;
 }
 
+// Phase 4.6 — how many of the 5 staging phases a plan has completed. Mirrors
+// PlanStaging.tsx's per-phase predicates exactly (keep them in sync). Returns
+// null for plans that don't use staging (plant-first), so the card can suppress
+// the bar. Staging is the whole point of a plan — surfacing progress on the
+// card lets you see at a glance which plans need attention.
+function planPhaseProgress(plan: any): { done: number; total: number } | null {
+  if (plan.kind === "plant-first") return null;
+  const s = plan.staging_state ?? {};
+  const done =
+    (s.linked_area_id ? 1 : 0) +
+    (s.plants_linked ? 1 : 0) +
+    (s.plants_assigned ? 1 : 0) +
+    (plan.status === "In Progress" || plan.status === "Completed" ? 1 : 0) +
+    (s.maintenance_active ? 1 : 0);
+  return { done, total: 5 };
+}
+
 export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerDashboardProps) {
   const { can } = usePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -66,6 +84,9 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
   // don't need a separate result-view state.
   const [showOverhaulModal, setShowOverhaulModal] = useState(false);
   const [showPlantFirstModal, setShowPlantFirstModal] = useState(false);
+  // Phase 4.6 — the two AI Sage+ creation modes live in a split menu behind
+  // the primary "New Plan" button instead of three competing top-level CTAs.
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [userTier, setUserTier] = useState<string | null>(null);
   const hasOverhaulAccess = userTier === "sage" || userTier === "evergreen";
 
@@ -365,44 +386,81 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
             <HelpCircle size={15} /> What's a Plan?
           </button>
           {can("plans.create") && (
-            <div className="grid grid-cols-2 gap-2 md:flex md:items-center md:gap-2">
-              <button
-                onClick={() => setShowOverhaulModal(true)}
-                data-testid="planner-overhaul-btn"
-                title={
-                  hasOverhaulAccess
-                    ? "Photo + AI redesign — Sage+ feature"
-                    : "Reimagine: Sage+ feature"
-                }
-                className="px-3 sm:px-4 py-4 bg-white border-2 border-rhozly-primary/30 text-rhozly-primary rounded-2xl font-black shadow-sm hover:bg-rhozly-primary/5 transition-transform active:scale-95 flex items-center gap-1.5 justify-center min-w-0"
-              >
-                <IconAI size={18} />
-                <span className="truncate">Reimagine</span>
-                {!hasOverhaulAccess && (
-                  <span className="text-[9px] uppercase tracking-widest text-rhozly-on-surface/45 hidden sm:inline">
-                    Sage+
-                  </span>
-                )}
-              </button>
+            /* Phase 4.6 — one primary CTA. "New Plan" creates the standard
+               plan; the caret opens the two AI Sage+ modes (Reimagine,
+               My Plants). testids preserved on each trigger so the planner
+               tour + any future tests keep resolving. */
+            <div className="relative flex items-stretch">
               <button
                 onClick={() => setShowNewPlanModal(true)}
                 data-testid="planner-new-plan-btn"
-                className="px-4 sm:px-6 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-95 flex items-center gap-1.5 justify-center min-w-0"
+                className="px-5 sm:px-6 py-3.5 bg-rhozly-primary text-white rounded-l-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-[0.98] touch-manipulation flex items-center gap-1.5 justify-center"
               >
-                <Plus size={20} /> <span className="truncate">New Plan</span>
+                <Plus size={20} /> <span>New Plan</span>
               </button>
               <button
-                onClick={() => setShowPlantFirstModal(true)}
-                data-testid="planner-plant-first-btn"
-                title={hasOverhaulAccess ? "Pick plants, AI arranges them into a plan — Sage+" : "Plan around my plants: Sage+ feature"}
-                className="col-span-2 md:col-span-1 px-3 sm:px-4 py-4 bg-white border-2 border-rhozly-primary/30 text-rhozly-primary rounded-2xl font-black shadow-sm hover:bg-rhozly-primary/5 transition-transform active:scale-95 flex items-center gap-1.5 justify-center min-w-0"
+                onClick={() => setCreateMenuOpen((v) => !v)}
+                data-testid="planner-create-menu-btn"
+                aria-label="More plan types"
+                aria-haspopup="menu"
+                aria-expanded={createMenuOpen}
+                className="px-2.5 py-3.5 bg-rhozly-primary text-white rounded-r-2xl border-l border-white/20 shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-[0.98] touch-manipulation flex items-center"
               >
-                <Sprout size={18} />
-                <span className="truncate">My Plants</span>
-                {!hasOverhaulAccess && (
-                  <span className="text-[9px] uppercase tracking-widest text-rhozly-on-surface/45 hidden sm:inline">Sage+</span>
-                )}
+                <ChevronDown size={18} className={createMenuOpen ? "rotate-180 transition-transform" : "transition-transform"} />
               </button>
+              {createMenuOpen && (
+                <>
+                  <div
+                    aria-hidden
+                    className="fixed inset-0 z-30"
+                    onClick={() => setCreateMenuOpen(false)}
+                  />
+                  <div
+                    role="menu"
+                    data-testid="planner-create-menu"
+                    // Focus the first item on open + Escape closes (the ARIA
+                    // menu contract). Keyboard users tab between the two items.
+                    ref={(el) => el?.querySelector<HTMLButtonElement>("[role='menuitem']")?.focus()}
+                    onKeyDown={(e) => { if (e.key === "Escape") setCreateMenuOpen(false); }}
+                    className="absolute right-0 top-full mt-2 z-40 w-64 bg-rhozly-surface-lowest border border-rhozly-outline/15 rounded-2xl shadow-raised p-1.5 animate-in fade-in zoom-in-95 duration-150"
+                  >
+                    <button
+                      role="menuitem"
+                      onClick={() => { setCreateMenuOpen(false); setShowOverhaulModal(true); }}
+                      data-testid="planner-overhaul-btn"
+                      className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-rhozly-surface-low transition-colors"
+                    >
+                      <IconAI size={18} className="text-status-ai-ink shrink-0 mt-0.5" />
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1.5 text-sm font-black text-rhozly-on-surface">
+                          Reimagine
+                          {!hasOverhaulAccess && (
+                            <span className="text-[9px] uppercase tracking-widest text-status-ai-ink bg-status-ai-fill px-1.5 py-0.5 rounded-full">Sage+</span>
+                          )}
+                        </span>
+                        <span className="block text-2xs font-bold text-rhozly-on-surface-variant mt-0.5">Photo → AI redesign of a space</span>
+                      </span>
+                    </button>
+                    <button
+                      role="menuitem"
+                      onClick={() => { setCreateMenuOpen(false); setShowPlantFirstModal(true); }}
+                      data-testid="planner-plant-first-btn"
+                      className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-rhozly-surface-low transition-colors"
+                    >
+                      <Sprout size={18} className="text-status-success-ink shrink-0 mt-0.5" />
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1.5 text-sm font-black text-rhozly-on-surface">
+                          My Plants
+                          {!hasOverhaulAccess && (
+                            <span className="text-[9px] uppercase tracking-widest text-status-ai-ink bg-status-ai-fill px-1.5 py-0.5 rounded-full">Sage+</span>
+                          )}
+                        </span>
+                        <span className="block text-2xs font-bold text-rhozly-on-surface-variant mt-0.5">Pick plants, AI arranges the plan</span>
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -445,7 +503,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-[2.5rem] border border-rhozly-outline/10 overflow-hidden animate-pulse">
+            <div key={i} className="bg-white rounded-3xl border border-rhozly-outline/10 overflow-hidden animate-pulse">
               <div className="h-40 bg-rhozly-surface-low" />
               <div className="p-6 space-y-3">
                 <div className="h-6 w-2/3 bg-rhozly-surface-low rounded-full" />
@@ -504,7 +562,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
             <div
               key={plan.id}
               onClick={() => setSelectedPlan(plan)}
-              className="bg-white rounded-[2.5rem] border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group flex flex-col relative"
+              className="bg-white rounded-3xl border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group flex flex-col relative"
             >
               {/* Per-card inline feedback banner */}
               {cardStatus[plan.id] && (
@@ -556,9 +614,20 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                     </p>
                   </div>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/20">
-                    <IconPlanner size={40} />
-                  </div>
+                  /* Phase 4.6 — kind-tinted gradient cover so a photoless plan
+                     reads as a designed thing, not flat grey. Icon keyed to
+                     the plan kind. */
+                  (() => {
+                    const cover =
+                      plan.kind === "plant-first"
+                        ? { grad: "from-emerald-100 to-teal-50", icon: <Sprout size={40} className="text-emerald-600/70" /> }
+                        : { grad: "from-rhozly-primary/15 to-rhozly-tint", icon: <IconPlanner size={40} className="text-rhozly-primary/60" /> };
+                    return (
+                      <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br ${cover.grad}`}>
+                        {cover.icon}
+                      </div>
+                    );
+                  })()
                 )}
 
                 {/* Secondary action buttons (Sun + View on Layout) sit
@@ -735,6 +804,31 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                     </div>
                   );
                 })()}
+                {/* Phase 4.6 — 5-phase staging progress (the point of a plan).
+                    Suppressed for Completed/Archived, plant-first, and overhaul
+                    plans that haven't produced a blueprint yet (Failed /
+                    generating / awaiting-concept — the cover owns those states). */}
+                {(() => {
+                  if (plan.status === "Completed" || plan.status === "Archived") return null;
+                  if (plan.kind === "overhaul" && (plan.status === "Failed" || !plan.ai_blueprint)) return null;
+                  const prog = planPhaseProgress(plan);
+                  if (!prog) return null;
+                  const allDone = prog.done >= prog.total;
+                  return (
+                    <div className="mb-3" data-testid={`plan-phase-progress-${plan.id}`}>
+                      <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-1">
+                        <span>{allDone ? "All phases done" : `Phase ${prog.done + 1} of ${prog.total}`}</span>
+                        <span className="text-rhozly-primary/70">{prog.done}/{prog.total} done</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-rhozly-surface-low overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-rhozly-primary transition-all duration-500"
+                          style={{ width: `${(prog.done / prog.total) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 pt-4 border-t border-rhozly-outline/5">
                   <span>
                     Created {new Date(plan.created_at).toLocaleDateString()}
@@ -865,7 +959,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                 }
               >
                 <div
-                  className="bg-white p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-rhozly-outline/10 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar"
+                  className="bg-white p-6 sm:p-8 rounded-3xl w-full max-w-md shadow-2xl border border-rhozly-outline/10 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div

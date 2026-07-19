@@ -40,12 +40,15 @@ BlueprintManager
 │   └── Tab bar (Blueprints / Optimise)
 ├── Search bar + Filter button
 ├── Filter drawer (Type, Location, Area, Plan, Plant)
-├── Blueprint list
-│   └── Card per blueprint
-│       ├── Icon (by type)
-│       ├── Title / frequency / scope chips
+├── Blueprint list (Phase 4.5 — colour-coded by task type)
+│   └── Card per blueprint (root: `relative overflow-hidden … pl-7`)
+│       ├── Type accent bar (`<span absolute left-0 top-0 bottom-0 w-1.5>`, tinted by type)
+│       ├── Tinted icon tile (`w-10 h-10` tile, tile bg + icon both in the type hue)
+│       ├── Frequency pill + Title
+│       ├── Always-visible actions (Pause / Resume + Delete — 44px targets, not hover-gated)
 │       ├── Paused-until pill (if paused)
-│       └── Actions (Edit / Pause / Delete)
+│       ├── Description (line-clamp)
+│       └── "Next: <first upcoming>" + 30-day dot track (`blueprint-{id}-dot-track`)
 ├── AddTaskModal (when isBuilding === true)
 ├── ConfirmModal (delete)
 └── OptimiseTab (when activeTab === "optimise")
@@ -83,6 +86,10 @@ supabase.from("inventory_items").select("id, plant_name").eq("home_id", homeId);
 ```
 
 The inventory map joins back to blueprints (which reference inventory by `inventory_item_id`) for the plant filter chip.
+
+**Dot-track dates are not fetched — they're derived inline.** The "Next: …" line and the 30-day dot track are computed client-side per card (no query, no cron). The anchor is `bp.start_date ?? bp.created_at`; occurrence days step forward by `bp.frequency_days` from the first occurrence `>= today`, capped at `bp.end_date` if set, and only the next 30 calendar days are rendered. Cards with no/zero `frequency_days`, or with no upcoming occurrence in the window, render no track.
+
+**Type colour-coding is a single style record.** `TASK_TYPE_STYLE` (via `taskTypeStyle(type)`, with a neutral `DEFAULT_TYPE_STYLE` fallback) maps each task type to one family — `iconClass` (icon colour, unchanged hues), `tileClass` (icon-tile tint), `accentClass` (left bar), `dotClass` (dot-track fill): Watering → blue, Maintenance → orange, Pruning → lime, Harvesting → yellow, Planting → amber, anything else → neutral. The same lookup drives the icon (`getTaskIcon`), the tile, the accent bar, and the dots, so a wall of routines is scannable by care type at a distance.
 
 ### Data flow — write paths
 
@@ -184,7 +191,8 @@ For a beginner, the schedules created during Plan Staging cover most of what's n
 
 #### 2. Pause a schedule
 
-- Pause icon on a card → menu with options: 1 week / 1 month / Until date / Pause indefinitely.
+- Pause icon on a card → menu with options: 1 week / 2 weeks / 1 month.
+- The pause and delete controls sit at the top-right of every card and are **always visible** (Phase 4.5) — previously they only faded in on mouse hover, so touch users couldn't see them at all. A paused routine shows a Resume (play) icon in amber instead.
 - Paused schedules don't generate tasks until the date passes.
 - Useful for winter dormancy or holidays.
 
@@ -194,28 +202,39 @@ For a beginner, the schedules created during Plan Staging cover most of what's n
 
 #### 4. Delete
 
-- Trash → confirm. Removes the blueprint *and* any future ghost tasks. Past completed tasks survive.
+- Trash icon (always visible, top-right of the card) → confirm. Removes the blueprint *and* any future ghost tasks. Past completed tasks survive.
 
 #### 5. Search / Filter
 
 - Search bar: free-text against title.
 - Filter drawer: scope by Type / Location / Area / Plan / Plant.
 - Combine filters to narrow to e.g. "All watering schedules in the South Bed".
+- The **Filters** button carries a small count badge (Phase 4.5) showing exactly how many of the five filters are active — e.g. `2` when both Type and Area are set. Previously it showed only a generic "!" marker; now you can see at a glance how narrow your view is.
 
 #### 6. Optimise tab
 
 - Second tab opens the consolidator + AI ideas. See [Optimise Tab](./08-optimise-tab.md).
+
+#### 7. Read a card at a glance (Phase 4.5)
+
+- Each routine is **colour-coded by care type** — a coloured accent bar down the left edge, a matching tinted icon tile, and matching dots. Blue = watering, orange = maintenance, lime = pruning, yellow = harvesting, amber = planting, grey = anything else. Scan a wall of routines and the watering ones jump out without reading a word.
+- Below the title, a **"Next:" line** names the next upcoming occurrence, and a **30-day dot track** shows the rhythm: one dot per day for the coming month. Days a task fires are tall dots in the type's colour; the rest are small, faint dots. Today's dot is ringed. Hover (or long-press) a dot to see its date — due days read "… — due". At a glance you can tell "every 3 days" from "every 2 weeks" without doing the maths.
 
 ### Information on display — what every field means
 
 | Field | Meaning |
 |-------|---------|
 | Title | Free-text |
-| Type icon | Water 💧 / Prune ✂️ / Harvest 🌾 / Fertilise 🌿 / Plant 🌱 / Other |
+| Type accent bar | Coloured bar down the left edge, keyed to task type (colour key below). The whole card's colour cue. |
+| Type icon (tinted tile) | Water 💧 / Prune ✂️ / Harvest 🌾 / Fertilise 🌿 / Plant 🌱 / Other — the icon sits in a tile tinted the same type colour as the accent bar. |
 | Frequency | Every N days |
+| "Next:" line | The next upcoming occurrence date (first fire ≥ today). |
+| Dot track | A 30-day rhythm strip: tall coloured dots on days the routine fires, small faint dots otherwise, today ringed. Per-dot hover shows the date (due days read "… — due"). |
 | Scope chip | Where it applies |
 | Paused-until pill | If paused, until when |
 | AI badge | Generated by AI (Plant Doctor or AI Optimise) |
+
+**Type colour key:** Watering = blue · Maintenance = orange · Pruning = lime · Harvesting = yellow · Planting = amber · anything else = neutral grey. The same colour drives the accent bar, the icon + its tile, and the dot-track fill.
 
 ### Tier-by-tier experience
 

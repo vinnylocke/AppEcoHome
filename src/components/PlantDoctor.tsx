@@ -43,6 +43,8 @@ import PlantDoctorHistory from "./PlantDoctorHistory";
 import { usePlantDoctorSessions } from "../hooks/usePlantDoctorSessions";
 import PhotoAnnotationOverlay, { type PhotoAnnotation } from "./PhotoAnnotationOverlay";
 import AnalyseResultCard from "./lens/AnalyseResultCard";
+import { AnalysisWaitOverlay } from "./lens/AnalysisWaitOverlay";
+import { SparkleAccent } from "./ui/SparkleAccent";
 import AiFeedback from "./ai/AiFeedback";
 import SceneMapResultCard from "./lens/SceneMapResultCard";
 import InfoTooltip from "./InfoTooltip";
@@ -993,7 +995,10 @@ export default function PlantDoctor({
           </div>
         ) : null}
 
-        <div className={`bg-rhozly-surface-lowest/80 backdrop-blur-md rounded-3xl p-6 md:p-8 border border-rhozly-outline/10 shadow-sm flex-1 ${activeTab !== "analyse" ? "hidden" : ""}`}>
+        {/* Phase 4.4 — camera-first on mobile: the panel sheds its card
+            chrome below md so the capture surface reads near-full-bleed
+            inside the shell padding; from md up the classic panel returns. */}
+        <div className={`max-md:p-0 max-md:bg-transparent max-md:backdrop-blur-none max-md:border-0 max-md:shadow-none md:bg-rhozly-surface-lowest/80 md:backdrop-blur-md rounded-3xl md:p-8 md:border md:border-rhozly-outline/10 md:shadow-sm flex-1 ${activeTab !== "analyse" ? "hidden" : ""}`}>
           {/* Step progress */}
           <div className="flex items-center gap-2 mb-6">
             {[
@@ -1031,9 +1036,12 @@ export default function PlantDoctor({
             </div>
           )}
           {!imagePreview ? (
-            <div data-testid="doctor-upload-zone" className="flex flex-col items-center justify-center p-8 sm:p-12 border-2 border-dashed border-rhozly-primary/30 rounded-3xl bg-rhozly-primary/5 hover:bg-rhozly-primary/10 transition-colors h-full min-h-[400px]">
+            // Phase 4.4 — camera-first: on phones the zone fills most of the
+            // viewport and Open Camera leads; from sm up the classic layout.
+            // The heading copy + "Upload File" name are load-bearing for e2e.
+            <div data-testid="doctor-upload-zone" className="flex flex-col items-center justify-center p-6 sm:p-12 border-2 border-dashed border-rhozly-primary/30 rounded-3xl bg-rhozly-primary/5 can-hover:hover:bg-rhozly-primary/10 transition-colors h-full min-h-[60vh] sm:min-h-[400px]">
               <div className="w-20 h-20 bg-white shadow-sm text-rhozly-primary rounded-full flex items-center justify-center mb-6">
-                <Upload className="w-10 h-10 opacity-80" />
+                <CameraIcon className="w-10 h-10 opacity-80" aria-hidden />
               </div>
               <h3 className="text-xl font-black font-display text-rhozly-on-surface mb-2 text-center">
                 Upload or take a photo
@@ -1042,18 +1050,18 @@ export default function PlantDoctor({
                 Snap a clear picture of the plant, leaf, or affected area for
                 the AI to analyze.
               </p>
-              <div className="flex flex-wrap justify-center gap-4 w-full sm:w-auto">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-white border border-rhozly-outline/10 rounded-2xl shadow-sm text-rhozly-on-surface font-bold hover:bg-rhozly-primary/5 transition-colors"
-                >
-                  <Upload className="w-5 h-5 text-rhozly-primary" /> Upload File
-                </button>
+              <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 w-full sm:w-auto max-w-sm">
                 <button
                   onClick={handleNativeCamera}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-rhozly-primary rounded-2xl shadow-md text-white font-bold hover:bg-rhozly-primary-container transition-colors"
+                  className="flex items-center justify-center gap-2 px-6 py-4 sm:py-3.5 min-h-[52px] bg-brand-gradient-soft rounded-2xl shadow-raised text-white font-black transition-transform duration-200 ease-spring active:scale-[0.97] active:duration-100 touch-manipulation"
                 >
-                  <CameraIcon className="w-5 h-5" /> Open Camera
+                  <CameraIcon className="w-5 h-5" aria-hidden /> Open Camera
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 px-6 py-3.5 min-h-[48px] bg-white border border-rhozly-outline/10 rounded-2xl shadow-sm text-rhozly-on-surface font-bold can-hover:hover:bg-rhozly-primary/5 active:scale-[0.98] transition-all touch-manipulation"
+                >
+                  <Upload className="w-5 h-5 text-rhozly-primary" aria-hidden /> Upload File
                 </button>
               </div>
               {/* Persona-aware tip: newcomers (and unknown persona) see
@@ -1080,15 +1088,21 @@ export default function PlantDoctor({
             <div className="animate-in zoom-in-95 duration-300 xl:grid xl:grid-cols-[2fr_3fr] xl:gap-6 xl:items-start">
               {/* Left: image (sticky on xl) */}
               <div className="mb-6 xl:mb-0 xl:sticky xl:top-4 space-y-2">
-                <div className="relative rounded-3xl overflow-hidden border border-rhozly-outline/20 bg-rhozly-on-surface/5 flex justify-center max-h-[400px] shadow-inner">
+                <div className="relative rounded-3xl overflow-hidden border border-rhozly-outline/20 bg-rhozly-on-surface/5 flex justify-center max-h-[55vh] xl:max-h-[400px] shadow-inner">
                   <PhotoAnnotationOverlay
                     src={imagePreview}
                     alt="Plant preview"
                     annotations={annotations}
                     onChange={setAnnotations}
                     editing={annotatingPhoto}
-                    maxHeightClass="max-h-[400px]"
+                    maxHeightClass="max-h-[55vh] xl:max-h-[400px]"
                   />
+                  {/* Staged AI-wait (Phase 4.4) — blurred copy of the user's
+                      own photo + honest pipeline copy while Gemini/Pl@ntNet
+                      run. Unmounts the instant the response settles. */}
+                  {isProcessing && (
+                    <AnalysisWaitOverlay action={activeAction} src={imagePreview} />
+                  )}
                   <button
                     onClick={clearImage}
                     disabled={isUIBusy}
@@ -1317,64 +1331,72 @@ export default function PlantDoctor({
                   </span>
                 </button>
 
+              {/* Phase 4.4 — one neutral treatment (colored ICONS carry the
+                  meaning via status tokens); the gradient Analyse hero above
+                  stays the only loud element. Labels + testids + disabled
+                  semantics unchanged (e2e targets the accessible names). */}
               {!compact && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                  <button
-                    onClick={() => handleAiAction("identify")}
-                    disabled={isUIBusy}
-                    data-testid="doctor-btn-identify"
-                    className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "identify" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 disabled:opacity-50"}`}
-                  >
-                    {isProcessing && activeAction === "identify" ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Search className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    )}
-                    <span>Identify</span>
-                    <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Plant</span>
-                  </button>
-                  <button
-                    onClick={() => handleAiAction("diagnose")}
-                    disabled={isUIBusy}
-                    data-testid="doctor-btn-diagnose"
-                    className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "diagnose" ? "bg-amber-500 text-white shadow-md scale-[1.02]" : "bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 disabled:opacity-50"}`}
-                  >
-                    {isProcessing && activeAction === "diagnose" ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Activity className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    )}
-                    <span>Diagnose</span>
-                    <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Health</span>
-                  </button>
-                  <button
-                    onClick={() => handleAiAction("pest")}
-                    disabled={isUIBusy}
-                    data-testid="doctor-btn-pest"
-                    className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "pest" ? "bg-rose-600 text-white shadow-md scale-[1.02]" : "bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 disabled:opacity-50"}`}
-                  >
-                    {isProcessing && activeAction === "pest" ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <IconPest className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    )}
-                    <span>Identify</span>
-                    <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Pest</span>
-                  </button>
-                  <button
-                    onClick={handleMultiId}
-                    disabled={isUIBusy}
-                    data-testid="doctor-btn-multi-id"
-                    className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "scene" ? "bg-sky-600 text-white shadow-md scale-[1.02]" : "bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 hover:border-sky-300 disabled:opacity-50"}`}
-                  >
-                    {isProcessing && activeAction === "scene" ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <ScanSearch className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    )}
-                    <span>Multi-ID</span>
-                    <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Many plants</span>
-                  </button>
+                  {([
+                    {
+                      testId: "doctor-btn-identify",
+                      onClick: () => handleAiAction("identify"),
+                      action: "identify",
+                      Icon: Search,
+                      iconClass: "text-status-success-ink",
+                      label: "Identify",
+                      sub: "Plant",
+                    },
+                    {
+                      testId: "doctor-btn-diagnose",
+                      onClick: () => handleAiAction("diagnose"),
+                      action: "diagnose",
+                      Icon: Activity,
+                      iconClass: "text-status-weather-ink",
+                      label: "Diagnose",
+                      sub: "Health",
+                    },
+                    {
+                      testId: "doctor-btn-pest",
+                      onClick: () => handleAiAction("pest"),
+                      action: "pest",
+                      Icon: IconPest,
+                      iconClass: "text-status-watch-ink",
+                      label: "Identify",
+                      sub: "Pest",
+                    },
+                    {
+                      testId: "doctor-btn-multi-id",
+                      onClick: handleMultiId,
+                      action: "scene",
+                      Icon: ScanSearch,
+                      iconClass: "text-status-sensor-ink",
+                      label: "Multi-ID",
+                      sub: "Many plants",
+                    },
+                  ] as const).map(({ testId, onClick, action, Icon, iconClass, label, sub }) => (
+                    <button
+                      key={testId}
+                      onClick={onClick}
+                      disabled={isUIBusy}
+                      data-testid={testId}
+                      className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group touch-manipulation active:scale-[0.97] active:duration-100 ${
+                        activeAction === action
+                          ? "bg-rhozly-primary text-white shadow-md"
+                          : "bg-rhozly-surface-lowest text-rhozly-on-surface/75 border border-rhozly-outline/15 can-hover:hover:border-rhozly-primary/30 can-hover:hover:text-rhozly-on-surface disabled:opacity-50"
+                      }`}
+                    >
+                      {isProcessing && activeAction === action ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Icon
+                          className={`w-5 h-5 group-hover:scale-110 transition-transform ${activeAction === action ? "" : iconClass}`}
+                        />
+                      )}
+                      <span>{label}</span>
+                      <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">{sub}</span>
+                    </button>
+                  ))}
                 </div>
               )}
               </div>
@@ -1413,7 +1435,7 @@ export default function PlantDoctor({
                     <div className="flex items-center gap-2 mb-3">
                       <IconAI className="w-5 h-5 text-rhozly-primary" />
                       <h3 className="font-black text-lg text-rhozly-on-surface">
-                        Doctor's Notes
+                        <SparkleAccent>Doctor's Notes</SparkleAccent>
                       </h3>
                     </div>
                     <div className="text-rhozly-on-surface/80 font-medium leading-relaxed whitespace-pre-wrap">

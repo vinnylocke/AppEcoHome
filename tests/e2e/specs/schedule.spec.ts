@@ -75,9 +75,7 @@ test.describe("Schedule — New Automation modal", () => {
 
     // --- Cleanup: delete the automation ---
     await schedule.deleteButtonFor(title).click();
-    const deleteConfirm = authenticatedPage.getByRole("button", {
-      name: /Delete Automation/i,
-    });
+    const deleteConfirm = authenticatedPage.getByTestId("confirm-modal-confirm");
     if (await deleteConfirm.isVisible({ timeout: 3000 }).catch(() => false)) {
       await deleteConfirm.click();
     }
@@ -152,7 +150,7 @@ test.describe("Schedule — Edit blueprint", () => {
     await schedule.blueprintCard("Weekly Garden Watering").click();
 
     await expect(
-      authenticatedPage.getByRole("heading", { name: /Edit Automation/i }),
+      authenticatedPage.getByRole("heading", { name: /Edit Routine/i }),
     ).toBeVisible({ timeout: 10000 });
 
     // The title input should be pre-filled
@@ -181,7 +179,7 @@ test.describe("Schedule — Delete blueprint", () => {
 
     // Delete it
     await schedule.deleteButtonFor(title).click();
-    const confirmBtn = authenticatedPage.getByRole("button", { name: /Delete Automation/i });
+    const confirmBtn = authenticatedPage.getByTestId("confirm-modal-confirm");
     await expect(confirmBtn).toBeVisible({ timeout: 5000 });
     await confirmBtn.click();
 
@@ -195,7 +193,7 @@ test.describe("Schedule — Delete blueprint", () => {
 
     // Use the first seeded blueprint for a cancel test — safe, no data changes
     await schedule.deleteButtonFor("Weekly Garden Watering").click();
-    const confirmBtn = authenticatedPage.getByRole("button", { name: /Delete Automation/i });
+    const confirmBtn = authenticatedPage.getByTestId("confirm-modal-confirm");
     await expect(confirmBtn).toBeVisible({ timeout: 5000 });
 
     await authenticatedPage.getByRole("button", { name: /Cancel/i }).click();
@@ -344,6 +342,11 @@ test.describe("Schedule — empty state (Section 06)", () => {
 test.describe("Schedule — create with metadata (Section 06)", () => {
   test("SCH-011: Create blueprint with inventory item link — Basil badge appears on card", async ({ authenticatedPage }) => {
     const schedule = new SchedulePage(authenticatedPage);
+    // Linking Raised Bed A collides with a seeded Maintenance schedule, so the
+    // save fires the duplicate-schedule window.confirm — accept it (Playwright
+    // auto-dismisses by default, which silently aborted the save). Matches the
+    // handler SCH-013/018/021 already register for their area-linked saves.
+    authenticatedPage.on("dialog", (d) => d.accept());
     await schedule.goto();
     await schedule.waitForLoad();
 
@@ -378,9 +381,12 @@ test.describe("Schedule — create with metadata (Section 06)", () => {
     await expect(schedule.blueprintCard(title)).toBeVisible({ timeout: 10000 });
     await expect(authenticatedPage.getByText("Basil").first()).toBeVisible({ timeout: 5000 });
 
-    // Cleanup
-    await schedule.deleteButtonFor(title).click();
-    const confirmBtn = authenticatedPage.getByRole("button", { name: /Delete Automation/i });
+    // Cleanup — the inventory-linked card scores into the preference sort and
+    // re-sorts on the post-create refetch, so a sibling can shift under the
+    // click point. The locator still resolves the correct button by its unique
+    // aria-label; force past the transient overlap.
+    await schedule.deleteButtonFor(title).click({ force: true });
+    const confirmBtn = authenticatedPage.getByTestId("confirm-modal-confirm");
     if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) await confirmBtn.click();
   });
 
@@ -411,7 +417,7 @@ test.describe("Schedule — create with metadata (Section 06)", () => {
 
     // Cleanup
     await schedule.deleteButtonFor(title).click();
-    const confirmBtn = authenticatedPage.getByRole("button", { name: /Delete Automation/i });
+    const confirmBtn = authenticatedPage.getByTestId("confirm-modal-confirm");
     if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) await confirmBtn.click();
   });
 
@@ -449,7 +455,7 @@ test.describe("Schedule — create with metadata (Section 06)", () => {
 
     // Cleanup
     await schedule.deleteButtonFor(title).click();
-    const confirmBtn = authenticatedPage.getByRole("button", { name: /Delete Automation/i });
+    const confirmBtn = authenticatedPage.getByTestId("confirm-modal-confirm");
     if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) await confirmBtn.click();
   });
 });
@@ -490,7 +496,7 @@ test.describe("Schedule — edit blueprint (extended, Section 06)", () => {
 
     // Cleanup
     await schedule.deleteButtonFor(updatedTitle).click();
-    const confirmBtn = authenticatedPage.getByRole("button", { name: /Delete Automation/i });
+    const confirmBtn = authenticatedPage.getByTestId("confirm-modal-confirm");
     if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) await confirmBtn.click();
   });
 
@@ -535,7 +541,7 @@ test.describe("Schedule — edit blueprint (extended, Section 06)", () => {
 
     await expect(schedule.blueprintCard(title)).toBeVisible({ timeout: 5000 });
     await schedule.deleteButtonFor(title).click();
-    const confirmBtn = authenticatedPage.getByRole("button", { name: /Delete Automation/i });
+    const confirmBtn = authenticatedPage.getByTestId("confirm-modal-confirm");
     if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) await confirmBtn.click();
   });
 
@@ -576,7 +582,7 @@ test.describe("Schedule — edit blueprint (extended, Section 06)", () => {
     await schedule.modalHeading.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
 
     await schedule.deleteButtonFor(title).click();
-    const confirmBtn = authenticatedPage.getByRole("button", { name: /Delete Automation/i });
+    const confirmBtn = authenticatedPage.getByTestId("confirm-modal-confirm");
     if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) await confirmBtn.click();
   });
 });
@@ -610,7 +616,7 @@ test.describe("Schedule — blueprint cascade delete (Section 06)", () => {
     await schedule.waitForLoad();
     await expect(schedule.blueprintCard(title)).toBeVisible({ timeout: 10000 });
     await schedule.deleteButtonFor(title).click();
-    const confirmBtn = authenticatedPage.getByRole("button", { name: /Delete Automation/i });
+    const confirmBtn = authenticatedPage.getByTestId("confirm-modal-confirm");
     if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) await confirmBtn.click();
     await expect(schedule.blueprintCard(title)).not.toBeVisible({ timeout: 10000 });
 

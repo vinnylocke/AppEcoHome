@@ -474,8 +474,11 @@ test.describe("Planner — plan actions (Section 09)", () => {
     await planner.goto();
     await planner.waitForLoad();
 
-    // Create a throwaway plan via the 3-step form so seeded "Spring Cleanup" is not destroyed
-    const planName = `E2E Delete Plan ${Date.now()}`;
+    // Create a throwaway plan via the 3-step form so seeded "Spring Cleanup" is
+    // not destroyed. Name avoids the word "Delete" — it would leak into each
+    // card's Sun-tracker aria-label ("Open <name> in Sun Tracker") and make the
+    // menu-item / confirm-button role selectors ambiguous.
+    const planName = `E2E Throwaway Plan ${Date.now()}`;
     await planner.newPlanButton.click();
 
     // Step 1: Vision
@@ -512,20 +515,19 @@ test.describe("Planner — plan actions (Section 09)", () => {
       .filter({ hasText: planName })
       .first();
     await planCard.locator('[aria-label="Plan options"]').click();
-    await authenticatedPage.waitForTimeout(200);
 
-    const deleteOption = authenticatedPage.getByRole("button", { name: /Delete Plan/i });
-    if (await deleteOption.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await deleteOption.click();
-    }
+    // EXACT match: the plan name contains "Delete Plan", so the loose
+    // /Delete Plan/i regex also matched each card's Sun-tracker button
+    // (aria-label "Open E2E Delete Plan … in Sun Tracker") → a strict-mode
+    // violation the old guarded `isVisible().catch()` silently swallowed,
+    // skipping the delete entirely. Exact "Delete Plan" hits only the menu item.
+    await authenticatedPage.getByRole("button", { name: "Delete Plan", exact: true }).click();
+    await planner.deleteConfirmButton.click();
 
-    if (await planner.deleteConfirmButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await planner.deleteConfirmButton.click();
-    }
-    await authenticatedPage.waitForTimeout(500);
-
+    // Assert on the card HEADING specifically — plain getByText(planName) also
+    // matches the confirm modal's name reference (a span) while it animates out.
     await expect(
-      authenticatedPage.getByText(planName),
+      authenticatedPage.getByRole("heading", { name: planName }),
     ).not.toBeVisible({ timeout: 8000 });
   });
 

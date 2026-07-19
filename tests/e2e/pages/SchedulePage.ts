@@ -48,14 +48,14 @@ export class SchedulePage {
     // selector.
     this.newAutomationButton = page.getByTestId("blueprint-new-btn");
     this.filtersButton = page.getByRole("button", { name: /Filters/i });
-    this.searchInput = page.getByPlaceholder("Search automations...");
-    this.emptyState = page.getByText("No Automations Running");
-    this.createFirstButton = page.getByRole("button", { name: /Create Your First Automation/i });
+    this.searchInput = page.getByPlaceholder("Search routines...");
+    this.emptyState = page.getByText("No routines yet");
+    this.createFirstButton = page.getByRole("button", { name: /Create your first routine/i });
     this.noMatchState = page.getByText("No matches found");
-    this.filterDrawerHeading = page.getByText("Advanced Filters");
+    this.filterDrawerHeading = page.getByRole("heading", { name: "Filters" });
     this.clearAllFiltersButton = page.getByRole("button", { name: /Clear All/i });
 
-    this.modalHeading = page.getByRole("heading", { name: /New Automation|Edit Automation/i });
+    this.modalHeading = page.getByRole("heading", { name: /New Routine|Edit Routine/i });
     this.titleInput = page.getByPlaceholder("Task Name *");
     this.saveButton = page.getByRole("button", { name: /^Save$/i });
     this.taskTypeSelect = page.locator("select").first();

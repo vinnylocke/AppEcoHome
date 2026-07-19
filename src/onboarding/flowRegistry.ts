@@ -236,9 +236,11 @@ export const flowRegistry: FlowDef[] = [
         attachTo: { element: "[data-testid='planner-new-plan-btn']", on: "bottom" },
       },
       {
-        title: "Garden Overhaul (Sage+)",
-        body: "Want to redesign an existing space? Tap Overhaul, upload a photo of your garden, describe what you like and dislike, and Rhozly's vision AI + Imagen 4 produce three concept 'after' images plus a redesign blueprint. Pick a concept and it flows into the same phase staging as a regular plan.",
-        attachTo: { element: "[data-testid='planner-overhaul-btn']", on: "bottom" },
+        title: "AI plan modes (Sage+)",
+        body: "The little caret next to New Plan opens two AI-powered modes. 'Reimagine' redesigns an existing space — upload a photo and Rhozly's vision AI + Imagen 4 produce concept 'after' images plus a redesign blueprint. 'My Plants' arranges plants you already own into a multi-area plan. Both flow into the same phase staging as a regular plan.",
+        // Anchors the visible split-menu trigger (the Reimagine/My-Plants
+        // items live inside the menu, which is closed by default).
+        attachTo: { element: "[data-testid='planner-create-menu-btn']", on: "bottom" },
       },
       {
         title: "Phase staging",

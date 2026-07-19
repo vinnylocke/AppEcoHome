@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { AnalyseResult } from "../../services/plantDoctorService";
 import { TaskActionButtons } from "../TaskActionButtons";
+import { SparkleAccent } from "../ui/SparkleAccent";
 
 interface Props {
   result: AnalyseResult;
@@ -157,7 +158,9 @@ export default function AnalyseResultCard({ result, homeId, onTasksAdded }: Prop
             data-testid="analyse-identification-common-name"
             className="font-black text-xl sm:text-2xl text-rhozly-on-surface leading-tight"
           >
-            {identification.common_name}
+            {/* The AI signature moment — one SparkleAccent per screen,
+                reserved for the reveal of the identified plant. */}
+            <SparkleAccent>{identification.common_name}</SparkleAccent>
           </h3>
           {sciName && (
             <p

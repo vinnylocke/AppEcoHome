@@ -97,9 +97,9 @@ test.describe("Task lifecycle — Task Management page", () => {
   test("navigating to /schedule renders the Blueprint Manager", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/schedule");
 
-    // BlueprintManager renders <h2>Automations</h2>
+    // BlueprintManager renders the "Routines" heading
     await expect(
-      authenticatedPage.getByRole("heading", { name: /Automations/i }).first(),
+      authenticatedPage.getByRole("heading", { name: /Routines/i }).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 

@@ -32,7 +32,9 @@ export class PlannerPage {
     // Filter by text content (not ARIA name) to avoid SVG icon interference
     this.stagingBackButton = page.locator("button").filter({ hasText: /^Plans$/ }).first();
     this.confirmButton = page.getByRole("button", { name: "Confirm" });
-    this.deleteConfirmButton = page.getByRole("button", { name: "Delete" });
+    // exact: the substring "Delete" also matched cards' Sun-tracker buttons
+    // ("Open <plan name> in Sun Tracker") when a plan name contained "Delete".
+    this.deleteConfirmButton = page.getByRole("button", { name: "Delete", exact: true });
     this.cancelButton = page.getByRole("button", { name: "Cancel" });
   }
 

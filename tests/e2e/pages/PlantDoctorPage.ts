@@ -14,7 +14,9 @@ export class PlantDoctorPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.heading = page.getByRole("heading", { name: "Plant Doctor" });
+    // The surface heading reads "Plant Lens" (the Phase 5 naming pass will
+    // standardise surface vs nav names — update here when it does).
+    this.heading = page.getByRole("heading", { name: "Plant Lens" });
     this.uploadFileButton = page.getByRole("button", { name: "Upload File" });
     this.uploadDropzone = page.getByText("Upload or take a photo");
     this.identifyButton = page.getByRole("button", { name: "Identify Plant" });

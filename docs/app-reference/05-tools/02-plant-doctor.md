@@ -41,21 +41,29 @@ Photo capture supports Capacitor camera (mobile native), browser camera, or file
 ```
 PlantDoctor
 ├── Tab bar (Analyse / History)
-├── Analyse tab
-│   ├── Photo capture row
-│   │   ├── Take Photo (camera)
-│   │   ├── Choose from Library
-│   │   └── Image preview + annotation overlay
+├── Analyse tab — panel sheds its card chrome below md (max-md:p-0 / bg-transparent /
+│   │             border-0 / shadow-none) so the capture surface reads near-full-bleed
+│   │             on phones; the classic card panel returns from md up (Phase 4.4)
+│   ├── Step progress (Upload → Analyse → Results)
+│   ├── Camera-first upload zone (no photo yet — min-h-[60vh] on phones, sm:min-h-[400px])
+│   │   ├── Camera glyph circle (replaced the Upload glyph, Phase 4.4)
+│   │   ├── "Upload or take a photo" heading (e2e contract — don't rename)
+│   │   ├── Open Camera — leading gradient hero (bg-brand-gradient-soft)
+│   │   ├── Upload File — secondary (white + hairline border; e2e contract name)
+│   │   └── Persona-aware photo tip (inline sentence vs `?` tooltip)
+│   ├── Image frame (photo chosen — max-h-[55vh] mobile, 400px at xl)
+│   │   ├── PhotoAnnotationOverlay (preview + circle/box annotations)
+│   │   ├── AnalysisWaitOverlay (while isProcessing — staged AI-wait, Phase 4.4)
+│   │   └── Remove-photo button
+│   ├── Annotation controls + multi-photo strip (Wave 19)
 │   ├── (Optional) Plant Instance Picker
 │   ├── Action buttons
-│   │   ├── ✨ Analyse (primary, full-width hero)
-│   │   └── Identify · Diagnose · Pest Scan · Multi-ID (secondary grid; hidden in compact)
+│   │   ├── ✨ Analyse (primary, full-width gradient hero — the only loud element)
+│   │   └── Identify · Diagnose · Pest · Multi-ID (unified neutral grid, colored
+│   │       icons via status tokens; hidden in compact — Phase 4.4)
 │   ├── Result panel
 │   │   ├── AnalyseResultCard (when activeAction === "analyse")
-│   │   ├── SceneMapResultCard (when activeAction === "scene") — box overlay + weighted mapping
-│   │   │   ├── per region: select+confirm · ⓘ info (PlantInfoPanel) + See full care (PlantDetailModal) · check
-│   │   │   └── sticky "Add N to Shed" → ensureCataloguePlantFromSearchResult → saveToShed
-│   │   │   ├── Identification (always open)
+│   │   │   ├── Identification (always open) — SparkleAccent on the common name
 │   │   │   ├── Health & Light (always open) — health pill + sunlight check
 │   │   │   ├── Pruning (collapsible)
 │   │   │   ├── Propagation & Cuttings (collapsible)
@@ -63,6 +71,10 @@ PlantDoctor
 │   │   │   ├── Disease (open by default, red accent — only when present)
 │   │   │   ├── Pest (open by default, red accent — only when present)
 │   │   │   └── TaskActionButtons (chat's existing task-commit UI — drop-in)
+│   │   ├── SceneMapResultCard (when activeAction === "scene") — box overlay + weighted mapping
+│   │   │   ├── per region: select+confirm · ⓘ info (PlantInfoPanel) + See full care (PlantDetailModal) · check
+│   │   │   └── sticky "Add N to Shed" → ensureCataloguePlantFromSearchResult → saveToShed
+│   │   ├── Doctor's Notes card (identify / diagnose / pest) — SparkleAccent on the heading
 │   │   ├── DiagnosisImageGallery (Perenual / Verdantly / Unsplash thumbnails)
 │   │   ├── Diagnosis details (per disease)
 │   │   ├── Pest details (per pest)
@@ -82,7 +94,7 @@ PlantDoctor
 |------|------|--------|---------|
 | `homeId` | `string` | App.tsx | Scope |
 | `userId` | `string?` | App.tsx | History scoping |
-| `aiEnabled` | `boolean` | App.tsx | Gates Identify/Diagnose/Pest/Analyse |
+| `aiEnabled` | `boolean` | App.tsx | `false` → the free-identify gate card replaces the action grid (Sprint 3 quota model — see Tier gating); `true` → full action grid |
 | `isPremium` | `boolean` | App.tsx | Some premium-only sub-flows |
 | `perenualEnabled` | `boolean` | App.tsx | Plant DB lookups |
 | `onTasksAdded` | `() => void` | App.tsx | Refresh dashboard after treatment plan |
@@ -94,11 +106,13 @@ PlantDoctor
 |-------|---------|
 | `activeTab` | "analyse" / "history" |
 | `currentSessionId`, `confirmedValue` | Active session + confirmation |
-| `imagePreview`, `selectedFile`, `annotations` | Photo + circle/box overlay |
-| `isProcessing`, `isFetchingDetails`, `isGeneratingTreatment` | Action-in-flight flags |
-| `activeAction` | "identify" / "diagnose" / "pest" / null |
+| `photos: PhotoEntry[]` | Multi-photo strip (Wave 19) — `selectedFile` / `imagePreview` derive from `photos[0]` |
+| `imagePreview`, `selectedFile`, `annotations`, `annotatingPhoto` | Photo + circle/box overlay + annotate-mode toggle |
+| `isProcessing`, `isFetchingDetails`, `isGeneratingTreatment` | Action-in-flight flags — `isProcessing` also mounts `AnalysisWaitOverlay` over the image frame (Phase 4.4) |
+| `activeAction` | `"identify" \| "diagnose" \| "pest" \| "analyse" \| "scene" \| null` — drives result-panel branching AND selects the wait overlay's stage script |
 | `myInventory`, `plantSearch`, `isDropdownOpen` | Plant picker |
-| `aiResult` | The full `VisionResult` from PlantDoctorService |
+| `aiResult` / `analyseResult` / `sceneResult` | `VisionResult` (identify/diagnose/pest) / `AnalyseResult` / `SceneMapResult` per action family |
+| `identifyQuota`, `quotaExhaustedModal` | Sprint-3 free-identify quota state (badge counter + exhaustion upgrade modal) |
 | `selectedPlantName`, `selectedPlantScientific` | Confirmed identification |
 | `sickPlantName`, `sickInventoryId`, `sickItem` | Diagnose context |
 | `selectedPest` | Selected pest from result |
@@ -113,13 +127,45 @@ supabase.from("inventory_items").select("...").eq("home_id", homeId);
 usePlantDoctorSessions(userId);
 ```
 
-### Photo capture
+### Photo capture (camera-first, Phase 4.4)
 
-- **Capacitor (native):** `Camera.getPhoto({ resultType: Uri, source: Camera | Photos })`.
-- **Web (camera):** standard `<input type="file" capture="environment">`.
-- **Web (library):** standard `<input type="file" accept="image/*">`.
+Below `md` the analyse panel sheds its card chrome (`max-md:p-0 max-md:bg-transparent max-md:backdrop-blur-none max-md:border-0 max-md:shadow-none`) so the capture surface reads near-full-bleed inside the shell padding; from `md` up the classic card panel returns. The empty-state upload zone (`data-testid="doctor-upload-zone"`) fills `min-h-[60vh]` on phones (`sm:min-h-[400px]` from `sm` up) with a **camera** glyph in the circle (the Upload glyph was replaced in this pass) and two buttons — stacked full-width on phones, side-by-side from `sm`:
 
-Both buttons surface separately on mobile (no "select source" prompt — direct).
+- **Open Camera** — the leading hero: `bg-brand-gradient-soft` gradient, `shadow-raised`, spring press (`active:scale-[0.97]`). Calls `handleNativeCamera` → Capacitor `Camera.getPhoto({ resultType: Base64, source: Camera })` (native camera on iOS/Android; Capacitor's browser fallback on web). Permission denied → toast "Camera access denied — please enable it in your device settings"; any other camera failure → toast suggesting upload instead. No silent fallback to the library.
+- **Upload File** — secondary (white + hairline border). Opens the hidden `<input type="file" accept="image/*" multiple>` shared with the multi-photo strip's "+" affordance.
+
+The heading copy **"Upload or take a photo"** and the **"Upload File"** button name are load-bearing for e2e (`PlantDoctorPage.uploadDropzone` / `.uploadFileButton`) — don't rename either without updating the Page Object.
+
+Once a photo is chosen, the image frame caps at `max-h-[55vh]` on mobile (`400px` at `xl`) with the annotation overlay, the staged wait overlay (below) and the remove-photo button layered inside it.
+
+### Staged AI-wait overlay (Phase 4.4)
+
+While `isProcessing` is true, `src/components/lens/AnalysisWaitOverlay.tsx` mounts over the image frame (`data-testid="doctor-wait-overlay"`, `aria-live="polite"`): a blurred, scaled copy of the user's own photo (`scale-110 blur-md`) under a deep-green scrim (`bg-rhozly-deep/60`), a spinner, a stage line, and a "Usually 5–15 seconds" footer. Stage copy advances every **2.4 s** and **holds on the last stage**; the parent unmounts the overlay the instant the response settles — it is purely cosmetic and can never delay results (success **or** error, so the failure toast is never hidden behind it).
+
+Stages per action (keyed off `activeAction`; unknown/null falls back to the `analyse` script):
+
+| Action | Stages |
+|--------|--------|
+| `identify` | Reading your photo… → Matching with Pl@ntNet… → Cross-checking with Rhozly AI… |
+| `diagnose` | Reading your photo… → Examining the symptoms… → Consulting Rhozly AI… |
+| `pest` | Reading your photo… → Looking for the culprit… → Consulting Rhozly AI… |
+| `analyse` | Reading your photo… → Identifying the plant… → Checking health, pruning & harvest… → Writing up the findings… |
+| `scene` | Reading your photo… → Mapping every plant in view… |
+
+The copy deliberately mirrors the **real** pipeline — identify runs Pl@ntNet first with a Gemini cross-check (see [Pl@ntNet (cross-cutting)](../99-cross-cutting/38-plantnet.md)); diagnose / pest / scene are Gemini-only; analyse identifies first and then runs the full section sweep — no invented steps. It also deliberately avoids the words "analyze" and "error": the DOC-010 e2e assertion matches those strings when looking for the failure toast, and the overlay must never satisfy it.
+
+### Action buttons (Phase 4.4 unified treatment)
+
+The ✨ Analyse hero keeps its full-width gradient (`from-rhozly-primary to-rhozly-primary/80`) and remains **the only loud element** on the panel. The four secondary actions were previously four different pastel tints (emerald/amber/rose/sky); they now share ONE neutral treatment — `bg-rhozly-surface-lowest` + hairline `border-rhozly-outline/15`, press language (`active:scale-[0.97] active:duration-100`, `touch-manipulation`) — with meaning carried by **colored icons via status tokens**:
+
+| Button (label / sub) | testid | Icon token |
+|--------|--------|-----------|
+| Identify / Plant | `doctor-btn-identify` | `text-status-success-ink` |
+| Diagnose / Health | `doctor-btn-diagnose` | `text-status-weather-ink` |
+| Identify / Pest | `doctor-btn-pest` | `text-status-watch-ink` |
+| Multi-ID / Many plants | `doctor-btn-multi-id` | `text-status-sensor-ink` |
+
+The pressed / in-flight state (`activeAction === action`) is solid primary (`bg-rhozly-primary text-white shadow-md`). Labels, testids and disabled semantics are unchanged from before the redesign — e2e targets the accessible names ("Identify Plant", "Diagnose Health"). The grid stays hidden in `compact` mode.
 
 ### Multi-photo strip (Wave 19)
 
@@ -258,7 +304,8 @@ None (Chat uses its own — see [03-plant-doctor-chat.md](./03-plant-doctor-chat
 
 | Feature | Tier |
 |---------|------|
-| Identify / Diagnose / Pest / Multi-ID | Sage / Evergreen (gated by `aiEnabled`) — Sprout/Botanist see "AI tier required" lock. All rate-limited via the shared `enforceRateLimit`. |
+| Identify (`identify_vision`) | **Every tier** (Sprint 3 quota model — see Quick Summary). Sprout / Botanist get 5 free identifications per rolling 7-day window: with `aiEnabled === false` the action grid is replaced by the free-identify gate card (`plant-doctor-ai-gate`) containing an enabled `doctor-btn-identify-free` button and a `doctor-quota-badge` used/remaining counter. Server-side quota via `_shared/identifyQuota.ts`; exhaustion returns a `quota_exhausted` marker → upgrade modal. |
+| Diagnose / Pest / Analyse / Multi-ID | Sage / Evergreen (gated by `aiEnabled`). For free tiers these buttons are **not rendered at all** — an upgrade card (`doctor-upgrade-link` → `/gardener`) stands in. All rate-limited via the shared `enforceRateLimit`. |
 | Plant DB lookups | Botanist+ (`perenualEnabled`) |
 | History tab | Every tier (shows past sessions) |
 
@@ -277,9 +324,10 @@ None.
 | State | Result |
 |-------|--------|
 | No image | Action buttons disabled |
-| AI call fails | Toast with retry; session row not created |
-| Photo too large | Service compresses / resizes before upload |
-| Permission denied (camera) | Falls back to library |
+| AI call fails | The wait overlay unmounts with `isProcessing` the instant the call settles, so the error toast is never hidden behind it. Toast with retry; session row not created |
+| Non-image file selected | Skipped at selection with toast "Skipped <name> — not an image." (asserted by DOC-013) |
+| Photo too large | Files > 10 MB are skipped at selection ("Skipped <name> — over 10MB."); accepted images are compressed / resized by the service before upload |
+| Permission denied (camera) | Toast "Camera access denied — please enable it in your device settings"; any other camera failure toasts a prompt to upload instead |
 
 ### Performance
 
@@ -316,8 +364,8 @@ For new gardeners, **Analyse** is where the app earns its keep — one tap, one 
 
 #### 1. Capture a photo
 
-- Two equal buttons on mobile: **Take Photo** (camera) and **Choose from Library**.
-- Recommended: bright daylight, close-up, leaf in focus.
+- On your phone the screen is camera-first: the capture zone fills most of the display, with **Open Camera** as the big green gradient button and **Upload File** just beneath it. On a laptop or tablet the classic panel layout returns and the two buttons sit side by side.
+- Recommended: bright daylight, close-up, leaf in focus. If you're newer to gardening the photo tip is written out under the buttons; experienced gardeners get a small `?` to tap instead.
 
 #### 2. (Optional) Annotate
 
@@ -330,14 +378,17 @@ For new gardeners, **Analyse** is where the app earns its keep — one tap, one 
 
 #### 4. Run an action
 
-- **Analyse** ✨ — when you want the full picture (default choice for most users).
+- **Analyse** ✨ — when you want the full picture (default choice for most users). It's the big gradient button, deliberately the only loud one on the panel.
 - **Identify** — for unknown plants where you only need a name.
 - **Diagnose** — when something looks off on a known plant.
 - **Pest Scan** — when you can see bugs / damage.
+- The four smaller actions all share the same quiet look now — the coloured icon tells you which is which (green = identify, amber = diagnose, rose = pest, sky blue = Multi-ID).
+- **While the AI works** (usually 5–15 seconds) your own photo blurs behind a deep-green veil and a short line of progress copy steps through what's genuinely happening — "Matching with Pl@ntNet…", "Checking health, pruning & harvest…" and so on, depending on which action you chose. It's honest, not theatre: each line matches a real step in the pipeline, and the veil vanishes the instant the result lands.
 
 #### 5. Read the result
 
-- **Analyse**: scrollable card with all sections. Identification + Health open by default; Pruning, Propagation, Edibility/Disease/Pest sections expand on tap. A pre-checked **Suggested Tasks** block sits at the bottom — review, deselect anything you don't want, and one tap commits them to your calendar.
+- **Analyse**: scrollable card with all sections. Identification + Health open by default; Pruning, Propagation, Edibility/Disease/Pest sections expand on tap. The identified plant's name arrives with a little sparkle of twinkling stars — that's Rhozly's signature for "an AI just told you this", and you'll only ever see it once per screen. A pre-checked **Suggested Tasks** block sits at the bottom — review, deselect anything you don't want, and one tap commits them to your calendar.
+- Identify / Diagnose / Pest: the write-up appears under a sparkling **Doctor's Notes** heading — same signature, same meaning.
 - Identification: plant name, scientific name, care snapshot.
 - Diagnosis: list of possible diseases ranked by likelihood, treatments per disease.
 - Pest: list of possible pests, control measures.
@@ -369,8 +420,8 @@ For new gardeners, **Analyse** is where the app earns its keep — one tap, one 
 
 | Tier | Differences |
 |------|-------------|
-| Sprout / Botanist | Lock overlay on action buttons; History tab still visible. |
-| Sage / Evergreen | Full access. |
+| Sprout / Botanist | **Identify is free** — 5 identifications per rolling 7-day window, via a green "Free for everyone" card with a live used/remaining counter (it tells you when a slot frees up). Diagnose, Pest Scan, Analyse and Multi-ID don't appear at all — an upgrade card with a "See plans" link stands in their place. History tab still visible. |
+| Sage / Evergreen | Full access — unlimited identifications plus all four AI actions. |
 
 ### Common mistakes / pitfalls
 
@@ -388,7 +439,7 @@ For new gardeners, **Analyse** is where the app earns its keep — one tap, one 
 
 ### What to do if something looks wrong
 
-- **AI tier required despite being on Sage:** check `profile.ai_enabled`. May need re-pick tier.
+- **Seeing the free-identify / upgrade cards despite being on Sage:** check `profile.ai_enabled`. May need re-pick tier.
 - **Image upload spins forever:** check connectivity. Large images can take 10–20 s on slow networks.
 - **No reference images in gallery:** Perenual / Verdantly didn't return results — common for less-common plants.
 
@@ -402,10 +453,14 @@ For new gardeners, **Analyse** is where the app earns its keep — one tap, one 
 - [Diagnosis Image Gallery](../08-modals-and-overlays/30-diagnosis-gallery.md)
 - [Plant Source Picker](../08-modals-and-overlays/03-plant-source-picker.md)
 - [AI — Gemini (cross-cutting)](../99-cross-cutting/13-ai-gemini.md)
+- [Pl@ntNet (cross-cutting)](../99-cross-cutting/38-plantnet.md) — the real identify pipeline the wait-overlay copy mirrors
+- [Design System (cross-cutting)](../99-cross-cutting/40-design-system.md) — SparkleAccent, status tokens, brand gradient, press language
 
 ## Code references for ongoing maintenance
 
 - `src/components/PlantDoctor.tsx` — orchestrator
+- `src/components/lens/AnalysisWaitOverlay.tsx` — staged AI-wait overlay (Phase 4.4): blurred copy of the user's photo + per-action honest stage copy while `isProcessing`
+- `src/components/ui/SparkleAccent.tsx` — the design-system AI signature (Doctor's Notes heading + the AnalyseResultCard common-name reveal)
 - `src/components/lens/AnalyseResultCard.tsx` — comprehensive analysis result rendering (Mobile Quick Access Wave 1)
 - `src/components/lens/SceneMapResultCard.tsx` — Multi-ID result: box overlay + weighted candidate mapping (two-way highlight), per-region select+confirm, ⓘ info + See full care, check + Add-to-Shed
 - `src/lib/sceneMap.ts` — pure box→percent / validation / top-candidate helpers (unit-tested in `tests/unit/lib/sceneMap.test.ts`)

@@ -7,6 +7,8 @@
 
 Covers `/schedule` (Routines + Suggestions/Optimise tabs).
 
+> **Phase 4.5 (design overhaul) — Routines card redesign + locator repairs.** The Routines cards are now colour-coded by task type (left accent bar + tinted icon tile + dot-track, all one hue per type), the "Next: date · date · date" footnote is replaced by a single "Next:" line plus a 30-day dot track (`blueprint-{id}-dot-track`), pause + delete controls are now **always visible** (were hover-only, invisible to touch), and the **Filters** button shows a real active-filter count instead of a "!". As part of this pass the suites were repaired for the long-standing Automations→Routines rename: `SchedulePage` now uses the "Search routines…" placeholder, "No routines yet" empty state, "Create your first routine" CTA, the filter drawer `getByRole` heading "Filters", the modal heading `/New Routine|Edit Routine/`, and `tasks.spec` targets the `/Routines/` heading; the delete-confirm path now clicks `confirm-modal-confirm`. A **pre-existing SCH-011 failure** was also fixed — the test lacked a `window.confirm` dialog-accept handler for the duplicate-schedule prompt that area-linked saves fire (Playwright auto-dismisses by default, silently aborting the save; a stash test confirmed it failed on committed code too). **Schedule suites are now 42/42.** The tour anchors (`schedule-heading`, `blueprint-new-btn`, `blueprint-list`) are unchanged, and the pause/delete `data-testid`s + aria-labels are preserved.
+
 ## Navigation + basic render
 
 | ID | Type | Description | Mock | Status |
@@ -14,9 +16,11 @@ Covers `/schedule` (Routines + Suggestions/Optimise tabs).
 | SCH-001 | ✅ | "Automations" / "Routines" heading | — | ✅ Passing |
 | SCH-002 | ✅ | Nav link → `/schedule` | — | ✅ Passing |
 | SCH-003 | ✅ | Seeded blueprint cards render | — | ✅ Passing |
-| SCH-004 | ✅ | Card shows task-type badge | — | ✅ Passing |
+| SCH-004 | ✅ | Card shows task type — now via the colour-coded card (accent bar + tinted icon tile, hue per type) rather than a text badge | — | ✅ Passing |
 | SCH-005 | ✅ | Card shows frequency ("Every 7 Days") | — | ✅ Passing |
-| SCH-006 | ✅ | Empty state — "No Automations Running" + CTA | — | ✅ Passing |
+| SCH-006 | ✅ | Empty state — "No routines yet" + "Create your first routine" CTA | — | ✅ Passing |
+| SCH-040 | 🔲 | Card renders 30-day dot track (`blueprint-{id}-dot-track`) with occurrence dots for a seeded recurring routine | — | 🔲 Planned |
+| SCH-041 | 🔲 | Filters button shows active-filter count badge (e.g. `1` after one filter applied, hidden when none) | — | 🔲 Planned |
 
 ## Create blueprint
 
@@ -85,5 +89,5 @@ Adds a Greenhouse fragmentation pair (`BP_OPT_FRAG_A_ID` + `BP_OPT_FRAG_B_ID` �
 | SCH-V-001 | ❌ | Frequency input has `min="1"` (UI guard against 0) | — | ✅ Passing |
 | SCH-V-002 | ✅ | Filter Location → Area cascade — Area ENABLED on real location | — | ✅ Passing |
 | SCH-V-003 | ✅ | Filter Location → Area cascade — Area DISABLED on "Unassigned (None)" | — | ✅ Passing |
-| SCH-V-004 | ✅ | Pause toggle visible on seeded card | — | ✅ Passing |
+| SCH-V-004 | ✅ | Pause toggle always visible on seeded card (Phase 4.5 — no longer hover-gated, so touch users see it) | — | ✅ Passing |
 | SCH-V-005 | ✅ | Pause toggle opens 7d / 14d / 30d options | — | ✅ Passing |

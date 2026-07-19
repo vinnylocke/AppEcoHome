@@ -205,19 +205,11 @@ test.describe("Plant Doctor — diagnose flow (Section 08)", () => {
 
   test("DOC-012: PlantDoctorChat FAB button is visible on /dashboard", async ({ authenticatedPage }) => {
     // Fixture already lands at a fully-loaded /dashboard — no re-navigation needed.
-    // PlantDoctorChat renders a fixed bottom-right round button (chat FAB)
-    const chatFab = authenticatedPage.locator(".fixed.bottom-6.right-6");
-    const fabVisible = await chatFab.isVisible({ timeout: 10000 }).catch(() => false);
-
-    // The FAB contains a MessageSquare SVG — if it's rendered at all
-    if (!fabVisible) {
-      // Some viewports may place the FAB differently — verify by button count
-      const fixedButtons = authenticatedPage.locator("button.fixed");
-      const count = await fixedButtons.count();
-      expect(count).toBeGreaterThan(0);
-    } else {
-      expect(fabVisible).toBe(true);
-    }
+    // PlantDoctorChat renders a floating chat FAB — target its testid
+    // (position classes changed in the design overhaul and are not a contract).
+    await expect(
+      authenticatedPage.getByTestId("plant-doctor-chat-fab"),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test("DOC-010: Edge function error — mock 500 → error toast shown", async ({ authenticatedPage }) => {
@@ -315,7 +307,7 @@ test.describe("Plant Doctor — diagnose flow (Section 08)", () => {
     await expect(checkbox).toBeChecked();
   });
 
-  test("DOC-009: AI disabled — Identify and Diagnose buttons are disabled", async ({ authenticatedPage }) => {
+  test("DOC-009: AI disabled — free-identify gate replaces the AI action buttons", async ({ authenticatedPage }) => {
     const supabaseUrl = process.env.VITE_SUPABASE_URL ?? "";
 
     // Mock the profile to return ai_enabled: false before the page loads
@@ -356,11 +348,19 @@ test.describe("Plant Doctor — diagnose flow (Section 08)", () => {
       input.dispatchEvent(new Event("change", { bubbles: true }));
     }, TINY_JPEG);
 
-    await expect(doctor.identifyButton).toBeVisible({ timeout: 5000 });
-
-    // With ai_enabled=false both action buttons should be disabled
-    await expect(doctor.identifyButton).toBeDisabled({ timeout: 5000 });
-    await expect(doctor.diagnoseButton).toBeDisabled();
+    // Sprint 3 quota model: with ai_enabled=false the AI action buttons are
+    // REPLACED by the free-identify gate (5/7-day quota) + an upgrade card —
+    // not merely disabled.
+    await expect(
+      authenticatedPage.getByTestId("plant-doctor-ai-gate"),
+    ).toBeVisible({ timeout: 5000 });
+    await expect(
+      authenticatedPage.getByTestId("doctor-btn-identify-free"),
+    ).toBeEnabled();
+    await expect(
+      authenticatedPage.getByTestId("doctor-upgrade-link"),
+    ).toBeVisible();
+    await expect(doctor.diagnoseButton).toHaveCount(0);
   });
 
   test("DOC-013: Uploading an invalid file type shows an error", async ({ authenticatedPage }) => {
@@ -368,7 +368,7 @@ test.describe("Plant Doctor — diagnose flow (Section 08)", () => {
     await doctor.goto();
     await expect(doctor.uploadDropzone).toBeVisible({ timeout: 10000 });
 
-    // Inject a .txt file — component calls toast.error("Invalid file type.")
+    // Inject a .txt file — component toasts "Skipped <name> — not an image."
     await authenticatedPage.evaluate(() => {
       const input = document.querySelector('input[type="file"]') as HTMLInputElement;
       if (!input) return;
@@ -379,9 +379,9 @@ test.describe("Plant Doctor — diagnose flow (Section 08)", () => {
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
-    // Toast with "Invalid file type." should appear
+    // Toast copy: "Skipped notes.txt — not an image."
     await expect(
-      authenticatedPage.getByText(/Invalid file type/i),
+      authenticatedPage.getByText(/not an image/i),
     ).toBeVisible({ timeout: 5000 });
   });
 });

@@ -1,1 +1,28 @@
-[]
+[
+  {
+    "label": "Planner",
+    "items": [
+      "One clear New Plan button — the two AI design modes (Reimagine a space, plan around My Plants) now tuck into a little dropdown beside it instead of three buttons competing for space",
+      "Plans without a cover photo get a soft coloured tile instead of flat grey — greens for plant-first plans, brand green for the rest",
+      "Each plan card now shows a phase-progress bar so you can see at a glance how far along your projects are"
+    ]
+  },
+  {
+    "label": "Routines",
+    "items": [
+      "Routine cards are now colour-coded by care type — watering blue, pruning green, harvest yellow — so you can scan your schedule at a glance",
+      "Each card shows a little 30-day dot track of when it's due next, instead of a tiny line of dates",
+      "Pause and delete buttons are always visible now, not just on hover — much easier on a phone",
+      "The Filters button shows how many filters you've applied instead of just an exclamation mark"
+    ]
+  },
+  {
+    "label": "Plant Lens",
+    "items": [
+      "Camera-first on your phone — Open Camera leads and the capture area fills the screen instead of a desktop-style upload box",
+      "While the AI works you now see what's happening — \"Reading your photo… matching with Pl@ntNet… cross-checking with Rhozly AI\" — over a soft blur of your own picture, instead of a frozen button",
+      "The four analysis buttons calmed down — one clean style with coloured icons; Analyse stays the star",
+      "A little sparkle marks the moment your plant is identified"
+    ]
+  }
+]
