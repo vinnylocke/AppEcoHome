@@ -2,7 +2,7 @@
 
 > **This surface has been removed.** The standalone `/library/*` screens (search, saved, plant preview) were retired in favour of in-context plant search. The `plant_library` database table is **unchanged** and still feeds every plant search in the app.
 >
-> - **Search any species:** use the **Add Plant** flow in The Shed (`/shed`), the Shopping Add-Item sheet, the Nursery picker, or **Plant Lens** (`/doctor`) — all backed by the shared `<PlantSearch>` component.
+> - **Search any species:** use the **Add Plant** flow in The Shed (`/shed`), the Shopping Add-Item sheet, the Nursery picker, or **Plant Doctor** (`/doctor`) — all backed by the shared `<PlantSearch>` component.
 > - **Care guide / Grow guide / Companions / Light overlay:** opened by tapping a search result's ⓘ → **See full care** anywhere; the **Seasonal Picks** card also opens the same overlay (`PlantDetailModal`) when you tap a pick.
 > - **Save to Shed:** the search-result row's checkbox / Add button.
 

@@ -18,16 +18,16 @@ describe("requireOnline", () => {
 
   test("returns true and stays silent when online", () => {
     setOnline(true);
-    expect(requireOnline("Plant Lens")).toBe(true);
+    expect(requireOnline("Plant Doctor")).toBe(true);
     expect(toastError).not.toHaveBeenCalled();
   });
 
   test("returns false and toasts a feature-specific message when offline", () => {
     setOnline(false);
-    expect(requireOnline("Plant Lens")).toBe(false);
+    expect(requireOnline("Plant Doctor")).toBe(false);
     expect(toastError).toHaveBeenCalledOnce();
     const [msg] = toastError.mock.calls[0];
-    expect(msg).toContain("Plant Lens");
+    expect(msg).toContain("Plant Doctor");
     expect(msg).toMatch(/offline/i);
   });
 

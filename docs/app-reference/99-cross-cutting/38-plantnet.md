@@ -158,7 +158,7 @@ Tap **Pl@ntNet candidates** below the pill to see the full ranked list with conf
 
 ## Related reference files
 
-- [Plant Lens (formerly Plant Doctor)](../05-tools/02-plant-doctor.md) — the consumer.
+- [Plant Doctor](../05-tools/02-plant-doctor.md) — the consumer.
 - [Plant Providers](./25-plant-providers.md) — Pl@ntNet joins Perenual + Verdantly as a third upstream.
 - [AI — Gemini](./13-ai-gemini.md) — the other half of the identify pipeline.
 - [Edge Functions Catalogue](./10-edge-functions-catalogue.md) — `plant-doctor` lists this under its ID actions.

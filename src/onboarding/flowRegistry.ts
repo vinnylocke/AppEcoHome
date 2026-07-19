@@ -36,13 +36,13 @@ export const flowRegistry: FlowDef[] = [
       },
       {
         title: "Plan like a pro",
-        body: "The Plan tab lets you build seasonal growing plans with AI assistance — or, on Sage+, redesign an existing garden from a photo with Garden Overhaul. It also holds your recurring Task Schedule and shopping lists. Everything connects back to your actual plants.",
+        body: "The Plan tab lets you build seasonal growing plans with AI assistance — or, on Sage+, redesign an existing garden from a photo with Garden Overhaul. It also holds your recurring Routines and shopping lists. Everything connects back to your actual plants.",
         attachTo: { element: null, on: null },
         image: "/assets/onboarding/planner-overview.png",
       },
       {
         title: "AI Tools — your secret weapon",
-        body: "The Tools tab is where the magic happens. Plant Lens identifies plants via Pl@ntNet first, then cross-checks with Rhozly AI. The Weekly Overview gives you a Sunday-morning recap of the whole week. And every chat surface supports Voice — tap to talk, tap to listen.",
+        body: "The Tools tab is where the magic happens. Plant Doctor identifies plants via Pl@ntNet first, then cross-checks with Rhozly AI. The Weekly Overview gives you a Sunday-morning recap of the whole week. And every chat surface supports Voice — tap to talk, tap to listen.",
         attachTo: { element: null, on: null },
         image: "/assets/onboarding/tools-overview.png",
       },
@@ -168,7 +168,7 @@ export const flowRegistry: FlowDef[] = [
       },
       {
         title: "Nursery + Notes + Watchlist",
-        body: "The Garden tab also holds the Nursery (your seed packets and sowings), Notes (your garden notebook), and the Watchlist (plants flagged with an active health problem after a Plant Lens diagnosis). Flip between them using the tabs above.",
+        body: "The Garden tab also holds the Nursery (your seed packets and sowings), Notes (your garden notebook), and the Watchlist (plants flagged with an active health problem after a Plant Doctor diagnosis). Flip between them using the tabs above.",
         attachTo: { element: "[data-testid='garden-hub-tab-watchlist']", on: "bottom" },
       },
     ],
@@ -250,7 +250,7 @@ export const flowRegistry: FlowDef[] = [
       },
       {
         title: "Shopping lists",
-        body: "The Shopping tab lets you keep lists of seeds, compost, tools — anything you need to buy. When Plant Lens suggests a treatment for a sick plant, it can add the remedy straight to a list for you. Templates ('Starter Toolkit', 'Seasonal Veg Patch') get you started fast.",
+        body: "The Shopping tab lets you keep lists of seeds, compost, tools — anything you need to buy. When Plant Doctor suggests a treatment for a sick plant, it can add the remedy straight to a list for you. Templates ('Starter Toolkit', 'Seasonal Veg Patch') get you started fast.",
         attachTo: { element: "[data-testid='planner-hub-tab-shopping']", on: "bottom" },
       },
     ],
@@ -261,24 +261,24 @@ export const flowRegistry: FlowDef[] = [
     order: 7,
     trigger: "automatic",
     route: "/schedule",
-    title: "Task Schedule",
-    description: "Set up recurring task blueprints, tune them with Optimise, and let Rhozly run your routine.",
+    title: "Routines",
+    description: "Set up recurring care Routines, tune them with Optimise, and let Rhozly run your garden on rails.",
     category: "Planning",
     estimated_minutes: 2,
     steps: [
       {
-        title: "Your Task Schedule",
-        body: "Task schedules (blueprints) are recurring rules that tell Rhozly to generate a task at regular intervals. For example: 'Water my tomatoes every 3 days from May to September'. Set it once and forget it.",
+        title: "Your Routines",
+        body: "Routines are recurring rules that tell Rhozly to generate a task at regular intervals. For example: 'Water my tomatoes every 3 days from May to September'. Set it once and forget it.",
         attachTo: { element: "[data-testid='schedule-heading']", on: "bottom" },
       },
       {
-        title: "Creating a blueprint",
-        body: "Tap 'New Blueprint' to open the builder. Choose a task type, pick a plant and location, set the frequency, and optionally restrict it to a seasonal window. Harvesting blueprints with an end date use the new harvest window model — one task per window, not one per day.",
+        title: "Creating a Routine",
+        body: "Tap 'New Routine' to open the builder. Choose a task type, pick a plant and location, set the frequency, and optionally restrict it to a seasonal window. Harvesting Routines with an end date use the new harvest window model — one task per window, not one per day.",
         attachTo: { element: "[data-testid='blueprint-new-btn']", on: "bottom" },
       },
       {
-        title: "Your blueprint library",
-        body: "Each card here is one active blueprint. You can filter by task type, plant, or location. Rhozly checks these every morning and creates ghost tasks for the day — so you wake up knowing exactly what the garden needs.",
+        title: "Your Routines library",
+        body: "Each card here is one active Routine. You can filter by task type, plant, or location. Rhozly checks these every morning and creates ghost tasks for the day — so you wake up knowing exactly what the garden needs.",
         attachTo: { element: "[data-testid='blueprint-list']", on: "top" },
         image: "/assets/onboarding/schedule-blueprint-list.png",
       },
@@ -313,7 +313,7 @@ export const flowRegistry: FlowDef[] = [
         attachTo: { element: "[data-testid='tools-heading']", on: "bottom" },
       },
       {
-        title: "Plant Lens",
+        title: "Plant Doctor",
         body: "Photo identification, disease diagnosis, and pest detection. Upload any plant photo and Pl@ntNet + Rhozly AI return results in seconds. (Formerly 'Garden AI'.)",
         attachTo: { element: "[data-testid='tools-hub-plant-doctor']", on: "right" },
       },
@@ -345,14 +345,14 @@ export const flowRegistry: FlowDef[] = [
     order: 9,
     trigger: "automatic",
     route: "/doctor",
-    title: "Plant Lens — Identify & Diagnose",
+    title: "Plant Doctor — Identify & Diagnose",
     description: "How Pl@ntNet + Rhozly AI work together to identify plants and diagnose health problems.",
     category: "Tools",
     estimated_minutes: 2,
     steps: [
       {
-        title: "Plant Lens — your in-pocket plant scientist",
-        body: "Take one or more photos of a plant, leaf, or affected area. Plant Lens runs them through Pl@ntNet first (a botany-trained ID database, free for every tier), then asks Rhozly AI for a second opinion. (Formerly 'Plant Doctor'.)",
+        title: "Plant Doctor — your in-pocket plant scientist",
+        body: "Take one or more photos of a plant, leaf, or affected area. Plant Doctor runs them through Pl@ntNet first (a botany-trained ID database, free for every tier), then asks Rhozly AI for a second opinion.",
         attachTo: { element: "[data-testid='doctor-upload-zone']", on: "top" },
         image: "/assets/onboarding/doctor-upload.png",
       },
@@ -585,7 +585,7 @@ export const flowRegistry: FlowDef[] = [
       },
       {
         title: "Voice settings",
-        body: "Under Profile → Voice you can turn on auto-read replies, pick a voice, and set the speed. Plant Lens chat and the Garden AI overlay both support tap-to-talk and tap-to-listen — handy when your hands are muddy.",
+        body: "Under Profile → Voice you can turn on auto-read replies, pick a voice, and set the speed. Plant Doctor chat and the Garden AI overlay both support tap-to-talk and tap-to-listen — handy when your hands are muddy.",
         attachTo: { element: null, on: null },
       },
       {
@@ -627,7 +627,7 @@ export const flowRegistry: FlowDef[] = [
       },
       {
         title: "Just the essentials",
-        body: "The page shows today's priority card and a small set of tiles tuned for fast action — water, log a note, scan a leaf with Plant Lens. Tap any tile to jump straight into that flow.",
+        body: "The page shows today's priority card and a small set of tiles tuned for fast action — water, log a note, scan a leaf with Plant Doctor. Tap any tile to jump straight into that flow.",
         attachTo: { element: null, on: null },
       },
       {
@@ -662,7 +662,7 @@ export const flowRegistry: FlowDef[] = [
       },
       {
         title: "Tap to drill in",
-        body: "Every row on the overview is a launchpad — tap a task count to see those tasks, tap a sowing to log it, tap a harvest window to jump into Plant Lens. It's a glance-and-act page, not a read-and-forget one.",
+        body: "Every row on the overview is a launchpad — tap a task count to see those tasks, tap a sowing to log it, tap a harvest window to jump into Plant Doctor. It's a glance-and-act page, not a read-and-forget one.",
         attachTo: { element: null, on: null },
       },
       {
@@ -677,7 +677,7 @@ export const flowRegistry: FlowDef[] = [
     id: "notes_tour",
     order: 15,
     trigger: "automatic",
-    route: "/notes",
+    route: "/journal",
     prerequisite: "global_welcome",
     triggerSignal: "first_notes_visit",
     title: "Notes",
@@ -742,7 +742,7 @@ export const flowRegistry: FlowDef[] = [
       },
       {
         title: "Works everywhere chat works",
-        body: "Plant Lens chat, the Garden AI overlay — voice is on by default for both. No setup required besides granting microphone access the first time you tap the mic.",
+        body: "Plant Doctor chat, the Garden AI overlay — voice is on by default for both. No setup required besides granting microphone access the first time you tap the mic.",
         attachTo: { element: null, on: null },
       },
     ],
@@ -920,7 +920,7 @@ export const flowRegistry: FlowDef[] = [
       },
       {
         title: "Flagged ailments hop to the Watchlist",
-        body: "If you log an ailment during the walk (a flag for aphids on the kale, for example), it lands on the Watchlist with the same prevention/remedy structure as Plant Lens diagnoses. Walk → Diagnose flows in one place.",
+        body: "If you log an ailment during the walk (a flag for aphids on the kale, for example), it lands on the Watchlist with the same prevention/remedy structure as Plant Doctor diagnoses. Walk → Diagnose flows in one place.",
         attachTo: { element: null, on: null },
       },
     ],

@@ -2212,7 +2212,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           }
           body={
             !search && viewTab === "active"
-              ? "Not sure what you're dealing with? Use Plant Lens to photograph and identify problems."
+              ? "Not sure what you're dealing with? Use Plant Doctor to photograph and identify problems."
               : search
                 ? "Try adjusting your search term."
                 : "Archived entries will show up here."
@@ -2224,7 +2224,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           }
           secondaryCta={
             !search && viewTab === "active"
-              ? { label: "Open Plant Lens", onClick: () => navigate("/doctor") }
+              ? { label: "Open Plant Doctor", onClick: () => navigate("/doctor") }
               : undefined
           }
         />

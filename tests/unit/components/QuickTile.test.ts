@@ -93,7 +93,7 @@ describe("QuickTile", () => {
     render(
       React.createElement(QuickTile, {
         icon: React.createElement("span", null, "🩺"),
-        title: "Plant Lens",
+        title: "Plant Doctor",
         description: "Identify and diagnose",
         testId: "quick-tile-doctor",
         accent: "green",

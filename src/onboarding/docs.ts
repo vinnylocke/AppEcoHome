@@ -134,7 +134,7 @@ export const DOCS: DocEntry[] = [
   {
     id: "voice-in-chat",
     title: "Voice in Chat",
-    description: "Tap to talk, tap to listen — mic input and read-aloud replies in Plant Lens chat.",
+    description: "Tap to talk, tap to listen — mic input and read-aloud replies in Plant Doctor chat.",
     content: voiceInChat,
   },
   {
@@ -146,7 +146,7 @@ export const DOCS: DocEntry[] = [
   {
     id: "plantnet-identification",
     title: "Pl@ntNet Identification",
-    description: "How Plant Lens uses Pl@ntNet community photos — and why the cross-check with Rhozly AI matters.",
+    description: "How Plant Doctor uses Pl@ntNet community photos — and why the cross-check with Rhozly AI matters.",
     content: plantnet,
   },
   {

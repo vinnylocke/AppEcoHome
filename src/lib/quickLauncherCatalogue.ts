@@ -108,7 +108,7 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
     icon: Sprout,
     // Takes over the slot the retired "library" tile freed up so the four
     // default pins (doctor / today / capture / shed) each have a distinct
-    // accent — Plant Lens is already green.
+    // accent — Plant Doctor is already green.
     accent: "blue",
     route: "/shed",
   },
@@ -132,7 +132,7 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
     // The id stays "doctor" for backward-compatibility with persisted user
     // pins — the user-visible label/icon is what's been refreshed.
     id: "doctor",
-    label: "Plant Lens",
+    label: "Plant Doctor",
     description: "Snap a plant to identify it, diagnose problems and get care tasks.",
     icon: Camera,
     accent: "green",
@@ -209,7 +209,7 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
     description: "Free-form notes — rich text, images, tables, links to plants / areas / plans / ailments.",
     icon: StickyNote,
     accent: "purple",
-    route: "/notes",
+    route: "/journal?tab=notes",
   },
 ];
 

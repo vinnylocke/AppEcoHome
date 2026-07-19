@@ -37,6 +37,18 @@ BottomTabBar (nav, aria-label="Quick navigation", data-testid="bottom-tab-bar")
 
 Same semantics as the sidebar: exact path match or `path + "/"` prefix. The **Doctor tab owns `/doctor`**, so the Tools tab's `matchPaths` here deliberately exclude `/doctor` (unlike the sidebar's Tools entry, which still includes it) — both bars highlight exactly one tab on any route.
 
+**Orphan-route folding (Phase 5 IA).** Routes without their own bottom tab fold into a core tab's `matchPaths` so exactly one tab stays lit. The five tabs themselves (Home / Plants / Doctor / Planner / Tools) are unchanged; only their `matchPaths` were widened:
+
+| Tab | `matchPaths` |
+|---|---|
+| **Home** (`/dashboard`) | `/dashboard`, `/management`, `/home-management` |
+| **Plants** (`/shed`) | `/shed`, `/watchlist` |
+| **Doctor** (`/doctor`) | `/doctor` |
+| **Planner** (`/planner`) | `/planner`, `/shopping`, `/schedule`, `/journal`, `/notes` |
+| **Tools** (`/tools`) | `/tools`, `/visualiser`, `/lightsensor`, `/guides`, `/garden-layout`, `/sun-trajectory`, `/weekly` |
+
+Note the mobile-specific behaviour: with no Journal tab on mobile, `/journal` and `/notes` fold under **Planner** (on desktop the sidebar has a dedicated Journal item). Likewise `/schedule` (Routines) → Planner, `/weekly` (Weekly Overview) → Tools, and `/management` + `/home-management` (Location Manager / home management) → Home.
+
 ### Visibility & layering
 
 - `md:hidden` — desktop never sees it, so its `aria-label="Plant Doctor"` cannot collide with desktop nav assertions (display:none is excluded from the accessibility tree). E2E coverage: `layout.spec.ts` NAV-009 drives it under a forced 375×812 viewport; NAV-010 asserts it is hidden at desktop size.
@@ -90,7 +102,7 @@ Identical for every tier.
 ### Common mistakes / pitfalls
 
 - **Looking for the bar on `/quick` screens** — focus-mode screens (Quick Access, Garden Walk) intentionally hide it; use their own corner buttons.
-- **Looking for Journal/Notes/Integrations here** — only the top five live in the bar; everything else stays in the sidebar (hamburger).
+- **Looking for Journal/Notes/Integrations here** — only the top five live in the bar; everything else stays in the sidebar (hamburger). When you open one of those, the nearest core tab stays lit — e.g. the Journal (and its Notes tab) keeps **Planner** highlighted.
 
 ### What to do if something looks wrong
 

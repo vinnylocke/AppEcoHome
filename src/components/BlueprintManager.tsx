@@ -275,7 +275,7 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
         if (error) throw error;
         logEvent(EVENT.BLUEPRINT_DELETED, { blueprint_id: bp.id, title: bp.title });
         setBlueprints((prev) => prev.filter((b) => b.id !== bp.id));
-        toast.success("Task schedule removed.");
+        toast.success("Routine removed.");
       },
     });
   };
@@ -420,7 +420,7 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
   if (fetchError && activeTab === "blueprints")
     return (
       <div className="p-10 flex flex-col items-center justify-center gap-4 text-center">
-        <p className="font-black text-lg text-rhozly-on-surface">Could not load task schedules</p>
+        <p className="font-black text-lg text-rhozly-on-surface">Could not load Routines</p>
         <p className="text-sm font-bold text-rhozly-on-surface/50">Check your connection and try again.</p>
         <button
           onClick={() => setRetryTick((t) => t + 1)}

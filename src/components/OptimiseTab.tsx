@@ -380,7 +380,7 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
       {/* Permanent explainer */}
       <div className="bg-rhozly-primary/5 border border-rhozly-primary/10 rounded-2xl px-4 py-3">
         <p className="text-xs font-bold text-rhozly-on-surface/60 leading-snug">
-          <span className="font-black text-rhozly-on-surface/80">The Optimiser</span> reviews your Task Schedules and finds ways to save time — like merging duplicate watering reminders or adjusting how often you do things.
+          <span className="font-black text-rhozly-on-surface/80">The Optimiser</span> reviews your Routines and finds ways to save time — like merging duplicate watering reminders or adjusting how often you do things.
         </p>
       </div>
 

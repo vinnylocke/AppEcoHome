@@ -52,7 +52,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [AI Assistant Card](./02-dashboard/06-assistant-card.md) — user_insights surface
 - [x] [Location Page (Drill-In)](./02-dashboard/07-location-page.md) — `?locationId=` view
 - [x] [Weather Alert Banner](./02-dashboard/08-weather-alert-banner.md) — frost / heat / wind / rain alerts
-- [x] [Quick Access Home](./02-dashboard/09-quick-access-home.md) — mobile shortcut home (`/quick`) with the customisable launcher (defaults: **Plant Lens / Today / Capture / Plants**)
+- [x] [Quick Access Home](./02-dashboard/09-quick-access-home.md) — mobile shortcut home (`/quick`) with the customisable launcher (defaults: **Plant Doctor / Today / Capture / Plants**)
 - [x] [Localized Task Calendar](./02-dashboard/10-localized-task-calendar.md) — mobile `/quick/calendar` with frost-aware planting helper, rain-vs-watering advice, and today's pending tasks
 - [~] [Quick Capture Journal](./02-dashboard/11-quick-capture-journal.md) — **RETIRED:** `/quick/journal` removed; Capture tile now deep-links to `/journal?open=add-entry`
 - [~] [The Library](./02-dashboard/12-the-library.md) — **RETIRED:** `/library/*` UI removed. Plant search lives inside Add-to-Shed, Shopping, Multi-ID and the Nursery picker; the `plant_library` DB table is unchanged. The detail overlay (Care / Grow Guide / Companions / Light) is now `PlantDetailModal`, opened from any search-result row.
@@ -74,7 +74,8 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Sun Tracker AR](./03-garden-hub/08-sun-tracker-ar.md) — AR sun path overlay
 - [x] [Light Sensor](./03-garden-hub/09-light-sensor.md) — lux meter + band + plant comparison
 - [x] [The Nursery](./03-garden-hub/10-nursery.md) — seed packets + sowings + plant-out lifecycle (lives behind a Plants / Nursery toggle on `/shed`)
-- [x] [Global Journal](./03-garden-hub/11-global-journal.md) — every journal entry across the home, polymorphically attached (plant / location / area / plan / unassigned), with auto-update on task completion
+- [x] [Global Journal](./03-garden-hub/11-global-journal.md) — every journal entry across the home, polymorphically attached (plant / location / area / plan / unassigned), with auto-update on task completion. Now the default **Journal** tab of the `/journal` hub (`JournalNotesHub`, `src/components/JournalNotesHub.tsx`)
+- [x] [Notes](./03-garden-hub/14-notes.md) — rich-text garden notebook (`notes` + `note_links`); the **Notes** tab of the `/journal` hub (`/journal?tab=notes`; legacy `/notes` redirects in). UI-only merge with Journal — separate tables, no migration
 - [x] [Senescence](./03-garden-hub/12-senescence.md) — the history of ended plant instances; filter by natural / other; reversible Restore that re-fires task generation
 - [x] [Sketch to Layout](./03-garden-hub/13-sketch-to-layout.md) — hand-drawn sketch → AI shape detection → confirmation wizard → 2D layout
 - [x] [Add-Area Wizard](./03-garden-hub/15-add-area-wizard.md) — create an area with its bed conditions + plants (Shed or search) in one flow; AI-tier suitability review with score + plant/task/automation recommendations

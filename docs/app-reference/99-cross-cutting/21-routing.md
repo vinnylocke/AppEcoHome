@@ -43,9 +43,9 @@ BrowserRouter
     ├── /join/:token       ← JoinHomeViaToken (Sprint 4b — invite redemption landing page; lives OUTSIDE AppShell so signed-out invitees can land on it before signing in)
     ├── /shopping          ← ShoppingLists (alias to /planner?tab=shopping)
     ├── /gardener          ← GardenerProfile (Account Settings; ?tab=account|notifications|achievements|stats, ?section=quick-launcher|plans)
-    ├── /journal           ← GlobalJournal
+    ├── /journal           ← JournalNotesHub (Journal + Notes tabs; ?tab=notes deep-links Notes — Phase 5 IA merge)
     ├── /weekly            ← WeeklyOverviewPage
-    ├── /notes             ← NotesPage
+    ├── /notes             ← redirect → /journal?tab=notes (Phase 5 IA — Notes folded into the Journal hub as a tab)
     ├── /credits           ← CreditsPage (image attribution)
     ├── /share/garden-layout/:token ← shared read-only garden layout (outside AppShell)
     ├── /home-management   ← HomeManagement
@@ -125,6 +125,32 @@ useEffect(() => {
 ```
 
 Pattern: read once, then strip the `?open=` param to avoid re-opening on subsequent navigations.
+
+### Nav active-state — orphan-route reparenting (Phase 5 IA)
+
+Several routes have no nav item of their own, so they're folded into a parent item's `matchPaths` (in `navLinks` / `bottomTabs`, `src/App.tsx`) so the active-nav highlight still resolves when you land on them. A route matches when `pathname === p || pathname.startsWith(p + "/")`.
+
+| Orphan route | Highlights (desktop sidebar) | Highlights (mobile bottom tab) |
+|---|---|---|
+| `/schedule` (Routines) | Planner | Planner |
+| `/weekly` (Weekly Overview) | Tools | Tools |
+| `/management`, `/home-management` (Location Manager / home management) | Dashboard | Home |
+| `/journal`, `/notes` | Journal (desktop has its own Journal item) | Planner (no Journal tab on mobile) |
+
+The **Head Gardener** nav item (`/manager`) is conditionally rendered — it only appears when `tierAllowsFeature(profile.subscription_tier, "head_gardener")` is true (Evergreen tier; see `src/constants/tierFeatures.ts`). Lower tiers don't see the nav entry, but the `/manager` route still exists and renders its own `FeatureGate` upgrade wall for anyone who deep-links in. See [Sidebar Navigation](../09-persistent-ui/02-sidebar.md) and [Bottom Tab Bar](../09-persistent-ui/11-bottom-tab-bar.md) for the full per-item `matchPaths`.
+
+### Redirect routes
+
+Legacy / alias paths that immediately `Navigate ... replace` to their canonical home:
+
+| From | To |
+|---|---|
+| `/notes` | `/journal?tab=notes` (Phase 5 IA — Notes folded into the Journal hub) |
+| `/insights` | `/manager?tab=insights` |
+| `/watchlist` | `/shed?tab=watchlist` |
+| `/shopping` | `/planner?tab=shopping` |
+| `/help` | `/guides?tab=help` |
+| `*` (unknown) | `/dashboard` |
 
 ### Deep links (native via Capacitor)
 

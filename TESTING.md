@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,517 tests across 139 files
+### Unit tests — 1,526 tests across 141 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 

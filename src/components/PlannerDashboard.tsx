@@ -534,7 +534,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                 No plans yet
               </p>
               <p className="text-sm font-bold text-rhozly-on-surface/50 mt-2 max-w-xs">
-                A Plan is a garden project — like "Spring Veggie Bed" or "Front Path Makeover". It groups your plant choices, task schedules, and notes in one place.
+                A Plan is a garden project — like "Spring Veggie Bed" or "Front Path Makeover". It groups your plant choices, Routines, and notes in one place.
               </p>
               {can("plans.create") && (
                 <button
@@ -925,7 +925,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                   <div>
                     <h2 className="text-xl font-black text-rhozly-on-surface mb-2">What's a Plan?</h2>
                     <p className="text-sm font-bold text-rhozly-on-surface/60 leading-relaxed">
-                      A Plan is a garden project — like <em>"Spring Veggie Bed 2026"</em> or <em>"Front Path Makeover"</em>. It groups your plant choices, task schedules, and AI notes in one place so you can track everything from idea to completion.
+                      A Plan is a garden project — like <em>"Spring Veggie Bed 2026"</em> or <em>"Front Path Makeover"</em>. It groups your plant choices, Routines, and AI notes in one place so you can track everything from idea to completion.
                     </p>
                   </div>
                   <div className="space-y-3">

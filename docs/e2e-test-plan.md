@@ -46,6 +46,7 @@ This file is the **index**. Each section's test rows + seed dependencies + page-
 | 29 | Garden Walk | `garden-walk.spec.ts` | [29-garden-walk.md](e2e-test-plan/29-garden-walk.md) |
 | 30 | Home (Main Dashboard) | `home-main.spec.ts` | [30-home-main.md](e2e-test-plan/30-home-main.md) |
 | 31 | Integrations — Devices & Automations | `automations.spec.ts` | [31-integrations.md](e2e-test-plan/31-integrations.md) |
+| 32 | Journal / Notes Hub | `journal-notes-hub.spec.ts` | [32-journal-notes-hub.md](e2e-test-plan/32-journal-notes-hub.md) |
 
 ## Workflow
 

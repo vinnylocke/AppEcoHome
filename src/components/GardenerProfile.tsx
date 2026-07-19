@@ -1463,7 +1463,7 @@ function StatsTab({ stats }: { stats: NonNullable<ReturnType<typeof useAchieveme
     { label: "AI Diagnoses", value: stats.aiDiagnose, icon: "🩺" },
     { label: "AI Chat Messages", value: stats.chatMessages, icon: "🤖" },
     { label: "Plans Completed", value: stats.planCompleted, icon: "📝" },
-    { label: "Automations Created", value: stats.blueprintCreated, icon: "⚙️" },
+    { label: "Routines Created", value: stats.blueprintCreated, icon: "⚙️" },
     { label: "Ailments Logged", value: stats.ailmentAdded, icon: "👁️" },
     { label: "Ailments Resolved", value: stats.ailmentResolved, icon: "💚" },
     { label: "Guides Published", value: stats.guidesPublished, icon: "📖" },

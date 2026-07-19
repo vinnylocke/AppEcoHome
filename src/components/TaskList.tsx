@@ -1104,7 +1104,7 @@ export default function TaskList({
           title="No tasks here yet"
           body="Set up a watering, pruning, or harvesting schedule and tasks will appear here automatically."
           primaryCta={{
-            label: "Set up a task schedule",
+            label: "Set up a Routine",
             onClick: () => navigate("/schedule"),
             "data-testid": "task-list-empty-cta",
           }}

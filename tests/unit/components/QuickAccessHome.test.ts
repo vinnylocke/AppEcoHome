@@ -82,7 +82,7 @@ describe("QuickAccessHome", () => {
     expect(screen.getByTestId("quick-tile-shed")).toBeTruthy();
   });
 
-  test("tapping Plant Lens (doctor) tile navigates to /doctor", () => {
+  test("tapping Plant Doctor (doctor) tile navigates to /doctor", () => {
     renderHome();
     fireEvent.click(screen.getByTestId("quick-tile-doctor"));
     expect(navigateMock).toHaveBeenCalledWith("/doctor");

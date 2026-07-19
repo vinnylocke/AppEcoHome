@@ -338,7 +338,7 @@ function StatsPanel({ stats }: { stats: HomeDashboardStats }) {
   const additionalTiles = visibleTiles([
     {
       testId: "dash-stat-doctor-sessions",
-      label: "Plant Lens",
+      label: "Plant Doctor",
       value: additional.plantDoctorSessions,
       sub: "sessions",
       onClick: additional.plantDoctorSessions > 0 ? () => navigate("/doctor") : undefined,

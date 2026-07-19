@@ -31,7 +31,7 @@ test.describe("Quick Access — mobile routing", () => {
   });
 
   // QUICK-003 retired: /quick/lens removed; the equivalent of the Lens is
-  // the full Plant Lens at /doctor (default-pinned as the "doctor" tile).
+  // the full Plant Doctor at /doctor (default-pinned as the "doctor" tile).
 
   // QUICK-004 / QUICK-005 retired: the "Coming soon" tiles + toasts were
   // removed — the Wave-16 launcher only renders live, navigating tiles, and
@@ -45,7 +45,7 @@ test.describe("Quick Access — mobile routing", () => {
   });
 
   // QUICK-007 / QUICK-008 retired: the /quick/lens route and its component
-  // were removed in favour of the full Plant Lens at /doctor.
+  // were removed in favour of the full Plant Doctor at /doctor.
 });
 
 test.describe("Quick Access — desktop routing", () => {

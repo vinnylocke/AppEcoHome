@@ -65,7 +65,7 @@ import {
   type IdentifyQuota,
 } from "../services/plantDoctorService";
 
-// Wave-19 — Plant Lens accepts up to 5 photos per single-plant action
+// Wave-19 — Plant Doctor accepts up to 5 photos per single-plant action
 // (identify / diagnose / pest / analyse). Multi-ID is intentionally
 // single-photo. Each entry tracks the source File, an object-URL preview,
 // and the optional Pl@ntNet organ tag.
@@ -194,7 +194,7 @@ export default function PlantDoctor({
         const blob = await res.blob();
         if (cancelled) return;
         if (blob.size > 10 * 1024 * 1024) {
-          toast.error("Image too large for Plant Lens");
+          toast.error("Image too large for Plant Doctor");
           return;
         }
         const file = new File([blob], "bed-photo.jpg", { type: blob.type || "image/jpeg" });
@@ -575,7 +575,7 @@ export default function PlantDoctor({
       return toast.error("AI features are disabled.");
     }
     if (photos.length === 0) return toast.error("Upload an image first.");
-    if (!requireOnline("Plant Lens")) return;
+    if (!requireOnline("Plant Doctor")) return;
 
     setIsProcessing(true);
     setActiveAction(action);
@@ -743,7 +743,7 @@ export default function PlantDoctor({
   const handleAnalyse = async () => {
     if (!aiEnabled) return toast.error("AI features are disabled.");
     if (photos.length === 0) return toast.error("Upload an image first.");
-    if (!requireOnline("Plant Lens")) return;
+    if (!requireOnline("Plant Doctor")) return;
 
     setIsProcessing(true);
     setActiveAction("analyse");
@@ -960,7 +960,7 @@ export default function PlantDoctor({
             <div>
               <h1 className="text-2xl sm:text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">
                 <IconDoctor className="w-8 h-8 text-rhozly-primary" />
-                Plant Lens
+                Plant Doctor
               </h1>
               <p className="text-xs sm:text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
                 Take a photo — Rhozly will identify it, spot what's wrong and suggest care tasks

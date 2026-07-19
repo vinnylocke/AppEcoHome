@@ -535,13 +535,13 @@ export const APP_HELP_SECTIONS: HelpSection[] = [
   {
     id: "notes-overview",
     title: "Using the garden notebook",
-    route: "/notes",
+    route: "/journal?tab=notes",
     summary: "Notes are free-form, with rich text and photos. Pin the important ones to the top, and link a note to a plant, area or plan so it also appears in context on that item.",
   },
   {
     id: "notes-archive",
     title: "Archiving vs deleting a note",
-    route: "/notes",
+    route: "/journal?tab=notes",
     summary: "Archive tucks a note out of the way but keeps it recoverable; delete removes it for good. Archived notes are hidden from the main list until you show them.",
   },
 

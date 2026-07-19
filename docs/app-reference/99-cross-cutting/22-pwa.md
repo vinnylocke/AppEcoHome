@@ -101,7 +101,7 @@ Everything else — Supabase REST / Auth / Edge Functions / Realtime, Open-Meteo
 
 ### Internet-only gating (offline-first Phase 1)
 
-Features that genuinely need the network — all AI (Plant Lens, Garden AI chat, care-guide refresh, schedule optimise, photo→task), plant search/add-from-catalogue, image uploads, integrations pairing, invites, export — call `requireOnline(label)` (`src/lib/requireOnline.ts`) at the top of their action handler. Offline it shows a friendly "You're offline — {feature} needs a connection" toast and returns false, instead of a silent spin/failure. `navigator.onLine === false` is a reliable offline signal (the false case is what matters). Background/boot calls (e.g. `sync-weather`) are NOT gated — they just no-op offline.
+Features that genuinely need the network — all AI (Plant Doctor, Garden AI chat, care-guide refresh, schedule optimise, photo→task), plant search/add-from-catalogue, image uploads, integrations pairing, invites, export — call `requireOnline(label)` (`src/lib/requireOnline.ts`) at the top of their action handler. Offline it shows a friendly "You're offline — {feature} needs a connection" toast and returns false, instead of a silent spin/failure. `navigator.onLine === false` is a reliable offline signal (the false case is what matters). Background/boot calls (e.g. `sync-weather`) are NOT gated — they just no-op offline.
 
 ### Background updates
 

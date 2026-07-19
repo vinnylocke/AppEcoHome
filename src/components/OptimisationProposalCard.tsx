@@ -9,7 +9,7 @@ const SCENARIO_META: Record<ScenarioType, { label: string; colour: string; toolt
   "two-tier":         { label: "Two-Tier Split",     colour: "bg-blue-100 text-blue-800",    tooltip: "Two tasks with different frequencies could be split into separate schedules for better control." },
   pileup:             { label: "Same-Day Pile-Up",   colour: "bg-purple-100 text-purple-800", tooltip: "Multiple tasks are scheduled to land on the same day — spreading them out would make your workload lighter." },
   "frequency-change": { label: "Frequency Change",   colour: "bg-sky-100 text-sky-800",      tooltip: "AI suggests adjusting how often you do this task based on your plants' needs or the season." },
-  "new-blueprint":    { label: "New Blueprint",      colour: "bg-emerald-100 text-emerald-800", tooltip: "AI suggests adding a task that's currently missing from your schedule." },
+  "new-blueprint":    { label: "New Routine",      colour: "bg-emerald-100 text-emerald-800", tooltip: "AI suggests adding a task that's currently missing from your schedule." },
   retire:             { label: "Retire",             colour: "bg-zinc-100 text-zinc-700",    tooltip: "This task may no longer apply to any of your active plants and could be removed." },
 };
 

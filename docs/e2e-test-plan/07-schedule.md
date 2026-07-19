@@ -1,4 +1,4 @@
-# 7. Task Schedule (BlueprintManager)
+# 7. Routines (BlueprintManager)
 
 **Spec files:** `tests/e2e/specs/schedule.spec.ts` · `tests/e2e/specs/schedule-validation.spec.ts` · `tests/e2e/specs/schedule-optimise.spec.ts` · `tests/e2e/specs/tasks.spec.ts`
 **Page Object:** `tests/e2e/pages/SchedulePage.ts`

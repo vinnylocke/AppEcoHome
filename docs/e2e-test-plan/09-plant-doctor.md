@@ -10,11 +10,11 @@
 
 ## Plant Doctor (`/doctor`)
 
-> **Phase 4.4 (design overhaul, 2026-07):** the Plant Lens redesign shipped a camera-first mobile layout (the "Upload or take a photo" heading and the "Upload File" button name are unchanged — they're the e2e contract), a unified neutral treatment for the four AI action buttons (labels / testids / disabled semantics unchanged), and a staged AI-wait overlay (`doctor-wait-overlay`) over the image frame while an action is in flight — its copy deliberately avoids "analyze" / "error" so it can never satisfy DOC-010's toast regex. Four pre-existing drifted tests were fixed in the same pass (DOC-001's PO heading, DOC-009, DOC-012, DOC-013 — see their rows). Suite: 13/13 passing.
+> **Phase 4.4 (design overhaul, 2026-07):** the Plant Doctor redesign shipped a camera-first mobile layout (the "Upload or take a photo" heading and the "Upload File" button name are unchanged — they're the e2e contract), a unified neutral treatment for the four AI action buttons (labels / testids / disabled semantics unchanged), and a staged AI-wait overlay (`doctor-wait-overlay`) over the image frame while an action is in flight — its copy deliberately avoids "analyze" / "error" so it can never satisfy DOC-010's toast regex. Four pre-existing drifted tests were fixed in the same pass (DOC-001's PO heading, DOC-009, DOC-012, DOC-013 — see their rows). Suite: 13/13 passing.
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DOC-001 | ✅ | Heading renders — PO heading updated to **"Plant Lens"** in Phase 4.4 (was "Plant Doctor"; the Phase 5 naming pass will standardise surface vs nav names) | — | ✅ Passing |
+| DOC-001 | ✅ | Heading renders — PO heading is **"Plant Doctor"** (Phase 5 naming pass reverted the brief Phase 4.4 "Plant Lens" rename; surface and nav both read "Plant Doctor" again) | — | ✅ Passing |
 | DOC-002 | ✅ | Upload dropzone visible | — | ✅ Passing |
 | DOC-003 | ✅ | Identify/Diagnose hidden before upload | — | ✅ Passing |
 | DOC-004 | ✅ | Upload image → action buttons appear | — | ✅ Passing |

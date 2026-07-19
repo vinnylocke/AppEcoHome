@@ -1,8 +1,8 @@
-# Plant Lens (formerly Plant Doctor)
+# Plant Doctor
 
 > The AI vision tool for plants — point a camera, get a comprehensive analysis (the primary path) or run a single targeted action (identify / diagnose / pest / Multi-ID). Photo in → AI analysis → care plan, treatment, pest workup → optional follow-up actions (save to Shed, generate routines, add supplies to shopping). The **Analyse** path is the recommended default and also produces a list of suggested tasks ready to drop into the user's calendar in one tap.
 
-> **Naming note:** the user-facing name was **Plant Doctor** until Quick Access Wave 17 — the screen heading, the quick-link tile and most user-facing copy now say **Plant Lens** (broader: identify + diagnose + care suggestions, all camera-first). The **route stays `/doctor`** and internal action ids (`identify_vision` / `diagnose` / `identify_pest` / `analyse_comprehensive` / `identify_scene`) are unchanged. The separate floating sticky chat overlay (mounted globally on every page) remains branded **Garden AI** and is documented in [`03-plant-doctor-chat.md`](./03-plant-doctor-chat.md). They share Gemini infrastructure but are distinct surfaces — don't conflate them in copy or in nav.
+> **Naming note:** the user-facing name is **Plant Doctor** — the screen heading, the quick-link tile and user-facing copy all say **Plant Doctor** (identify + diagnose + care suggestions, all camera-first). The **route is `/doctor`** and internal action ids (`identify_vision` / `diagnose` / `identify_pest` / `analyse_comprehensive` / `identify_scene`) match. The separate floating sticky chat overlay (mounted globally on every page) remains branded **Garden AI** and is documented in [`03-plant-doctor-chat.md`](./03-plant-doctor-chat.md). They share Gemini infrastructure but are distinct surfaces — don't conflate them in copy or in nav.
 
 **Route:** `/doctor`
 **Source file:** `src/components/PlantDoctor.tsx` (~1,800 lines)

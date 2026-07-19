@@ -2,8 +2,9 @@
 
 > Free-form notebook with rich text (TipTap), image attachments, tables, lists, checkboxes — and many-to-many polymorphic links to plants, areas, locations, plans, ailments, and seed packets. Lives alongside the Journal (event-anchored) and is meant for ideas, observations and reminders.
 
-**Route:** `/notes`
+**Route:** `/journal?tab=notes` (Notes tab of the shared Journal/Notes hub). The legacy standalone `/notes` route still resolves but immediately redirects here (`<Navigate to="/journal?tab=notes" replace />` in `src/App.tsx`). Reached via the single "Journal" nav item (BookOpen icon, `plan` group, `matchPaths: ["/journal","/notes"]`) → switch to the **Notes** tab. There is no longer a standalone "Notes" primary-nav item.
 **Source files (entry points):**
+- `src/components/JournalNotesHub.tsx` (route wrapper — SegmentedTabs switch that mounts this surface on the Notes tab)
 - `src/components/notes/NotesPage.tsx`
 - `src/components/notes/NoteEditorOverlay.tsx`
 - `src/components/notes/NoteTipTapEditor.tsx`
@@ -18,7 +19,7 @@
 
 ## Quick Summary
 
-`/notes` shows a responsive grid of note cards — pinned notes first, then by `updated_at`. Tapping a card opens a portal-modal editor. The editor uses TipTap with our toolbar (headings, bold/italic, bullet/ordered/checklist, blockquote, table, image, link, undo/redo). Every note can link to **any number of** plants, areas, locations, plans, ailments, or seed packets via a join table — and the same `NotesDrawer` component renders a per-entity list on any detail surface that mounts it.
+Notes (the Notes tab at `/journal?tab=notes`) shows a responsive grid of note cards — pinned notes first, then by `updated_at`. Tapping a card opens a portal-modal editor. The editor uses TipTap with our toolbar (headings, bold/italic, bullet/ordered/checklist, blockquote, table, image, link, undo/redo). Every note can link to **any number of** plants, areas, locations, plans, ailments, or seed packets via a join table — and the same `NotesDrawer` component renders a per-entity list on any detail surface that mounts it.
 
 ---
 
@@ -27,7 +28,12 @@
 ### Component graph
 
 ```
-NotesPage (/notes)
+JournalNotesHub (mounted at /journal — the route-level wrapper)
+├── SegmentedTabs (testid="journal-notes-switch": "Journal" / "Notes")
+├── GlobalJournal   ← rendered when tab === "journal" (see 11-global-journal.md)
+└── NotesPage       ← rendered when tab === "notes" (this surface)
+
+NotesPage (Notes tab of the hub, /journal?tab=notes)
 ├── Header — title + search + "+ New note"
 ├── Empty state OR
 ├── Pinned grid
@@ -46,6 +52,8 @@ NotesDrawer (embeddable on entity pages)
 ├── Linked-note rows  (cover thumb + title + updated_at chevron)
 └── NoteEditorOverlay (Portal, prefilled with the current target link)
 ```
+
+**Journal/Notes hub — UI-only merge (Phase 5 IA pass).** `NotesPage` is no longer mounted at its own route. `JournalNotesHub` (the `/journal` wrapper) reads the active tab from the `tab` URL query param and renders `NotesPage` when `params.get("tab") === "notes"`; switching tabs calls `setSearchParams(..., { replace: true })`. The old standalone `/notes` route redirects here via `<Navigate to="/journal?tab=notes" replace />`, the standalone "Notes" primary-nav item was removed, and the `notes_tour` onboarding flow, the quick-launcher `notes` entry, and the appHelp notes articles now point at `/journal?tab=notes`. **This is purely a UI/navigation merge — there is no data migration.** NotesPage still reads/writes `notes` + `note_links` exactly as before, and none of its own toolbar, editor, composer, or testids changed. (The `NotesDrawer` embed on entity detail pages is untouched — it never depended on the `/notes` route.)
 
 ### Data model
 
@@ -131,7 +139,7 @@ RLS scopes notes by `home_members` membership — every member of the home reads
 ### Performance
 
 - One round trip on page load (200 newest notes with their links embedded).
-- TipTap lazy-loaded with the `/notes` route — non-notes pages don't ship the editor bundle.
+- TipTap lazy-loaded with the Notes tab — pages that never open Notes (and the Journal tab itself) don't ship the editor bundle. `JournalNotesHub` only mounts `NotesPage` once the user switches to `?tab=notes`.
 - Drawer query is index-served (`note_links_target_idx`).
 
 ### Linked storage buckets
@@ -145,6 +153,8 @@ RLS scopes notes by `home_members` membership — every member of the home reads
 ### Why open this surface
 
 Some thoughts don't belong on a single plant. Maybe you've been thinking about a layout change next year, or want to remember why you chose a particular tomato variety, or have a rolling shopping idea. Notes is for those — looser than the Journal (which is event-anchored: "watered today", "harvested 200g"), with rich formatting and tags that link to multiple parts of your garden.
+
+**Journal and Notes now live on one screen.** Notes is no longer a separate menu item — it's the **Notes** tab of the **Journal** page. Open Journal from the nav and use the tab switch at the top to flip between the event-anchored **Journal** feed and this rich-text **Notes** grid. Old bookmarks to `/notes` still work — they drop you straight onto the Notes tab. Nothing about your existing notes, links, pins, or archives changed; only the door you walk through did.
 
 ### Every flow on this surface
 
@@ -187,13 +197,15 @@ No differences today. Future AI tooling (summarise / suggest tags) will be Sage+
 
 ## Related reference files
 
-- [Global Journal](./11-global-journal.md) — sibling surface, event-anchored, single-target
-- [Quick Access Home](../02-dashboard/09-quick-access-home.md) — `notes` is in the Quick Launcher catalogue
-- [Routing](../99-cross-cutting/21-routing.md) — `/notes`
+- [Global Journal](./11-global-journal.md) — the sibling **Journal** tab of the same `/journal` hub; event-anchored, single-target, backed by `plant_journals`
+- [Quick Access Home](../02-dashboard/09-quick-access-home.md) — the Quick Launcher `notes` entry now deep-links to `/journal?tab=notes`
+- [Routing](../99-cross-cutting/21-routing.md) — `/journal`, the `?tab=notes` param, and the `/notes → /journal?tab=notes` redirect
 - [Image Sources](../99-cross-cutting/24-image-sources.md) — `plant-images` bucket conventions
 
 ## Code references for ongoing maintenance
 
+- `src/components/JournalNotesHub.tsx` — `/journal` route wrapper; SegmentedTabs switch (`journal-notes-switch`) that mounts NotesPage on the Notes tab off the `?tab` query param
+- `src/App.tsx` — `/journal` route, the `/notes → /journal?tab=notes` `<Navigate>` redirect, and the single `journal` nav item (`matchPaths: ["/journal","/notes"]`)
 - `src/components/notes/*` — UI
 - `src/hooks/useNotes.ts`, `src/hooks/useNoteLinks.ts`
 - `src/lib/noteHelpers.ts`

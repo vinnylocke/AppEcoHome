@@ -19,25 +19,27 @@
 
 ## Quick Summary
 
-A list of `task_blueprints` rows for the home. Each blueprint defines a recurring task: type (Water/Prune/Harvest/Fertilise/Plant/Other), frequency, scope (whole home / location / area / specific plant), and date constraints. Active blueprints fire daily via the `generate-tasks` cron to materialise `tasks` rows. Pausing a blueprint stops generation without deleting the template.
+A list of `task_blueprints` rows for the home. Each routine defines a recurring task: type (Water/Prune/Harvest/Fertilise/Plant/Other), frequency, scope (whole home / location / area / specific plant), and date constraints. Active routines fire daily via the `generate-tasks` cron to materialise `tasks` rows. Pausing a routine stops generation without deleting the template. (Each row is a `task_blueprints` record — "Routine" is the label, not a rename of the table; see the naming note in Role 1.)
 
 Two tabs:
-- **Blueprints** — list of schedules (this file)
-- **Optimise** — schedule consolidator + AI ideas ([07-optimise-tab.md](./08-optimise-tab.md))
+- **Routines** — list of routines (this file)
+- **Optimise** — routine consolidator + AI ideas ([07-optimise-tab.md](./08-optimise-tab.md))
 
 ---
 
 ## Role 1 — Technical Reference
+
+> **Naming vs. code identifiers — read this first.** The user-facing name is **Routines** everywhere: the page heading, the **"New Routine"** button, the onboarding tour ("Your Routines", "Creating a Routine", "Your Routines library"), the audit-log labels ("Created a Routine" / "Deleted a Routine"), the empty / error states ("Set up a Routine", "Could not load Routines", "Routine removed."), and the GardenerProfile **"Routines Created"** stat. The **underlying data model did NOT change**: the table is still `task_blueprints`, the foreign-key column is still `blueprint_id`, and every `data-testid` still uses the `blueprint-*` prefix (`blueprint-new-btn`, `blueprint-list`, `blueprint-{id}-dot-track`, …). Only user-facing copy changed — from "Blueprints" / "Task Schedule" / "Task Automation" to "Routines". Do **not** rename the table, column, state vars, or testids to match the label.
 
 ### Component graph
 
 ```
 BlueprintManager
 ├── Header
-│   ├── Title "Task Schedules"
+│   ├── Title "Routines"
 │   ├── Explainer line
-│   ├── Add button
-│   └── Tab bar (Blueprints / Optimise)
+│   ├── "New Routine" button (testid `blueprint-new-btn` — unchanged)
+│   └── Tab bar (Routines / Optimise)
 ├── Search bar + Filter button
 ├── Filter drawer (Type, Location, Area, Plan, Plant)
 ├── Blueprint list (Phase 4.5 — colour-coded by task type)
@@ -137,7 +139,7 @@ None directly. `AddTaskModal` may call AI helpers (photo-to-task suggestions); `
 
 | Feature | Tier |
 |---------|------|
-| Blueprint creation / editing | Every tier |
+| Routine creation / editing | Every tier |
 | AI suggestions / photo-to-task | Sage / Evergreen (`aiEnabled`) |
 | Optimise tab AI proposals | Sage / Evergreen |
 
@@ -174,26 +176,26 @@ None.
 
 ### Why open this screen
 
-Task Schedules are the autopilot of Rhozly. Every recurring chore — water tomatoes every 3 days, mulch the asparagus every spring, deadhead the roses every 2 weeks — lives here as a template. The system generates the actual daily task on each schedule based on these templates. Tap "Add" once; never think about that chore again.
+Routines are the autopilot of Rhozly. Every recurring chore — water tomatoes every 3 days, mulch the asparagus every spring, deadhead the roses every 2 weeks — lives here as a template. The system generates the actual daily task from each routine. Tap "New Routine" once; never think about that chore again.
 
-For a beginner, the schedules created during Plan Staging cover most of what's needed. As you get more confident, you'll come here and add new ones manually.
+For a beginner, the routines created during Plan Staging cover most of what's needed. As you get more confident, you'll come here and add new ones manually.
 
 ### Every flow on this screen
 
-#### 1. Add a new schedule
+#### 1. Add a new routine
 
-- Plus button → `AddTaskModal` opens.
+- "New Routine" button → `AddTaskModal` opens.
 - Pick task type (Water / Prune / Harvest / Fertilise / Plant / Other).
 - Choose scope: whole home, a location, a specific area, or a specific plant.
 - Frequency: every N days. Tip displayed: "most vegetables need watering every 2–4 days; established shrubs every 7–14 days."
 - Start date + optional end date.
 - Save.
 
-#### 2. Pause a schedule
+#### 2. Pause a routine
 
 - Pause icon on a card → menu with options: 1 week / 2 weeks / 1 month.
 - The pause and delete controls sit at the top-right of every card and are **always visible** (Phase 4.5) — previously they only faded in on mouse hover, so touch users couldn't see them at all. A paused routine shows a Resume (play) icon in amber instead.
-- Paused schedules don't generate tasks until the date passes.
+- Paused routines don't generate tasks until the date passes.
 - Useful for winter dormancy or holidays.
 
 #### 3. Edit
@@ -202,13 +204,13 @@ For a beginner, the schedules created during Plan Staging cover most of what's n
 
 #### 4. Delete
 
-- Trash icon (always visible, top-right of the card) → confirm. Removes the blueprint *and* any future ghost tasks. Past completed tasks survive.
+- Trash icon (always visible, top-right of the card) → confirm. Removes the routine *and* any future ghost tasks. Past completed tasks survive.
 
 #### 5. Search / Filter
 
 - Search bar: free-text against title.
 - Filter drawer: scope by Type / Location / Area / Plan / Plant.
-- Combine filters to narrow to e.g. "All watering schedules in the South Bed".
+- Combine filters to narrow to e.g. "All watering routines in the South Bed".
 - The **Filters** button carries a small count badge (Phase 4.5) showing exactly how many of the five filters are active — e.g. `2` when both Type and Area are set. Previously it showed only a generic "!" marker; now you can see at a glance how narrow your view is.
 
 #### 6. Optimise tab
@@ -240,26 +242,26 @@ For a beginner, the schedules created during Plan Staging cover most of what's n
 
 | Tier | Differences |
 |------|-------------|
-| Every tier | Full CRUD on schedules. |
+| Every tier | Full CRUD on routines. |
 | Sage / Evergreen | + AI photo-to-task suggestions + Optimise AI proposals. |
 
 ### Common mistakes / pitfalls
 
 - **Setting frequency too tight.** Watering every day in October is overkill; plants drown. Default sane frequencies and adjust.
-- **Forgetting to pause for winter.** Many recurring schedules don't need to fire in winter — pause them in October, resume in March.
+- **Forgetting to pause for winter.** Many recurring routines don't need to fire in winter — pause them in October, resume in March.
 - **Scope too broad.** "Water every plant in this home every 3 days" is rarely what you want. Scope to specific area or plant.
-- **Deleting instead of archiving.** Deleted blueprints lose their history reference — past tasks no longer link back.
+- **Deleting instead of archiving.** Deleted routines lose their history reference — past tasks no longer link back.
 
 ### Recommended workflows
 
-- **Initial setup:** create one schedule per major recurring chore. Don't try to be exhaustive — add as you discover gaps.
+- **Initial setup:** create one routine per major recurring chore. Don't try to be exhaustive — add as you discover gaps.
 - **End of season:** pause everything that's dormancy-sensitive. Review Optimise tab for consolidation ideas.
-- **After a plan:** review the schedules Plan Staging created and tweak frequencies to your reality.
+- **After a plan:** review the routines Plan Staging created and tweak frequencies to your reality.
 
 ### What to do if something looks wrong
 
-- **Tasks not showing on dashboard:** check if the blueprint is paused. Check `is_archived`. Check start/end date range.
-- **Same task appearing twice:** two blueprints with overlapping scope. Use Optimise to find redundancies.
+- **Tasks not showing on dashboard:** check if the routine is paused. Check `is_archived`. Check start/end date range.
+- **Same task appearing twice:** two routines with overlapping scope. Use Optimise to find redundancies.
 - **Pause didn't work:** check the toast; realtime refresh will resync.
 
 ---

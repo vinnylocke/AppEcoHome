@@ -83,7 +83,7 @@ export default function GettingStartedChecklist({
       description: "Open a plant card and assign it to a location area",
     },
     {
-      label: "Create a Task Schedule",
+      label: "Create a Routine",
       done: hasBlueprints,
       path: "/schedule",
       description: "Set up recurring reminders — watering, pruning, harvesting",

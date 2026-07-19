@@ -13,7 +13,6 @@ import {
   HelpCircle,
   Zap,
   BookOpen,
-  NotebookPen,
   Leaf,
 } from "lucide-react";
 import { IconPlants, IconPlanner, IconDoctor, IconAI, IconIntegrations, IconTools } from "./constants/icons";
@@ -62,6 +61,7 @@ import { useHomeRealtime } from "./hooks/useHomeRealtime";
 import PlantDoctorChat from "./components/PlantDoctorChat";
 import ErrorPage from "./components/ErrorPage";
 import { type TierId } from "./constants/tiers";
+import { tierAllowsFeature } from "./constants/tierFeatures";
 import UserProfileDropdown from "./components/UserProfileDropdown";
 import GlobalQuickAdd from "./components/GlobalQuickAdd";
 import GlobalSearch from "./components/GlobalSearch";
@@ -97,10 +97,9 @@ const ContentFeedbackAdmin = lazyWithRetry(() => import("./components/admin/Cont
 const PlantDoctor         = lazyWithRetry(() => import("./components/PlantDoctor"));
 const QuickAccessHome     = lazyWithRetry(() => import("./components/QuickAccessHome"));
 const LocalizedTaskCalendar = lazyWithRetry(() => import("./components/quick/LocalizedTaskCalendar"));
-const GlobalJournal         = lazyWithRetry(() => import("./components/GlobalJournal"));
+const JournalNotesHub       = lazyWithRetry(() => import("./components/JournalNotesHub"));
 const WeeklyOverviewPage    = lazyWithRetry(() => import("./components/WeeklyOverviewPage"));
 const HeadGardenerPage      = lazyWithRetry(() => import("./components/manager/HeadGardenerPage"));
-const NotesPage             = lazyWithRetry(() => import("./components/notes/NotesPage"));
 const CreditsPage           = lazyWithRetry(() => import("./components/CreditsPage"));
 const GardenWalk            = lazyWithRetry(() => import("./components/walk/GardenWalk"));
 const MobileNavDrawer       = lazyWithRetry(() => import("./components/MobileNavDrawer"));
@@ -1343,14 +1342,20 @@ function AppShell() {
     ...(isMobile
       ? [{ id: "quick", icon: <Zap />, label: "Quick", matchPaths: ["/quick"] }]
       : []),
-    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", ...(isMobile ? [] : ["/"])], badge: overdueTaskCount, badgeTone: "rose", group: "garden" },
+    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/management", "/home-management", ...(isMobile ? [] : ["/"])], badge: overdueTaskCount, badgeTone: "rose", group: "garden" },
     { id: "shed",      icon: <IconPlants />, label: "Plants", matchPaths: ["/shed", "/watchlist"], group: "garden" },
-    { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping"], group: "plan" },
-    { id: "journal",   icon: <BookOpen />, label: "Journal",    matchPaths: ["/journal"], group: "plan" },
-    { id: "notes",     icon: <NotebookPen />, label: "Notes",   matchPaths: ["/notes"], group: "plan" },
-    { id: "tools",        icon: <IconTools />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"], group: "ai" },
+    // Phase 5 IA — /schedule (Routines) reparented under Planner so the nav
+    // resolves an active item when you're on it; Notes folded into Journal.
+    { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping", "/schedule"], group: "plan" },
+    { id: "journal",   icon: <BookOpen />, label: "Journal",    matchPaths: ["/journal", "/notes"], group: "plan" },
+    { id: "tools",        icon: <IconTools />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory", "/weekly"], group: "ai" },
     { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"], group: "ai" },
-    { id: "manager",      icon: <Leaf />, label: "Head Gardener", matchPaths: ["/manager"], group: "ai" },
+    // Head Gardener is Evergreen-only (FeatureGate feature="head_gardener").
+    // Hide the nav entry for tiers that can't use it — the /manager route
+    // still renders its own upgrade gate for anyone who deep-links in.
+    ...(tierAllowsFeature(profile?.subscription_tier, "head_gardener")
+      ? [{ id: "manager", icon: <Leaf />, label: "Head Gardener", matchPaths: ["/manager"], group: "ai" as const }]
+      : []),
   ];
 
   const NAV_GROUP_LABELS: Record<string, string> = {
@@ -1363,11 +1368,11 @@ function AppShell() {
   // own slot — the app's flagship AI flow was previously two taps deep under
   // Tools — so the Tools tab's matchPaths deliberately exclude /doctor here.
   const bottomTabs = [
-    { id: "dashboard", label: "Home", icon: <Home />, to: TAB_URL.dashboard, matchPaths: ["/dashboard"], badge: overdueTaskCount },
+    { id: "dashboard", label: "Home", icon: <Home />, to: TAB_URL.dashboard, matchPaths: ["/dashboard", "/management", "/home-management"], badge: overdueTaskCount },
     { id: "shed", label: "Plants", icon: <IconPlants />, to: TAB_URL.shed, matchPaths: ["/shed", "/watchlist"] },
     { id: "doctor", label: "Doctor", icon: <IconDoctor />, to: TAB_URL.doctor, matchPaths: ["/doctor"], ariaLabel: "Plant Doctor" },
-    { id: "planner", label: "Planner", icon: <IconPlanner />, to: TAB_URL.planner, matchPaths: ["/planner", "/shopping"] },
-    { id: "tools", label: "Tools", icon: <IconTools />, to: TAB_URL.tools, matchPaths: ["/tools", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
+    { id: "planner", label: "Planner", icon: <IconPlanner />, to: TAB_URL.planner, matchPaths: ["/planner", "/shopping", "/schedule", "/journal", "/notes"] },
+    { id: "tools", label: "Tools", icon: <IconTools />, to: TAB_URL.tools, matchPaths: ["/tools", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory", "/weekly"] },
   ];
 
   const canUsePortal = typeof document !== "undefined";
@@ -1924,9 +1929,7 @@ function AppShell() {
 
                       <Route path="/journal" element={
                         profile?.home_id ? (
-                          <div className="h-full overflow-auto animate-in fade-in duration-500">
-                            <GlobalJournal homeId={profile.home_id} />
-                          </div>
+                          <JournalNotesHub homeId={profile.home_id} />
                         ) : null
                       } />
 
@@ -1947,13 +1950,8 @@ function AppShell() {
                         ) : null
                       } />
 
-                      <Route path="/notes" element={
-                        profile?.home_id ? (
-                          <div className="h-full overflow-auto animate-in fade-in duration-500">
-                            <NotesPage homeId={profile.home_id} />
-                          </div>
-                        ) : null
-                      } />
+                      {/* Phase 5 IA — Notes folded into the Journal hub as a tab. */}
+                      <Route path="/notes" element={<Navigate to="/journal?tab=notes" replace />} />
 
                       {/* Wave 22.0002 — image credits umbrella attribution page. */}
                       <Route path="/credits" element={

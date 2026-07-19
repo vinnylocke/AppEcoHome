@@ -1,9 +1,19 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Plus, CheckSquare, MapPin, ListChecks } from "lucide-react";
-import { IconPlant, IconPlanner, IconAilment, IconGuides } from "../constants/icons";
+import { Plus, CheckSquare, MapPin, Stethoscope } from "lucide-react";
+import { IconPlant, IconPlanner } from "../constants/icons";
 import { useNavigate } from "react-router-dom";
 
+// Phase 5 IA pass — pruned from 9 entries to the 5 highest-frequency "create"
+// verbs. Cut items (To-Do lists, Add Task Automation, Log Ailment, Create
+// Guide) remain reachable from their own surfaces; the launcher is a fast
+// path for the things people add most, not a mirror of every create flow.
 const ITEMS = [
+  {
+    label: "Add Plant",
+    icon: <IconPlant size={16} />,
+    url: "/shed?open=add-plant",
+    testId: "quick-add-add-plant",
+  },
   {
     label: "Add Task",
     icon: <CheckSquare size={16} />,
@@ -11,28 +21,10 @@ const ITEMS = [
     testId: "quick-add-add-task",
   },
   {
-    label: "Add To-Do List",
-    icon: <ListChecks size={16} />,
-    url: "/dashboard?view=calendar&open=add-todo-list",
-    testId: "quick-add-add-todo-list",
-  },
-  {
-    label: "My To-Do Lists",
-    icon: <ListChecks size={16} />,
-    url: "/dashboard?view=calendar&open=todo-lists",
-    testId: "quick-add-todo-lists",
-  },
-  {
-    label: "Add Task Automation",
-    icon: <CheckSquare size={16} />,
-    url: "/schedule?open=add-task",
-    testId: "quick-add-create-task",
-  },
-  {
-    label: "Add Plant",
-    icon: <IconPlant size={16} />,
-    url: "/shed?open=add-plant",
-    testId: "quick-add-add-plant",
+    label: "Diagnose a Plant",
+    icon: <Stethoscope size={16} />,
+    url: "/doctor",
+    testId: "quick-add-diagnose",
   },
   {
     label: "Create Plan",
@@ -41,22 +33,10 @@ const ITEMS = [
     testId: "quick-add-create-plan",
   },
   {
-    label: "Create Location",
+    label: "Add Location",
     icon: <MapPin size={16} />,
     url: "/management?open=add-location",
     testId: "quick-add-create-location",
-  },
-  {
-    label: "Log Ailment",
-    icon: <IconAilment size={16} />,
-    url: "/shed?tab=watchlist&open=add-ailment",
-    testId: "quick-add-log-ailment",
-  },
-  {
-    label: "Create Guide",
-    icon: <IconGuides size={16} />,
-    url: "/guides?tab=community&open=new-guide",
-    testId: "quick-add-create-guide",
   },
 ] as const;
 

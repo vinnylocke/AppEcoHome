@@ -85,7 +85,7 @@ const SLIDES: Slide[] = [
   },
   {
     title: "Tasks that run themselves",
-    body: "Set up a Task Schedule once — watering, pruning, harvesting — and Rhozly reminds you exactly when each plant needs attention.",
+    body: "Set up a Routine once — watering, pruning, harvesting — and Rhozly reminds you exactly when each plant needs attention.",
     icon: <Repeat size={32} className="text-indigo-600" />,
     illustration: <TaskFlowDiagram />,
   },

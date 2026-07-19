@@ -2,8 +2,9 @@
 
 > One canonical surface for every journal entry across the home — from per-plant observations to whole-garden notes — with optional automatic entries on task completion.
 
-**Route / how to reach it:** `/journal` · top-level nav item "Journal" (BookOpen icon) on desktop + mobile drawer.
+**Route / how to reach it:** `/journal` · top-level nav item "Journal" (BookOpen icon, `plan` group) on desktop + mobile drawer. Since the Phase 5 IA pass this route mounts `JournalNotesHub`, a tabbed hub that renders **Global Journal** under its default **Journal** tab and **Notes** under the **Notes** tab. `/journal` (no query param) lands on Journal; the sibling Notes surface is `/journal?tab=notes`. The single "Journal" nav item now covers both (`matchPaths: ["/journal","/notes"]`).
 **Source files (entry points):**
+- `src/components/JournalNotesHub.tsx` (route wrapper — SegmentedTabs switch that mounts this surface)
 - `src/components/GlobalJournal.tsx`
 - `src/components/journal/JournalComposer.tsx`
 - `src/components/journal/TargetPicker.tsx`
@@ -24,7 +25,12 @@ The Global Journal is the home for everything a user writes about their garden. 
 ### Component graph
 
 ```
-GlobalJournal (mounted at /journal)
+JournalNotesHub (mounted at /journal — the route-level wrapper)
+├── SegmentedTabs (testid="journal-notes-switch": "Journal" / "Notes")
+├── GlobalJournal   ← rendered when tab === "journal" (this surface)
+└── NotesPage       ← rendered when tab === "notes" (see 14-notes.md)
+
+GlobalJournal (Journal tab of the hub)
 ├── Header (title + count + "New entry" + settings shortcut)
 ├── JournalComposer  (collapsible — opens on "New entry")
 │   ├── Subject input
@@ -42,6 +48,8 @@ GlobalJournal (mounted at /journal)
 │       └── Delete button
 └── ConfirmModal (delete-entry safety)
 ```
+
+**Journal/Notes hub — UI-only merge.** `JournalNotesHub` reads the active tab from the `tab` URL query param (`params.get("tab") === "notes" ? "notes" : "journal"`) and swaps the mounted child; switching tabs calls `setSearchParams(..., { replace: true })` — Journal is the default and clears the param (no `?tab=journal`), Notes sets `?tab=notes`. The legacy standalone `/notes` route is a `<Navigate to="/journal?tab=notes" replace />` redirect in `src/App.tsx`, and the old standalone "Notes" primary-nav item was removed (the `journal` nav item's `matchPaths` now covers both). **This is purely a UI/navigation merge — there is no data migration.** GlobalJournal still reads/writes `plant_journals` exactly as before, NotesPage still reads/writes `notes` + `note_links`; neither table, query, composer, toolbar, nor any child testid changed.
 
 ### Data flow — read paths
 
@@ -126,6 +134,8 @@ The existing `plant_journals` RLS policy (home-scope via `home_members` / `user_
 
 Gardens are made of small notable moments — "the courgettes finally took off", "spotted aphids on the cherry", "the south bed dries out by lunchtime in July". Until now those notes lived inside individual plants and got lost. The Global Journal pulls every note into one feed so the garden's whole story is in one place — readable end-to-end, filterable by what you care about.
 
+**Journal and Notes now share one screen.** Open **Journal** from the nav and you land on a page with a tab switch at the top — **Journal** (this event-anchored feed: "watered today", "harvested 200g") and **Notes** (looser, rich-text ideas and reminders). They're two tabs of the same "write things down" home; tap the switch to move between them. The old separate Notes menu item is gone — everything lives here now. Nothing about your existing entries or notes changed; only where you reach them did.
+
 ### Every flow on this page
 
 #### 1. Write a manual entry
@@ -200,15 +210,19 @@ The journal is identical for every tier. Tier-gating only affects the lifecycle-
 
 ## Related reference files
 
+- [Notes](./14-notes.md) — the sibling tab of the shared `/journal` hub (`/journal?tab=notes`); rich-text notebook backed by its own `notes` + `note_links` tables
 - [Plant Journal Tab](../08-modals-and-overlays/10-plant-journal-tab.md) — the per-instance lens onto the same data
 - [Quick Capture Journal](../02-dashboard/11-quick-capture-journal.md) — mobile-first capture-then-assign companion
 - [Lifecycle Complete Modal](../08-modals-and-overlays/24-lifecycle-complete.md) — writes a closing journal entry on every end-of-life
+- [Routing](../99-cross-cutting/21-routing.md) — `/journal`, the `?tab=notes` param, and the `/notes → /journal?tab=notes` redirect
 - [Data Model — Plants](../99-cross-cutting/03-data-model-plants.md) — instance schema (`ended_at`, `was_natural_end`, `end_summary`)
 - [AI — Gemini](../99-cross-cutting/13-ai-gemini.md) — the analysis call chain
 - [Edge Functions Catalogue](../99-cross-cutting/10-edge-functions-catalogue.md) — `analyse-plant-end-of-life`
 
 ## Code references for ongoing maintenance
 
+- `src/components/JournalNotesHub.tsx` — `/journal` route wrapper; SegmentedTabs switch (`journal-notes-switch`) that mounts GlobalJournal (Journal tab) or NotesPage (Notes tab) off the `?tab` query param
+- `src/App.tsx` — `/journal` route, the `/notes → /journal?tab=notes` `<Navigate>` redirect, and the single `journal` nav item (`matchPaths: ["/journal","/notes"]`)
 - `src/components/GlobalJournal.tsx` — entry component
 - `src/components/journal/TargetPicker.tsx` — polymorphic target selector + payload helper
 - `src/components/journal/JournalComposer.tsx` — shared composer used by global + (optionally) per-instance

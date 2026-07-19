@@ -69,7 +69,7 @@ Named exports, built on the tokens, `cn()` (clsx + tailwind-merge, `src/lib/cn.t
 
 - **Leaf burst on completion** — `spawnBurst(x, y)` in `src/lib/burst.ts` (WAAPI, `motionTier`-capped 8/14 particles, leaf+petal palette). Wired: `TaskList.toggleTaskCompletion` (fires from the tapped control on optimistic completion). Reward moments only — never navigation.
 - **Staggered grid entrance** — `staggerStyle(index)` + `STAGGER_ENTRANCE` in `src/lib/stagger.ts` (inline `animation-delay`/`fill-mode: backwards` longhands beat the `animation:` shorthand reset; cap 6 × 40ms). Wired: The Shed plant grid.
-- **SparkleAccent / PhotoGlow** — built, wired to surfaces during Phase 4 (Plant Lens tile, AI result headers, plant photo heroes).
+- **SparkleAccent / PhotoGlow** — built, wired to surfaces during Phase 4 (Plant Doctor tile, AI result headers, plant photo heroes).
 
 ### Interplay with accessibility & high contrast
 

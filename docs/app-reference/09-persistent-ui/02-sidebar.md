@@ -8,7 +8,7 @@
 
 ## Quick Summary
 
-Vertical rail on the `bg-rhozly-primary-container` green, grouped under small uppercase labels — **Garden** (Dashboard, Plants), **Plan** (Planner, Journal, Notes), **AI & Tools** (Tools, Integrations, Head Gardener) — plus a mobile-only **Quick** item at the top. The active item shows a calm left accent bar + white tint (the old white-pill + icon-zoom treatment was retired in the design overhaul). Help Center, Privacy, Cookies pinned at the bottom. Active route highlighted via `routerLocation.pathname` match against `matchPaths`.
+Vertical rail on the `bg-rhozly-primary-container` green, grouped under small uppercase labels — **Garden** (Dashboard, Plants), **Plan** (Planner, Journal), **AI & Tools** (Tools, Integrations, Head Gardener — Evergreen only) — plus a mobile-only **Quick** item at the top. (The standalone **Notes** item was retired in the Phase 5 IA pass — Notes is now a tab inside the Journal hub.) The active item shows a calm left accent bar + white tint (the old white-pill + icon-zoom treatment was retired in the design overhaul). Help Center, Privacy, Cookies pinned at the bottom. Active route highlighted via `routerLocation.pathname` match against `matchPaths`.
 
 ---
 
@@ -41,7 +41,13 @@ nav (left rail, aria-label="Primary navigation")
 }
 ```
 
-Current entries (top → bottom): Quick (mobile only) · **Garden:** Dashboard (overdue badge, rose), Plants (`/shed`, `/watchlist`) · **Plan:** Planner (`/planner`, `/shopping`), Journal, Notes · **AI & Tools:** Tools (`/tools`, `/doctor`, `/visualiser`, `/lightsensor`, `/guides`, `/garden-layout`, `/sun-trajectory` — icon `IconTools`/Wrench), Integrations, Head Gardener (`/manager`).
+Current entries (top → bottom): Quick (mobile only) · **Garden:** Dashboard (`/dashboard`, `/management`, `/home-management`, `/` on desktop — overdue badge, rose), Plants (`/shed`, `/watchlist`) · **Plan:** Planner (`/planner`, `/shopping`, `/schedule`), Journal (`/journal`, `/notes`) · **AI & Tools:** Tools (`/tools`, `/doctor`, `/visualiser`, `/lightsensor`, `/guides`, `/garden-layout`, `/sun-trajectory`, `/weekly` — icon `IconTools`/Wrench), Integrations, Head Gardener (`/manager` — **Evergreen only**, see below).
+
+The **Notes** item was removed in the Phase 5 IA pass — Notes is now a tab inside the Journal hub, so the **Journal** item's `matchPaths` cover both `/journal` and `/notes`.
+
+**Orphan-route reparenting (Phase 5 IA):** routes without their own nav item fold into a parent's `matchPaths` so the active-nav highlight resolves when you land on them — `/schedule` (Routines) → **Planner**, `/weekly` (Weekly Overview) → **Tools**, `/management` + `/home-management` (Location Manager / home management) → **Dashboard**, `/notes` → **Journal**.
+
+**Conditional Head Gardener:** the Head Gardener item (`id: "manager"`, `/manager`) is only rendered when `tierAllowsFeature(profile.subscription_tier, "head_gardener")` is true — i.e. Evergreen tier (`head_gardener` is Evergreen-gated in `src/constants/tierFeatures.ts`). Lower tiers don't see the nav entry at all, but the `/manager` route still exists and renders its own `FeatureGate` upgrade wall for anyone who deep-links in. **Integrations is deliberately left visible for every tier** (first-run discoverability — hiding it would strand users trying to add their first device).
 
 Group labels render only when a group differs from the previous link's group (`NAV_GROUP_LABELS`); the collapsed rail swaps labels for hairline dividers.
 
@@ -62,9 +68,13 @@ Maps `link.id` → destination route. Used by `navigate(TAB_URL[link.id])`.
 
 Active route from `useLocation()`. Badge counts from App-level state (e.g. `overdueTaskCount`).
 
-### Edge functions / Cron / Realtime / Tier gating / Beta gating
+### Edge functions / Cron / Realtime / Beta gating
 
 None directly (badges may rely on parents that subscribe).
+
+### Tier gating
+
+The **Head Gardener** item is tier-gated at the nav level — it only renders when `tierAllowsFeature(profile.subscription_tier, "head_gardener")` is true (Evergreen). Lower tiers never see the entry; the `/manager` route itself remains reachable via deep-link and renders its own `FeatureGate` upgrade wall. **Integrations is intentionally NOT nav-gated** — it stays visible for all tiers so first-run users can find where to add a device. No other item is tier-gated in the rail.
 
 ### Permissions
 
@@ -91,7 +101,7 @@ None.
 
 The full map of the app, now grouped the way you think: **Garden** is what's growing, **Plan** is what's next, **AI & Tools** is the clever kit. The quiet white bar on the left edge of an item shows where you are.
 
-On mobile you'll mostly live in the [bottom bar](./11-bottom-tab-bar.md) — the sidebar is for everything beyond the core five (Journal, Notes, Integrations, Head Gardener).
+On mobile you'll mostly live in the [bottom bar](./11-bottom-tab-bar.md) — the sidebar is for everything beyond the core five (Journal, Integrations, and — on Evergreen — Head Gardener). Notes now lives as a tab inside Journal rather than as its own item.
 
 ### Every flow
 
@@ -101,7 +111,7 @@ On mobile you'll mostly live in the [bottom bar](./11-bottom-tab-bar.md) — the
 
 ### Tier-by-tier experience
 
-Same layout. Some items may be hidden based on tier / permissions.
+Same layout, with one difference: **Head Gardener only appears on Evergreen**. Lower tiers don't see it in the rail (though the screen is still reachable by direct link, where it shows an upgrade wall). Integrations, by contrast, is shown to everyone so a first device is always easy to add. Other items may still be hidden by permissions.
 
 ### Common mistakes / pitfalls
 
