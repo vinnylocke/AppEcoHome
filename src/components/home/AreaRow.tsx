@@ -117,21 +117,6 @@ function dotColour(plant: AreaRowPlant): string {
   return STATE_COLOURS[plant.growth_state ?? ""] ?? "bg-green-500";
 }
 
-/** "3 flowering · 2 seedling · 1 unplanted" summary for detailed mode. */
-function stateBreakdown(plants: AreaRowPlant[]): string {
-  const counts = new Map<string, number>();
-  for (const p of plants) {
-    const key = p.status !== "Planted"
-      ? "unplanted"
-      : (p.growth_state ?? "growing").split("/")[0].toLowerCase();
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([state, n]) => `${n} ${state}`)
-    .join(" · ");
-}
-
 export default function AreaRow({ areaName, plants, density, telemetry, onClick }: Props) {
   const dots = plants.slice(0, MAX_DOTS);
   const extra = plants.length - dots.length;
@@ -156,11 +141,9 @@ export default function AreaRow({ areaName, plants, density, telemetry, onClick 
     >
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-rhozly-on-surface truncate">{areaName}</p>
-        {density === "detailed" && plants.length > 0 && (
-          <p className="text-[11px] text-rhozly-on-surface/50 font-medium truncate">
-            {stateBreakdown(plants)}
-          </p>
-        )}
+        {/* The growth-state breakdown text was cut (redesign Stage 3) — the
+            coloured dots on the right already encode each plant's state, so the
+            prose ("3 flowering · 2 seedling") just restated them one line down. */}
         {chips.length > 0 && (
           <span className="flex flex-wrap items-center gap-1 mt-1">{chips}</span>
         )}
@@ -171,6 +154,14 @@ export default function AreaRow({ areaName, plants, density, telemetry, onClick 
           <span className="text-[11px] font-bold text-rhozly-on-surface/35">No plants yet</span>
         ) : (
           <>
+            {/* The bare plant-count number was cut from the VISIBLE row
+                (redesign Stage 3) — the dots + "+N" overflow already show
+                quantity for sighted users. But the dots are `aria-hidden`, so
+                an sr-only count keeps the per-area quantity in the accessibility
+                tree (the location subtitle only sums the whole location). */}
+            <span className="sr-only">
+              {plants.length} plant{plants.length === 1 ? "" : "s"}
+            </span>
             <div className="flex items-center gap-1" aria-hidden>
               {dots.map((p) => (
                 <span
@@ -183,9 +174,6 @@ export default function AreaRow({ areaName, plants, density, telemetry, onClick 
                 <span className="text-[10px] font-black text-rhozly-on-surface/45">+{extra}</span>
               )}
             </div>
-            <span className="text-[11px] font-bold text-rhozly-on-surface/50">
-              {plants.length}
-            </span>
           </>
         )}
         <ChevronRight size={14} className="text-rhozly-on-surface/25 group-hover:text-rhozly-primary transition" />

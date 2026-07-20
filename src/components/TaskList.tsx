@@ -64,9 +64,14 @@ interface TaskListProps {
    * Mobile Quick Access Wave 3 — slim variant used by /quick/calendar.
    * Hides the Pending/Completed tab bar, scope filter, and bulk-edit
    * toolbar. Filters to today's pending tasks only. Renders a tappable
-   * "View calendar →" link at the bottom. Default false.
+   * "View calendar →" link at the bottom (unless `hideCalendarLink`). Default false.
    */
   compact?: boolean;
+  /** Suppress the compact-mode "View calendar →" footer. The home passes this
+   *  because it wraps the list with its own prominent "Open board →" / "See all"
+   *  header — the footer would be a duplicate. /quick/calendar keeps the footer
+   *  (it's that surface's only hop to the full week board). */
+  hideCalendarLink?: boolean;
   /** When the opened task belongs to a to-do list, the modal renders a pill
    *  that calls this with the list id so the host can open ToDoListsModal. */
   onOpenToDoList?: (listId: string) => void;
@@ -87,6 +92,7 @@ export default function TaskList({
   preloadedInventoryDict,
   preloadedBlockedTaskIds,
   compact = false,
+  hideCalendarLink = false,
   onOpenToDoList,
 }: TaskListProps) {
   const navigate = useNavigate();
@@ -1390,13 +1396,17 @@ export default function TaskList({
         </div>
       )}
 
-      {compact && tasks.length > 0 && (
+      {/* Compact "View calendar →" footer. HomeMain suppresses it via
+          `hideCalendarLink` (it supplies its own prominent "Open board →" /
+          "See all" header — the footer would duplicate it); /quick/calendar
+          keeps it as that surface's only hop to the full week board. */}
+      {compact && !hideCalendarLink && tasks.length > 0 && (
         <div className="mt-3 flex justify-end">
           <button
             type="button"
             data-testid="task-list-compact-view-calendar"
             onClick={() => navigate("/dashboard?view=calendar")}
-            className="text-xs font-black uppercase tracking-widest text-rhozly-primary hover:underline px-2 py-1"
+            className="text-xs font-black uppercase tracking-widest text-rhozly-primary can-hover:hover:underline px-2 py-1"
           >
             View calendar →
           </button>

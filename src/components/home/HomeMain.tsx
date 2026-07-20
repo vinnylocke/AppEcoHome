@@ -310,10 +310,22 @@ export default function HomeMain({
     />
   );
 
-  // Stage 4 (locked decision): the full embedded tabbed TaskList is gone.
-  // BOTH postures render the compact list; the workbench trades the porch's
-  // quiet "See all" for a prominent "Open board →" into the Calendar — the
-  // full task-management surface lives there now.
+  // Stage 4 (locked decision): the full embedded tabbed TaskList is gone; BOTH
+  // postures render the compact list (which itself carries inline complete /
+  // snooze / delete on every row, so the daily round-trip to the Calendar is
+  // only needed for real management). Redesign Stage 3 (D#5): the entry point
+  // is a real button in BOTH postures (was a faint 11px text link on the Porch)
+  // — "See all →" on the Porch, "Open board →" on the Workbench. The compact
+  // list's own duplicate calendar footer was removed at the same time.
+  const taskBoardLink = (testId: string, label: string) => (
+    <button
+      data-testid={testId}
+      onClick={() => navigate("/dashboard?view=calendar")}
+      className="flex items-center gap-1 text-[11px] font-black text-rhozly-primary bg-rhozly-primary/5 px-2.5 py-1 rounded-full can-hover:hover:bg-rhozly-primary/10 active:scale-[0.97] transition"
+    >
+      {label} <ArrowRight size={12} />
+    </button>
+  );
   const tasksBlock =
     posture === "porch" ? (
       <section data-testid="home-todays-tasks">
@@ -321,15 +333,9 @@ export default function HomeMain({
           <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
             Today's tasks
           </h2>
-          <button
-            data-testid="home-tasks-see-all"
-            onClick={() => navigate("/dashboard?view=calendar")}
-            className="text-[11px] font-bold text-rhozly-on-surface/45 hover:text-rhozly-primary transition"
-          >
-            See all
-          </button>
+          {taskBoardLink("home-tasks-see-all", "See all")}
         </div>
-        <TaskList homeId={homeId} compact targetDate={new Date()} />
+        <TaskList homeId={homeId} compact hideCalendarLink targetDate={new Date()} />
       </section>
     ) : (
       <section data-testid="dashboard-task-list">
@@ -337,15 +343,9 @@ export default function HomeMain({
           <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
             Today's tasks
           </h2>
-          <button
-            data-testid="home-tasks-open-board"
-            onClick={() => navigate("/dashboard?view=calendar")}
-            className="flex items-center gap-1 text-[11px] font-black text-rhozly-primary hover:text-rhozly-primary/80 transition"
-          >
-            Open board <ArrowRight size={12} />
-          </button>
+          {taskBoardLink("home-tasks-open-board", "Open board")}
         </div>
-        <TaskList homeId={homeId} compact targetDate={new Date()} />
+        <TaskList homeId={homeId} compact hideCalendarLink targetDate={new Date()} />
       </section>
     );
 

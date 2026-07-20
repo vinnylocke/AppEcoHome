@@ -90,6 +90,26 @@ test.describe("Home dashboard (Section 30)", () => {
     await home.tasksSeeAll.click();
     await expect(authenticatedPage).toHaveURL(/view=calendar/);
   });
+
+  test("HOME-014: the home's compact today list exposes inline complete + postpone without leaving the home (redesign Stage 3)", async ({ authenticatedPage }) => {
+    // Q3 of the stats+locations redesign: daily task actions are reachable
+    // directly on the home so the round-trip to the Calendar is only for
+    // management. The compact TaskList already carries per-row complete /
+    // postpone / delete — this guards that they stay present on the home.
+    const home = new HomeMainPage(authenticatedPage);
+    await home.goto();
+    await home.waitForLoad();
+
+    await expect(home.todaysTasks).toBeVisible();
+    const firstRow = authenticatedPage.locator('[data-testid^="task-row-"]').first();
+    await expect(firstRow).toBeVisible({ timeout: 10000 });
+    // Inline complete (the left checkbox) + inline postpone (the CalendarClock
+    // button) both live on the row, scoped to it.
+    await expect(firstRow.getByRole("button", { name: /Mark task .* as (complete|incomplete)/i })).toBeVisible();
+    await expect(firstRow.getByRole("button", { name: /Postpone task/i }).first()).toBeVisible();
+    // The task-board entry point is a real button (Stage 3 D#5), not a faint link.
+    await expect(home.tasksSeeAll).toBeVisible();
+  });
 });
 
 test.describe("Home dashboard — telemetry (Phase 2)", () => {
