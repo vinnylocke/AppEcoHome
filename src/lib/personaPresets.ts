@@ -61,8 +61,7 @@ export interface HomePreset {
 export const HOME_PRESETS: Record<HomePosture, HomePreset> = {
   // 🪴 The Porch — a warm guided welcome. Sentence hero, one Next Best
   // Action, plants as photos, gentle today list, learning strip. Almost no
-  // numbers. (The learn section reorders above `today` at runtime when the
-  // shed is empty — a modifier applied by HomeMain, not encoded here.)
+  // numbers.
   porch: {
     sectionOrder: [
       "hero",

@@ -10,7 +10,7 @@
 > - **"Open today's calendar"** → the sentence hero's **"Plan my day"** chip (`hero-plan-day` → `?view=calendar`) and the console `tasks`/`overdue` segments.
 > - **The Zone / Microclimate chips** → retired outright; their facts live at their destination pages — `/home-management` (hardiness zone) and `/garden-layout` (microclimate). Testids `daily-brief-zone-chip` / `daily-brief-microclimate-chip` no longer exist (no tests referenced them).
 >
-> **Deleted with the card, by design:** (a) the `data-testid="daily-brief-card"` **collision** — `GardenBrainBriefCard.tsx` used the same testid and both mounted in Detailed density; the survivor is GardenBrainBriefCard's (until its Stage-3 rename); (b) the latent footer-hint bug — it read `alerts[0].title`, which was **always `undefined`** (`weather_alerts` rows have `message`, no `title` column), so the "⚠ …" alert line never rendered its intended text.
+> **Deleted with the card, by design:** (a) the `data-testid="daily-brief-card"` **collision** — `GardenBrainBriefCard.tsx` used the same testid and both mounted in Detailed density; the survivor was GardenBrainBriefCard's (renamed `garden-brain-brief` in Stage 3, 2026-07-20); (b) the latent footer-hint bug — it read `alerts[0].title`, which was **always `undefined`** (`weather_alerts` rows have `message`, no `title` column), so the "⚠ …" alert line never rendered its intended text.
 >
 > The historical body below is preserved for reference — read every statement as pre-Stage-2 history.
 

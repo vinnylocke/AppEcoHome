@@ -61,10 +61,13 @@ test.describe("Dashboard — view switcher (Section 02)", () => {
     await dashboard.goto();
     await dashboard.waitForLoad();
 
-    // Seed 04 adds a frost alert with message "Frost risk tomorrow — cover tender plants..."
-    await expect(
-      authenticatedPage.getByText(/Frost risk tomorrow/i),
-    ).toBeVisible({ timeout: 10000 });
+    // Seed 04 adds a frost alert: "Frost risk tomorrow — cover tender plants…".
+    // Scoped to the banner's testid — the same text also surfaces as a row in
+    // The Brief (garden-brain-brief) on the workbench, so a bare getByText goes
+    // strict-ambiguous (redesign Stage 3).
+    const frostBar = authenticatedPage.getByTestId("weather-alert-bar-frost");
+    await expect(frostBar).toBeVisible({ timeout: 10000 });
+    await expect(frostBar).toContainText(/Frost risk tomorrow/i);
   });
 
   test("DASH-013: Wind alert banner is visible on the dashboard", async ({ authenticatedPage }) => {
@@ -894,28 +897,44 @@ test.describe("Dashboard — locked feature teasers for Sprout (RHO-2)", () => {
     );
   }
 
-  test("DASH-040: Head Gardener card shows the compact upgrade teaser, not the full panel", async ({ authenticatedPage }) => {
+  test("DASH-040: The Brief shows exactly ONE compact upgrade teaser (the estate row's), not the full panel", async ({ authenticatedPage }) => {
     await forceSprout(authenticatedPage);
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.goto();
     await dashboard.waitForLoad();
 
-    const card = authenticatedPage.getByTestId("dashboard-head-gardener-card");
-    // Compact teaser present (one-line "Upgrade to … to use Head Gardener")…
-    await expect(card.getByText(/Upgrade to .* to use Head Gardener/i)).toBeVisible({ timeout: 10000 });
+    // Redesign Stage 3: the four AI cards merged into The Brief (`the-brief`).
+    // `head_gardener` and `ai_insights` are both Evergreen-gated, so a locked
+    // account gets exactly ONE compact teaser — the estate row's gate fallback.
+    const brief = authenticatedPage.getByTestId("the-brief");
+    await expect(brief.getByText(/Upgrade to .* to use Head Gardener/i)).toBeVisible({ timeout: 10000 });
+    await expect(brief.getByText(/Upgrade to .* to use/i)).toHaveCount(1);
     // …and NOT the full-size panel (its "See plans" CTA only exists in the big variant).
-    await expect(card.getByTestId("upgrade-nudge-cta-head_gardener")).not.toBeVisible();
+    await expect(brief.getByTestId("upgrade-nudge-cta-head_gardener")).not.toBeVisible();
+    // The estate-row wrapper testid survives the merge, inside The Brief.
+    await expect(
+      authenticatedPage.getByTestId("dashboard-head-gardener-card").getByTestId("upgrade-nudge-head_gardener"),
+    ).toBeVisible();
   });
 
-  test("DASH-041: AI Insights card shows the compact upgrade teaser, not the full panel", async ({ authenticatedPage }) => {
+  test("DASH-041: the AI Insights row never doubles the upgrade teaser", async ({ authenticatedPage }) => {
     await forceSprout(authenticatedPage);
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.goto();
     await dashboard.waitForLoad();
 
-    const card = authenticatedPage.getByTestId("dashboard-assistant-card");
-    await expect(card.getByText(/Upgrade to .* to use AI Insights/i)).toBeVisible({ timeout: 10000 });
-    await expect(card.getByTestId("upgrade-nudge-cta-ai_insights")).not.toBeVisible();
+    // Intent changed with the Stage 3 merge: AssistantCard used to show its own
+    // compact teaser here (showUpgradeWhenLocked). Inside The Brief the estate
+    // row owns the single teaser and the assistant row's nudge is suppressed
+    // (`showUpgradeWhenLocked={false}`) — this spec now guards the dedup by
+    // asserting the AI Insights nudge is ABSENT while the estate teaser shows.
+    await expect(
+      authenticatedPage.getByTestId("the-brief").getByText(/Upgrade to .* to use Head Gardener/i),
+    ).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("upgrade-nudge-ai_insights")).toHaveCount(0);
+    await expect(
+      authenticatedPage.getByTestId("dashboard-assistant-card").getByText(/Upgrade to/i),
+    ).toHaveCount(0);
   });
 
   test("DASH-042: no full-size upgrade panel renders anywhere on the Sprout dashboard", async ({ authenticatedPage }) => {

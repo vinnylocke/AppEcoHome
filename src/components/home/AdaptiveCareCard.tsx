@@ -39,7 +39,21 @@ const KIND_ICON: Record<string, React.ReactNode> = {
 /** Actionable = renders with Apply/Dismiss. in_range stays for the briefing phase. */
 const VISIBLE_KINDS = new Set(["tighten_watering", "stretch_watering", "stress_risk", "create_watering_routine"]);
 
-export default function AdaptiveCareCard({ homeId, currentUserId }: { homeId: string; currentUserId: string | null }) {
+export default function AdaptiveCareCard({
+  homeId,
+  currentUserId,
+  embedded = false,
+  onVisibilityChange,
+}: {
+  homeId: string;
+  currentUserId: string | null;
+  /** The Brief (redesign Stage 3) mounts this as a row inside its own card —
+   *  embedded drops the outer card chrome and renders the inner content only. */
+  embedded?: boolean;
+  /** Reports whether the card is rendering content (true) or self-hiding
+   *  (false) — the GettingStartedChecklist house pattern. */
+  onVisibilityChange?: (visible: boolean) => void;
+}) {
   const [items, setItems] = useState<CareAdjustment[]>([]);
   const [verifiedItems, setVerifiedItems] = useState<CareAdjustment[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -92,6 +106,13 @@ export default function AdaptiveCareCard({ homeId, currentUserId }: { homeId: st
 
   useEffect(() => { void load(); }, [load]);
 
+  // Report visibility in an effect (never during render) — The Brief hides
+  // its whole card when every merged row is empty.
+  const visible = items.length > 0 || verifiedItems.length > 0;
+  useEffect(() => {
+    onVisibilityChange?.(visible);
+  }, [visible, onVisibilityChange]);
+
   const dismiss = async (adj: CareAdjustment) => {
     setBusyId(adj.id);
     const res = await dismissCareAdjustment(adj);
@@ -122,7 +143,10 @@ export default function AdaptiveCareCard({ homeId, currentUserId }: { homeId: st
   const shown = showAll ? items : items.slice(0, 2);
 
   return (
-    <div data-testid="adaptive-care-card" className="bg-white rounded-3xl border border-rhozly-outline/10 shadow-sm p-4 sm:p-5 space-y-3">
+    <div
+      data-testid="adaptive-care-card"
+      className={embedded ? "space-y-3" : "bg-white rounded-3xl border border-rhozly-outline/10 shadow-sm p-4 sm:p-5 space-y-3"}
+    >
       <div className="flex items-center gap-2">
         <div className="bg-rhozly-primary/10 p-1.5 rounded-xl"><Brain size={16} className="text-rhozly-primary" /></div>
         <h3 className="text-sm font-black text-rhozly-on-surface">Garden Brain</h3>

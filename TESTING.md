@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,543 tests across 142 files
+### Unit tests — 1,555 tests across 144 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
@@ -774,6 +774,8 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `UpdatedChip.test.ts` | 6 | Wave 5 — renders nothing for count≤0, singular vs plural label, button when onClick provided, span otherwise, fires onClick |
 | `aiPlantOverrides.test.ts` | 12 | Wave 6 — `diffOverriddenFields` (no-change, scalar, array, sort/case-insensitive, null/empty equivalence, ignores non-overridable fields) + `mergeOverriddenFields` (union, dedup, null/empty handling) |
 | `SourceChip.test.ts` | 5 | Wave 6 — renders nothing for non-AI, catalogue variant when overrides empty/null, custom variant when overrides non-empty |
+| `components/TheBrief.test.ts` | 6 | Home redesign Stage 3 — The Brief (merged AI card): shows while any stubbed child reports content, hides (`hidden` attr, children stay mounted) when all report empty, gated-row no-report default keeps the locked nudge reachable, `dashboard-head-gardener-card`/`dashboard-assistant-card` wrappers inside, upgrade-dedup props (`showUpgradeWhenLocked={false}`, `embedded`) |
+| `components/NextBestAction.test.ts` | 5 | Home redesign Stage 4 — the Porch's Next Best Action card: priority ladder (rung 1 first attention item + navigates to its route, rung 2 first pending task → `?view=calendar`, rung 3 seasonal fallback → `/shed?open=add-plant`), seasonal fallback scrolls to `[data-section="learn"]` when present (no navigation), and the no-counts contract (rendered text never matches a bare tally) |
 | `valveControl.test.ts` | 4 | `valveControlMode` — eWeLink → live, custom_http+controllable → custom, otherwise read-only |
 | `payloadTemplate.test.ts` | 6 | Custom valve control preview — `{{var}}` render (+ unknown-var throw, parity with Deno), `buildControlPreview` ok / template-error / non-JSON-body cases |
 | `areaInsight.test.ts` | 6 | AI Area Coach presentation helpers — `metricLabel`, `statusMeta` (good/low/high/unknown styling), `compatibilityMeta` (well/minor/poor verdict label + tone), `formatAnalysedLabel` (just-now/m/h/d/date windows) |

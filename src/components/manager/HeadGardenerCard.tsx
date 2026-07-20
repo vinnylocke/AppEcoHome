@@ -10,8 +10,20 @@ import type { ManagerReport } from "../../lib/managerReport";
  * Compact dashboard entry-point for the Head Gardener. Reads the cached Estate
  * Report row directly (no AI cost) and surfaces its headline with a deep link to
  * /manager. Renders nothing until a report exists. Evergreen-gated.
+ *
+ * Two forms (redesign Stage 3): the standalone gradient card, and `embedded` —
+ * a compact row for The Brief's estate slot. `onVisibilityChange` reports
+ * whether the inner content rendered (the GettingStartedChecklist house
+ * pattern); it only fires once the tier gate has passed and the inner mounts —
+ * locked accounts keep the parent's optimistic default, which is correct
+ * because the gate's compact UpgradeNudge fallback is real visible content.
  */
-function HeadGardenerCardInner() {
+interface HeadGardenerCardProps {
+  embedded?: boolean;
+  onVisibilityChange?: (visible: boolean) => void;
+}
+
+function HeadGardenerCardInner({ embedded = false, onVisibilityChange }: HeadGardenerCardProps) {
   const navigate = useNavigate();
   const [headline, setHeadline] = useState<string | null>(null);
   const [openItems, setOpenItems] = useState<number>(0);
@@ -38,7 +50,37 @@ function HeadGardenerCardInner() {
     return () => { cancelled = true; };
   }, []);
 
+  // Report visibility in an effect (never during render).
+  const visible = headline !== null;
+  useEffect(() => {
+    onVisibilityChange?.(visible);
+  }, [visible, onVisibilityChange]);
+
   if (!headline) return null;
+
+  if (embedded) {
+    // The Brief's estate row — same data, same /manager deep link, row chrome.
+    return (
+      <button
+        onClick={() => navigate("/manager")}
+        data-testid="head-gardener-card"
+        className="w-full text-left group"
+      >
+        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+          <Leaf size={11} className="text-emerald-600" /> Your head gardener
+          {openItems > 0 && (
+            <span className="font-black px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+              {openItems} to look at
+            </span>
+          )}
+        </div>
+        <div className="mt-1 flex items-start justify-between gap-2">
+          <p className="min-w-0 flex-1 text-xs font-black text-rhozly-on-surface leading-snug">{headline}</p>
+          <ArrowRight size={13} className="shrink-0 mt-0.5 text-rhozly-on-surface/30 group-hover:text-rhozly-primary transition" />
+        </div>
+      </button>
+    );
+  }
 
   return (
     <button
@@ -64,10 +106,10 @@ function HeadGardenerCardInner() {
   );
 }
 
-export default function HeadGardenerCard() {
+export default function HeadGardenerCard({ embedded, onVisibilityChange }: HeadGardenerCardProps) {
   return (
     <FeatureGate feature="head_gardener" fallback={<UpgradeNudge feature="head_gardener" compact />}>
-      <HeadGardenerCardInner />
+      <HeadGardenerCardInner embedded={embedded} onVisibilityChange={onVisibilityChange} />
     </FeatureGate>
   );
 }

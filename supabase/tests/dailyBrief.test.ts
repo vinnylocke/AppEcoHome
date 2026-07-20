@@ -1,6 +1,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
   assembleBrief,
+  buildBriefVoicePrompt,
   buildDeterministicSummary,
   prependBriefToDigest,
   MAX_ITEMS,
@@ -187,4 +188,52 @@ Deno.test("DB-014: care proposals with an id carry apply_care_adjustment; withou
 Deno.test("DB-015: photoFlags absent (undefined) is safe — no items, no crash", () => {
   const { items } = assembleBrief(signals({ overdueCount: 1 }));
   assertEquals(items.some((i) => i.kind === "photo_flag"), false);
+});
+
+// ─── AI-voice prompt contract (home redesign Stage 3 — The Brief) ────────────
+
+Deno.test("DB-016: AI-voice prompt forbids restating the hero's raw counts and leads with advice", () => {
+  const prompt = buildBriefVoicePrompt({ persona: null });
+  // The hero owns the raw numbers — the narrative must not recite them.
+  assertStringIncludes(prompt, "already shows today's task count, the overdue count and the weather");
+  assertStringIncludes(prompt, 'Never recite "you have N tasks today", "N overdue" or "the weather is X°"');
+  assertStringIncludes(prompt, "already on screen");
+  assertStringIncludes(prompt, "Lead with insight, advice and priorities");
+  // Numbers are allowed only when they carry the advice itself.
+  assertStringIncludes(prompt, 'Mention a number ONLY when it carries the advice itself (e.g. "water the 3 thirstiest beds before the heat")');
+});
+
+Deno.test("DB-017: AI-voice prompt keeps the strict JSON output shape unchanged", () => {
+  const prompt = buildBriefVoicePrompt({ persona: "experienced" });
+  assertStringIncludes(prompt, 'Return STRICT JSON: {"summary": string, "items": [{"title": string, "reason": string}]}');
+  assertStringIncludes(prompt, "SAME order and count as given");
+  // Anti-hallucination guard survives the re-prompt.
+  assertStringIncludes(prompt, "never invent, add, remove or reorder items");
+});
+
+Deno.test("DB-018: null persona collapses to the same guided tone as 'new' (two-way collapse, plan §6b)", () => {
+  const nullPrompt = buildBriefVoicePrompt({ persona: null });
+  const newPrompt = buildBriefVoicePrompt({ persona: "new" });
+  assertEquals(nullPrompt, newPrompt);
+  // Guided/beginner audience — NOT the legacy three-way "balanced" middle ground.
+  assertStringIncludes(nullPrompt, "beginner gardener");
+  assertEquals(nullPrompt.includes("general gardener"), false);
+  // Explicit "experienced" still gets the terser voice.
+  const expPrompt = buildBriefVoicePrompt({ persona: "experienced" });
+  assertStringIncludes(expPrompt, "experienced gardener");
+  assertEquals(expPrompt === newPrompt, false);
+});
+
+Deno.test("DB-019: goals line and regenerate feedback still thread into the prompt", () => {
+  const prompt = buildBriefVoicePrompt({
+    persona: null,
+    goalsLine: "The home's stated goals: grow_your_own, attract_wildlife.",
+    feedback: "Shorter, punchier briefs please",
+  });
+  assertStringIncludes(prompt, "The home's stated goals: grow_your_own, attract_wildlife.");
+  assertStringIncludes(prompt, "The gardener's feedback on previous briefs (honour it): Shorter, punchier briefs please");
+  // Absent goals/feedback leave no dangling lines behind.
+  const bare = buildBriefVoicePrompt({ persona: null });
+  assertEquals(bare.includes("stated goals"), false);
+  assertEquals(bare.includes("feedback on previous briefs"), false);
 });

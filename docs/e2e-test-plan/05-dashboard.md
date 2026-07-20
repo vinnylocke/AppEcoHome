@@ -16,7 +16,7 @@ Covers the classic dashboard content. Since the Phase 4.2 dashboard merge this *
 | DASH-003 | ✅ | Weather tab click → URL `?view=weather`, forecast panel visible | — | ✅ Passing |
 | DASH-004 | ✅ | Full Forecast button — 7-day forecast expands or navigates | — | ✅ Passing |
 | DASH-005..009 | ✅ | Weather code icons render correctly (WMO 0 clear, 61 rain, 71 snow, 95 thunder, 45 fog) | — | ✅ Passing |
-| DASH-010..013 | ✅ | Alert badges (heat, frost, rain, wind). DASH-010 (heat) and DASH-013 (wind) are scoped to the compact bar's own `weather-alert-bar-{type}` testids — the same alert text also renders elsewhere (e.g. the AttentionRow weather card on non-dashboard consumers), so a bare `getByText` goes strict-ambiguous | — | ✅ Passing (re-verified 2026-07-20) |
+| DASH-010..013 | ✅ | Alert badges (heat, frost, rain, wind). DASH-010 (heat), **DASH-011 (frost)** and DASH-013 (wind) are each scoped to the compact bar's own `weather-alert-bar-{type}` testid (`weather-alert-bar-frost` for DASH-011, asserting `/Frost risk tomorrow/i`) — the same alert text also renders elsewhere (the AttentionRow weather card on non-dashboard consumers, and — since redesign Stage 3 — **The Brief's `garden-brain-brief` row surfaces the frost item on the Workbench**), so a bare `getByText` goes strict-ambiguous | — | ✅ Passing (re-verified 2026-07-20) |
 | DASH-MOBILE-001 | ✅ | Phone-portrait (412×915): all **four** view tabs (Dashboard / Locations / Calendar / Weather) present exactly once, Overview button count 0 (Phase 4.2 merged it into Dashboard), Weather reachable + navigates (regression: Weather clipped off-screen) | — | 🔲 Pending (re-verify post-merge) |
 | DASH-014 | ✅ | No alerts on mild forecast | — | ✅ Passing |
 | DASH-015 | ✅ | Garden Intelligence panel renders with at least one rule heading | — | ✅ Passing |
@@ -46,7 +46,7 @@ The home branch in `App.tsx` renders at most **one** promo card, cascading by pr
 
 ## Daily tasks sidebar
 
-The full `TaskList` (`dashboard-task-list`, "Daily Tasks" heading, Pending/Completed tabs) now renders only in the home's **Detailed** density — `DashboardPage.goto()` seeds it, so these rows keep working unchanged.
+The `TaskList` (`dashboard-task-list`, "Today's tasks" heading) renders on the **Workbench** posture — `DashboardPage.goto()` seeds `rhozly:home:density = detailed`, which `readStoredPosture()` aliases to Workbench, so these rows keep working. **Redesign Stage 4:** it's now the **compact** TaskList (`compact` hides the Pending/Completed tab bar, scope filter, and bulk-edit — see `src/components/TaskList.tsx`), and the full tabbed board moved to the Calendar behind the section's "Open board →" link. DASH-028..036 assert task presence / pending-exclusion, which the compact today-view still supports (verified passing in the 2026-07-20 sweep); they don't depend on the removed tab bar.
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
@@ -62,12 +62,12 @@ The full `TaskList` (`dashboard-task-list`, "Daily Tasks" heading, Pending/Compl
 
 ## Locked feature teasers — Sprout (RHO-2)
 
-Tier is forced to Sprout by mocking the narrow `user_profiles?select=subscription_tier` read; the rest of the app keeps its (Evergreen) profile so the dashboard still loads. The Head Gardener (`dashboard-head-gardener-card`) and AI Insights (`dashboard-assistant-card`) cards mount only in the home's **Detailed** density (seeded by `DashboardPage.goto()`).
+Tier is forced to Sprout by mocking the narrow `user_profiles?select=subscription_tier` read; the rest of the app keeps its (Evergreen) profile so the dashboard still loads. **Home redesign Stage 3 (2026-07-20):** the four AI cards merged into **The Brief** (`the-brief`, both densities). The `dashboard-head-gardener-card` / `dashboard-assistant-card` wrappers survive as rows INSIDE it, and the upgrade teasers are **deduped** — the estate row's compact nudge is the page's only one; AssistantCard gets `showUpgradeWhenLocked={false}` so its nudge never doubles. DASH-040/041 were consolidated to that new reality.
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DASH-040 | ✅ | Head Gardener card shows compact upgrade teaser, not the full panel | `user_profiles` tier→sprout | 🔲 Pending (re-verify post-merge) |
-| DASH-041 | ✅ | AI Insight card shows compact upgrade teaser, not the full panel | `user_profiles` tier→sprout | 🔲 Pending (re-verify post-merge) |
+| DASH-040 | ✅ | The Brief shows exactly ONE compact upgrade teaser (`Upgrade to … to use Head Gardener`, count of /Upgrade to .* to use/ inside `the-brief` = 1), inside the `dashboard-head-gardener-card` wrapper; no full-size panel (`upgrade-nudge-cta-*` absent) | `user_profiles` tier→sprout | 🔲 Pending (re-verify post-merge) |
+| DASH-041 | ✅ | The AI Insights row never doubles the teaser: `upgrade-nudge-ai_insights` count 0 page-wide and no "Upgrade to" text inside `dashboard-assistant-card` while the estate teaser shows (intent changed in Stage 3 — was "AI Insight card shows compact teaser") | `user_profiles` tier→sprout | 🔲 Pending (re-verify post-merge) |
 | DASH-042 | ✅ | No full-size upgrade panel anywhere on the Sprout dashboard (guards the `FeatureGate fallback={null}` fix) | `user_profiles` tier→sprout | 🔲 Pending (re-verify post-merge) |
 
 ## Garden Snapshot stat tiles (RHO-13)

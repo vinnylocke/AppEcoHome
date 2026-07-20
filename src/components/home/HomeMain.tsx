@@ -1,15 +1,13 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sprout, MapPin, Leaf, LayoutList, Rows3 } from "lucide-react";
+import { Sprout, MapPin, Leaf, LayoutList, Rows3, ArrowRight } from "lucide-react";
 import HomeStatusStrip from "./HomeStatusStrip";
 import GardenOverviewGrid from "./GardenOverviewGrid";
 import QuickActionsRow from "./QuickActionsRow";
 import AttentionRow from "./AttentionRow";
-import AdaptiveCareCard from "./AdaptiveCareCard";
-import GardenBrainBriefCard from "./GardenBrainBriefCard";
+import TheBrief from "./TheBrief";
 import GardenSnapshot from "./GardenSnapshot";
-import HeadGardenerCard from "../manager/HeadGardenerCard";
-import AssistantCard from "../AssistantCard";
+import NextBestAction from "./NextBestAction";
 import WeekAheadPreview from "../shared/WeekAheadPreview";
 import FeatureGate from "../shared/FeatureGate";
 import TaskList from "../TaskList";
@@ -18,26 +16,53 @@ import { usePersona } from "../../hooks/usePersona";
 import { useHomeOverview, type OverviewArea } from "../../hooks/useHomeOverview";
 import { useHomeDashboardStats } from "../../hooks/useHomeDashboardStats";
 import { buildTodaySummary } from "../../lib/todaySummary";
+import {
+  HOME_PRESETS,
+  LEGACY_DENSITY_KEY,
+  readStoredPosture,
+  resolveHomePosture,
+  storePosture,
+  type HomePosture,
+  type HomeSectionId,
+} from "../../lib/personaPresets";
+import { staggerStyle, STAGGER_ENTRANCE } from "../../lib/stagger";
 import type { OverviewLocation } from "./LocationOverviewCard";
 import type { QuickLauncherAvailabilityCtx } from "../../lib/quickLauncherCatalogue";
 
 /**
  * THE dashboard (?view=home — the old sibling "Overview" tab was merged in
- * here, design overhaul Phase 4.2). One shared spine rendered in two
- * densities:
+ * here, design overhaul Phase 4.2). One shared spine, TWO POSTURES (home
+ * redesign Stage 4 — docs/plans/home-redesign-two-postures.md §3):
  *
- * - "simple" (default for new gardeners — guidance-first): compact status
- *   strip hero, garden grid, quick actions, compact today's tasks, seasonal
- *   picks.
- * - "detailed" (default for persona === "experienced" — the old Overview
- *   audience): Daily Brief hero, Head Gardener + AI Insights cards, the full
- *   task list, Week Ahead, and the collapsible Garden Snapshot stat wall.
+ * - 🪴 "porch" (default for new/null persona — guidance-first): sentence
+ *   hero, ONE Next Best Action, garden grid, gentle compact today list,
+ *   quick actions, Seasonal Picks, The Brief. One centered editorial column
+ *   (max-w-[1100px]) at every width. Almost no numbers.
+ * - 🛠️ "workbench" (default for persona === "experienced" — the operations
+ *   console): console-line hero, Attention inbox, garden grid w/ telemetry,
+ *   compact tasks behind "Open board", The Brief, Week Ahead, collapsed
+ *   Snapshot. Two-column studio on xl+; single stack in preset order below.
+ *
+ * Composition is declarative: HOME_PRESETS[posture].sectionOrder drives one
+ * section loop — no forked block trees. The old Simple/Detailed density
+ * toggle is now the posture override (same control, same testids, same
+ * legacy localStorage key mirrored for pre-redesign users + e2e seeds).
  *
  * The single useHomeDashboardStats mount here feeds BOTH the status summary
  * and GardenSnapshot — don't add second consumers (the edge fn is uncached).
  */
 
-const DENSITY_KEY = "rhozly:home:density";
+/** Attention kinds the dashboard suppresses (redesign Stage 2 one-owner map):
+ *  the hero + task list own overdue; the global banner owns weather alerts. */
+const ATTENTION_EXCLUDE_KINDS = ["overdue_tasks", "weather_alert"];
+
+/** Workbench xl+ studio split — which sections render in the aside rail.
+ *  Order within each bucket still follows the preset's sectionOrder. */
+const WORKBENCH_ASIDE_SECTIONS: ReadonlySet<HomeSectionId> = new Set([
+  "brief",
+  "week",
+  "snapshot",
+]);
 
 interface Props {
   homeId: string;
@@ -81,21 +106,48 @@ export default function HomeMain({
   const navigate = useNavigate();
   const persona = usePersona();
 
-  // Density: stored preference wins; otherwise follow the persona once it
-  // resolves. Persist ONLY on user toggle (the snapshot-preference lesson —
-  // persisting a first-render default freezes it before persona loads).
-  const [storedDensity] = useState<string | null>(() => {
-    try { return localStorage.getItem(DENSITY_KEY); } catch { return null; }
-  });
-  const [densityOverride, setDensityOverride] = useState<"simple" | "detailed" | null>(
-    storedDensity === "simple" || storedDensity === "detailed" ? storedDensity : null,
+  // Posture: stored override wins (explicit preset key, or the legacy density
+  // key aliased — readStoredPosture handles the ladder); otherwise follow the
+  // persona once it resolves. Persist ONLY on user toggle (the
+  // snapshot-preference lesson — persisting a first-render default freezes it
+  // before persona loads).
+  const [storedPosture, setStoredPosture] = useState<HomePosture | null>(() =>
+    readStoredPosture(),
   );
-  const density: "simple" | "detailed" =
-    densityOverride ?? (persona === "experienced" ? "detailed" : "simple");
-  const setDensity = (next: "simple" | "detailed") => {
-    setDensityOverride(next);
-    try { localStorage.setItem(DENSITY_KEY, next); } catch { /* ignore */ }
+  const posture = resolveHomePosture(persona, storedPosture);
+  const preset = HOME_PRESETS[posture];
+  const setPosture = (next: HomePosture) => {
+    setStoredPosture(next);
+    storePosture(next);
+    // Mirror the legacy density key so pre-redesign readers (and the ~8 e2e
+    // specs that pre-seed/assert it) stay coherent with the posture choice.
+    try {
+      localStorage.setItem(LEGACY_DENSITY_KEY, next === "porch" ? "simple" : "detailed");
+    } catch {
+      /* private mode — ignore */
+    }
   };
+
+  // Child-prop compatibility shim: block components below still speak
+  // "simple"/"detailed" — one mapping here instead of a prop rename sweep.
+  const density: "simple" | "detailed" = posture === "porch" ? "simple" : "detailed";
+
+  // One-shot entrance stagger (Stage 4): fires on mount only. Any posture
+  // change remounts/moves the section wrappers (the two layouts differ), which
+  // would restart the CSS animations — so the first toggle permanently retires
+  // the entrance classes. Ref writes during render are idempotent here.
+  const mountPostureRef = useRef(posture);
+  const entranceDoneRef = useRef(false);
+  if (posture !== mountPostureRef.current) entranceDoneRef.current = true;
+  const entranceActive = !entranceDoneRef.current;
+  useEffect(() => {
+    // Belt-and-braces: after the entrance has played once, never re-apply it
+    // (e.g. a toggle away and back must not replay the cascade).
+    const timer = window.setTimeout(() => {
+      entranceDoneRef.current = true;
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const todayTaskCount = Object.values(locationTaskCounts).reduce((a, b) => a + b, 0);
   const hasGarden = locations.length > 0;
@@ -105,8 +157,8 @@ export default function HomeMain({
   // supplies DONE (tasks cleared today, incl. overdue/harvest — NOT the
   // due-date day-strip bucket, which missed overdue-completed-today). The day
   // bucket is still used for the SKIPPED / POSTPONED passthrough. Mounted in
-  // BOTH densities so the breakdown shows for simple-mode (Sprout) users too.
-  // This single hook instance also feeds GardenSnapshot in detailed density.
+  // BOTH postures so the breakdown shows for porch (Sprout) users too.
+  // This single hook instance also feeds GardenSnapshot on the workbench.
   // Soft-fails: the hook returns null stats on error and the strip still
   // renders pending.
   const {
@@ -132,43 +184,48 @@ export default function HomeMain({
     return map;
   }, [overview]);
 
+  // One-owner map (Stage 2): the hero owns overdue, the global banner owns
+  // weather alerts — the attention list keeps the telemetry + harvest kinds.
+  // Filtered HERE (not inside AttentionRow) so Next Best Action can share the
+  // exact same post-filter list for its top priority rung.
+  const attentionItems = React.useMemo(
+    () => (overview?.attention ?? []).filter((i) => !ATTENTION_EXCLUDE_KINDS.includes(i.kind)),
+    [overview],
+  );
+
   const totalPlants = dashStats?.garden.totalPlants ?? 0;
 
-  const densityToggle = (
+  const postureToggle = (
     <div
       data-testid="home-density-toggle"
       className="bg-rhozly-primary/5 p-0.5 rounded-xl flex shrink-0"
     >
       <button
         data-testid="home-density-simple"
-        onClick={() => setDensity("simple")}
+        onClick={() => setPosture("porch")}
         title="Simple view"
-        className={`p-1.5 rounded-lg transition ${density === "simple" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-primary"}`}
+        className={`p-1.5 rounded-lg transition ${posture === "porch" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-primary"}`}
       >
         <LayoutList size={14} />
       </button>
       <button
         data-testid="home-density-detailed"
-        onClick={() => setDensity("detailed")}
+        onClick={() => setPosture("workbench")}
         title="Detailed view"
-        className={`p-1.5 rounded-lg transition ${density === "detailed" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-primary"}`}
+        className={`p-1.5 rounded-lg transition ${posture === "workbench" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-primary"}`}
       >
         <Rows3 size={14} />
       </button>
     </div>
   );
 
-  // Phase 6c — the dashboard blocks are extracted so detailed density (the
-  // desktop / experienced default) can lay them out as a two-column "studio"
-  // on wide screens: the daily-action flow on the left, a glanceable insight
-  // rail on the right. Simple density (the phone default) keeps the single
-  // thumb-first column, byte-for-byte as before.
-
-  // Redesign Stage 2 — ONE hero for both densities (DailyBriefCard retired;
+  // Redesign Stage 2 — ONE hero for both postures (DailyBriefCard retired;
   // its facts migrated: sun line → hero micro-line, ask-AI → the console
   // hero's chip, Plan-day → hero-plan-day, zone/microclimate live at their
-  // destinations). Simple = the Porch's sentence voice; detailed = the
-  // Workbench's console line.
+  // destinations). Voice comes from the preset: porch = sentence, workbench =
+  // console (locked decision).
+  const heroVariant: "sentence" | "console" =
+    preset.variants.hero === "console" ? "console" : "sentence";
   const heroBlock = (
     <div className="flex items-start justify-between gap-3">
       <HomeStatusStrip
@@ -180,17 +237,20 @@ export default function HomeMain({
         alerts={alerts}
         homeLat={homeLat}
         homeLng={homeLng}
-        variant={density === "simple" ? "sentence" : "console"}
+        variant={heroVariant}
         aiEnabled={aiEnabled}
         hardinessZone={hardinessZone}
       />
-      {densityToggle}
+      {postureToggle}
     </div>
   );
 
   const gardenSection = (
     // Stable wrapper: the dashboard_tour anchors here so the step works in
-    // both the populated-grid and empty-garden states.
+    // both the populated-grid and empty-garden states. (Preset variant
+    // "photos"/"telemetry" is currently a no-op — both postures render the
+    // existing grid; the density prop keeps the telemetry chips on the
+    // workbench side. Photo-bento lands in a later slice.)
     <div data-testid="home-garden-section">
       {hasGarden ? (
         <GardenOverviewGrid
@@ -246,8 +306,12 @@ export default function HomeMain({
     />
   );
 
+  // Stage 4 (locked decision): the full embedded tabbed TaskList is gone.
+  // BOTH postures render the compact list; the workbench trades the porch's
+  // quiet "See all" for a prominent "Open board →" into the Calendar — the
+  // full task-management surface lives there now.
   const tasksBlock =
-    density === "simple" ? (
+    posture === "porch" ? (
       <section data-testid="home-todays-tasks">
         <div className="flex items-center justify-between px-1 mb-2">
           <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
@@ -264,106 +328,133 @@ export default function HomeMain({
         <TaskList homeId={homeId} compact targetDate={new Date()} />
       </section>
     ) : (
-      /* Detailed: the full task list (the old Overview TasksPanel) — the
-         whole task-management surface, tabs and all. */
-      <div data-testid="dashboard-task-list">
-        <TaskList homeId={homeId} />
-      </div>
+      <section data-testid="dashboard-task-list">
+        <div className="flex items-center justify-between px-1 mb-2">
+          <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
+            Today's tasks
+          </h2>
+          <button
+            data-testid="home-tasks-open-board"
+            onClick={() => navigate("/dashboard?view=calendar")}
+            className="flex items-center gap-1 text-[11px] font-black text-rhozly-primary hover:text-rhozly-primary/80 transition"
+          >
+            Open board <ArrowRight size={12} />
+          </button>
+        </div>
+        <TaskList homeId={homeId} compact targetDate={new Date()} />
+      </section>
     );
 
-  // The old Overview's AI cards — self-gate (Evergreen / ai_insights), self-hide
-  // when empty, and show compact upsells when locked.
-  const aiCards = userId ? (
-    <>
-      <div data-testid="dashboard-head-gardener-card">
-        <HeadGardenerCard />
-      </div>
-      <div data-testid="dashboard-assistant-card">
-        <AssistantCard userId={userId} showUpgradeWhenLocked />
-      </div>
-    </>
-  ) : null;
-
-  // Week Ahead — both densities (product call 2026-07-19); Evergreen-gated.
+  // Week Ahead — Evergreen-gated; workbench-only by sectionOrder.
   const weekAhead = (
     <FeatureGate feature="ai_insights" fallback={null}>
       <WeekAheadPreview homeId={homeId} />
     </FeatureGate>
   );
 
-  const snapshot =
-    density === "detailed" ? (
-      <GardenSnapshot
-        stats={dashStats}
-        loading={dashLoading}
-        error={dashError}
-        refresh={dashRefresh}
-        weekStart={weekStart}
-        weekEnd={weekEnd}
-      />
-    ) : null;
-
-  const seasonalPicks =
-    density === "simple" ? (
-      <SeasonalPicksCard
-        homeId={homeId}
-        aiEnabled={aiEnabled}
-        isPremium={isPremium}
-        variant="dashboard"
-      />
-    ) : null;
-
-  // Garden Brain morning voice + adaptive-care proposals — self-hide when empty.
-  const dailyBrief = <GardenBrainBriefCard homeId={homeId} userId={userId} density={density} />;
-  const adaptiveCare = <AdaptiveCareCard homeId={homeId} currentUserId={userId} />;
-  // One-owner map (Stage 2): the hero owns overdue, the global banner owns
-  // weather alerts — the attention row keeps the telemetry + harvest kinds.
-  const attention = (
-    <AttentionRow
-      items={overview?.attention ?? []}
-      excludeKinds={["overdue_tasks", "weather_alert"]}
+  // Collapsed by default (preset.snapshotOpen is false for both postures —
+  // GardenSnapshot's own persisted-collapse state honours that default).
+  const snapshot = (
+    <GardenSnapshot
+      stats={dashStats}
+      loading={dashLoading}
+      error={dashError}
+      refresh={dashRefresh}
+      weekStart={weekStart}
+      weekEnd={weekEnd}
     />
   );
 
-  // ── Simple density (phone default): one thumb-first column ──
-  if (density === "simple") {
+  const seasonalPicks = (
+    <SeasonalPicksCard
+      homeId={homeId}
+      aiEnabled={aiEnabled}
+      isPremium={isPremium}
+      variant="dashboard"
+    />
+  );
+
+  // Redesign Stage 3 — the four AI cards (daily brief, adaptive care, Head
+  // Gardener headline, AI insight) merged into ONE "From Rhozly" card. Every
+  // data mechanic, gate, and self-hide lives on inside TheBrief.
+  const theBrief = userId ? <TheBrief homeId={homeId} userId={userId} density={density} /> : null;
+
+  const attention =
+    attentionItems.length > 0 ? <AttentionRow items={attentionItems} /> : null;
+
+  // Porch-only by preset. `firstTaskTitle` rung intentionally unwired — task
+  // titles aren't cheaply available at this level (TaskList owns that fetch);
+  // the ladder falls through attention → seasonal.
+  const nextBestAction = <NextBestAction attentionItems={attentionItems} />;
+
+  // ── The section loop (Stage 4): HOME_PRESETS[posture].sectionOrder is the
+  // single source of composition truth — ids map to the block elements above.
+  const SECTIONS: Record<HomeSectionId, React.ReactNode | null> = {
+    hero: heroBlock,
+    nextBestAction,
+    promo: promoSlot ?? null,
+    attention,
+    garden: gardenSection,
+    today: tasksBlock,
+    quickActions,
+    learn: seasonalPicks,
+    brief: theBrief,
+    week: weekAhead,
+    snapshot,
+  };
+
+  // Wrapper contract: `data-section` names the slot (Next Best Action's
+  // seasonal CTA scrolls to [data-section="learn"]); `order` (an inline flex
+  // order) lets the workbench's phone layout flatten the two xl buckets back
+  // into one stack in preset order; `empty:hidden` + the has-[hidden] variant
+  // drop the wrapper from flow when its child self-hides, so flex gaps don't
+  // double around invisible sections.
+  const renderSection = (id: HomeSectionId) => {
+    const node = SECTIONS[id];
+    if (node === null || node === undefined) return null;
+    const i = preset.sectionOrder.indexOf(id);
     return (
-      <div data-testid="home-main" className="space-y-5">
-        {heroBlock}
-        {promoSlot}
-        {attention}
-        {dailyBrief}
-        {adaptiveCare}
-        {aiCards}
-        {gardenSection}
-        {quickActions}
-        {tasksBlock}
-        {weekAhead}
-        {seasonalPicks}
+      <div
+        key={id}
+        data-section={id}
+        className={`min-w-0 empty:hidden [&:has(>[hidden]:only-child)]:hidden ${
+          entranceActive ? STAGGER_ENTRANCE : ""
+        }`}
+        style={{ ...(entranceActive ? staggerStyle(i) : undefined), order: i }}
+      >
+        {node}
+      </div>
+    );
+  };
+
+  // ── Porch: one centered editorial column at every width ──
+  if (posture === "porch") {
+    return (
+      <div
+        data-testid="home-main"
+        className="mx-auto w-full max-w-[1100px] flex flex-col gap-5"
+      >
+        {preset.sectionOrder.map(renderSection)}
       </div>
     );
   }
 
-  // ── Detailed density (desktop / experienced): two-column studio on xl+ ──
-  // Left = the daily-action flow; right = a glanceable insight rail. Below xl
-  // the two columns collapse back into a single stack.
+  // ── Workbench: two-column studio on xl+ ──
+  // Left = the daily-action flow; right = the glanceable insight rail
+  // (brief / week / snapshot — hardcoded buckets, preset order within each).
+  // Below xl the bucket wrappers become `display: contents`, so every section
+  // is a direct flex item of the column and the inline `order` restores the
+  // full preset sectionOrder as one stack.
+  const primaryIds = preset.sectionOrder.filter((id) => !WORKBENCH_ASIDE_SECTIONS.has(id));
+  const asideIds = preset.sectionOrder.filter((id) => WORKBENCH_ASIDE_SECTIONS.has(id));
   return (
     <div data-testid="home-main">
-      <div className="xl:grid xl:grid-cols-12 xl:gap-6 xl:items-start space-y-5 xl:space-y-0">
-        <div className="xl:col-span-8 space-y-5 min-w-0">
-          {heroBlock}
-          {promoSlot}
-          {attention}
-          {dailyBrief}
-          {gardenSection}
-          {quickActions}
-          {tasksBlock}
+      <div className="flex flex-col gap-5 xl:grid xl:grid-cols-12 xl:gap-6 xl:items-start">
+        <div className="contents xl:flex xl:flex-col xl:gap-5 xl:col-span-8 xl:min-w-0">
+          {primaryIds.map(renderSection)}
         </div>
-        <aside className="xl:col-span-4 space-y-5 min-w-0">
-          {adaptiveCare}
-          {aiCards}
-          {weekAhead}
-          {snapshot}
+        <aside className="contents xl:flex xl:flex-col xl:gap-5 xl:col-span-4 xl:min-w-0">
+          {asideIds.map(renderSection)}
         </aside>
       </div>
     </div>

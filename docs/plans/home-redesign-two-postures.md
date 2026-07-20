@@ -49,8 +49,16 @@ Three independent design proposals (single-hero subtraction / persona bento / pe
 - **Stage 0 — persona plumbing, zero visual change:** `personaPresets.ts` (+unit tests), seed persona reset, lift persona into the profile fetch (synchronous first paint — kills the porch-flash race), the `notifyPersonaChanged` one-line fix, preset override key.
 - **Stage 1 — hero + chrome:** `heroSentence.ts` (+exhaustive unit tests), HomeStatusStrip → hero (sentence + console variants), slim switcher, conditional sync pill, delete pull hint, promo below hero, tour updates.
 - **Stage 2 — cuts and moves (no AI merge):** delete DailyBriefCard w/ fact migration, walk banner → tile, TaskList compact + "Open board", WeekAhead chips, snapshot default-collapsed, AttentionRow route-scoped kind filter.
-- **Stage 3 — The Brief merge** (+ server prompt + Deno test + fallback spec).
+- **Stage 3 — The Brief merge** (+ server prompt + Deno test + fallback spec). *Correction (2026-07-20, found in implementation): the brief-narrative function is **`generate-daily-brief`** (writes `daily_briefs` via cron; invoked by GardenBrainBriefCard) — earlier references to `synthesize-garden-brief` were a misnomer; that function drafts the manager's one-time Garden Brief and is untouched. The re-prompt + two-way persona collapse landed in `_shared/dailyBrief.ts` (`buildBriefVoicePrompt`, brief-only call site; `_shared/persona.ts`'s three-way semantics preserved for its 8 other consumers).*
 - **Stage 4 — posture composition:** SECTION_REGISTRY loop, both presets live, Next Best Action card, desktop grids, PhotoGlow, entrance stagger, full e2e sweep, release notes flagging the two discoverability moves.
+
+## 5b. Known limitations / tracked follow-ups (post-Stage-4 review, 2026-07-20)
+
+Fresh review verdict = ship. Fixed in-task: NextBestAction seasonal CTA now gates on the learn wrapper's child count (was a dead tap when Seasonal Picks self-hid on an empty pick list); TheBrief's tier-coupling assumption documented. Deferred (low/cosmetic, not regressions):
+
+- **`dashboard_tour` anchors are Porch-only** (steps 5 `seasonal-picks-card` + 6 `home-todays-tasks` don't exist on the Workbench, which has no learn section and uses `dashboard-task-list`). Matches the guard-rail (§4 — the tour audience always lands on the Porch as a new user); an *experienced* user who manually replays the tour gets two orphaned Shepherd steps. Not a Stage-4 regression (detailed density lacked `home-todays-tasks` before too). Follow-up: anchor both steps on both-posture-stable testids if replay-in-Workbench ever matters.
+- **TheBrief defaults-TRUE ledger** flashes empty "From Rhozly" chrome for ~1 frame (ungated rows) up to the tier-resolution window (gated rows) on a cold load for a data-less Evergreen account, and re-flashes on posture toggle (the card remounts between column and aside). Deliberate trade-off to avoid a flash-*in* for populated cards; child fetches are snapshot-cached so the toggle re-fetch is cheap.
+- **Preset variants garden `photos`/`telemetry`, promo `line`, today `throughput`, brief `gentle`/`full` are declared but no-op** — both postures render the existing grid / promoSlot / compact list. The photo-bento + quiet-promo-line are a later slice.
 
 ## 6. Decisions
 

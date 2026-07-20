@@ -25,7 +25,8 @@ import { extractJsonObject } from "../_shared/extractJson.ts";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 import { modelsForTier } from "../agent-chat/chatModels.ts";
 import { isOverdue, effectiveDueDate } from "../_shared/dashboardStats.ts";
-import { assembleBrief, type BriefSignals, type BriefPayload } from "../_shared/dailyBrief.ts";
+import { assembleBrief, buildBriefVoicePrompt, type BriefSignals, type BriefPayload } from "../_shared/dailyBrief.ts";
+import type { Persona } from "../_shared/persona.ts";
 
 const FN = "generate-daily-brief";
 const corsHeaders = {
@@ -153,7 +154,10 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
 }
 
 /** Rewrite summary + item reasons in the head-gardener voice. Items can only be
- *  REPHRASED (same count/order) — validation falls back to deterministic. */
+ *  REPHRASED (same count/order) — validation falls back to deterministic. The
+ *  system prompt lives in _shared/dailyBrief.ts (buildBriefVoicePrompt) so the
+ *  Deno tests can assert its contract; it collapses persona two-way (null ⇒
+ *  "new") per docs/plans/home-redesign-two-postures.md §6 decision (b). */
 // deno-lint-ignore no-explicit-any
 async function aiVoice(
   db: any,
@@ -161,6 +165,7 @@ async function aiVoice(
   ownerId: string,
   homeId: string,
   tier: string,
+  persona: Persona,
   deterministic: BriefPayload,
   feedback: string | null,
 ): Promise<{ payload: BriefPayload; model: string } | null> {
@@ -170,14 +175,7 @@ async function aiVoice(
     const { data: gb } = await db.from("garden_brief").select("goals, time_per_week").eq("home_id", homeId).maybeSingle();
     const goalsLine = gb?.goals?.length ? `The home's stated goals: ${gb.goals.join(", ")}.` : "";
 
-    const system = [
-      "You are Rhozly's head gardener writing the morning Daily Brief.",
-      "Rewrite ONLY the wording of the provided brief in a warm, expert, concise voice.",
-      "Rules: never invent, add, remove or reorder items; keep every number exactly; 2–3 sentence summary; each reason ≤ 160 chars.",
-      goalsLine,
-      feedback ? `The gardener's feedback on previous briefs (honour it): ${feedback}` : "",
-      'Return STRICT JSON: {"summary": string, "items": [{"title": string, "reason": string}]} with items in the SAME order and count as given.',
-    ].filter(Boolean).join("\n");
+    const system = buildBriefVoicePrompt({ persona, goalsLine, feedback });
 
     const user = `${envBlock}\n\nDeterministic brief JSON:\n${JSON.stringify({ summary: deterministic.summary, items: deterministic.items.map((i) => ({ title: i.title, reason: i.reason })), goodNews: deterministic.goodNews })}`;
 
@@ -269,8 +267,9 @@ Deno.serve(async (req) => {
     for (const homeId of homeIds) {
       const { data: owner } = await db.from("home_members").select("user_id").eq("home_id", homeId).eq("role", "owner").limit(1).maybeSingle();
       if (!owner) continue;
-      const { data: prof } = await db.from("user_profiles").select("subscription_tier").eq("uid", owner.user_id).maybeSingle();
+      const { data: prof } = await db.from("user_profiles").select("subscription_tier, persona").eq("uid", owner.user_id).maybeSingle();
       const tier = prof?.subscription_tier ?? "sprout";
+      const persona = (prof?.persona ?? null) as Persona;
 
       const signals = await gatherSignals(db, homeId, owner.user_id, today);
       const deterministic = assembleBrief(signals);
@@ -279,7 +278,7 @@ Deno.serve(async (req) => {
       let generatedBy = "deterministic";
       let model: string | null = null;
       if (AI_TIERS.has(tier) && apiKey) {
-        const ai = await aiVoice(db, apiKey, owner.user_id, homeId, tier, deterministic, feedback);
+        const ai = await aiVoice(db, apiKey, owner.user_id, homeId, tier, persona, deterministic, feedback);
         if (ai) { payload = ai.payload; generatedBy = "ai"; model = ai.model; aiVoiced += 1; }
       }
 

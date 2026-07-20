@@ -4,7 +4,7 @@
 
 **Route / how to reach it:** `/manager` (nav item "Head Gardener", leaf icon). Sub-tabs via `?tab=overview|brief|year|insights|ask`. Also reachable from the dashboard **HeadGardenerCard** entry point.
 
-> **Status (home redesign, `docs/plans/home-redesign-two-postures.md`):** Stage 3 will merge the dashboard's HeadGardenerCard (with the AI Insight card and the Garden Brain brief) into one dashboard voice — **"The Brief"** — no change yet; this `/manager` page itself is unaffected.
+> **Status (home redesign, `docs/plans/home-redesign-two-postures.md`):** Stage 3 (2026-07-20) merged the dashboard's HeadGardenerCard (with the AI Insight card and the Garden Brain brief + adaptive care) into one dashboard voice — **The Brief** (`src/components/home/TheBrief.tsx`, `the-brief`). The card now renders `embedded` as The Brief's compact **estate row** (same `head-gardener-card` testid, same `dashboard-head-gardener-card` wrapper, same Evergreen gate + compact-nudge fallback — which is The Brief's ONE upgrade teaser — same `/manager` deep link; it reports self-visibility via `onVisibilityChange`). This `/manager` page itself is unaffected.
 **Source files (entry points):**
 - `src/components/manager/HeadGardenerPage.tsx`
 - `src/components/manager/ManagerReportPanel.tsx`

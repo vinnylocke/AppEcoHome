@@ -14,6 +14,10 @@ interface AssistantCardProps {
   userId?: string;
   /** Optional label for compact framing on context-specific surfaces. */
   contextLabel?: string;
+  /** Reports whether the card is rendering content (true) or self-hiding
+   *  (false) — the GettingStartedChecklist house pattern. Only fires once the
+   *  tier gate passes (the inner mounts); locked accounts never report. */
+  onVisibilityChange?: (visible: boolean) => void;
 }
 
 export default function AssistantCard(
@@ -33,7 +37,7 @@ export default function AssistantCard(
   );
 }
 
-function AssistantCardInner({ userId: userIdProp, contextLabel }: AssistantCardProps) {
+function AssistantCardInner({ userId: userIdProp, contextLabel, onVisibilityChange }: AssistantCardProps) {
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(userIdProp ?? null);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -71,6 +75,13 @@ function AssistantCardInner({ userId: userIdProp, contextLabel }: AssistantCardP
       .is("surfaced_at", null)
       .then(() => {});
   }, [latestId]);
+
+  // Report visibility in an effect (never during render) — The Brief hides
+  // its whole card when every merged row is empty.
+  const visible = !loading && insights.length > 0;
+  useEffect(() => {
+    onVisibilityChange?.(visible);
+  }, [visible, onVisibilityChange]);
 
   const dismiss = async (id: string) => {
     await supabase

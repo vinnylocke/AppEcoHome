@@ -46,10 +46,19 @@ export default function GardenBrainBriefCard({
   homeId,
   userId,
   density,
+  embedded = false,
+  onVisibilityChange,
 }: {
   homeId: string;
   userId: string | null;
   density: "simple" | "detailed";
+  /** The Brief (redesign Stage 3) mounts this as a row inside its own card —
+   *  embedded drops the outer card chrome and renders the inner content only. */
+  embedded?: boolean;
+  /** Reports whether the card is rendering content (true) or self-hiding
+   *  (false) — the GettingStartedChecklist house pattern, so the parent can
+   *  decide its own chrome without unmounting the data fetch. */
+  onVisibilityChange?: (visible: boolean) => void;
 }) {
   const navigate = useNavigate();
   const [brief, setBrief] = useState<BriefRow | null>(null);
@@ -95,6 +104,13 @@ export default function GardenBrainBriefCard({
   }, [homeId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Report visibility in an effect (never during render) so the parent card
+  // can hide itself when every merged row is empty.
+  const visible = brief !== null;
+  useEffect(() => {
+    onVisibilityChange?.(visible);
+  }, [visible, onVisibilityChange]);
 
   const rate = async (rating: 1 | -1) => {
     setRated(rating);
@@ -165,7 +181,10 @@ export default function GardenBrainBriefCard({
   const items = density === "simple" ? payload.items.slice(0, 3) : payload.items;
 
   return (
-    <div data-testid="daily-brief-card" className="bg-white rounded-3xl border border-rhozly-outline/10 shadow-sm p-4 sm:p-5 space-y-3">
+    <div
+      data-testid="garden-brain-brief"
+      className={embedded ? "space-y-3" : "bg-white rounded-3xl border border-rhozly-outline/10 shadow-sm p-4 sm:p-5 space-y-3"}
+    >
       <div className="flex items-center gap-2">
         <div className="bg-rhozly-primary/10 p-1.5 rounded-xl"><Sparkles size={16} className="text-rhozly-primary" /></div>
         <h3 className="text-sm font-black text-rhozly-on-surface">Your daily brief</h3>

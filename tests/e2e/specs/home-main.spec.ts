@@ -96,45 +96,58 @@ test.describe("Home dashboard — telemetry (Phase 2)", () => {
   const AREA_BED_A = `0000000${workerNum}-0000-0000-0002-000000000001`;
   const AREA_BORDER = `0000000${workerNum}-0000-0000-0002-000000000002`;
 
+  // Shared mocked home-overview payload: two areas (one with a sensor, one
+  // with a running valve) + one soil_dry attention item. Used by HOME-008
+  // (workbench attention inbox) and HOME-013 (porch Next Best Action) — the
+  // same payload surfaces differently per posture (redesign Stage 4).
+  const OVERVIEW_PAYLOAD = {
+    locations: [
+      {
+        id: LOC_GARDEN_ID,
+        name: "Outside Garden",
+        is_outside: true,
+        hazard: null,
+        tasksToday: 2,
+        areas: [
+          {
+            id: AREA_BED_A,
+            name: "Raised Bed A",
+            plants: { total: 2, byGrowthState: { Vegetative: 2 }, unplanted: 0 },
+            sensor: { moisture: 45, tempC: 18.5, ec: 1.2, batteryPercent: 82, readingAgeMin: 12 },
+            valve: null,
+            tasksToday: 1,
+          },
+          {
+            id: AREA_BORDER,
+            name: "South Border",
+            plants: { total: 1, byGrowthState: {}, unplanted: 1 },
+            sensor: null,
+            valve: { state: "running", runningUntil: new Date(Date.now() + 5 * 60_000).toISOString(), lastRunAt: null, nextRunAt: null },
+            tasksToday: 0,
+          },
+        ],
+      },
+    ],
+    attention: [
+      {
+        kind: "soil_dry",
+        title: "Greenhouse is dry (18%)",
+        body: "Soil moisture is below the comfortable band.",
+        route: "/dashboard?view=locations",
+        rank: 4,
+      },
+    ],
+  };
+
   test("HOME-008: sensor, valve and attention chips render from the home-overview payload", async ({ authenticatedPage }) => {
-    await mockEdgeFunction(authenticatedPage, "home-overview", {
-      locations: [
-        {
-          id: LOC_GARDEN_ID,
-          name: "Outside Garden",
-          is_outside: true,
-          hazard: null,
-          tasksToday: 2,
-          areas: [
-            {
-              id: AREA_BED_A,
-              name: "Raised Bed A",
-              plants: { total: 2, byGrowthState: { Vegetative: 2 }, unplanted: 0 },
-              sensor: { moisture: 45, tempC: 18.5, ec: 1.2, batteryPercent: 82, readingAgeMin: 12 },
-              valve: null,
-              tasksToday: 1,
-            },
-            {
-              id: AREA_BORDER,
-              name: "South Border",
-              plants: { total: 1, byGrowthState: {}, unplanted: 1 },
-              sensor: null,
-              valve: { state: "running", runningUntil: new Date(Date.now() + 5 * 60_000).toISOString(), lastRunAt: null, nextRunAt: null },
-              tasksToday: 0,
-            },
-          ],
-        },
-      ],
-      attention: [
-        {
-          kind: "soil_dry",
-          title: "Greenhouse is dry (18%)",
-          body: "Soil moisture is below the comfortable band.",
-          route: "/dashboard?view=locations",
-          rank: 4,
-        },
-      ],
-    });
+    // The attention inbox is a Workbench-only surface (redesign Stage 4 — the
+    // Porch shows a single Next Best Action instead; see HOME-013). Seed the
+    // workbench posture so the attention row renders. The sensor/valve chips
+    // live on the garden grid in BOTH postures.
+    await authenticatedPage.addInitScript(() =>
+      localStorage.setItem("rhozly:home:preset", "workbench"),
+    );
+    await mockEdgeFunction(authenticatedPage, "home-overview", OVERVIEW_PAYLOAD);
 
     const home = new HomeMainPage(authenticatedPage);
     await home.goto();
@@ -144,5 +157,26 @@ test.describe("Home dashboard — telemetry (Phase 2)", () => {
     await expect(authenticatedPage.getByTestId("home-valve-chip").first()).toBeVisible();
     await expect(authenticatedPage.getByTestId("home-attention-soil_dry")).toBeVisible();
     await expect(authenticatedPage.getByText("Greenhouse is dry (18%)")).toBeVisible();
+  });
+
+  test("HOME-013: on the Porch, the top attention item surfaces as the Next Best Action", async ({ authenticatedPage }) => {
+    // The Porch (persona new/null — the default) deliberately omits the
+    // attention inbox and instead leads with ONE guided action (redesign
+    // Stage 4). The same soil_dry payload that fills the Workbench inbox
+    // becomes the Porch's Next Best Action headline.
+    await authenticatedPage.addInitScript(() =>
+      localStorage.setItem("rhozly:home:preset", "porch"),
+    );
+    await mockEdgeFunction(authenticatedPage, "home-overview", OVERVIEW_PAYLOAD);
+
+    const home = new HomeMainPage(authenticatedPage);
+    await home.goto();
+    await home.waitForLoad();
+
+    const nba = authenticatedPage.getByTestId("next-best-action");
+    await expect(nba).toBeVisible({ timeout: 15000 });
+    await expect(nba).toContainText("Greenhouse is dry (18%)");
+    // The Porch shows no attention-row chips.
+    await expect(authenticatedPage.getByTestId("home-attention-soil_dry")).toHaveCount(0);
   });
 });

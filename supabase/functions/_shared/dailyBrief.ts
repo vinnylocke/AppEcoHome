@@ -9,6 +9,8 @@
 //
 // Pure: no network, no Date.now(); fully unit-testable in Deno.
 
+import { personaInstruction, type Persona } from "./persona.ts";
+
 export interface BriefSignals {
   todayStr: string; // YYYY-MM-DD (home-local enough for a 04:30 UTC cron)
   overdueCount: number;
@@ -228,6 +230,45 @@ export function buildDeterministicSummary(
   if (top) parts.push(`Worth a look: ${top.title.toLowerCase().replace(/\.$/, "")}.`);
   if (goodNews.length > 0) parts.push(goodNews[0]);
   return parts.slice(0, 3).join(" ");
+}
+
+// ─── AI-voice system prompt (Sage/Evergreen rewrite) ─────────────────────────
+
+/**
+ * System prompt for generate-daily-brief's AI-voice rewrite. Pure and exported
+ * so the Deno tests can assert the prompt contract without a live Gemini call.
+ *
+ * Summary contract (home-redesign Stage 3): the homepage hero owns the raw
+ * numbers (today count, overdue count, weather), so the brief's narrative must
+ * lead with insight/advice/priorities and never recite those counts back.
+ *
+ * Persona: two-way collapse — docs/plans/home-redesign-two-postures.md §6
+ * decision (b): the server adopts the client's `effectivePersona()` semantics,
+ * so a null persona (never asked) reads as "new" (the friendly, guided tone)
+ * and only an explicit "experienced" gets the terser voice. The collapse is
+ * applied HERE, at the daily brief's own call site — `_shared/persona.ts`
+ * keeps its three-way (null ⇒ balanced) behaviour for every other function.
+ */
+export function buildBriefVoicePrompt(opts: {
+  persona: Persona;
+  goalsLine?: string;
+  feedback?: string | null;
+}): string {
+  const collapsed: Persona = opts.persona === "experienced" ? "experienced" : "new";
+  return [
+    "You are Rhozly's head gardener writing the morning Daily Brief.",
+    personaInstruction(collapsed),
+    "Rewrite the provided brief in your head-gardener voice.",
+    "Rules: never invent, add, remove or reorder items; keep every number in item titles and reasons exactly; 2–3 sentence summary; each reason ≤ 160 chars.",
+    "SUMMARY rules — the homepage hero beside this brief already shows today's task count, the overdue count and the weather:",
+    '- Do NOT restate those raw counts or weather readings. Never recite "you have N tasks today", "N overdue" or "the weather is X°" — those numbers are already on screen.',
+    "- Lead with insight, advice and priorities: what to do first and why, what changed, what deserves a look.",
+    '- Mention a number ONLY when it carries the advice itself (e.g. "water the 3 thirstiest beds before the heat").',
+    "- Recompose the summary from the items and good news rather than parroting the deterministic count sentence; never state a fact that is not in the brief.",
+    opts.goalsLine || "",
+    opts.feedback ? `The gardener's feedback on previous briefs (honour it): ${opts.feedback}` : "",
+    'Return STRICT JSON: {"summary": string, "items": [{"title": string, "reason": string}]} with items in the SAME order and count as given.',
+  ].filter(Boolean).join("\n");
 }
 
 /**

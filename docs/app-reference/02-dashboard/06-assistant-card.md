@@ -2,10 +2,10 @@
 
 > A purple gradient card showing the most recent unread insight from the pattern engine. Surfaces the AI's read on your gardening behaviour ("you usually water every 3 days but it's been 6 — heatwave?").
 
-**Rendered on:** the merged home in **both densities** (`/dashboard` — [Home (Main Dashboard)](./17-home-main.md), in a `data-testid="dashboard-assistant-card"` wrapper, with `showUpgradeWhenLocked`), `/planner` (PlannerDashboard), `/shed` (TheShed)
+**Rendered on:** the merged home in **both densities** (`/dashboard` — [Home (Main Dashboard)](./17-home-main.md), as the **insight row of The Brief** in a `data-testid="dashboard-assistant-card"` wrapper, with `showUpgradeWhenLocked={false}`), `/planner` (PlannerDashboard), `/shed` (TheShed)
 **Source file:** `src/components/AssistantCard.tsx`
 
-> **Status (home redesign, `docs/plans/home-redesign-two-postures.md`):** Stage 3 will merge the dashboard's three AI cards (this one, the Head Gardener card, and the Garden Brain brief) into one voice — **"The Brief"** — on the dashboard; no change yet.
+> **Status (home redesign, `docs/plans/home-redesign-two-postures.md`):** Stage 3 (2026-07-20) merged the dashboard's AI cards (this one, the Head Gardener card, the Garden Brain brief + adaptive care) into one voice — **The Brief** (`src/components/home/TheBrief.tsx`, `the-brief`). On the dashboard this card now renders inside The Brief's insight row: same wrapper testid, but `showUpgradeWhenLocked={false}` (**upgrade dedup** — The Brief's estate row owns the page's single compact teaser; this card's nudge never doubles it) and a new optional `onVisibilityChange` prop reports self-visibility so The Brief can hide its shell when every row is empty. Behaviour on `/planner` and `/shed` is unchanged.
 
 ---
 
