@@ -2,7 +2,7 @@
 
 > A dashboard card showing first-run users a 5-step checklist that takes them from empty account to a functioning garden tracker. Auto-ticks steps as they're completed elsewhere in the app.
 
-**Rendered on:** the merged home tab of `/dashboard` (the Dashboard sub-tab), at the top of the body above `HomeMain` — in **both** Simple and Detailed densities. It is **priority 1 of the single-slot onboarding system**: at most one promo card renders on the home, and the checklist owns the slot whenever it is visible.
+**Rendered on:** the merged home tab of `/dashboard` (the Dashboard sub-tab), **just below the home hero** in **both** Simple and Detailed densities (home redesign Stage 1, 2026-07-20 — App.tsx passes the cascade into `HomeMain` as its `promoSlot` prop; previously the card sat above the whole page). It is **priority 1 of the single-slot onboarding system**: at most one promo card renders on the home, and the checklist owns the slot whenever it is visible.
 **Source file:** `src/components/GettingStartedChecklist.tsx`
 
 ---

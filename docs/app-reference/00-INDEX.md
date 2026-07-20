@@ -48,7 +48,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Locations Tab](./02-dashboard/02-locations-tab.md) — grid of location tiles with task counts
 - [x] [Calendar Tab](./02-dashboard/03-calendar-tab.md) — Month / Week views, drag-reschedule, ICS export
 - [x] [Weather Tab](./02-dashboard/04-weather-tab.md) — 7-day forecast, alerts, sunrise/sunset
-- [x] [Daily Brief Card](./02-dashboard/05-daily-brief-card.md) — top hero card on the dashboard
+- [~] [Daily Brief Card](./02-dashboard/05-daily-brief-card.md) — **RETIRED — deleted in home redesign Stage 2** (2026-07-20); one hero (`HomeStatusStrip`) now serves both densities; stub maps where each fact migrated (console line, ask-AI chip, sun micro-line, Plan-day; zone/microclimate facts at their destination pages)
 - [x] [AI Assistant Card](./02-dashboard/06-assistant-card.md) — user_insights surface
 - [x] [Location Page (Drill-In)](./02-dashboard/07-location-page.md) — `?locationId=` view
 - [x] [Weather Alert Banner](./02-dashboard/08-weather-alert-banner.md) — frost / heat / wind / rain alerts

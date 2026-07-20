@@ -3,6 +3,7 @@ import { Sprout, Leaf, Check, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
+import { notifyPersonaChanged } from "../hooks/usePersona";
 import type { UserProfile } from "../types";
 
 type Persona = UserProfile["persona"];
@@ -55,6 +56,9 @@ export default function PersonaSetting({ userId }: Props) {
         .eq("uid", userId);
       if (error) throw error;
       setPersona(next);
+      // Propagate to every usePersona consumer live (home posture, quick-pin
+      // defaults, copy density) — without this, flips only applied on reload.
+      notifyPersonaChanged(next);
       toast.success(
         next === "new"
           ? "Switched to friendly-tips mode."

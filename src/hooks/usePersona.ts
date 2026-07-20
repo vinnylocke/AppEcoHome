@@ -73,6 +73,39 @@ export function notifyPersonaChanged(next: Persona): void {
   subscribers.forEach((cb) => cb(next));
 }
 
+/**
+ * Seed the cache from an already-fetched profile row (App.tsx's profile
+ * select includes `persona`). Because App gates the routes on the profile,
+ * this runs BEFORE any consumer mounts — so usePersona() returns the real
+ * value on its very first render and persona-composed surfaces (the home
+ * postures) never flash the wrong layout while a duplicate fetch resolves.
+ * No-ops once a value is cached (a later PersonaSetting write still wins
+ * via notifyPersonaChanged).
+ */
+export function primePersona(fromProfile: Persona): void {
+  if (cachedPersona !== undefined) return;
+  cachedPersona = fromProfile;
+  subscribers.forEach((cb) => cb(fromProfile));
+}
+
+/**
+ * Reconcile the cache with a freshly-FETCHED profile row (App's loadProfile —
+ * including the background refresh after a cache boot). Unlike primePersona
+ * it also UPDATES when the fetched value differs, so a persona changed on
+ * another device propagates this session instead of lagging until the next
+ * launch (review finding, Stage 0-2). Same-device flips still go through
+ * notifyPersonaChanged in PersonaSetting.
+ */
+export function syncPersonaFromProfile(fetched: Persona): void {
+  if (cachedPersona === undefined) {
+    primePersona(fetched);
+    return;
+  }
+  if (cachedPersona !== fetched) {
+    notifyPersonaChanged(fetched);
+  }
+}
+
 /** Test-only — clear module cache between tests. */
 export function __resetPersonaCacheForTests(): void {
   cachedPersona = undefined;

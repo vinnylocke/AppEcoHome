@@ -2,7 +2,7 @@
 
 > A one-time card on the dashboard prompting users to grant browser notification permission, so Rhozly can send OS-level reminders for due tasks.
 
-**Rendered on:** the merged home tab of `/dashboard` (the Dashboard sub-tab), inside the **single-slot onboarding system at priority 3** — it renders only when the Getting Started Checklist is gone (dismissed or complete) AND the Garden Quiz prompt is ineligible (quiz done, snoozed, or dismissed).
+**Rendered on:** the merged home tab of `/dashboard` (the Dashboard sub-tab), **just below the home hero** (home redesign Stage 1 — the slot renders via `HomeMain`'s `promoSlot` prop, no longer above the page), inside the **single-slot onboarding system at priority 3** — it renders only when the Getting Started Checklist is gone (dismissed or complete) AND the Garden Quiz prompt is ineligible (quiz done, snoozed, or dismissed).
 **Source file:** `src/components/NotificationOptInCard.tsx`
 
 ---

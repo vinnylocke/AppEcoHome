@@ -2,7 +2,7 @@
 
 > A small dashboard card prompting browser users to add Rhozly to their home screen (PWA install). Triggered by the browser's `beforeinstallprompt` event.
 
-**Rendered on:** the merged home tab of `/dashboard` (the Dashboard sub-tab), inside the **single-slot onboarding system at priority 4 (lowest)** — it renders only when the Getting Started Checklist is gone, the Garden Quiz prompt is ineligible, AND the Notification Opt-In card is ineligible.
+**Rendered on:** the merged home tab of `/dashboard` (the Dashboard sub-tab), **just below the home hero** (home redesign Stage 1 — the slot renders via `HomeMain`'s `promoSlot` prop, no longer above the page), inside the **single-slot onboarding system at priority 4 (lowest)** — it renders only when the Getting Started Checklist is gone, the Garden Quiz prompt is ineligible, AND the Notification Opt-In card is ineligible.
 **Source file:** `src/components/InstallPwaPrompt.tsx`
 
 ---

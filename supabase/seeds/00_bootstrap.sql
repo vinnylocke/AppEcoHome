@@ -150,6 +150,13 @@ SET
   home_id           = '00000000-0000-0000-0000-000000000002',
   enable_perenual   = true,
   subscription_tier = 'evergreen',
+  -- Explicit persona baseline: NULL = "never asked" (clients collapse to
+  -- "new" / the Porch posture). Specs that need the experienced/Workbench
+  -- composition force it via the rhozly:home:preset localStorage override —
+  -- never by flipping this column, and any spec that DOES flip it (e.g. the
+  -- garden-walk persona util) is reset here on reseed so leakage can't
+  -- contaminate later specs.
+  persona           = NULL,
   onboarding_state  = '{
     "welcome_modal": "dismissed",
     "global_welcome": "dismissed",

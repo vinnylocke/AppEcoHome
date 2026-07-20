@@ -5,7 +5,7 @@
 **Seed dependencies:** `00_bootstrap.sql`, `01_locations_areas.sql`, `03_tasks_blueprints.sql`, `04_weather.sql`
 **App-reference:** [02-dashboard/01-dashboard-tab.md](../app-reference/02-dashboard/01-dashboard-tab.md)
 
-Covers the classic dashboard content. Since the Phase 4.2 dashboard merge this **no longer lives at `?view=overview`** — the Overview tab is gone and `/dashboard` has four sub-tabs (Dashboard / Locations / Calendar / Weather). The former Overview content (full `TaskList`, Daily Brief, Head Gardener / AI Insights cards, Week Ahead, Garden Snapshot stat wall) now renders on the merged Home view behind the **Detailed** density: `DashboardPage.goto()` seeds `localStorage["rhozly:home:density"] = "detailed"` via an init script and navigates to plain `/dashboard`, so the classic-content specs in this section see it all without UI toggling. Also covers the **Weather** view (`?view=weather`), the **Calendar** view (`?view=calendar`) and the **Location detail** view (`?locationId=…`). The Home view's own surface (status strip, overview grid, quick actions, telemetry) is covered separately in [30-home-main.md](./30-home-main.md).
+Covers the classic dashboard content. Since the Phase 4.2 dashboard merge this **no longer lives at `?view=overview`** — the Overview tab is gone and `/dashboard` has four sub-tabs (Dashboard / Locations / Calendar / Weather). The former Overview content (full `TaskList`, Head Gardener / AI Insights cards, Week Ahead, Garden Snapshot stat wall) now renders on the merged Home view behind the **Detailed** density: `DashboardPage.goto()` seeds `localStorage["rhozly:home:density"] = "detailed"` via an init script and navigates to plain `/dashboard`, so the classic-content specs in this section see it all without UI toggling. **Home redesign Stage 2 (2026-07-20): `DailyBriefCard` is deleted** — the one `HomeStatusStrip` hero serves both densities (console voice in Detailed), so specs anchor on `home-status-strip` instead of `daily-brief-card`. Also covers the **Weather** view (`?view=weather`), the **Calendar** view (`?view=calendar`) and the **Location detail** view (`?locationId=…`). The Home view's own surface (status strip, overview grid, quick actions, telemetry) is covered separately in [30-home-main.md](./30-home-main.md).
 
 ## Weather widget
 
@@ -16,7 +16,7 @@ Covers the classic dashboard content. Since the Phase 4.2 dashboard merge this *
 | DASH-003 | ✅ | Weather tab click → URL `?view=weather`, forecast panel visible | — | ✅ Passing |
 | DASH-004 | ✅ | Full Forecast button — 7-day forecast expands or navigates | — | ✅ Passing |
 | DASH-005..009 | ✅ | Weather code icons render correctly (WMO 0 clear, 61 rain, 71 snow, 95 thunder, 45 fog) | — | ✅ Passing |
-| DASH-010..013 | ✅ | Alert badges (heat, frost, rain, wind) | — | ✅ Passing |
+| DASH-010..013 | ✅ | Alert badges (heat, frost, rain, wind). DASH-010 (heat) and DASH-013 (wind) are scoped to the compact bar's own `weather-alert-bar-{type}` testids — the same alert text also renders elsewhere (e.g. the AttentionRow weather card on non-dashboard consumers), so a bare `getByText` goes strict-ambiguous | — | ✅ Passing (re-verified 2026-07-20) |
 | DASH-MOBILE-001 | ✅ | Phone-portrait (412×915): all **four** view tabs (Dashboard / Locations / Calendar / Weather) present exactly once, Overview button count 0 (Phase 4.2 merged it into Dashboard), Weather reachable + navigates (regression: Weather clipped off-screen) | — | 🔲 Pending (re-verify post-merge) |
 | DASH-014 | ✅ | No alerts on mild forecast | — | ✅ Passing |
 | DASH-015 | ✅ | Garden Intelligence panel renders with at least one rule heading | — | ✅ Passing |
@@ -24,12 +24,14 @@ Covers the classic dashboard content. Since the Phase 4.2 dashboard merge this *
 
 ## Locations view
 
+Stage-1 triage found DASH-020..023 asserting the **Locations view's** h3 tiles / Indoors badge against the merged **home** (where location names render as `<p>` inside card buttons) — they now navigate via a new `DashboardPage.gotoLocations()` (`/dashboard?view=locations`) so they exercise the view they describe.
+
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DASH-020 | ✅ | Location tile cards visible for seeded locations | — | ✅ Passing |
-| DASH-021 | ✅ | Tile shows name ("Outside Garden") | — | ✅ Passing |
-| DASH-022 | ✅ | Indoor tile shows indoor indicator | — | ✅ Passing |
-| DASH-023 | ✅ | Click tile → URL `?locationId=LOC_GARDEN_ID` | — | ✅ Passing |
+| DASH-020 | ✅ | Location tile cards visible for seeded locations (via `gotoLocations()`) | — | ✅ Passing (re-verified 2026-07-20) |
+| DASH-021 | ✅ | Tile shows name ("Outside Garden") (via `gotoLocations()`) | — | ✅ Passing (re-verified 2026-07-20) |
+| DASH-022 | ✅ | Indoor tile shows indoor indicator (via `gotoLocations()`) | — | ✅ Passing (re-verified 2026-07-20) |
+| DASH-023 | ✅ | Click tile → URL `?locationId=LOC_GARDEN_ID` (via `gotoLocations()`) | — | ✅ Passing (re-verified 2026-07-20) |
 | DASH-027 | ✅ | Quiz prompt ("Set up your Garden Quiz") absent when quiz complete (seed 08) | — | ✅ Passing |
 
 ## Single-slot onboarding + quiz banner (Phase 4.2)
@@ -54,7 +56,7 @@ The full `TaskList` (`dashboard-task-list`, "Daily Tasks" heading, Pending/Compl
 | DASH-031 | ✅ | Pending tab label includes task count | — | ✅ Passing |
 | DASH-032 | ✅ | Completed tab visible | — | ✅ Passing |
 | DASH-033 | ✅ | Click Completed tab → active style changes | — | ✅ Passing |
-| DASH-034 | ✅ | View Calendar link → URL `?view=calendar` | — | ✅ Passing |
+| DASH-034 | ✅ | ~~View Calendar link → URL `?view=calendar`~~ | — | ❌ RETIRED (2026-07-20) — the "View Calendar" button no longer exists anywhere in `src/` (the affordance predates the Phase 4.2 merged home). Calendar navigation is covered by the switcher-tab specs (DASH-MOBILE-001), the CAL-* suite (`gotoCalendar`), and the redesign hero's "Plan my day" chip (`hero-plan-day` → `?view=calendar`) |
 | DASH-035 | ✅ | Overdue task visible (due -7 days, Pending) | — | ✅ Passing |
 | DASH-036 | ✅ | Skipped task not in Pending tab | — | ✅ Passing |
 
@@ -87,13 +89,13 @@ Phase 4.2 relocated the Overview stat wall to `src/components/home/GardenSnapsho
 
 ## Plant chat AI-gating — Sprout (RHO-10 / RHO-11)
 
-Chat is an AI feature; both entry points must disappear for a non-AI tier. The full profile read (`user_profiles?select=uid,…`) is intercepted and `ai_enabled` is forced to `false` (a Sprout profile) while the rest of the profile passes through.
+Chat is an AI feature; both entry points must disappear for a non-AI tier. The full profile read (`user_profiles?select=uid,…`) is intercepted and `ai_enabled` is forced to `false` (a Sprout profile) while the rest of the profile passes through. **Home redesign Stage 2:** `DailyBriefCard` is deleted; the ask-AI chip migrated to the console hero with the **same testid `daily-brief-ask-ai`** and the same RHO-11 gate, so DASH-043/044 now anchor on `home-status-strip` (the one hero, both densities) instead of `daily-brief-card`.
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DASH-043 | ✅ | Sprout dashboard hides the global Plant Doctor chat FAB (`plant-doctor-chat-fab`) while the Daily Brief still renders (Daily Brief is the Detailed-density hero) | `user_profiles` `ai_enabled`→false | 🔲 Pending (re-verify post-merge) |
-| DASH-044 | ✅ | Sprout dashboard hides the Daily Brief "Got a plant question?" chip (`daily-brief-ask-ai`) | `user_profiles` `ai_enabled`→false | 🔲 Pending (re-verify post-merge) |
-| DASH-045 | ✅ | AI-enabled (seeded) account still shows both the chat FAB and the chip | — | 🔲 Pending (re-verify post-merge) |
+| DASH-043 | ✅ | Sprout dashboard hides the global Plant Doctor chat FAB (`plant-doctor-chat-fab`) while the hero (`home-status-strip`) still renders — proves the dashboard actually loaded | `user_profiles` `ai_enabled`→false | ✅ Passing (re-verified 2026-07-20) |
+| DASH-044 | ✅ | Sprout dashboard hides the migrated "Ask AI" chip (`daily-brief-ask-ai` — now on the console hero); anchored on `home-status-strip` | `user_profiles` `ai_enabled`→false | ✅ Passing (re-verified 2026-07-20) |
+| DASH-045 | ✅ | AI-enabled (seeded) account still shows both the chat FAB and the chip — spec unchanged by Stage 2 (the chip keeps its `daily-brief-ask-ai` testid on the console hero) | — | ✅ Passing (re-verified 2026-07-20) |
 
 ## Overdue chip ↔ task list parity (RHO-3)
 
@@ -131,8 +133,8 @@ The Daily Brief "Overdue" chip is now home-scoped + ghost-aware (runs the same `
 | CAL-004 | ✅ | Ghost task dots for blueprint recurring dates | — | ✅ Passing |
 | CAL-005 | ✅ | Click date with tasks opens panel | — | ✅ Passing |
 | CAL-006 | ✅ | Click empty date opens Add Task modal pre-filled | — | ✅ Passing |
-| CAL-007 | ✅ | Navigate to next month | — | ✅ Passing |
-| CAL-008 | ✅ | Navigate to previous month | — | ✅ Passing |
+| CAL-007 | ✅ | Navigate to next month — `DashboardPage.calendarNextButton` repointed to the button's aria-label (`/Next (month\|week)/`); the old page-wide `.lucide-chevron-*` class locator went strict-mode ambiguous when the redesigned hero added its own chevrons | — | ✅ Passing (re-verified 2026-07-20) |
+| CAL-008 | ✅ | Navigate to previous month — `calendarPrevButton` repointed to aria-label (`/Previous (month\|week)/`), same reason | — | ✅ Passing (re-verified 2026-07-20) |
 | CAL-009 | ✅ | Completed task date shows completed indicator | — | ✅ Passing |
 | CAL-010 | ✅ | Skipped task not shown as pending | — | ✅ Passing |
 | CAL-011 | ✅ | To-Do List button visible (`calendar-add-todo-list`) | — | ✅ Passing |

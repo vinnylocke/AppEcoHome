@@ -62,6 +62,7 @@ import PlantDoctorChat from "./components/PlantDoctorChat";
 import ErrorPage from "./components/ErrorPage";
 import { type TierId } from "./constants/tiers";
 import { tierAllowsFeature } from "./constants/tierFeatures";
+import { primePersona, syncPersonaFromProfile } from "./hooks/usePersona";
 import UserProfileDropdown from "./components/UserProfileDropdown";
 import GlobalQuickAdd from "./components/GlobalQuickAdd";
 import GlobalSearch from "./components/GlobalSearch";
@@ -1050,7 +1051,7 @@ function AppShell() {
         () =>
           supabase
             .from("user_profiles")
-            .select("uid, home_id, display_name, first_name, last_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state, can_view_audit, is_beta")
+            .select("uid, home_id, display_name, first_name, last_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state, can_view_audit, is_beta, persona")
             .eq("uid", userId)
             .maybeSingle(),
         { retries: 2, label: "loadProfile.user_profiles" },
@@ -1081,6 +1082,11 @@ function AppShell() {
       // from it instead of erroring (offline-first Phase 0).
       writeProfileCache(userId, profileData as unknown as CachedProfile);
       setBootedFromProfileCache(false); // live data now — drop the stale flag
+      // Reconcile usePersona's module cache with this fetch — primes it on
+      // first load (routes render only after the profile lands, so every
+      // consumer's FIRST render sees the real persona) and UPDATES it when a
+      // background refresh brings a persona changed on another device.
+      syncPersonaFromProfile((profileData as UserProfile).persona ?? null);
     }
     if (profileData?.onboarding_state) {
       setOnboardingState(profileData.onboarding_state);
@@ -1208,6 +1214,9 @@ function AppShell() {
         if (cached) {
           setProfile(cached as unknown as UserProfile);
           if (cached.onboarding_state) setOnboardingState(cached.onboarding_state as any);
+          // Offline cold-open keeps the user's persona-composed home posture
+          // (usePersona's own fetch would fail offline → null → Porch flash).
+          primePersona((cached as unknown as UserProfile).persona ?? null);
           setBootedFromProfileCache(true);
           setLoading(false);
           loadProfile(session.user.id).catch((err) =>
@@ -1726,8 +1735,12 @@ function AppShell() {
                                   <WeatherAlertBanner alerts={alerts} isForecastScreen />
                                 )}
 
-                                <div className="flex items-center justify-between px-1">
-                                  <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-2xl flex gap-0.5 w-full overflow-x-auto sm:overflow-visible scrollbar-none">
+                                {/* Redesign Stage 1 — the switcher slims from a full-width
+                                    segmented bar to a compact inline pill row so it stops
+                                    competing with the hero. Same DOM, testid (tour step 1
+                                    anchor) and role=button selectors (e2e page objects). */}
+                                <div className="flex items-center px-1">
+                                  <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-full inline-flex gap-0.5 max-w-full overflow-x-auto scrollbar-none">
                                     {([
                                       { v: "home", label: "Dashboard" },
                                       { v: "locations", label: "Locations" },
@@ -1739,34 +1752,39 @@ function AppShell() {
                                         onClick={() =>
                                           navigate(v === "home" ? "/dashboard" : `/dashboard?view=${v}`, { replace: true })
                                         }
-                                        // On a narrow phone (Pixel 9 Pro portrait) the view labels can't
-                                        // always fit the ~277px the 80px nav rail leaves, so the row scrolls
-                                        // horizontally with full, readable labels instead of clipping the
-                                        // last tab off-screen. On sm+ it fills the width as a segmented control.
-                                        className={`shrink-0 sm:flex-1 whitespace-nowrap px-3 sm:px-4 py-2 min-h-[44px] rounded-xl text-xs sm:text-sm text-center transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-normal"}`}
+                                        // Row scrolls horizontally on narrow phones with full,
+                                        // readable labels instead of clipping the last tab.
+                                        className={`shrink-0 whitespace-nowrap px-3.5 py-1.5 min-h-[36px] rounded-full text-xs text-center transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-semibold"}`}
                                       >
                                         {label}
                                       </button>
                                     ))}
                                   </div>
                                 </div>
-                                {/* Sync status indicator — tells the user when their data was last refreshed */}
-                                <div className="flex items-center justify-end px-2 -mt-2 -mb-1">
-                                  <span
-                                    data-testid="dashboard-sync-status"
-                                    className="text-[10px] font-bold text-rhozly-on-surface/35 uppercase tracking-widest"
-                                  >
-                                    {formatSyncedAgo(lastSyncedAt)}
-                                  </span>
-                                </div>
+                                {/* Sync status — redesign Stage 1: only speak when the data is
+                                    genuinely STALE (>5 min) or never synced. "Synced just now"
+                                    was permanent chrome repeating what the refresh toast says. */}
+                                {(lastSyncedAt == null || Date.now() - lastSyncedAt > 5 * 60_000) && (
+                                  <div className="flex items-center justify-end px-2 -mt-2 -mb-1">
+                                    <span
+                                      data-testid="dashboard-sync-status"
+                                      className="text-[10px] font-bold text-amber-700/70 uppercase tracking-widest"
+                                    >
+                                      {formatSyncedAgo(lastSyncedAt)}
+                                    </span>
+                                  </div>
+                                )}
 
                                 {dashboardView === "home" ? (
                                   <div className="space-y-5">
                                     {/* SINGLE-SLOT ONBOARDING (Phase 4.2) — at most ONE promo card,
                                         priority: checklist → quiz prompt → notifications → PWA install.
-                                        The checklist decides its own visibility (queries + dismissal)
-                                        and reports it via onVisibilityChange; everything below only
-                                        claims the slot when all higher cards are ineligible. */}
+                                        The cascade is passed to HomeMain as promoSlot (redesign
+                                        Stage 1) so it renders BELOW the hero — the greeting always
+                                        leads; the slot discipline is unchanged. */}
+                                    {(() => {
+                                      const promoSlot = (
+                                        <>
                                     {profile?.home_id && session?.user?.id && (
                                       <GettingStartedChecklist
                                         homeId={profile.home_id}
@@ -1843,8 +1861,11 @@ function AppShell() {
                                     {!checklistSlotVisible && !quizPromptEligible && !notifOptInEligible && (
                                       <InstallPwaPrompt />
                                     )}
-                                    {/* The merged home — Overview's cards live behind its Detailed
-                                        density. See docs/plans/hyperplexed-ui-craft-overhaul.md §4.2 */}
+                                        </>
+                                      );
+                                      return (
+                                    /* The merged home — Overview's cards live behind its Detailed
+                                        density. See docs/plans/hyperplexed-ui-craft-overhaul.md §4.2 */
                                     <Suspense fallback={RouteFallback}>
                                       {profile?.home_id && (
                                         <HomeMain
@@ -1868,9 +1889,12 @@ function AppShell() {
                                             isBeta: !!profile?.is_beta,
                                             homeId: profile?.home_id ?? null,
                                           }}
+                                          promoSlot={promoSlot}
                                         />
                                       )}
                                     </Suspense>
+                                      );
+                                    })()}
                                   </div>
                                 ) : dashboardView === "locations" ? (
                                   <div className="space-y-5">

@@ -60,9 +60,9 @@ supabase.from("user_profiles")
 | Pacing throttle (`src/onboarding/useAutoTrigger.ts`) | `last_auto_trigger_at` ISO timestamp |
 | Action-based triggers (`src/onboarding/signals.ts`) | `trigger_signals: { [signal]: true }` |
 
-### Single-slot dashboard promo cards (Phase 4.2)
+### Single-slot dashboard promo cards (Phase 4.2; slot moved below the hero 2026-07-20)
 
-The merged home tab of `/dashboard` renders **at most one** onboarding promo card, cascaded by priority in App.tsx:
+The merged home tab of `/dashboard` renders **at most one** onboarding promo card, cascaded by priority in App.tsx. Since Stage 1 of the home redesign the cascade is passed into `HomeMain` as its `promoSlot` prop and renders **below the hero** in both densities (previously above the page — the greeting now always leads). The slot discipline, priority order, card testids, and persistence stores are all unchanged:
 
 | Priority | Card | Eligibility | Persistence store |
 |----------|------|-------------|-------------------|
@@ -72,6 +72,8 @@ The merged home tab of `/dashboard` renders **at most one** onboarding promo car
 | 4 | [PWA Install Prompt](../01-onboarding/08-pwa-install.md) | Not native / standalone / LS-flagged AND a `beforeinstallprompt` event was captured (Chrome / Edge / Android only) | localStorage `rhozly_pwa_install_dismissed`, `rhozly_pwa_installed` |
 
 Each lower card renders only when every higher card is ineligible. Note the split of stores: priorities 1-2 are DB-backed (`onboarding_state`, cross-device); priorities 3-4 are localStorage-backed (per-device).
+
+**Related Stage-1 tour touch-up:** `dashboard_tour` step 2 (anchor `home-status-strip`) had its copy rewritten for the new sentence hero — "Your day in one sentence" describes the composed status sentence plus the "Plan my day" / weather chips. The anchor testid is unchanged. See [Home (Main Dashboard)](../02-dashboard/17-home-main.md).
 
 ### Wave 23.0001 — pacing engine
 
@@ -126,7 +128,7 @@ Users can re-trigger onboarding via Account Settings (planned). Today, manual SQ
 
 ### Why this matters
 
-You don't see the welcome modal twice. The getting-started checklist disappears once you've completed every step or dismissed it. The quiz reminder honours its snooze. All driven by this column — and the dashboard only ever shows one of these promo cards at a time (the single-slot cascade above).
+You don't see the welcome modal twice. The getting-started checklist disappears once you've completed every step or dismissed it. The quiz reminder honours its snooze. All driven by this column — and the dashboard only ever shows one of these promo cards at a time, tucked just below the home greeting (the single-slot cascade above).
 
 ### Implications
 

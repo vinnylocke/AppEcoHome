@@ -107,8 +107,8 @@ export const flowRegistry: FlowDef[] = [
         image: "/assets/onboarding/dashboard-view-switcher.png",
       },
       {
-        title: "Your day at a glance",
-        body: "The status strip greets you with today's weather, how many tasks are done, anything overdue, and a frost warning when tonight turns cold. Tap any chip to jump straight to it.",
+        title: "Your day in one sentence",
+        body: "The greeting is your garden's summary — tasks left, rain on the way, frost tonight, whatever matters most right now. \"Plan my day\" takes you straight to the calendar, and the weather chip to the full forecast.",
         attachTo: { element: "[data-testid='home-status-strip']", on: "bottom" },
       },
       {

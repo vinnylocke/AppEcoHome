@@ -2,7 +2,9 @@
 
 > A horizontal banner stack at the top of the Dashboard / Weather tab showing any active weather alerts (frost, heatwave, strong wind, heavy rain, dry spell).
 
-**Rendered on:** **app-wide** — a slim `compact` bar at the top of every padded screen (in `App.tsx`'s `<main>`), plus the **full** always-on banner on the Weather view (`/dashboard?view=weather`, `isForecastScreen=true`). The compact bar is hidden on the Weather view (no doubling) and on focus-mode screens. Each compact row is tappable → opens the Weather view, with a per-type dismiss ✕.
+**Rendered on:** **app-wide** — a slim `compact` bar at the top of every padded screen (in `App.tsx`'s `<main>`), plus the **full** always-on banner on the Weather view (`/dashboard?view=weather`, `isForecastScreen=true`). The compact bar is hidden on the Weather view (no doubling) and on focus-mode screens. Each compact row is tappable → opens the Weather view, with a per-type dismiss ✕. Compact-row testids: `weather-alert-bar-{type}` (+ `weather-alert-bar-dismiss-{type}`) inside the `weather-alert-bar` wrapper.
+
+> **One owner on the dashboard (home redesign Stage 2, 2026-07-20 — `docs/plans/home-redesign-two-postures.md`):** this banner is **THE alert surface on the dashboard**. The home's AttentionRow suppresses its `weather_alert` kind there (`excludeKinds` — see [Home (Main Dashboard)](./17-home-main.md)), so an active alert renders in exactly one dismissible place. The hero *sentence* may **lead** with a severe (warning/critical) alert clause — that's **escalation, not ownership**: the sentence never replaces the banner, carries no dismiss, and `info`-severity alerts never claim it.
 **Source file:** `src/components/WeatherAlertBanner.tsx`
 
 ---

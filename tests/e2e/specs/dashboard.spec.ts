@@ -48,11 +48,12 @@ test.describe("Dashboard — view switcher (Section 02)", () => {
     await dashboard.goto();
     await dashboard.waitForLoad();
 
-    // Seed 04 adds a heat alert with message "Warm and rainy today — check for fungal risk..."
-    // WeatherAlertBanner renders: "{alert.type} Alert" badge + message text
-    await expect(
-      authenticatedPage.getByText(/Warm and rainy today/i),
-    ).toBeVisible({ timeout: 10000 });
+    // Seed 04's heat alert message is "Heatwave ahead — up to 36°C…". Scoped
+    // to the compact bar's own testid: the same text also renders in the
+    // AttentionRow weather card, so a bare getByText goes strict-ambiguous.
+    const heatBar = authenticatedPage.getByTestId("weather-alert-bar-heat");
+    await expect(heatBar).toBeVisible({ timeout: 10000 });
+    await expect(heatBar).toContainText(/Heatwave ahead/i);
   });
 
   test("DASH-011: Frost alert banner is visible on the dashboard", async ({ authenticatedPage }) => {
@@ -71,10 +72,12 @@ test.describe("Dashboard — view switcher (Section 02)", () => {
     await dashboard.goto();
     await dashboard.waitForLoad();
 
-    // Seed 04 adds a wind alert: "High winds forecast (65 kph)"
-    await expect(
-      authenticatedPage.getByText(/High winds forecast/i),
-    ).toBeVisible({ timeout: 10000 });
+    // Seed 04 adds a wind alert: "High winds forecast (65 kph)". Scoped to the
+    // bar's testid — the same text also renders in the AttentionRow weather
+    // card, so a bare getByText goes strict-ambiguous.
+    const windBar = authenticatedPage.getByTestId("weather-alert-bar-wind");
+    await expect(windBar).toBeVisible({ timeout: 10000 });
+    await expect(windBar).toContainText(/High winds forecast/i);
   });
 });
 
@@ -142,7 +145,7 @@ test.describe("Dashboard — Garden Intelligence panel (Section 02)", () => {
 test.describe("Dashboard — Locations view (Section 02)", () => {
   test("DASH-020: Location tile cards are rendered on the dashboard", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
+    await dashboard.gotoLocations();
     await dashboard.waitForLoad();
 
     // At least one location tile should render — look for location name h3
@@ -153,7 +156,7 @@ test.describe("Dashboard — Locations view (Section 02)", () => {
 
   test("DASH-021: 'Outside Garden' location tile is visible", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
+    await dashboard.gotoLocations();
     await dashboard.waitForLoad();
 
     await expect(dashboard.locationTile("Outside Garden")).toBeVisible({ timeout: 10000 });
@@ -161,7 +164,7 @@ test.describe("Dashboard — Locations view (Section 02)", () => {
 
   test("DASH-022: 'Indoor Space' tile shows Indoors badge", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
+    await dashboard.gotoLocations();
     await dashboard.waitForLoad();
 
     await expect(dashboard.locationTile("Indoor Space")).toBeVisible({ timeout: 10000 });
@@ -173,7 +176,7 @@ test.describe("Dashboard — Locations view (Section 02)", () => {
 
   test("DASH-023: Clicking a location tile updates the URL with locationId", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
+    await dashboard.gotoLocations();
     await dashboard.waitForLoad();
 
     await dashboard.locationTile("Outside Garden").click();
@@ -207,18 +210,11 @@ test.describe("Dashboard — Locations view (Section 02)", () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test("DASH-034: Clicking 'View Calendar' navigates to the calendar view", async ({ authenticatedPage }) => {
-    const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
-    await dashboard.waitForLoad();
-
-    // "View Calendar" link is only visible on the Locations view (not calendar/weather)
-    const viewCalendarBtn = authenticatedPage.getByRole("button", { name: "View Calendar" });
-    await expect(viewCalendarBtn).toBeVisible({ timeout: 10000 });
-    await viewCalendarBtn.click();
-
-    await expect(authenticatedPage).toHaveURL(/view=calendar/, { timeout: 8000 });
-  });
+  // DASH-034 retired (2026-07-20): the "View Calendar" button no longer exists
+  // anywhere in src/ — the affordance predates the Phase 4.2 merged home. The
+  // calendar view is covered by the switcher-tab specs (DASH-MOBILE-001) and
+  // the CAL-* suite (gotoCalendar), plus the redesign hero's "Plan my day"
+  // chip (hero-plan-day → ?view=calendar).
 
   test("DASH-036: Skipped task does not appear in the Pending task list", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
@@ -984,8 +980,9 @@ test.describe("Dashboard — plant chat AI-gating for Sprout (RHO-10 / RHO-11)",
     await dashboard.goto();
     await dashboard.waitForLoad();
 
-    // The Daily Brief must be present so we know the dashboard actually rendered.
-    await expect(authenticatedPage.getByTestId("daily-brief-card")).toBeVisible({ timeout: 10000 });
+    // The hero must be present so we know the dashboard actually rendered
+    // (redesign Stage 2 — DailyBriefCard retired; the hero owns its job).
+    await expect(authenticatedPage.getByTestId("home-status-strip")).toBeVisible({ timeout: 10000 });
     // …but the chat FAB (mounted globally in App.tsx) must NOT be present.
     await expect(authenticatedPage.getByTestId("plant-doctor-chat-fab")).toHaveCount(0);
   });
@@ -996,7 +993,7 @@ test.describe("Dashboard — plant chat AI-gating for Sprout (RHO-10 / RHO-11)",
     await dashboard.goto();
     await dashboard.waitForLoad();
 
-    await expect(authenticatedPage.getByTestId("daily-brief-card")).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("home-status-strip")).toBeVisible({ timeout: 10000 });
     await expect(authenticatedPage.getByTestId("daily-brief-ask-ai")).toHaveCount(0);
   });
 

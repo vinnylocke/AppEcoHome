@@ -104,14 +104,10 @@ export default function PullToRefresh({
         </span>
       </div>
 
-      {/* Static hint shown only when not actively pulling, visible on all devices */}
-      {!isRefreshing && pullDistance === 0 && (
-        <div className="absolute top-1 left-0 right-0 flex justify-center z-0 pointer-events-none">
-          <span className="text-[10px] font-medium text-rhozly-primary/30 select-none">
-            Pull to refresh
-          </span>
-        </div>
-      )}
+      {/* Redesign Stage 1 — the permanent "Pull to refresh" hint was deleted:
+          it was the literal first line of every page (even on desktop, where
+          the touch gesture doesn't apply). The in-gesture indicator above is
+          self-explanatory after one use. */}
 
       {/* 🚀 THE CONTENT CONTAINER (This physically slides down) */}
       <div

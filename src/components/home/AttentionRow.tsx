@@ -19,8 +19,21 @@ const KIND_STYLES: Record<string, { icon: LucideIcon; classes: string }> = {
   harvest_closing: { icon: Wheat, classes: "bg-lime-50 text-lime-800 border-lime-100" },
 };
 
-export default function AttentionRow({ items }: { items: AttentionItem[] }) {
+export default function AttentionRow({
+  items,
+  excludeKinds = [],
+}: {
+  items: AttentionItem[];
+  /** Route-scoped kind filter (redesign Stage 2): the dashboard suppresses
+   *  `overdue_tasks` (the hero + task list own that fact) and `weather_alert`
+   *  (the global banner is the sole alert surface). Other consumers of the
+   *  home-overview attention payload are untouched. */
+  excludeKinds?: string[];
+}) {
   const navigate = useNavigate();
+  if (excludeKinds.length > 0) {
+    items = items.filter((i) => !excludeKinds.includes(i.kind));
+  }
   if (items.length === 0) return null;
 
   return (

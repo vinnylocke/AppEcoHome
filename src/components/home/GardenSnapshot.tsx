@@ -15,7 +15,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 import type { HomeDashboardStats, DayStrip } from "../../hooks/useHomeDashboardStats";
-import { usePersona } from "../../hooks/usePersona";
 import { getLocalDateString } from "../../lib/taskEngine";
 
 export interface GardenSnapshotProps {
@@ -576,13 +575,11 @@ function formatWeekRange(weekStart: string | null, weekEnd: string | null): stri
  */
 export default function GardenSnapshot({ stats, loading, error, refresh, weekStart, weekEnd }: GardenSnapshotProps) {
   const weekRange = formatWeekRange(weekStart, weekEnd);
-  const persona = usePersona();
 
-  // Garden Snapshot collapse — open by default for experienced users
-  // who want to see the numbers, collapsed for newcomers (or null
-  // persona) so the dashboard doesn't lead with 20 zero-tiles. The
-  // user's preference is persisted to localStorage so subsequent
-  // visits remember.
+  // Garden Snapshot collapse — COLLAPSED by default for everyone (home
+  // redesign Stage 2: deep stats are the snapshot's owned fact family, one
+  // tap away; an open stat wall re-duplicated numbers the hero + task list
+  // already carry). The user's explicit choice is persisted and always wins.
   const STORAGE_KEY = "rhozly:dashboard:snapshot-open";
   const initialSnapshotOpen = (() => {
     try {
@@ -590,7 +587,7 @@ export default function GardenSnapshot({ stats, loading, error, refresh, weekSta
       if (stored === "true") return true;
       if (stored === "false") return false;
     } catch { /* SSR / private mode */ }
-    return persona === "experienced";
+    return false;
   })();
   const [snapshotOpen, setSnapshotOpenState] = useState(initialSnapshotOpen);
   // Persist only when the USER toggles — the previous persist-on-mount
@@ -604,15 +601,8 @@ export default function GardenSnapshot({ stats, loading, error, refresh, weekSta
       return value;
     });
   };
-  // With no stored preference yet, follow the persona once it resolves
-  // (it lands after first render — the initial state above saw null).
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(STORAGE_KEY) === null) {
-        setSnapshotOpenState(persona === "experienced");
-      }
-    } catch { /* ignore */ }
-  }, [persona]);
+  // (Stage 2: the persona-follows-open effect was removed — collapsed is the
+  // default for every posture; only the user's explicit toggle persists.)
 
   // Empty garden → the merged home's own empty-garden card takes over;
   // this snapshot renders nothing at all. (Must come after all hooks.)

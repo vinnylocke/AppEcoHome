@@ -36,9 +36,12 @@ export class DashboardPage {
 
     this.giPanelHeading = page.getByText("Garden Intelligence", { exact: true });
     this.calendarMonthHeading = page.locator("h3").filter({ hasText: /[A-Z][a-z]+ \d{4}/ });
-    // Calendar prev/next buttons have no aria-label — target by SVG icon class
-    this.calendarPrevButton = page.locator(".lucide-chevron-left").locator("..");
-    this.calendarNextButton = page.locator(".lucide-chevron-right").locator("..");
+    // The calendar nav buttons carry view-aware aria-labels ("Previous month" /
+    // "Previous week"). The old page-wide `.lucide-chevron-*` class locators
+    // went strict-mode ambiguous when the redesigned hero added its own
+    // chevrons (home redesign Stage 1).
+    this.calendarPrevButton = page.getByRole("button", { name: /Previous (month|week)/ });
+    this.calendarNextButton = page.getByRole("button", { name: /Next (month|week)/ });
 
     this.quizBanner = page.getByText("Set up your Garden Quiz");
     // Scope dismiss to the quiz banner container (avoids matching weather alert dismiss buttons)
@@ -66,6 +69,15 @@ export class DashboardPage {
 
   async gotoCalendar() {
     await this.page.goto("/dashboard?view=calendar");
+  }
+
+  async gotoLocations() {
+    // The Locations VIEW (not the merged home's garden grid — that renders
+    // location names as <p> inside card buttons). The Section-02 "Locations
+    // view" specs assert this view's h3 tiles / Indoors badge / View Calendar,
+    // so they must actually navigate here (home redesign Stage 1 audit found
+    // they were asserting against the home and failing).
+    await this.page.goto("/dashboard?view=locations");
   }
 
   async gotoWeather() {

@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings2 } from "lucide-react";
+import { Settings2, Footprints, ChevronRight } from "lucide-react";
 import QuickTile from "../quick/QuickTile";
 import {
   resolvePins,
@@ -24,9 +24,13 @@ interface Props {
   homeId: string | null;
   persona: "new" | "experienced" | null;
   availabilityCtx: QuickLauncherAvailabilityCtx;
+  /** When >= 5, the Garden Walk renders as the featured full-width first
+   *  tile (redesign Stage 2 — the standalone walk banner folded in here;
+   *  keeps testid dash-garden-walk + the state.from contract). */
+  walkPlantCount?: number;
 }
 
-export default function QuickActionsRow({ userId, homeId, persona, availabilityCtx }: Props) {
+export default function QuickActionsRow({ userId, homeId, persona, availabilityCtx, walkPlantCount = 0 }: Props) {
   const navigate = useNavigate();
   const { pins } = useQuickLauncherPins(userId);
 
@@ -36,7 +40,8 @@ export default function QuickActionsRow({ userId, homeId, persona, availabilityC
   const effectivePins = hasStoredPins() ? pins : defaultQuickLauncherPins(persona);
   const tiles = resolvePins(effectivePins, availabilityCtx).slice(0, 6);
 
-  if (tiles.length === 0) return null;
+  const showWalk = walkPlantCount >= 5;
+  if (tiles.length === 0 && !showWalk) return null;
 
   return (
     <section data-testid="home-quick-actions">
@@ -53,6 +58,24 @@ export default function QuickActionsRow({ userId, homeId, persona, availabilityC
           Customise
         </button>
       </div>
+      {showWalk && (
+        <button
+          data-testid="dash-garden-walk"
+          onClick={() => navigate("/walk", { state: { from: "/dashboard" } })}
+          className="w-full mb-2 bg-brand-gradient-soft text-white rounded-card p-4 flex items-center gap-4 shadow-raised transition-transform duration-200 ease-spring active:scale-[0.98] active:duration-100 touch-manipulation text-left"
+        >
+          <span className="bg-white/15 p-3 rounded-2xl shrink-0">
+            <Footprints size={22} aria-hidden />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block font-black text-sm font-display">Start a Garden Walk</span>
+            <span className="block text-xs text-white/80 mt-0.5">
+              A guided check-in on your {walkPlantCount} plants — snap, note, or tick as you go.
+            </span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-white/70" aria-hidden />
+        </button>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
         {tiles.map((dest) => {
           const Icon = dest.icon;

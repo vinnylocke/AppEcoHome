@@ -5,6 +5,8 @@
 **Rendered on:** the merged home in **both densities** (`/dashboard` — [Home (Main Dashboard)](./17-home-main.md), in a `data-testid="dashboard-assistant-card"` wrapper, with `showUpgradeWhenLocked`), `/planner` (PlannerDashboard), `/shed` (TheShed)
 **Source file:** `src/components/AssistantCard.tsx`
 
+> **Status (home redesign, `docs/plans/home-redesign-two-postures.md`):** Stage 3 will merge the dashboard's three AI cards (this one, the Head Gardener card, and the Garden Brain brief) into one voice — **"The Brief"** — on the dashboard; no change yet.
+
 ---
 
 ## Quick Summary

@@ -3,6 +3,8 @@
 > The flagship AI garden-manager tab: one first-person manager that oversees the whole home — a confirmed Garden Brief (goals + constraints), a standing Estate Report, a rolling Year Plan, the raw insights feed, and a grounded chat.
 
 **Route / how to reach it:** `/manager` (nav item "Head Gardener", leaf icon). Sub-tabs via `?tab=overview|brief|year|insights|ask`. Also reachable from the dashboard **HeadGardenerCard** entry point.
+
+> **Status (home redesign, `docs/plans/home-redesign-two-postures.md`):** Stage 3 will merge the dashboard's HeadGardenerCard (with the AI Insight card and the Garden Brain brief) into one dashboard voice — **"The Brief"** — no change yet; this `/manager` page itself is unaffected.
 **Source files (entry points):**
 - `src/components/manager/HeadGardenerPage.tsx`
 - `src/components/manager/ManagerReportPanel.tsx`

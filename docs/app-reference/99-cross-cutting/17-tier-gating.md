@@ -65,7 +65,7 @@ Then `onTierChange()` lifts flags into App state so the rest of the app re-rende
 | Feature | Gate |
 |---------|------|
 | Plant Doctor Identify / Diagnose / Pest / Multi-ID | `ai_enabled` |
-| Plant Doctor Chat | `ai_enabled` — **all** entry points gated together: the global chat FAB (`<PlantDoctorChat>` mount in `src/App.tsx`, RHO-10) and the Daily Brief "Got a plant question?" chip (`DailyBriefCard` `aiEnabled` prop, RHO-11). A non-AI (Sprout) user has no chat entry point at all. Server-side, `agent-chat` re-verifies via `guardAiByUser` on **every** action (including tool confirm/cancel/undo) — the client mount gate is no longer the only enforcement. |
+| Plant Doctor Chat | `ai_enabled` — **all** entry points gated together: the global chat FAB (`<PlantDoctorChat>` mount in `src/App.tsx`, RHO-10) and the dashboard hero's "Ask AI" chip (`HomeStatusStrip` `aiEnabled` prop, RHO-11 — migrated from the deleted `DailyBriefCard` in home redesign Stage 2, same testid `daily-brief-ask-ai`). A non-AI (Sprout) user has no chat entry point at all. Server-side, `agent-chat` re-verifies via `guardAiByUser` on **every** action (including tool confirm/cancel/undo) — the client mount gate is no longer the only enforcement. |
 | AI Assistant Card | `ai_enabled` |
 | New Plan Form (AI blueprint) | `ai_enabled` |
 | Garden Overhaul (photo redesign) | `ai_enabled` (Sage+) |

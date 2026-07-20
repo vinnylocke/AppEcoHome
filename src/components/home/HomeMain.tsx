@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sprout, MapPin, Leaf, LayoutList, Rows3, Footprints, ChevronRight } from "lucide-react";
+import { Sprout, MapPin, Leaf, LayoutList, Rows3 } from "lucide-react";
 import HomeStatusStrip from "./HomeStatusStrip";
 import GardenOverviewGrid from "./GardenOverviewGrid";
 import QuickActionsRow from "./QuickActionsRow";
@@ -8,7 +8,6 @@ import AttentionRow from "./AttentionRow";
 import AdaptiveCareCard from "./AdaptiveCareCard";
 import GardenBrainBriefCard from "./GardenBrainBriefCard";
 import GardenSnapshot from "./GardenSnapshot";
-import DailyBriefCard from "../DailyBriefCard";
 import HeadGardenerCard from "../manager/HeadGardenerCard";
 import AssistantCard from "../AssistantCard";
 import WeekAheadPreview from "../shared/WeekAheadPreview";
@@ -56,6 +55,9 @@ interface Props {
   aiEnabled: boolean;
   isPremium: boolean;
   availabilityCtx: QuickLauncherAvailabilityCtx;
+  /** The single-slot onboarding/promo card (App owns the cascade). Rendered
+   *  BELOW the hero so the greeting always leads (redesign Stage 1). */
+  promoSlot?: React.ReactNode;
 }
 
 export default function HomeMain({
@@ -74,6 +76,7 @@ export default function HomeMain({
   aiEnabled,
   isPremium,
   availabilityCtx,
+  promoSlot,
 }: Props) {
   const navigate = useNavigate();
   const persona = usePersona();
@@ -161,39 +164,29 @@ export default function HomeMain({
   // rail on the right. Simple density (the phone default) keeps the single
   // thumb-first column, byte-for-byte as before.
 
-  const heroBlock =
-    density === "simple" ? (
-      <div className="flex items-start justify-between gap-3">
-        <HomeStatusStrip
-          firstName={firstName}
-          weather={weather}
-          rawWeather={rawWeather}
-          todaySummary={todaySummary}
-          overdueCount={overdueTaskCount}
-        />
-        {densityToggle}
-      </div>
-    ) : (
-      <div className="space-y-2">
-        <div className="flex justify-end">{densityToggle}</div>
-        <DailyBriefCard
-          firstName={firstName}
-          weather={weather}
-          rawWeather={rawWeather}
-          // Same array App used to pass the card directly pre-merge: the
-          // rows carry lat/lng at runtime; OverviewLocation just doesn't
-          // declare them.
-          locations={locations as unknown as Array<{ lat?: number; lng?: number }>}
-          alerts={alerts}
-          todayTaskCount={todayTaskCount}
-          overdueCount={overdueTaskCount}
-          homeLat={homeLat}
-          homeLng={homeLng}
-          hardinessZone={hardinessZone}
-          aiEnabled={aiEnabled}
-        />
-      </div>
-    );
+  // Redesign Stage 2 — ONE hero for both densities (DailyBriefCard retired;
+  // its facts migrated: sun line → hero micro-line, ask-AI → the console
+  // hero's chip, Plan-day → hero-plan-day, zone/microclimate live at their
+  // destinations). Simple = the Porch's sentence voice; detailed = the
+  // Workbench's console line.
+  const heroBlock = (
+    <div className="flex items-start justify-between gap-3">
+      <HomeStatusStrip
+        firstName={firstName}
+        weather={weather}
+        rawWeather={rawWeather}
+        todaySummary={todaySummary}
+        overdueCount={overdueTaskCount}
+        alerts={alerts}
+        homeLat={homeLat}
+        homeLng={homeLng}
+        variant={density === "simple" ? "sentence" : "console"}
+        aiEnabled={aiEnabled}
+        hardinessZone={hardinessZone}
+      />
+      {densityToggle}
+    </div>
+  );
 
   const gardenSection = (
     // Stable wrapper: the dashboard_tour anchors here so the step works in
@@ -240,36 +233,18 @@ export default function HomeMain({
     </div>
   );
 
+  // Redesign Stage 2 — the standalone Garden Walk banner folded into the
+  // actions section as its featured first tile (same dash-garden-walk testid
+  // + state.from contract; still gated on totalPlants >= 5).
   const quickActions = (
     <QuickActionsRow
       userId={userId}
       homeId={homeId}
       persona={persona}
       availabilityCtx={availabilityCtx}
+      walkPlantCount={totalPlants}
     />
   );
-
-  // Garden Walk launcher (both densities — flagship flow; e2e drives it via
-  // dash-garden-walk from a plain /dashboard visit).
-  const gardenWalk =
-    totalPlants >= 5 ? (
-      <button
-        data-testid="dash-garden-walk"
-        onClick={() => navigate("/walk", { state: { from: "/dashboard" } })}
-        className="w-full bg-brand-gradient-soft text-white rounded-card p-4 flex items-center gap-4 shadow-raised transition-transform duration-200 ease-spring active:scale-[0.98] active:duration-100 touch-manipulation text-left"
-      >
-        <span className="bg-white/15 p-3 rounded-2xl shrink-0">
-          <Footprints size={22} aria-hidden />
-        </span>
-        <span className="flex-1 min-w-0">
-          <span className="block font-black text-sm font-display">Start a Garden Walk</span>
-          <span className="block text-xs text-white/80 mt-0.5">
-            A guided check-in on your {totalPlants} plants — snap, note, or tick as you go.
-          </span>
-        </span>
-        <ChevronRight size={18} className="shrink-0 text-white/70" aria-hidden />
-      </button>
-    ) : null;
 
   const tasksBlock =
     density === "simple" ? (
@@ -341,20 +316,27 @@ export default function HomeMain({
   // Garden Brain morning voice + adaptive-care proposals — self-hide when empty.
   const dailyBrief = <GardenBrainBriefCard homeId={homeId} userId={userId} density={density} />;
   const adaptiveCare = <AdaptiveCareCard homeId={homeId} currentUserId={userId} />;
-  const attention = <AttentionRow items={overview?.attention ?? []} />;
+  // One-owner map (Stage 2): the hero owns overdue, the global banner owns
+  // weather alerts — the attention row keeps the telemetry + harvest kinds.
+  const attention = (
+    <AttentionRow
+      items={overview?.attention ?? []}
+      excludeKinds={["overdue_tasks", "weather_alert"]}
+    />
+  );
 
-  // ── Simple density (phone default): one thumb-first column, unchanged ──
+  // ── Simple density (phone default): one thumb-first column ──
   if (density === "simple") {
     return (
       <div data-testid="home-main" className="space-y-5">
         {heroBlock}
+        {promoSlot}
         {attention}
         {dailyBrief}
         {adaptiveCare}
         {aiCards}
         {gardenSection}
         {quickActions}
-        {gardenWalk}
         {tasksBlock}
         {weekAhead}
         {seasonalPicks}
@@ -370,11 +352,11 @@ export default function HomeMain({
       <div className="xl:grid xl:grid-cols-12 xl:gap-6 xl:items-start space-y-5 xl:space-y-0">
         <div className="xl:col-span-8 space-y-5 min-w-0">
           {heroBlock}
+          {promoSlot}
           {attention}
           {dailyBrief}
           {gardenSection}
           {quickActions}
-          {gardenWalk}
           {tasksBlock}
         </div>
         <aside className="xl:col-span-4 space-y-5 min-w-0">

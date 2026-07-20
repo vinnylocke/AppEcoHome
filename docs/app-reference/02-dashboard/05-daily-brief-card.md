@@ -1,15 +1,27 @@
-# Daily Brief Card
+# Daily Brief Card — **RETIRED**
 
-> The hero card at the top of the Dashboard's **Detailed** density. Time-of-day greeting + a synthesised one-liner about today + tappable stat chips for tasks / weather / sun / frost + a footer with zone, microclimate, and "ask AI" CTAs.
+> **This surface has been removed (2026-07-20 — home redesign Stage 2, `docs/plans/home-redesign-two-postures.md`).** `src/components/DailyBriefCard.tsx` was **deleted**. ONE hero (`HomeStatusStrip`) now serves BOTH densities of the merged home — Simple gets the **sentence voice**, Detailed gets the **console voice** (the tabular line: "1/16 today · 2 overdue · 14° light rain · golden hour 20:16", segments deep-linking; testids `hero-console-line` + `hero-seg-{tasks|overdue|weather|frost|sun}`). This card was the Detailed-density hero from the Phase 4.2 Overview merge until Stage 2 retired it.
+>
+> **Where each piece went:**
+> - **The greeting + headline summary** → the hero itself: the composed sentence (Simple) or the console line (Detailed) IS the summary. See [Home (Main Dashboard)](./17-home-main.md).
+> - **The today/overdue, temp, and frost chips** → the console line's `tasks` / `overdue` / `weather` / `frost` segments (same deep links: Calendar / Weather tab), and the sentence hero's clause ladder + weather chip.
+> - **The golden hour / sunset chips + sunrise/day-length footer** → the hero's sun facts (SunCalc): the sentence hero's **sun micro-line** ("Golden hour 19:42 · sunset 21:32") and the console line's `sun` segment.
+> - **The "Got a plant question?" ask-AI chip** → the console hero — **SAME testid `daily-brief-ask-ai`, same RHO-11 `aiEnabled` gate**; still opens PlantDoctorChat with page context via `usePlantDoctor`.
+> - **"Open today's calendar"** → the sentence hero's **"Plan my day"** chip (`hero-plan-day` → `?view=calendar`) and the console `tasks`/`overdue` segments.
+> - **The Zone / Microclimate chips** → retired outright; their facts live at their destination pages — `/home-management` (hardiness zone) and `/garden-layout` (microclimate). Testids `daily-brief-zone-chip` / `daily-brief-microclimate-chip` no longer exist (no tests referenced them).
+>
+> **Deleted with the card, by design:** (a) the `data-testid="daily-brief-card"` **collision** — `GardenBrainBriefCard.tsx` used the same testid and both mounted in Detailed density; the survivor is GardenBrainBriefCard's (until its Stage-3 rename); (b) the latent footer-hint bug — it read `alerts[0].title`, which was **always `undefined`** (`weather_alerts` rows have `message`, no `title` column), so the "⚠ …" alert line never rendered its intended text.
+>
+> The historical body below is preserved for reference — read every statement as pre-Stage-2 history.
 
-**Route:** rendered as the hero of the merged home's **Detailed density** (`/dashboard`, [Home (Main Dashboard)](./17-home-main.md)) — it replaces the Simple-density status strip (one greeting, never both). Mounted by `HomeMain.tsx` since the Overview merge (Phase 4.2).
-**Source file:** `src/components/DailyBriefCard.tsx`
+**Route:** ~~hero of the merged home's Detailed density~~ — no longer rendered anywhere
+**Source file:** ~~`src/components/DailyBriefCard.tsx`~~ *(deleted 2026-07-20)*
 
 ---
 
 ## Quick Summary
 
-A gradient hero card with five-ish stat chips that summarise the gardening day. It pulls together task counts, weather, sun events, and frost risk so the user gets the "what matters today" snapshot without reading numbers off four different surfaces.
+**RETIRED (2026-07-20)** — read historically. A gradient hero card with five-ish stat chips that summarised the gardening day. It pulled together task counts, weather, sun events, and frost risk so the user got the "what matters today" snapshot without reading numbers off four different surfaces. That job now belongs to the one hero (`HomeStatusStrip`) in [Home (Main Dashboard)](./17-home-main.md).
 
 ---
 
@@ -215,14 +227,15 @@ No difference.
 
 ## Related reference files
 
-- [Home (Main Dashboard)](./17-home-main.md) — hosts this card as the Detailed-density hero
+- [Home (Main Dashboard)](./17-home-main.md) — hosted this card as the Detailed-density hero; its `HomeStatusStrip` console voice replaced it
 - [Calendar Tab](./03-calendar-tab.md)
 - [Weather Tab](./04-weather-tab.md)
 - [Sun Tracker AR](../03-garden-hub/08-sun-tracker-ar.md)
-- [Plant Doctor Chat](../05-tools/03-plant-doctor-chat.md)
+- [Plant Doctor Chat](../05-tools/03-plant-doctor-chat.md) — the ask-AI chip's destination (the chip lives on in the console hero)
 
 ## Code references for ongoing maintenance
 
-- `src/components/DailyBriefCard.tsx` — entire component
-- `node_modules/suncalc` — sun events library
-- `src/components/home/HomeMain.tsx` — mounts the card (Detailed density) and passes props in (state originates in `src/App.tsx`)
+- ~~`src/components/DailyBriefCard.tsx`~~ *(deleted 2026-07-20 — Stage 2)*
+- `src/components/home/HomeStatusStrip.tsx` — the hero that absorbed this card's job (`sentence` + `console` voices, the migrated `daily-brief-ask-ai` chip)
+- `src/lib/heroSentence.ts` — the sentence/segment composers + SunCalc micro-line formatting
+- `src/components/home/HomeMain.tsx` — mounts the hero for both densities (state originates in `src/App.tsx`)

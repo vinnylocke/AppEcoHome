@@ -27,6 +27,7 @@ export interface CachedProfile {
   onboarding_state: unknown;
   can_view_audit: boolean | null;
   is_beta: boolean | null;
+  persona: "new" | "experienced" | null;
 }
 
 function keyFor(userId: string): string {

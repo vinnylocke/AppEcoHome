@@ -37,14 +37,10 @@ export function describeWeekChips(p: WeeklyPayload | null): string[] {
   if (!p) return [];
   const out: string[] = [];
 
-  const taskTotal = p.task_counts
-    ? Object.values(p.task_counts).reduce((a, b) => a + b, 0)
-    : 0;
-  if (taskTotal > 0) out.push(`${taskTotal} task${taskTotal === 1 ? "" : "s"}`);
-
-  const alerts = p.weather_events?.length ?? 0;
-  if (alerts > 0) out.push(`${alerts} weather alert${alerts === 1 ? "" : "s"}`);
-
+  // Redesign Stage 2 — the task-count and weather-alert chips were stripped:
+  // the hero + task list own today's numbers and the global banner owns
+  // alerts. The Week card leads with its OWN fact family — the week's
+  // sow / harvest / prune windows.
   const sow = p.sow_this_week?.length ?? 0;
   if (sow > 0) out.push(`${sow} to sow`);
 
