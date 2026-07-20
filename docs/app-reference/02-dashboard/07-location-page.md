@@ -1,6 +1,6 @@
 # Location Page (Drill-In)
 
-> Inline drill-in view on the Dashboard route — opens when you tap a LocationTile. Shows everything happening at one specific location: areas inside it, plants in each area, tasks due, weather/microclimate context.
+> Inline drill-in view on the Dashboard route — opens when you tap a location card in the home garden grid (`home-location-card-{id}`). Shows everything happening at one specific location: areas inside it, plants in each area, tasks due, weather/microclimate context.
 
 **Route:** `/dashboard?locationId=<uuid>` (rendered inline within the Dashboard route, not a separate URL)
 **Source file:** `src/components/LocationPage.tsx`
@@ -9,7 +9,7 @@
 
 ## Quick Summary
 
-When `searchParams.get("locationId")` is set, App.tsx renders LocationPage in place of the Dashboard sub-tab content. The page presents the location's areas as cards, with a per-area plant grid and task summary. Back navigation removes the `locationId` query param and restores the previous sub-tab view.
+When `searchParams.get("locationId")` is set, App.tsx renders LocationPage in place of the home view content (it's entered by tapping a location card in the home garden grid — the standalone Locations tab that used to open it was retired in Stage 4a, 2026-07-20; the `?locationId=` drill-in itself is **unchanged**). The page presents the location's areas as cards, with a per-area plant grid and task summary. Back navigation removes the `locationId` query param and restores the previous view.
 
 ---
 
@@ -129,7 +129,7 @@ None directly.
 
 ### Why open this view
 
-The Location Page is the "this corner of the garden" zoom. When you tap "Back Garden" from the Locations grid, you're saying "tell me about this place — what's growing here, what needs doing here, what's the soil like, what's the light like, is it sheltered?" For a beginner with one location and one area, this is essentially the same as the Locations grid — just deeper. For a more involved gardener with five separate areas inside one location (raised veg bed, perennial border, herb circle, fruit cage, lawn edge), this is where you live when you're planning that section's work.
+The Location Page is the "this corner of the garden" zoom. When you tap "Back Garden" from the home garden grid, you're saying "tell me about this place — what's growing here, what needs doing here, what's the soil like, what's the light like, is it sheltered?" For a beginner with one location and one area, this is essentially the same as the garden grid card — just deeper. For a more involved gardener with five separate areas inside one location (raised veg bed, perennial border, herb circle, fruit cage, lawn edge), this is where you live when you're planning that section's work.
 
 ### Every flow on this view
 
@@ -189,7 +189,7 @@ No difference.
 
 ### Recommended workflows
 
-- **Daily check on one corner:** tap location tile → glance microclimate + today's tasks → handle.
+- **Daily check on one corner:** tap a location card in the home garden grid → glance microclimate + today's tasks → handle.
 - **Planning a new bed:** tap location → "Add Area" → set metrics → assign plants from The Shed.
 
 ### What to do if something looks wrong
@@ -201,7 +201,8 @@ No difference.
 
 ## Related reference files
 
-- [Locations Tab](./02-locations-tab.md)
+- [Home (Main Dashboard)](./17-home-main.md) — the garden grid whose location cards open this drill-in
+- [Locations Tab — RETIRED](./02-locations-tab.md) — the standalone `?view=locations` grid that used to open this page (retired Stage 4a, 2026-07-20)
 - [Area Details](../03-garden-hub/04-area-details.md)
 - [Location Manager](../03-garden-hub/03-location-manager.md)
 - [The Shed](../03-garden-hub/01-the-shed.md)

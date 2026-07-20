@@ -1,18 +1,27 @@
-# Locations Tab
+# Locations Tab — **RETIRED**
 
-> The grid view of every garden location you've set up — quick way to see "what's growing where" and which spots need attention today.
+> **This surface has been removed (2026-07-20 — stats+locations redesign Stage 4a, `docs/plans/home-screen-redesign-2026-07.md` §C).** The standalone **Locations sub-tab (`?view=locations`) is gone.** The view-switcher is now **three tabs** — Dashboard / Calendar / Weather (`dashboard-view-switcher` testid + the `dashboard_tour` step-1 anchor survive). The **home garden grid IS the "what's growing where" surface now** — one card per location, every area, every plant's state — so a separate grid-of-tiles view was pure duplication.
+>
+> **What changed in App.tsx (Stage 4a):** `"locations"` was dropped from the `DashboardView` union (now `"home" | "calendar" | "weather"`), from the `?view=` parser allowlist, and from the `localStorage` restore allowlist (`["calendar","weather"]`). `?view=locations` therefore **falls through to home exactly like legacy `?view=overview` / `?view=dashboard`** — the URL param is harmless, and old `?view=locations` bookmarks still resolve (they render home). The `dashboardView === "locations"` render branch and the `LocationTile` import were deleted, and **`src/components/LocationTile.tsx` was deleted outright** (this view was its only consumer).
+>
+> **Where each piece went:**
+> - **The grid of location cards + task-count badges** → the home's **Garden Overview grid** (`GardenOverviewGrid` / `LocationOverviewCard` / `AreaRow`). See [Home (Main Dashboard)](./17-home-main.md).
+> - **Tapping a location → drill-in (`?locationId=`)** → **unchanged**, but now reached by tapping a **garden-grid location card** (`home-location-card-{id}`) instead of a `LocationTile`. See [Location Page (Drill-In)](./07-location-page.md).
+> - **The "Add Location" empty-state CTA → `/management`** → `/management` (LocationManager) is **UNCHANGED and remains the locations/areas CRUD surface.** Inline add/manage directly on the home grid is **Stage 4b** work — **not yet shipped**; until it lands, `/management` is still the place to create and edit locations.
+>
+> The historical body below is preserved for reference — read every statement as pre-Stage-4a history.
 
-**Route:** `/dashboard?view=locations`
+**Route:** ~~`/dashboard?view=locations`~~ — the tab is gone; `?view=locations` now falls through to home
 **Source files (entry points):**
-- `src/App.tsx` (lines ~1130–1188) — renders the locations grid when `dashboardView === "locations"`
-- `src/components/LocationTile.tsx` — individual tile component
-- `src/components/LocationPage.tsx` — drill-in view when a location is tapped
+- ~~`src/App.tsx` — the `dashboardView === "locations"` render branch~~ *(deleted 2026-07-20 — Stage 4a)*
+- ~~`src/components/LocationTile.tsx`~~ *(deleted 2026-07-20 — Stage 4a)*
+- `src/components/LocationPage.tsx` — drill-in view when a location is tapped **(still live — now reached from the garden grid)**
 
 ---
 
 ## Quick Summary
 
-A responsive grid of location cards (one per Location row), each showing today's open task count for that location. Tapping a tile drills into `LocationPage` (rendered inline within the Dashboard route as `/dashboard?locationId=X`). The empty state nudges first-time users to add their first location.
+**RETIRED (2026-07-20 — Stage 4a)** — read historically. A responsive grid of location cards (one per Location row), each showing today's open task count for that location. Tapping a tile drilled into `LocationPage` (rendered inline within the Dashboard route as `/dashboard?locationId=X`). The empty state nudged first-time users to add their first location. That job now belongs to the home **Garden Overview grid** in [Home (Main Dashboard)](./17-home-main.md); the drill-in it fed lives on unchanged at [Location Page (Drill-In)](./07-location-page.md).
 
 ---
 
@@ -195,7 +204,9 @@ No difference.
 
 ## Code references for ongoing maintenance
 
-- `src/App.tsx:1129–1188` — render block for `dashboardView === "locations"`
-- `src/components/LocationTile.tsx` — tile component
-- `src/components/LocationPage.tsx` — drill-in view
+- ~~`src/App.tsx` render block for `dashboardView === "locations"`~~ *(deleted 2026-07-20 — Stage 4a; `?view=locations` now falls through to home in the `DashboardView` parser, ~App.tsx:514)*
+- ~~`src/components/LocationTile.tsx`~~ *(deleted 2026-07-20 — Stage 4a)*
+- `src/components/home/GardenOverviewGrid.tsx` / `LocationOverviewCard.tsx` / `AreaRow.tsx` — the home grid that absorbed this view's job
+- `src/components/LocationPage.tsx` — drill-in view (still live — reached from the garden grid's `home-location-card-{id}` cards)
+- `src/components/LocationManager.tsx` (`/management`) — the unchanged locations/areas CRUD surface (Stage 4b will add inline manage to the grid)
 - `supabase/functions/home-dashboard-stats/index.ts` — supplies the locations + counts

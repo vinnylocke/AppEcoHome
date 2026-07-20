@@ -15,18 +15,19 @@ const LOC_GARDEN_ID = `0000000${workerNum}-0000-0000-0001-000000000001`;
 const LOC_INDOOR_ID = `0000000${workerNum}-0000-0000-0001-000000000002`;
 
 test.describe("Home dashboard (Section 30)", () => {
-  test("HOME-001: plain /dashboard lands on the Home view with the 4-tab switcher", async ({ authenticatedPage }) => {
+  test("HOME-001: plain /dashboard lands on the Home view with the 3-tab switcher", async ({ authenticatedPage }) => {
     const home = new HomeMainPage(authenticatedPage);
     await home.goto();
     await home.waitForLoad();
 
     await expect(home.root).toBeVisible();
     await expect(home.viewSwitcher.getByRole("button", { name: "Dashboard" })).toBeVisible();
-    await expect(home.viewSwitcher.getByRole("button", { name: "Locations" })).toBeVisible();
     await expect(home.viewSwitcher.getByRole("button", { name: "Calendar" })).toBeVisible();
     await expect(home.viewSwitcher.getByRole("button", { name: "Weather" })).toBeVisible();
-    // Phase 4.2: the Overview tab was merged into Home.
+    // Phase 4.2 merged the Overview tab into Home; stats+locations Stage 4
+    // retired the Locations tab into the garden grid — neither reappears.
     await expect(home.viewSwitcher.getByRole("button", { name: "Overview" })).toHaveCount(0);
+    await expect(home.viewSwitcher.getByRole("button", { name: "Locations" })).toHaveCount(0);
   });
 
   test("HOME-002: garden overview grid renders both seeded locations with area rows", async ({ authenticatedPage }) => {
@@ -153,7 +154,7 @@ test.describe("Home dashboard — telemetry (Phase 2)", () => {
         kind: "soil_dry",
         title: "Greenhouse is dry (18%)",
         body: "Soil moisture is below the comfortable band.",
-        route: "/dashboard?view=locations",
+        route: "/dashboard",
         rank: 4,
       },
     ],

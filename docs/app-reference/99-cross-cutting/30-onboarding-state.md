@@ -75,6 +75,8 @@ Each lower card renders only when every higher card is ineligible. Note the spli
 
 **Related Stage-1 tour touch-up:** `dashboard_tour` step 2 (anchor `home-status-strip`) had its copy rewritten for the new sentence hero — "Your day in one sentence" describes the composed status sentence plus the "Plan my day" / weather chips. The anchor testid is unchanged. See [Home (Main Dashboard)](../02-dashboard/17-home-main.md).
 
+**Related stats+locations Stage-4a tour touch-up (2026-07-20):** `dashboard_tour` step 1 (anchor `dashboard-view-switcher`) was retitled "Four views in one" → **"Three views in one"** and its body dropped the "location overview" mention (now "…home dashboard, a full task calendar, and a 7-day weather forecast. Your locations live right on the dashboard now."), because the Locations tab was retired into the home garden grid — the switcher is three tabs. The anchor testid is unchanged. See [Locations Tab — RETIRED](../02-dashboard/02-locations-tab.md).
+
 ### Wave 23.0001 — pacing engine
 
 To stop new users being bombarded by auto-firing tours, three jsonb additions:

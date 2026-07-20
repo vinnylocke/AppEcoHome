@@ -59,11 +59,12 @@ test.describe("Realtime — Section 15", () => {
     await dashboard.goto();
     await dashboard.waitForLoad();
 
-    // Verify the Outside Garden tile shows 3 areas (from seed 01)
-    const areaCountLocator = authenticatedPage.locator(
-      `[data-testid="location-${LOC_GARDEN_ID}-areas-count"]`,
-    );
-    await expect(areaCountLocator).toHaveText("3", { timeout: 10000 });
+    // The area count moved from the retired LocationTile's `…-areas-count`
+    // testid (Stage 4) to the garden-grid card's subtitle ("Outdoors · N areas
+    // · M plants") on `home-location-card-{id}`. Assert it there. Seed 01 gives
+    // Outside Garden 3 areas.
+    const gardenCard = authenticatedPage.getByTestId(`home-location-card-${LOC_GARDEN_ID}`);
+    await expect(gardenCard).toContainText(/3 areas/, { timeout: 10000 });
 
     // Delete Greenhouse area via REST API (bypasses RLS)
     const deleteRes = await request.delete(
@@ -72,8 +73,8 @@ test.describe("Realtime — Section 15", () => {
     );
     expect(deleteRes.ok()).toBeTruthy();
 
-    // Realtime subscription fires → fetchDashboardData() → area count updates
-    await expect(areaCountLocator).toHaveText("2", { timeout: 8000 });
+    // Realtime subscription fires → fetchDashboardData() → subtitle updates
+    await expect(gardenCard).toContainText(/2 areas/, { timeout: 8000 });
 
     // Restore for seed isolation
     await request.post(`${supabaseUrl}/rest/v1/areas`, {

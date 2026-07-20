@@ -5,33 +5,33 @@
 **Seed dependencies:** `00_bootstrap.sql`, `01_locations_areas.sql`, `03_tasks_blueprints.sql`, `04_weather.sql`
 **App-reference:** [02-dashboard/01-dashboard-tab.md](../app-reference/02-dashboard/01-dashboard-tab.md)
 
-Covers the classic dashboard content. Since the Phase 4.2 dashboard merge this **no longer lives at `?view=overview`** — the Overview tab is gone and `/dashboard` has four sub-tabs (Dashboard / Locations / Calendar / Weather). The former Overview content (full `TaskList`, Head Gardener / AI Insights cards, Week Ahead — the Garden Snapshot stat wall it also carried was **deleted outright** in the stats+locations redesign Stage 2, 2026-07-20) now renders on the merged Home view behind the **Detailed** density: `DashboardPage.goto()` seeds `localStorage["rhozly:home:density"] = "detailed"` via an init script and navigates to plain `/dashboard`, so the classic-content specs in this section see it all without UI toggling. **Home redesign Stage 2 (2026-07-20): `DailyBriefCard` is deleted** — the one `HomeStatusStrip` hero serves both densities (console voice in Detailed), so specs anchor on `home-status-strip` instead of `daily-brief-card`. Also covers the **Weather** view (`?view=weather`), the **Calendar** view (`?view=calendar`) and the **Location detail** view (`?locationId=…`). The Home view's own surface (status strip, overview grid, quick actions, telemetry) is covered separately in [30-home-main.md](./30-home-main.md).
+Covers the classic dashboard content. Since the Phase 4.2 dashboard merge this **no longer lives at `?view=overview`** — the Overview tab is gone. The **stats+locations redesign Stage 4a (2026-07-20) then retired the Locations tab** into the home garden grid, so `/dashboard` now has **three** sub-tabs (Dashboard / Calendar / Weather); `?view=locations` falls through to home exactly like legacy `?view=overview`. The former Overview content (full `TaskList`, Head Gardener / AI Insights cards, Week Ahead — the Garden Snapshot stat wall it also carried was **deleted outright** in the stats+locations redesign Stage 2, 2026-07-20) now renders on the merged Home view behind the **Detailed** density: `DashboardPage.goto()` seeds `localStorage["rhozly:home:density"] = "detailed"` via an init script and navigates to plain `/dashboard`, so the classic-content specs in this section see it all without UI toggling. **Home redesign Stage 2 (2026-07-20): `DailyBriefCard` is deleted** — the one `HomeStatusStrip` hero serves both densities (console voice in Detailed), so specs anchor on `home-status-strip` instead of `daily-brief-card`. Also covers the **Weather** view (`?view=weather`), the **Calendar** view (`?view=calendar`) and the **Location detail** view (`?locationId=…`). The Home view's own surface (status strip, overview grid, quick actions, telemetry) is covered separately in [30-home-main.md](./30-home-main.md).
 
 ## Weather widget
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
 | DASH-001 | ✅ | Weather card renders with temperature + icon | — | ✅ Passing |
-| DASH-002 | ✅ | Locations, Calendar and Weather view tabs visible (a subset of the four-tab switcher — Dashboard / Locations / Calendar / Weather) | — | ✅ Passing |
+| DASH-002 | ✅ | Calendar and Weather view tabs visible (the switcher is now Dashboard / Calendar / Weather) | — | ⚠️ DRIFT (2026-07-20) — this test (`weather.spec.ts`, "the three view tabs (Locations, Calendar, Weather)") still asserts `dashboard.locationsTab` visible, but Stage 4a retired the Locations tab from the switcher. **Needs repointing** (drop the Locations assertion) — not done in Stage 4a's spec pass |
 | DASH-003 | ✅ | Weather tab click → URL `?view=weather`, forecast panel visible | — | ✅ Passing |
 | DASH-004 | ✅ | Full Forecast button — 7-day forecast expands or navigates | — | ✅ Passing |
 | DASH-005..009 | ✅ | Weather code icons render correctly (WMO 0 clear, 61 rain, 71 snow, 95 thunder, 45 fog) | — | ✅ Passing |
 | DASH-010..013 | ✅ | Alert badges (heat, frost, rain, wind). DASH-010 (heat), **DASH-011 (frost)** and DASH-013 (wind) are each scoped to the compact bar's own `weather-alert-bar-{type}` testid (`weather-alert-bar-frost` for DASH-011, asserting `/Frost risk tomorrow/i`) — the same alert text also renders elsewhere (the AttentionRow weather card on non-dashboard consumers, and — since redesign Stage 3 — **The Brief's `garden-brain-brief` row surfaces the frost item on the Workbench**), so a bare `getByText` goes strict-ambiguous | — | ✅ Passing (re-verified 2026-07-20) |
-| DASH-MOBILE-001 | ✅ | Phone-portrait (412×915): all **four** view tabs (Dashboard / Locations / Calendar / Weather) present exactly once, Overview button count 0 (Phase 4.2 merged it into Dashboard), Weather reachable + navigates (regression: Weather clipped off-screen) | — | 🔲 Pending (re-verify post-merge) |
+| DASH-MOBILE-001 | ✅ | Phone-portrait (412×915): the **three** view tabs (Dashboard / Calendar / Weather) each present exactly once; **Overview count 0 AND Locations count 0** (Phase 4.2 merged Overview into Dashboard; Stage 4a retired the Locations tab into the home garden grid); Weather reachable + navigates (regression: Weather clipped off-screen) | — | ✅ Passing (re-verified 2026-07-20) |
 | DASH-014 | ✅ | No alerts on mild forecast | — | ✅ Passing |
 | DASH-015 | ✅ | Garden Intelligence panel renders with at least one rule heading | — | ✅ Passing |
 | DASH-016..019 | ✅ | GI rules — auto-watering, frost protection, heatwave, high wind | — | ✅ Passing |
 
-## Locations view
+## Garden grid location cards (was the "Locations view") — Section 02
 
-Stage-1 triage found DASH-020..023 asserting the **Locations view's** h3 tiles / Indoors badge against the merged **home** (where location names render as `<p>` inside card buttons) — they now navigate via a new `DashboardPage.gotoLocations()` (`/dashboard?view=locations`) so they exercise the view they describe.
+The standalone **Locations tab (`?view=locations`) was RETIRED** in the stats+locations redesign Stage 4a (2026-07-20) — the **home garden grid IS the "what's growing where" surface now**. Consequently `DashboardPage.gotoLocations()` and `DashboardPage.locationTile()` were **removed** from the Page Object. **DASH-020/021/022 are RETIRED** — the LocationTile grid + Indoors badge they asserted are now covered by **HOME-002** in `home-main.spec.ts` (it asserts the garden grid renders both seeded locations and their area rows). **DASH-023 was REPOINTED** to the garden-grid location card: it clicks `home-location-card-{LOC_GARDEN_ID}` → "Outside Garden" and asserts the drill-in URL (`?locationId=`), which is unchanged.
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DASH-020 | ✅ | Location tile cards visible for seeded locations (via `gotoLocations()`) | — | ✅ Passing (re-verified 2026-07-20) |
-| DASH-021 | ✅ | Tile shows name ("Outside Garden") (via `gotoLocations()`) | — | ✅ Passing (re-verified 2026-07-20) |
-| DASH-022 | ✅ | Indoor tile shows indoor indicator (via `gotoLocations()`) | — | ✅ Passing (re-verified 2026-07-20) |
-| DASH-023 | ✅ | Click tile → URL `?locationId=LOC_GARDEN_ID` (via `gotoLocations()`) | — | ✅ Passing (re-verified 2026-07-20) |
+| DASH-020 | ✅ | ~~Location tile cards visible for seeded locations~~ | — | ❌ RETIRED (2026-07-20) — the Locations tab was retired; grid rendering is covered by **HOME-002** (`home-main.spec.ts`) |
+| DASH-021 | ✅ | ~~Tile shows name ("Outside Garden")~~ | — | ❌ RETIRED (2026-07-20) — see HOME-002 |
+| DASH-022 | ✅ | ~~Indoor tile shows indoor indicator~~ | — | ❌ RETIRED (2026-07-20) — see HOME-002 |
+| DASH-023 | ✅ | Click a garden-grid location card (`home-location-card-{LOC_GARDEN_ID}` → "Outside Garden") → URL `?locationId=` (repointed from the retired Locations tile) | — | ✅ Passing (re-verified 2026-07-20) |
 | DASH-027 | ✅ | Quiz prompt ("Set up your Garden Quiz") absent when quiz complete (seed 08) | — | ✅ Passing |
 
 ## Single-slot onboarding + quiz banner (Phase 4.2)

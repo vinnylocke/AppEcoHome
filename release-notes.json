@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Simpler dashboard tabs",
+    "items": [
+      "Removed the separate “Locations” tab — your locations already live right on the home dashboard, so the switcher is now a cleaner three tabs (Dashboard · Calendar · Weather).",
+      "Old “Locations” bookmarks still work — they open the home dashboard."
+    ]
+  }
+]

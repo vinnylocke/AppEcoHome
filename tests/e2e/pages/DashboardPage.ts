@@ -7,7 +7,6 @@ export class DashboardPage {
   readonly fullForecastButton: Locator;
   readonly signOutButton: Locator;
   readonly weatherCard: Locator;
-  readonly locationsTab: Locator;
   readonly calendarTab: Locator;
   readonly weatherTab: Locator;
 
@@ -30,7 +29,7 @@ export class DashboardPage {
     this.fullForecastButton = page.getByRole("button", { name: "Full Forecast" });
     this.signOutButton = page.getByRole("button", { name: "Sign Out" });
     this.weatherCard = page.locator("text=°C").first();
-    this.locationsTab = page.getByRole("button", { name: "Locations" }).first();
+    // locationsTab removed — the Locations tab was retired in Stage 4.
     this.calendarTab = page.getByRole("button", { name: "Calendar" }).first();
     this.weatherTab = page.getByRole("button", { name: "Weather" }).first();
 
@@ -71,14 +70,9 @@ export class DashboardPage {
     await this.page.goto("/dashboard?view=calendar");
   }
 
-  async gotoLocations() {
-    // The Locations VIEW (not the merged home's garden grid — that renders
-    // location names as <p> inside card buttons). The Section-02 "Locations
-    // view" specs assert this view's h3 tiles / Indoors badge / View Calendar,
-    // so they must actually navigate here (home redesign Stage 1 audit found
-    // they were asserting against the home and failing).
-    await this.page.goto("/dashboard?view=locations");
-  }
+  // gotoLocations() removed — the Locations tab (?view=locations) was retired
+  // in the stats+locations redesign Stage 4 (the home garden grid is the
+  // "what's growing where" surface now; ?view=locations falls through to home).
 
   async gotoWeather() {
     await this.page.goto("/dashboard?view=weather");
@@ -128,10 +122,9 @@ export class DashboardPage {
     await this.signOutButton.click();
   }
 
-  /** Find a location tile by its displayed name (matches on h3 inside tile). */
-  locationTile(name: string): Locator {
-    return this.page.locator("h3").filter({ hasText: name }).first();
-  }
+  // locationTile() removed with the retired Locations tab (Stage 4) — it
+  // matched the deleted LocationTile's <h3>; the garden-grid card renders the
+  // name as <p> inside `home-location-card-{id}` (see DASH-023).
 
   /** Find a weather alert banner by type (e.g. "heat" → "heat Alert"). */
   alertByType(type: string): Locator {

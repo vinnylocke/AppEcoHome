@@ -8,7 +8,6 @@ import {
   Plus,
   Loader2,
   X,
-  MapPin,
   RefreshCw,
   AlertCircle,
   HelpCircle,
@@ -26,7 +25,6 @@ import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import SurfaceLoader from "./components/shared/SurfaceLoader";
 
 // Components — always needed on first render (keep eager)
-import LocationTile from "./components/LocationTile";
 import { HomeDropdown } from "./components/HomeDropdown";
 import { LocationPage } from "./components/LocationPage";
 import { Auth } from "./components/Auth";
@@ -304,7 +302,6 @@ function AppShell() {
   const [weather, setWeather] = useState<any>(null);
   const [rawWeather, setRawWeather] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
-  const [dashboardError, setDashboardError] = useState(false);
   const [dashboardLoaded, setDashboardLoaded] = useState(false);
   const [isHomeLoading, setIsHomeLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -508,13 +505,16 @@ function AppShell() {
   // "home" (labelled Dashboard) is the single main page. The old "overview"
   // sub-tab was merged into it (design overhaul Phase 4.2) — its unique cards
   // now live behind HomeMain's Detailed density. Legacy deep links with
-  // ?view=dashboard OR ?view=overview both fall through to home.
-  // See docs/plans/hyperplexed-ui-craft-overhaul.md and new-home-dashboard.md.
-  type DashboardView = "home" | "locations" | "calendar" | "weather";
+  // ?view=dashboard, ?view=overview, OR ?view=locations all fall through to
+  // home — the Locations tab was retired in the stats+locations redesign
+  // Stage 4 (2026-07-20): the home garden grid IS the "what's growing where"
+  // surface, and it now manages locations inline. See
+  // docs/plans/home-screen-redesign-2026-07.md §C.
+  type DashboardView = "home" | "calendar" | "weather";
   const dashboardView: DashboardView = (() => {
     const raw = searchParams.get("view");
-    if (raw === "locations" || raw === "calendar" || raw === "weather") return raw;
-    return "home"; // default, explicit "home", legacy "dashboard"/"overview", or anything unknown
+    if (raw === "calendar" || raw === "weather") return raw;
+    return "home"; // default, explicit "home", legacy "dashboard"/"overview"/"locations", or anything unknown
   })();
 
   // Persist last selected dashboard view; restore on first visit to /dashboard with no view param.
@@ -540,10 +540,11 @@ function AppShell() {
     }
     hasRestoredViewRef.current = true;
     const saved = localStorage.getItem("rhozly_dashboard_view");
-    // Legacy saved "dashboard" AND "overview" intentionally fall through to
-    // the default — the Overview tab no longer exists (merged into Home);
-    // the next explicit choice is respected from then on.
-    if (saved && ["locations", "calendar", "weather"].includes(saved)) {
+    // Legacy saved "dashboard", "overview" AND "locations" intentionally fall
+    // through to the default — those tabs no longer exist (Overview merged into
+    // Home; Locations retired into the home grid, Stage 4); the next explicit
+    // choice is respected from then on.
+    if (saved && ["calendar", "weather"].includes(saved)) {
       const next = new URLSearchParams(searchParams);
       next.set("view", saved);
       setSearchParamsForView(next, { replace: true });
@@ -705,8 +706,6 @@ function AppShell() {
     const gen = ++dashboardFetchGen.current;
     const isStale = () => gen !== dashboardFetchGen.current;
 
-    setDashboardError(false);
-
     // Local-first cache — hydrate the entire dashboard state from
     // localStorage so the first paint isn't blank while the network
     // catches up. ONCE per home per session: hydrating on every refetch
@@ -772,10 +771,10 @@ function AppShell() {
 
     if (error) {
       Logger.error("Failed to fetch home data", error);
-      // No toast — the inline retry card on /dashboard handles this
-      // properly. Toasting globally pestered users who had already
-      // navigated to another route while the fetch was still in flight.
-      setDashboardError(true);
+      // No toast — the home view soft-fails (renders from cache / the
+      // empty-garden card) and pull-to-refresh re-fetches. Toasting globally
+      // pestered users who had already navigated to another route while the
+      // fetch was still in flight.
       setDashboardLoaded(true);
       return;
     }
@@ -1010,13 +1009,12 @@ function AppShell() {
       if (isStale()) return;
       // Outer-catch guard: a network blip on the homes query (or any of
       // the parallel children) used to throw an unhandled rejection here
-      // and leave the UI stuck in the loading skeleton with no retry
-      // surface. Now we always flip dashboardError + dashboardLoaded so
-      // the existing "Could not load dashboard data" retry card renders.
+      // and leave the UI stuck in the loading skeleton. Flip dashboardLoaded
+      // so the home view resolves (soft-fails to cache / empty-garden) instead
+      // of spinning forever; pull-to-refresh re-fetches.
       Logger.error("fetchDashboardData unexpectedly threw", unexpected, {
         home_id: profile?.home_id,
       });
-      setDashboardError(true);
       setDashboardLoaded(true);
       // No toast — the inline retry card on /dashboard surfaces this
       // when the user is actually there. Toasting from a background
@@ -1743,7 +1741,6 @@ function AppShell() {
                                   <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-full inline-flex gap-0.5 max-w-full overflow-x-auto scrollbar-none">
                                     {([
                                       { v: "home", label: "Dashboard" },
-                                      { v: "locations", label: "Locations" },
                                       { v: "calendar", label: "Calendar" },
                                       { v: "weather", label: "Weather" },
                                     ] as const).map(({ v, label }) => (
@@ -1895,66 +1892,6 @@ function AppShell() {
                                     </Suspense>
                                       );
                                     })()}
-                                  </div>
-                                ) : dashboardView === "locations" ? (
-                                  <div className="space-y-5">
-                                    {dashboardError && (
-                                      <div className="col-span-full p-8 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30 flex flex-col items-center gap-3">
-                                        <p className="font-bold text-sm text-rhozly-on-surface/60">
-                                          Could not load dashboard data.
-                                        </p>
-                                        <button
-                                          data-testid="dashboard-retry-button"
-                                          onClick={fetchDashboardData}
-                                          className="flex items-center gap-2 bg-rhozly-primary text-white text-xs font-black px-4 py-2 rounded-2xl hover:opacity-90 transition-opacity"
-                                        >
-                                          <RefreshCw size={14} />
-                                          Retry
-                                        </button>
-                                      </div>
-                                    )}
-                                    <div data-testid="dashboard-location-grid" className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                      {locations.length > 0 ? (
-                                        locations.map((loc: any, idx: number) => (
-                                          <LocationTile
-                                            key={loc.id}
-                                            site={loc}
-                                            index={idx}
-                                            tasksCount={locationTaskCounts[loc.id] ?? null}
-                                            onClick={() =>
-                                              navigate(`/dashboard?locationId=${loc.id}`)
-                                            }
-                                          />
-                                        ))
-                                      ) : !dashboardLoaded && !dashboardError ? (
-                                        <>
-                                          <div className="rounded-3xl bg-rhozly-surface-low animate-pulse h-36" />
-                                          <div className="rounded-3xl bg-rhozly-surface-low animate-pulse h-36" />
-                                          <div className="rounded-3xl bg-rhozly-surface-low animate-pulse h-36" />
-                                        </>
-                                      ) : dashboardLoaded && !dashboardError ? (
-                                        <div className="col-span-full p-8 flex flex-col items-center gap-4 bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30">
-                                          <div className="bg-rhozly-primary/10 p-4 rounded-3xl">
-                                            <MapPin className="w-8 h-8 text-rhozly-primary" />
-                                          </div>
-                                          <div className="text-center">
-                                            <p className="font-black text-sm text-rhozly-on-surface mb-1">
-                                              No locations yet
-                                            </p>
-                                            <p className="text-xs text-rhozly-on-surface/50">
-                                              Add your first garden location to get started.
-                                            </p>
-                                          </div>
-                                          <button
-                                            data-testid="dashboard-add-location-cta"
-                                            onClick={() => navigate("/management")}
-                                            className="bg-rhozly-primary text-white text-xs font-black px-5 py-2.5 rounded-2xl hover:opacity-90 transition-opacity"
-                                          >
-                                            Add Location
-                                          </button>
-                                        </div>
-                                      ) : null}
-                                    </div>
                                   </div>
                                 ) : dashboardView === "calendar" ? (
                                   <div className="bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/10 overflow-hidden shadow-sm">

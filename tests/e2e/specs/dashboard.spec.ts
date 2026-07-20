@@ -20,11 +20,13 @@ const LOC_GARDEN_ID = `0000000${workerNum}-0000-0000-0001-000000000001`;
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe("Dashboard — view switcher (Section 02)", () => {
-  test("DASH-MOBILE-001: all four view tabs are reachable on a phone-portrait viewport, Weather included", async ({ authenticatedPage }) => {
+  test("DASH-MOBILE-001: all view tabs are reachable on a phone-portrait viewport, Weather included", async ({ authenticatedPage }) => {
     // Regression: on a narrow phone the tab switcher clipped "Weather"
     // off-screen with no way to reach it. It scrolls horizontally with
     // full labels, so every tab (incl. Weather) is present and clickable.
-    // (Phase 4.2 merged the old Overview tab into Dashboard — four tabs now.)
+    // Phase 4.2 merged the old Overview tab into Dashboard; the stats+locations
+    // redesign Stage 4 (2026-07-20) retired the Locations tab into the home
+    // garden grid — THREE tabs now (Dashboard / Calendar / Weather).
     await authenticatedPage.setViewportSize({ width: 412, height: 915 });
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.goto();
@@ -32,10 +34,12 @@ test.describe("Dashboard — view switcher (Section 02)", () => {
 
     const switcher = authenticatedPage.locator('[data-testid="dashboard-view-switcher"]');
     await expect(switcher).toBeVisible({ timeout: 10000 });
-    for (const label of ["Dashboard", "Locations", "Calendar", "Weather"]) {
+    for (const label of ["Dashboard", "Calendar", "Weather"]) {
       await expect(switcher.getByRole("button", { name: label, exact: true })).toHaveCount(1);
     }
+    // The retired tabs must not reappear.
     await expect(switcher.getByRole("button", { name: "Overview", exact: true })).toHaveCount(0);
+    await expect(switcher.getByRole("button", { name: "Locations", exact: true })).toHaveCount(0);
     // Weather is reachable + navigates (scrollIntoView handles the horizontal scroll).
     const weather = switcher.getByRole("button", { name: "Weather", exact: true });
     await weather.scrollIntoViewIfNeeded();
@@ -142,47 +146,26 @@ test.describe("Dashboard — Garden Intelligence panel (Section 02)", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section 02 — Locations view
+// Section 02 — Garden grid location cards (was the "Locations view")
 // ─────────────────────────────────────────────────────────────────────────────
+// The standalone Locations tab (?view=locations) was RETIRED in the
+// stats+locations redesign Stage 4 (2026-07-20) — the home garden grid IS the
+// "what's growing where" surface now. DASH-020/021/022 (the old LocationTile
+// grid + Indoors badge) are covered by HOME-002 (home-main.spec asserts the
+// grid renders both seeded locations + their area rows). DASH-023's drill-in
+// nav is repointed below to the garden-grid location card.
 
-test.describe("Dashboard — Locations view (Section 02)", () => {
-  test("DASH-020: Location tile cards are rendered on the dashboard", async ({ authenticatedPage }) => {
+test.describe("Dashboard — Garden grid location cards (Section 02)", () => {
+  test("DASH-023: Clicking a garden-grid location card updates the URL with locationId", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.gotoLocations();
+    await dashboard.goto();
     await dashboard.waitForLoad();
 
-    // At least one location tile should render — look for location name h3
-    await expect(
-      dashboard.locationTile("Outside Garden"),
-    ).toBeVisible({ timeout: 10000 });
-  });
-
-  test("DASH-021: 'Outside Garden' location tile is visible", async ({ authenticatedPage }) => {
-    const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.gotoLocations();
-    await dashboard.waitForLoad();
-
-    await expect(dashboard.locationTile("Outside Garden")).toBeVisible({ timeout: 10000 });
-  });
-
-  test("DASH-022: 'Indoor Space' tile shows Indoors badge", async ({ authenticatedPage }) => {
-    const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.gotoLocations();
-    await dashboard.waitForLoad();
-
-    await expect(dashboard.locationTile("Indoor Space")).toBeVisible({ timeout: 10000 });
-    // The environment badge is a <p> tag sibling to the location h3
-    await expect(
-      authenticatedPage.locator("p").filter({ hasText: /^Indoors$/ }).first(),
-    ).toBeVisible({ timeout: 10000 });
-  });
-
-  test("DASH-023: Clicking a location tile updates the URL with locationId", async ({ authenticatedPage }) => {
-    const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.gotoLocations();
-    await dashboard.waitForLoad();
-
-    await dashboard.locationTile("Outside Garden").click();
+    // The grid card header is a button that drills into the location page.
+    await authenticatedPage
+      .getByTestId(`home-location-card-${LOC_GARDEN_ID}`)
+      .getByText("Outside Garden")
+      .click();
 
     await expect(authenticatedPage).toHaveURL(/locationId=/, { timeout: 8000 });
   });

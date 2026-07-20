@@ -18,13 +18,17 @@ test.describe("Weather widget — dashboard", () => {
     await expect(weatherWidget.first()).toBeVisible({ timeout: 10000 });
   });
 
-  test("dashboard shows the three view tabs (Locations, Calendar, Weather)", async ({ authenticatedPage }) => {
+  test("dashboard shows the three view tabs (Dashboard, Calendar, Weather)", async ({ authenticatedPage }) => {
+    // The Locations tab was retired in the stats+locations redesign Stage 4
+    // (2026-07-20) — the switcher is Dashboard / Calendar / Weather now.
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.goto();
 
-    await expect(dashboard.locationsTab).toBeVisible({ timeout: 10000 });
-    await expect(dashboard.calendarTab).toBeVisible();
-    await expect(dashboard.weatherTab).toBeVisible();
+    const switcher = authenticatedPage.getByTestId("dashboard-view-switcher");
+    await expect(switcher.getByRole("button", { name: "Dashboard", exact: true })).toBeVisible({ timeout: 10000 });
+    await expect(switcher.getByRole("button", { name: "Calendar", exact: true })).toBeVisible();
+    await expect(switcher.getByRole("button", { name: "Weather", exact: true })).toBeVisible();
+    await expect(switcher.getByRole("button", { name: "Locations", exact: true })).toHaveCount(0);
   });
 
   test("clicking the Weather tab switches to the weather forecast view", async ({ authenticatedPage }) => {

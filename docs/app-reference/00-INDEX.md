@@ -45,7 +45,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 ## 02 — Dashboard
 
 - [~] [Dashboard Tab](./02-dashboard/01-dashboard-tab.md) — **ARCHIVED: merged into Home (Phase 4.2)** — the old "Overview" sub-tab's cards now live behind Home's Detailed density; stub maps where each piece went
-- [x] [Locations Tab](./02-dashboard/02-locations-tab.md) — grid of location tiles with task counts
+- [~] [Locations Tab](./02-dashboard/02-locations-tab.md) — **RETIRED — folded into the home garden grid** (2026-07-20, stats+locations redesign Stage 4a); the standalone `?view=locations` tab is gone (switcher now Dashboard / Calendar / Weather), `?view=locations` falls through to home, `LocationTile.tsx` deleted; the [home Garden Overview grid](./02-dashboard/17-home-main.md) is the "what's growing where" surface and `/management` stays the CRUD surface
 - [x] [Calendar Tab](./02-dashboard/03-calendar-tab.md) — Month / Week views, drag-reschedule, ICS export
 - [x] [Weather Tab](./02-dashboard/04-weather-tab.md) — 7-day forecast, alerts, sunrise/sunset
 - [~] [Daily Brief Card](./02-dashboard/05-daily-brief-card.md) — **RETIRED — deleted in home redesign Stage 2** (2026-07-20); one hero (`HomeStatusStrip`) now serves both densities; stub maps where each fact migrated (console line, ask-AI chip, sun micro-line, Plan-day; zone/microclimate facts at their destination pages)

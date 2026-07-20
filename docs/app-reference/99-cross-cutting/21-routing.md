@@ -35,7 +35,7 @@ BrowserRouter
     │    the overflow nav — opened by the header hamburger on normal routes,
     │    by QuickAccessMenuButton in focus mode. The left sidebar rail is
     │    gated behind isMdBreakpoint and never renders on phones now.)
-    ├── /dashboard         ← Dashboard container (Dashboard [home] / Locations / Calendar / Weather sub-tabs via ?view=)
+    ├── /dashboard         ← Dashboard container (Dashboard [home] / Calendar / Weather sub-tabs via ?view=; Locations tab retired Stage 4a)
     ├── /shed              ← GardenHub (Shed / Watchlist / Senescence sub-tabs via ?tab=)
     ├── /schedule          ← BlueprintManager
     ├── /planner           ← PlannerHub (?tab=planner|shopping)
@@ -85,17 +85,17 @@ BrowserRouter
 | `?section=plans` | Force the Account tab + scroll to the "Your Plan" picker (`#plan-section`); tier-locked `UpgradeNudge` banners route here (RHO-12) |
 | `?ailment=X` | Deep-link an Ailment Library entry |
 
-### `/dashboard` `?view=` param (four tabs — Overview merged into Home, Phase 4.2)
+### `/dashboard` `?view=` param (three tabs — Overview merged in Phase 4.2, Locations retired Stage 4a)
 
-Parsed in `src/App.tsx` (~line 511). Four sub-tabs: Dashboard (home) / Locations / Calendar / Weather.
+Parsed in `src/App.tsx` (~line 514; `DashboardView = "home" | "calendar" | "weather"`). Three sub-tabs: Dashboard (home) / Calendar / Weather.
 
 | `?view=` value | Resolves to | Label | Content |
 |---------------|-------------|-------|---------|
 | *(absent)* | `home` | **Dashboard** | The merged Home dashboard (default) — [Home (Main Dashboard)](../02-dashboard/17-home-main.md) |
 | `home` | `home` | Dashboard | Same |
-| `locations` | `locations` | Locations | unchanged |
 | `calendar` | `calendar` | Calendar | unchanged |
 | `weather` | `weather` | Weather | unchanged |
+| `locations` *(legacy)* | `home` | — | The Locations tab was **retired** into the home garden grid (stats+locations redesign Stage 4a, 2026-07-20) — dropped from the `DashboardView` union + parser allowlist; old links fall through to home. See [Locations Tab — RETIRED](../02-dashboard/02-locations-tab.md) |
 | `dashboard` *(legacy)* | `home` | — | Backwards compat: old deep links / notifications land on the merged home |
 | `overview` *(legacy)* | `home` | — | The Overview tab was **merged into Home** (Phase 4.2) — its cards live behind Home's Detailed density; old links fall through to home. See [Dashboard Tab (Overview) — ARCHIVED](../02-dashboard/01-dashboard-tab.md) |
 | *anything else* | `home` | — | Unknown values fall back to the default |
@@ -104,8 +104,8 @@ Parsed in `src/App.tsx` (~line 511). Four sub-tabs: Dashboard (home) / Locations
 
 - Visiting `/dashboard` with an explicit `?view=` writes the **resolved** view (legacy `dashboard` / `overview` persist as `home`).
 - Visiting plain `/dashboard` restores the saved view **once per mount** only (subsequent sub-tab clicks to "Dashboard" stick, and record `home` for next session).
-- Only `locations | calendar | weather` are restored. Stored legacy `"dashboard"` **and** `"overview"` values are **deliberately not restored** — they fall through to the `home` default once; the user's next explicit choice is respected from then on.
-- The switcher's "Dashboard" button navigates to plain `/dashboard` (no param); the other three navigate to `/dashboard?view=<v>` (all `replace: true`).
+- Only `calendar | weather` are restored. Stored legacy `"dashboard"`, `"overview"` **and** `"locations"` values are **deliberately not restored** — they fall through to the `home` default once; the user's next explicit choice is respected from then on. (Stage 4a dropped `"locations"` from the restore allowlist.)
+- The switcher's "Dashboard" button navigates to plain `/dashboard` (no param); the other two navigate to `/dashboard?view=<v>` (all `replace: true`).
 
 ### Quick-add deep links (from GlobalQuickAdd)
 

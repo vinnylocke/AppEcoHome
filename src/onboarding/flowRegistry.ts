@@ -101,8 +101,8 @@ export const flowRegistry: FlowDef[] = [
     // density — new users (the tour audience) always land there.
     steps: [
       {
-        title: "Four views in one",
-        body: "This switcher jumps between your home dashboard, a location overview, a full task calendar, and a 7-day weather forecast.",
+        title: "Three views in one",
+        body: "This switcher jumps between your home dashboard, a full task calendar, and a 7-day weather forecast. Your locations live right on the dashboard now.",
         attachTo: { element: "[data-testid='dashboard-view-switcher']", on: "bottom" },
         image: "/assets/onboarding/dashboard-view-switcher.png",
       },

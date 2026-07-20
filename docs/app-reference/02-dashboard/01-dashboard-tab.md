@@ -1,6 +1,6 @@
 # Dashboard Tab (Overview) — ARCHIVED
 
-> This surface no longer exists. The **"Overview"** sub-tab was merged into the Home dashboard in design overhaul **Phase 4.2** — `/dashboard` now has four sub-tabs (Dashboard / Locations / Calendar / Weather), and both `?view=overview` and legacy `?view=dashboard` fall through to the merged home.
+> This surface no longer exists. The **"Overview"** sub-tab was merged into the Home dashboard in design overhaul **Phase 4.2** — and after the stats+locations redesign Stage 4a (2026-07-20) retired the Locations tab too, `/dashboard` now has **three** sub-tabs (Dashboard / Calendar / Weather). `?view=overview`, legacy `?view=dashboard`, and legacy `?view=locations` all fall through to the merged home (see [Locations Tab — RETIRED](./02-locations-tab.md)).
 
 Where each piece went:
 
