@@ -39,14 +39,9 @@ export default function NavItem({
       aria-label={isCollapsed ? (showBadge ? `${label}, ${badge} pending` : label) : undefined}
       className={`relative flex items-center gap-4 md:gap-3 p-4 rounded-2xl w-full min-h-[44px] transition-colors duration-200 group shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 ${isCollapsed ? "w-14 h-14 justify-center p-0" : ""} ${active ? "bg-white/10 text-white" : "text-white/60 can-hover:hover:text-white can-hover:hover:bg-white/10 active:bg-white/15"}`}
     >
-      {/* Soft active treatment: left accent bar + tint, replacing the old
-          white-pill + icon-scale look so the rail reads calm at a glance. */}
-      {active && (
-        <span
-          aria-hidden
-          className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-full bg-white"
-        />
-      )}
+      {/* Soft active treatment: white tint here; the left accent bar is now a
+          SINGLE sliding marker owned by the sidebar container (Phase 6d), not a
+          per-item bar, so it glides between items. */}
       <div className="flex items-center justify-center relative">
         {/* Cast: nav icons are lucide elements, which accept className. */}
         {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: "w-6 h-6" })}

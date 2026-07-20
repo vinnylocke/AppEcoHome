@@ -61,9 +61,11 @@ Maps `link.id` → destination route. Used by `navigate(TAB_URL[link.id])`.
 - **Desktop collapse:** `sidebarIsCollapsed` (now just `isNavCollapsed` — the old `isMobileSidebarOpen` branch was deleted) toggles via the header hamburger (w-72 ↔ w-20 icon rail) and persists to `localStorage` (`rhozly_nav`).
 - **Mobile:** the rail does not render. Phones get the [Bottom Tab Bar](./11-bottom-tab-bar.md) for the core five, plus the **Shelf** — the app-level `MobileNavDrawer` overflow drawer — for everything else; the header hamburger opens the Shelf. The old `isMobileSidebarOpen` state, its matchMedia reset, and the w-20-rail-on-mobile treatment were **removed in Phase 6a**: they caused the sidebar to co-render with the bottom tab bar, stacking two nav bars on phones.
 
-### Active treatment (NavItem)
+### Active treatment (NavItem + sliding marker)
 
-`bg-white/10 text-white` tint + absolute left accent bar; inactive is `text-white/60` with `can-hover:hover:` tint (hover gated to real pointers) and an `active:bg-white/15` press state. No layout shift between states (label stays `text-sm`; weight bold → black only).
+`bg-white/10 text-white` tint on the active item; inactive is `text-white/60` with `can-hover:hover:` tint (hover gated to real pointers) and an `active:bg-white/15` press state. No layout shift between states (label stays `text-sm`; weight bold → black only).
+
+**Phase 6d — the left accent is now ONE sliding marker**, not a per-item bar. It lives in the nav's scroll container (`navScrollRef` in App.tsx) and slides on `transform` (ease-spring) to the active item, measured from the live DOM (`querySelector('[aria-current="page"]')` → `offsetLeft`/`offsetTop`, so it hugs the button's left edge in both the expanded rail and the collapsed w-20 rail). A `ResizeObserver` re-measures on collapse/expand. Opacity 0 when nothing in the rail is active. This mirrors the Deck's marker (`BottomTabBar`) so the active indicator reads as the same element gliding across both platforms.
 
 ### Data flow — read paths
 

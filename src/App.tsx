@@ -1,5 +1,5 @@
 import { Toaster, toast } from "react-hot-toast";
-import React, { useEffect, useState, useCallback, useMemo, useReducer, useRef, lazy, Suspense } from "react";
+import React, { useEffect, useLayoutEffect, useState, useCallback, useMemo, useReducer, useRef, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./lib/supabase";
 import {
@@ -265,6 +265,10 @@ function AppShell() {
   const [quickDrawerOpen, setQuickDrawerOpen] = useState(false);
   // Phase 6b — the phone Deck's raised centre FAB opens the Capture sheet.
   const [captureSheetOpen, setCaptureSheetOpen] = useState(false);
+  // Phase 6d — the desktop sidebar's active accent is ONE marker that slides
+  // to the active NavItem (mirrors the Deck), measured from the live DOM.
+  const navScrollRef = useRef<HTMLDivElement>(null);
+  const [navMarker, setNavMarker] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
 
   // One-shot purge of legacy v1 dashboard cache entries on app mount.
   // v1 snapshots cached a serialised lucide forwardRef which crashed
@@ -639,6 +643,32 @@ function AppShell() {
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
+
+  // Phase 6d — slide the sidebar marker to the active NavItem. Reads the live
+  // DOM (the button with aria-current="page") so it needs no per-item refs; a
+  // ResizeObserver re-measures when the rail collapses/expands (width change).
+  useLayoutEffect(() => {
+    const container = navScrollRef.current;
+    if (!container) {
+      setNavMarker((m) => (m.visible ? { ...m, visible: false } : m));
+      return;
+    }
+    const measure = () => {
+      const active = container.querySelector('[aria-current="page"]') as HTMLElement | null;
+      if (!active || active.offsetHeight === 0) {
+        setNavMarker((m) => (m.visible ? { ...m, visible: false } : m));
+        return;
+      }
+      // Match the old per-item accent: hug the button's left edge, vertically
+      // centred (marker is h-6 = 24px).
+      setNavMarker({ x: active.offsetLeft, y: active.offsetTop + active.offsetHeight / 2 - 12, visible: true });
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [routerLocation.pathname, isMdBreakpoint]);
 
   // Global keyboard shortcut: "?" opens the Help Center (when not currently typing)
   useEffect(() => {
@@ -1520,7 +1550,15 @@ function AppShell() {
                   ${sidebarIsCollapsed ? "w-20 items-center p-3" : "w-72 p-6"}
                 `}
               >
-                <div className="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
+                <div ref={navScrollRef} className="relative flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
+                  {/* Phase 6d — the single sliding active marker (mirrors the
+                      Deck). Slides on transform to the active NavItem; hidden
+                      when nothing in the rail is active. */}
+                  <span
+                    aria-hidden
+                    className="absolute left-0 top-0 w-1 h-6 rounded-full bg-white transition-[transform,opacity] duration-200 ease-spring pointer-events-none"
+                    style={{ transform: `translate(${navMarker.x}px, ${navMarker.y}px)`, opacity: navMarker.visible ? 1 : 0 }}
+                  />
                   {navLinks.map((link, i) => {
                     const groupLabel =
                       link.group && link.group !== navLinks[i - 1]?.group
