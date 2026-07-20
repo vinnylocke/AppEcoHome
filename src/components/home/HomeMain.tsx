@@ -155,72 +155,50 @@ export default function HomeMain({
     </div>
   );
 
-  return (
-    <div data-testid="home-main" className="space-y-5">
-      {/* Hero: one greeting, density-matched — the compact status strip for
-          simple, the full Daily Brief card (the old Overview hero) for
-          detailed. Never both: they are the same job at two depths. */}
-      {density === "simple" ? (
-        <div className="flex items-start justify-between gap-3">
-          <HomeStatusStrip
-            firstName={firstName}
-            weather={weather}
-            rawWeather={rawWeather}
-            todaySummary={todaySummary}
-            overdueCount={overdueTaskCount}
-          />
-          {densityToggle}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <div className="flex justify-end">{densityToggle}</div>
-          <DailyBriefCard
-            firstName={firstName}
-            weather={weather}
-            rawWeather={rawWeather}
-            // Same array App used to pass the card directly pre-merge: the
-            // rows carry lat/lng at runtime; OverviewLocation just doesn't
-            // declare them.
-            locations={locations as unknown as Array<{ lat?: number; lng?: number }>}
-            alerts={alerts}
-            todayTaskCount={todayTaskCount}
-            overdueCount={overdueTaskCount}
-            homeLat={homeLat}
-            homeLng={homeLng}
-            hardinessZone={hardinessZone}
-            aiEnabled={aiEnabled}
-          />
-        </div>
-      )}
+  // Phase 6c — the dashboard blocks are extracted so detailed density (the
+  // desktop / experienced default) can lay them out as a two-column "studio"
+  // on wide screens: the daily-action flow on the left, a glanceable insight
+  // rail on the right. Simple density (the phone default) keeps the single
+  // thumb-first column, byte-for-byte as before.
 
-      <AttentionRow items={overview?.attention ?? []} />
+  const heroBlock =
+    density === "simple" ? (
+      <div className="flex items-start justify-between gap-3">
+        <HomeStatusStrip
+          firstName={firstName}
+          weather={weather}
+          rawWeather={rawWeather}
+          todaySummary={todaySummary}
+          overdueCount={overdueTaskCount}
+        />
+        {densityToggle}
+      </div>
+    ) : (
+      <div className="space-y-2">
+        <div className="flex justify-end">{densityToggle}</div>
+        <DailyBriefCard
+          firstName={firstName}
+          weather={weather}
+          rawWeather={rawWeather}
+          // Same array App used to pass the card directly pre-merge: the
+          // rows carry lat/lng at runtime; OverviewLocation just doesn't
+          // declare them.
+          locations={locations as unknown as Array<{ lat?: number; lng?: number }>}
+          alerts={alerts}
+          todayTaskCount={todayTaskCount}
+          overdueCount={overdueTaskCount}
+          homeLat={homeLat}
+          homeLng={homeLng}
+          hardinessZone={hardinessZone}
+          aiEnabled={aiEnabled}
+        />
+      </div>
+    );
 
-      {/* Garden Brain Phase 2 — "Your daily brief": the ranked morning voice.
-          Self-hides when today's brief hasn't generated (pre-cron new homes). */}
-      <GardenBrainBriefCard homeId={homeId} userId={userId} density={density} />
-
-      {/* Garden Brain — adaptive-care proposals (Phase 1). Self-hides when the
-          home has no open/verified adjustments (server writes them only for
-          sensor-equipped Sage/Evergreen homes), so no client tier plumbing. */}
-      <AdaptiveCareCard homeId={homeId} currentUserId={userId} />
-
-      {/* The old Overview's AI cards — BOTH densities (product call
-          2026-07-19): they self-gate (Evergreen / ai_insights), self-hide
-          when empty, and show compact upsells when locked. */}
-      {userId && (
-        <>
-          <div data-testid="dashboard-head-gardener-card">
-            <HeadGardenerCard />
-          </div>
-          <div data-testid="dashboard-assistant-card">
-            <AssistantCard userId={userId} showUpgradeWhenLocked />
-          </div>
-        </>
-      )}
-
-      {/* Stable wrapper: the dashboard_tour anchors here so the step works in
-          both the populated-grid and empty-garden states. */}
-      <div data-testid="home-garden-section">
+  const gardenSection = (
+    // Stable wrapper: the dashboard_tour anchors here so the step works in
+    // both the populated-grid and empty-garden states.
+    <div data-testid="home-garden-section">
       {hasGarden ? (
         <GardenOverviewGrid
           locations={locations}
@@ -259,84 +237,153 @@ export default function HomeMain({
           </div>
         </section>
       )}
-      </div>
+    </div>
+  );
 
-      <QuickActionsRow
-        userId={userId}
-        homeId={homeId}
-        persona={persona}
-        availabilityCtx={availabilityCtx}
-      />
+  const quickActions = (
+    <QuickActionsRow
+      userId={userId}
+      homeId={homeId}
+      persona={persona}
+      availabilityCtx={availabilityCtx}
+    />
+  );
 
-      {/* Garden Walk launcher (both densities — flagship flow; e2e drives it
-          via dash-garden-walk from a plain /dashboard visit). */}
-      {totalPlants >= 5 && (
-        <button
-          data-testid="dash-garden-walk"
-          onClick={() => navigate("/walk", { state: { from: "/dashboard" } })}
-          className="w-full bg-brand-gradient-soft text-white rounded-card p-4 flex items-center gap-4 shadow-raised transition-transform duration-200 ease-spring active:scale-[0.98] active:duration-100 touch-manipulation text-left"
-        >
-          <span className="bg-white/15 p-3 rounded-2xl shrink-0">
-            <Footprints size={22} aria-hidden />
+  // Garden Walk launcher (both densities — flagship flow; e2e drives it via
+  // dash-garden-walk from a plain /dashboard visit).
+  const gardenWalk =
+    totalPlants >= 5 ? (
+      <button
+        data-testid="dash-garden-walk"
+        onClick={() => navigate("/walk", { state: { from: "/dashboard" } })}
+        className="w-full bg-brand-gradient-soft text-white rounded-card p-4 flex items-center gap-4 shadow-raised transition-transform duration-200 ease-spring active:scale-[0.98] active:duration-100 touch-manipulation text-left"
+      >
+        <span className="bg-white/15 p-3 rounded-2xl shrink-0">
+          <Footprints size={22} aria-hidden />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block font-black text-sm font-display">Start a Garden Walk</span>
+          <span className="block text-xs text-white/80 mt-0.5">
+            A guided check-in on your {totalPlants} plants — snap, note, or tick as you go.
           </span>
-          <span className="flex-1 min-w-0">
-            <span className="block font-black text-sm font-display">Start a Garden Walk</span>
-            <span className="block text-xs text-white/80 mt-0.5">
-              A guided check-in on your {totalPlants} plants — snap, note, or tick as you go.
-            </span>
-          </span>
-          <ChevronRight size={18} className="shrink-0 text-white/70" aria-hidden />
-        </button>
-      )}
+        </span>
+        <ChevronRight size={18} className="shrink-0 text-white/70" aria-hidden />
+      </button>
+    ) : null;
 
-      {density === "simple" ? (
-        <section data-testid="home-todays-tasks">
-          <div className="flex items-center justify-between px-1 mb-2">
-            <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
-              Today's tasks
-            </h2>
-            <button
-              data-testid="home-tasks-see-all"
-              onClick={() => navigate("/dashboard?view=calendar")}
-              className="text-[11px] font-bold text-rhozly-on-surface/45 hover:text-rhozly-primary transition"
-            >
-              See all
-            </button>
-          </div>
-          <TaskList homeId={homeId} compact targetDate={new Date()} />
-        </section>
-      ) : (
-        /* Detailed: the full task list (the old Overview TasksPanel) — the
-           whole task-management surface, tabs and all. */
-        <div data-testid="dashboard-task-list">
-          <TaskList homeId={homeId} />
+  const tasksBlock =
+    density === "simple" ? (
+      <section data-testid="home-todays-tasks">
+        <div className="flex items-center justify-between px-1 mb-2">
+          <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
+            Today's tasks
+          </h2>
+          <button
+            data-testid="home-tasks-see-all"
+            onClick={() => navigate("/dashboard?view=calendar")}
+            className="text-[11px] font-bold text-rhozly-on-surface/45 hover:text-rhozly-primary transition"
+          >
+            See all
+          </button>
         </div>
-      )}
+        <TaskList homeId={homeId} compact targetDate={new Date()} />
+      </section>
+    ) : (
+      /* Detailed: the full task list (the old Overview TasksPanel) — the
+         whole task-management surface, tabs and all. */
+      <div data-testid="dashboard-task-list">
+        <TaskList homeId={homeId} />
+      </div>
+    );
 
-      {/* Week Ahead — both densities (product call 2026-07-19); Evergreen-gated. */}
-      <FeatureGate feature="ai_insights" fallback={null}>
-        <WeekAheadPreview homeId={homeId} />
-      </FeatureGate>
+  // The old Overview's AI cards — self-gate (Evergreen / ai_insights), self-hide
+  // when empty, and show compact upsells when locked.
+  const aiCards = userId ? (
+    <>
+      <div data-testid="dashboard-head-gardener-card">
+        <HeadGardenerCard />
+      </div>
+      <div data-testid="dashboard-assistant-card">
+        <AssistantCard userId={userId} showUpgradeWhenLocked />
+      </div>
+    </>
+  ) : null;
 
-      {density === "detailed" && (
-        <GardenSnapshot
-          stats={dashStats}
-          loading={dashLoading}
-          error={dashError}
-          refresh={dashRefresh}
-          weekStart={weekStart}
-          weekEnd={weekEnd}
-        />
-      )}
+  // Week Ahead — both densities (product call 2026-07-19); Evergreen-gated.
+  const weekAhead = (
+    <FeatureGate feature="ai_insights" fallback={null}>
+      <WeekAheadPreview homeId={homeId} />
+    </FeatureGate>
+  );
 
-      {density === "simple" && (
-        <SeasonalPicksCard
-          homeId={homeId}
-          aiEnabled={aiEnabled}
-          isPremium={isPremium}
-          variant="dashboard"
-        />
-      )}
+  const snapshot =
+    density === "detailed" ? (
+      <GardenSnapshot
+        stats={dashStats}
+        loading={dashLoading}
+        error={dashError}
+        refresh={dashRefresh}
+        weekStart={weekStart}
+        weekEnd={weekEnd}
+      />
+    ) : null;
+
+  const seasonalPicks =
+    density === "simple" ? (
+      <SeasonalPicksCard
+        homeId={homeId}
+        aiEnabled={aiEnabled}
+        isPremium={isPremium}
+        variant="dashboard"
+      />
+    ) : null;
+
+  // Garden Brain morning voice + adaptive-care proposals — self-hide when empty.
+  const dailyBrief = <GardenBrainBriefCard homeId={homeId} userId={userId} density={density} />;
+  const adaptiveCare = <AdaptiveCareCard homeId={homeId} currentUserId={userId} />;
+  const attention = <AttentionRow items={overview?.attention ?? []} />;
+
+  // ── Simple density (phone default): one thumb-first column, unchanged ──
+  if (density === "simple") {
+    return (
+      <div data-testid="home-main" className="space-y-5">
+        {heroBlock}
+        {attention}
+        {dailyBrief}
+        {adaptiveCare}
+        {aiCards}
+        {gardenSection}
+        {quickActions}
+        {gardenWalk}
+        {tasksBlock}
+        {weekAhead}
+        {seasonalPicks}
+      </div>
+    );
+  }
+
+  // ── Detailed density (desktop / experienced): two-column studio on xl+ ──
+  // Left = the daily-action flow; right = a glanceable insight rail. Below xl
+  // the two columns collapse back into a single stack.
+  return (
+    <div data-testid="home-main">
+      <div className="xl:grid xl:grid-cols-12 xl:gap-6 xl:items-start space-y-5 xl:space-y-0">
+        <div className="xl:col-span-8 space-y-5 min-w-0">
+          {heroBlock}
+          {attention}
+          {dailyBrief}
+          {gardenSection}
+          {quickActions}
+          {gardenWalk}
+          {tasksBlock}
+        </div>
+        <aside className="xl:col-span-4 space-y-5 min-w-0">
+          {adaptiveCare}
+          {aiCards}
+          {weekAhead}
+          {snapshot}
+        </aside>
+      </div>
     </div>
   );
 }

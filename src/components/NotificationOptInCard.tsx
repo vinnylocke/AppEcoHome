@@ -61,40 +61,43 @@ export default function NotificationOptInCard({
   };
 
   return (
+    // Phase 6e — calm, green-first (was a full-bleed sky-blue block that fought
+    // the brand and shouted at new users). A quiet surface card with a green
+    // accent icon and one green primary action; "green leads, colour follows".
     <div
       data-testid="notification-optin-card"
-      className="bg-gradient-to-br from-sky-500 to-sky-600 text-white rounded-3xl p-5 shadow-md relative overflow-hidden"
+      className="bg-rhozly-surface-low border border-rhozly-outline/10 rounded-3xl p-5 relative"
     >
       <button
         data-testid="notification-optin-dismiss"
         onClick={handleDismiss}
         aria-label="Dismiss notifications prompt"
-        className="absolute top-3 right-3 text-white/60 hover:text-white transition-colors"
+        className="absolute top-3 right-3 text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors"
       >
         <X size={14} />
       </button>
       <div className="flex items-start gap-4">
-        <div className="bg-white/20 p-3 rounded-2xl flex-shrink-0">
-          <Bell size={22} className="text-white" />
+        <div className="bg-rhozly-primary/10 p-3 rounded-2xl flex-shrink-0">
+          <Bell size={22} className="text-rhozly-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-black text-sm leading-tight mb-1">
+          <p className="font-black text-sm text-rhozly-on-surface leading-tight mb-1">
             Want a daily watering reminder?
           </p>
-          <p className="text-xs text-white/85 leading-snug mb-3">
-            Get notified about tasks due today, weather alerts (frost · heat · wind), and golden-hour reminders. You can fine-tune categories any time.
+          <p className="text-xs text-rhozly-on-surface/60 leading-snug mb-3">
+            Get notified about tasks due today, weather alerts (frost · heat · wind), and golden-hour reminders. Fine-tune categories any time.
           </p>
           <div className="flex flex-wrap gap-2">
             <button
               data-testid="notification-optin-enable"
               onClick={handleEnable}
-              className="bg-white text-sky-700 text-xs font-black px-4 py-2 min-h-[36px] rounded-full hover:bg-white/90 transition"
+              className="bg-rhozly-primary text-white text-xs font-black px-4 py-2 min-h-[36px] rounded-full hover:opacity-95 transition"
             >
               Enable notifications
             </button>
             <button
               onClick={() => navigate("/gardener?tab=notifications")}
-              className="bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-4 py-2 min-h-[36px] rounded-full transition border border-white/20"
+              className="text-rhozly-on-surface/55 hover:text-rhozly-primary text-xs font-bold px-4 py-2 min-h-[36px] rounded-full transition"
             >
               Customise first
             </button>

@@ -11,6 +11,8 @@
 
 Checks `Notification.permission`. If `"default"` (not yet asked) AND the user hasn't dismissed the card, renders a soft prompt with an "Enable notifications" button and a "Customise first" link into Account Settings. Tapping Enable triggers `Notification.requestPermission()` and — either way — writes the localStorage dismissal so the card never re-asks. Persistence is **localStorage only** (`rhozly_notif_optin_dismissed`); there is **no `onboarding_state` key** for this card.
 
+**Styling (Phase 6e — new-user calm):** the card is a **calm, green-first surface** (`bg-rhozly-surface-low` + hairline border, a `rhozly-primary/10` bell tile, on-surface text, one `rhozly-primary` pill + a quiet ghost link). It deliberately no longer uses the old full-bleed sky-blue gradient, which fought the brand and dominated a new user's first screen — "green leads, colour follows".
+
 ---
 
 ## Role 1 — Technical Reference

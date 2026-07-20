@@ -50,18 +50,23 @@ One page, two densities — **Simple** (guidance-first, the default) and **Detai
 
 **Card order — Detailed density:**
 
-1. Density toggle (top-right), then the `DailyBriefCard` hero — **replaces** the status strip (one greeting, never both; they are the same job at two depths). Receives the same props App used to pass it directly pre-merge (`locations` carries lat/lng at runtime). See [Daily Brief Card](./05-daily-brief-card.md)
+Detailed density is the desktop "studio" (Phase 6c). On **`xl+` (≥1280px)** HomeMain renders a **two-column** layout — a `xl:grid xl:grid-cols-12` with a `xl:col-span-8` **primary** column (the daily-action flow) and a `xl:col-span-4` **insight rail** (`<aside>`, the glanceable secondary cards). Below `xl` the two columns collapse back into a single stack (primary blocks, then rail blocks). The blocks are extracted to named consts in HomeMain so the same elements feed both the simple single-column path and the detailed two-column path — every `data-testid` is unchanged.
+
+*Primary column (left):*
+1. Density toggle (top-right of the column), then the `DailyBriefCard` hero — **replaces** the status strip (one greeting, never both). See [Daily Brief Card](./05-daily-brief-card.md)
 2. `AttentionRow`
 3. `GardenBrainBriefCard` (all items + reasons in detailed density)
-4. `AdaptiveCareCard`
-5. `HeadGardenerCard` in a `data-testid="dashboard-head-gardener-card"` wrapper div (only when `userId`) — self-gates (Evergreen; compact upsell otherwise). See [Head Gardener](./16-head-gardener.md)
-6. `AssistantCard userId showUpgradeWhenLocked` in a `data-testid="dashboard-assistant-card"` wrapper div (only when `userId`) — see [AI Assistant Card](./06-assistant-card.md)
-7. `GardenOverviewGrid` (or `home-empty-garden`)
-8. `QuickActionsRow`
-9. Garden Walk launcher (`dash-garden-walk` — **both** densities)
-10. **Full `TaskList`** in a `data-testid="dashboard-task-list"` wrapper div — the whole task-management surface (Daily Tasks heading, Pending/Completed tabs), the old Overview TasksPanel role
-11. `WeekAheadPreview` inside `<FeatureGate feature="ai_insights" fallback={null}>` — Evergreen-only (RHO-9)
-12. `GardenSnapshot` — the collapsible "This Week at a Glance" stat wall (below)
+4. `GardenOverviewGrid` (or `home-empty-garden`) in the `home-garden-section` wrapper
+5. `QuickActionsRow`
+6. Garden Walk launcher (`dash-garden-walk` — **both** densities)
+7. **Full `TaskList`** in a `data-testid="dashboard-task-list"` wrapper div — the whole task-management surface (Daily Tasks heading, Pending/Completed tabs), the old Overview TasksPanel role
+
+*Insight rail (right, `<aside>`):*
+1. `AdaptiveCareCard`
+2. `HeadGardenerCard` in a `data-testid="dashboard-head-gardener-card"` wrapper div (only when `userId`) — self-gates (Evergreen; compact upsell otherwise). See [Head Gardener](./16-head-gardener.md)
+3. `AssistantCard userId showUpgradeWhenLocked` in a `data-testid="dashboard-assistant-card"` wrapper div (only when `userId`) — see [AI Assistant Card](./06-assistant-card.md)
+4. `WeekAheadPreview` inside `<FeatureGate feature="ai_insights" fallback={null}>` — Evergreen-only (RHO-9)
+5. `GardenSnapshot` — the collapsible "This Week at a Glance" stat wall (below)
 
 ### GardenSnapshot (`src/components/home/GardenSnapshot.tsx`)
 

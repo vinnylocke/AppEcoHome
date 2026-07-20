@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "label": "A roomier desktop dashboard",
+    "items": [
+      "On a computer, your dashboard now uses the full width — today's brief, garden and tasks on the left, with your Head Gardener, the week ahead and your garden snapshot in a tidy side rail."
+    ]
+  },
+  {
+    "label": "A calmer first run",
+    "items": [
+      "The “daily reminder” prompt is now quieter and on-brand — a fresh garden feels welcoming, not busy."
+    ]
+  }
+]
