@@ -1,24 +1,33 @@
-# Quick Access Home
+# Quick Access Home — **RETIRED**
 
-> The mobile shortcut home. A customisable launcher tuned for one-thumb operation in the garden — by default **Plant Doctor** (the full `/doctor` AI vision tool), **Today** (Localized Task Calendar), **Capture** (deep-links into the full Journal with the Add Entry sheet open), and **Plants** (jumps straight to The Shed). Users can swap in any of the catalogue's destinations and reorder them from Account Settings. Phone users land here on app open instead of the full dashboard.
+> **This surface has been removed (2026-07-20 — "one responsive home").** The phone-only `/quick` launcher home (`QuickAccessHome`) was folded into the responsive `/dashboard`. Phone + desktop now BOTH land on `/dashboard` (Simple density on phone is the fast glanceable view; two-column studio on desktop). It was redundant: the dashboard's **QuickActionsRow** already renders from the SAME customisable launcher catalogue + saved pins (`home-quick-actions`, `home-quick-tile-*`, `home-quick-actions-customise`), and `/quick` was also focus-mode (no header/Deck), making the phone's landing screen inconsistent with the rest of the app.
+>
+> **Where each piece went:**
+> - **The customisable launcher** → the dashboard's `QuickActionsRow` (`src/components/home/QuickActionsRow.tsx`) — same catalogue, same pins, same Customise link. See [Home (Main Dashboard)](./17-home-main.md).
+> - **The planting helper (the "Today" tile)** → `/quick/calendar` (`LocalizedTaskCalendar`) is KEPT as a focus-mode tool, reached via the dashboard's "Today" launcher tile (`home-quick-tile-today` → `/quick/calendar`). Its back button now returns to `/dashboard`. See [Localized Task Calendar](./10-localized-task-calendar.md).
+> - **The `/` redirect** → now always `/dashboard` for both platforms (was `<Navigate to={isMobile ? "/quick" : "/dashboard"}>`); bare `/quick` now `<Navigate to="/dashboard" replace/>` (a legacy-deep-link redirect).
+> - **The mobile-only "Quick" nav item** (id `quick`, Zap icon, `matchPaths ["/quick"]`) → REMOVED from `navLinks` in App.tsx.
+> - `QuickAccessHome.tsx`, and the now-orphaned `WalkStartTile.tsx` + `TodayFocusCard.tsx`, were deleted.
+>
+> The historical body below is preserved for reference. The launcher catalogue + pins it documents live on unchanged in the dashboard's QuickActionsRow — read every "on `/quick`" statement as "on the dashboard's QuickActionsRow" now.
 
-> **Retired:** the `/quick/lens` route (and its `QuickAccessLens` wrapper), the `/quick/journal` route (with `QuickCapture`), and the entire `/library/*` UI tree — their tiles now route to `/doctor`, `/journal?open=add-entry`, and `/shed` respectively. Plant search lives inside Add-to-Shed, Shopping, Multi-ID, and the Nursery picker; the `plant_library` DB table is unchanged. The historical body below still references those routes for context but should be read with that in mind.
+> **Earlier retirements (pre-2026-07-20, kept for context):** the `/quick/lens` route (and its `QuickAccessLens` wrapper), the `/quick/journal` route (with `QuickCapture`), and the entire `/library/*` UI tree — their tiles routed to `/doctor`, `/journal?open=add-entry`, and `/shed` respectively. Plant search lives inside Add-to-Shed, Shopping, Multi-ID, and the Nursery picker; the `plant_library` DB table is unchanged.
 
-**Route:** `/quick`
-**Source files (entry points):**
-- `src/components/QuickAccessHome.tsx`
-- `src/components/quick/QuickTile.tsx`
+**Route:** ~~`/quick`~~ → redirects to `/dashboard`
+**Source files (historical — the launcher files live on; `QuickAccessHome.tsx` / `QuickAccessLens.tsx` were deleted):**
+- ~~`src/components/QuickAccessHome.tsx`~~ *(deleted 2026-07-20)*
+- `src/components/quick/QuickTile.tsx` *(still powers the dashboard launcher)*
 - `src/components/quick/QuickLauncherPicker.tsx` (the Account-Settings picker for the customisable launcher)
 - `src/lib/quickLauncherCatalogue.ts` (catalogue of pinnable destinations)
 - `src/lib/quickLauncherPrefs.ts` (localStorage + Supabase pin storage)
 - `src/hooks/useQuickLauncherPins.ts` (local-first hook)
-- `src/components/QuickAccessLens.tsx` (the `/quick/lens` mounting wrapper)
+- ~~`src/components/QuickAccessLens.tsx`~~ *(the `/quick/lens` wrapper — retired earlier)*
 
 ---
 
 ## Quick Summary
 
-A focused, opinionated mobile home page that surfaces the three in-the-garden tasks Rhozly handles best — analyse a plant, see today's tasks + rain, capture a note. Phone viewports (width < 768px OR `Capacitor.isNativePlatform()`) land here on `/`; desktop continues to `/dashboard`. The side nav and top bar stay so users can drop into any full screen at any time.
+**RETIRED (2026-07-20)** — read historically. A focused, opinionated mobile home page that surfaced the three in-the-garden tasks Rhozly handles best — analyse a plant, see today's tasks + rain, capture a note. Phone viewports (width < 768px OR `Capacitor.isNativePlatform()`) used to land here on `/`; desktop continued to `/dashboard`. **Both platforms now land on the responsive `/dashboard`**, whose `QuickActionsRow` carries the identical customisable launcher; the only piece that survives as its own screen is the `/quick/calendar` planting helper, reached from the dashboard's "Today" launcher tile.
 
 ---
 
@@ -264,11 +273,11 @@ No difference.
 - `src/components/PlantDoctor.tsx` — accepts a `compact?: boolean` prop; when true, hides the tab bar + secondary action row
 - `src/components/GardenerProfile.tsx` — Account tab mounts `<QuickLauncherPicker>` below the existing account form
 - `src/hooks/useIsMobile.ts` — `Capacitor.isNativePlatform() || viewport < 768px`
-- `src/App.tsx` — conditional `/` redirect, `/quick` + `/quick/lens` routes, mobile-only "Quick" nav entry, sign-out clear via `clearLocalPins`
+- `src/App.tsx` — the `/` redirect (now always `/dashboard`), the `/quick` → `/dashboard` redirect, and `sign-out clear via clearLocalPins`. The mobile-only "Quick" nav entry was removed 2026-07-20; the `/quick/lens` route was retired earlier.
 - `supabase/migrations/20260624000700_user_profiles_quick_launcher_pins.sql` — adds the jsonb column
 - `tests/unit/hooks/useIsMobile.test.ts` — hook unit tests
 - `tests/unit/lib/quickLauncherCatalogue.test.ts` — catalogue resolve + picker partition
 - `tests/unit/lib/quickLauncherPrefs.test.ts` — local read/write/clear + sanitisation
 - `tests/unit/components/QuickTile.test.ts` — tile unit tests
 - `tests/unit/components/QuickAccessHome.test.ts` — home screen unit tests
-- `tests/e2e/specs/quick-access.spec.ts` — routing + nav visibility E2E
+- `tests/e2e/specs/quick-access.spec.ts` — rewritten 2026-07-20: asserts `/` and `/quick` redirect to `/dashboard` on both platforms, the launcher lives on the dashboard (`home-quick-actions` + `home-quick-tile-*`), and `/quick/calendar` stays focus-mode

@@ -6,10 +6,11 @@ import { useSyncExternalStore } from "react";
  *  - the app is running natively (iOS/Android Capacitor wrapper), OR
  *  - the viewport is narrower than 768px (matches Tailwind `md`).
  *
- * Used by App.tsx to decide the `/` redirect target (mobile → `/quick`,
- * desktop → `/dashboard`) and to conditionally surface the "Quick"
- * nav entry. Single source of truth for routing-level decisions; visual
- * decisions still use Tailwind `md:` utilities for layout.
+ * Used by App.tsx for routing-level decisions (e.g. focus-mode gating for
+ * Garden Walk / the planting calendar). The `/` redirect now targets
+ * `/dashboard` on both platforms — the one responsive home — so it no longer
+ * branches on this. Single source of truth for routing-level decisions;
+ * visual decisions still use Tailwind `md:` utilities for layout.
  */
 const MOBILE_MAX_WIDTH = 768;
 

@@ -8,7 +8,7 @@
 
 ## Quick Summary
 
-**Desktop-only** vertical rail (Phase 6a — the render gate is `{!isFocusMode && isMdBreakpoint && (…)}`, so phones never see it) on the `bg-rhozly-primary-container` green, grouped under small uppercase labels — **Garden** (Dashboard, Plants), **Plan** (Planner, Journal), **AI & Tools** (Tools, Integrations, Head Gardener — Evergreen only). The rail's NavItems now always pass `isMobile={false}`. (The standalone **Notes** item was retired in the Phase 5 IA pass — Notes is now a tab inside the Journal hub.) The mobile-only **Quick** item still lives in `navLinks` but, since the rail is desktop-only, it now surfaces in the **Shelf** (the `MobileNavDrawer`) rather than the rail. The active item shows a calm left accent bar + white tint (the old white-pill + icon-zoom treatment was retired in the design overhaul). Help Center, Privacy, Cookies pinned at the bottom. Active route highlighted via `routerLocation.pathname` match against `matchPaths`. On phones, primary nav is the [Bottom Tab Bar](./11-bottom-tab-bar.md) plus the Shelf overflow drawer — see the collapsed-state note below.
+**Desktop-only** vertical rail (Phase 6a — the render gate is `{!isFocusMode && isMdBreakpoint && (…)}`, so phones never see it) on the `bg-rhozly-primary-container` green, grouped under small uppercase labels — **Garden** (Dashboard, Plants), **Plan** (Planner, Journal), **AI & Tools** (Tools, Integrations, Head Gardener — Evergreen only). The rail's NavItems now always pass `isMobile={false}`. (The standalone **Notes** item was retired in the Phase 5 IA pass — Notes is now a tab inside the Journal hub. The mobile-only **Quick** item was retired 2026-07-20 when the `/quick` launcher home was folded into the responsive dashboard.) The active item shows a calm left accent bar + white tint (the old white-pill + icon-zoom treatment was retired in the design overhaul). Help Center, Privacy, Cookies pinned at the bottom. Active route highlighted via `routerLocation.pathname` match against `matchPaths`. On phones, primary nav is the [Bottom Tab Bar](./11-bottom-tab-bar.md) plus the Shelf overflow drawer — see the collapsed-state note below.
 
 ---
 
@@ -41,7 +41,7 @@ nav (left rail, aria-label="Primary navigation")
 }
 ```
 
-Current entries (top → bottom): Quick (mobile only) · **Garden:** Dashboard (`/dashboard`, `/management`, `/home-management`, `/` on desktop — overdue badge, rose), Plants (`/shed`, `/watchlist`) · **Plan:** Planner (`/planner`, `/shopping`, `/schedule`), Journal (`/journal`, `/notes`) · **AI & Tools:** Tools (`/tools`, `/doctor`, `/visualiser`, `/lightsensor`, `/guides`, `/garden-layout`, `/sun-trajectory`, `/weekly` — icon `IconTools`/Wrench), Integrations, Head Gardener (`/manager` — **Evergreen only**, see below).
+Current entries (top → bottom): **Garden:** Dashboard (`/dashboard`, `/management`, `/home-management`, `/` on desktop — overdue badge, rose), Plants (`/shed`, `/watchlist`) · **Plan:** Planner (`/planner`, `/shopping`, `/schedule`), Journal (`/journal`, `/notes`) · **AI & Tools:** Tools (`/tools`, `/doctor`, `/visualiser`, `/lightsensor`, `/guides`, `/garden-layout`, `/sun-trajectory`, `/weekly` — icon `IconTools`/Wrench), Integrations, Head Gardener (`/manager` — **Evergreen only**, see below). (The mobile-only **Quick** item was removed 2026-07-20 with the retirement of the `/quick` launcher home.)
 
 The **Notes** item was removed in the Phase 5 IA pass — Notes is now a tab inside the Journal hub, so the **Journal** item's `matchPaths` cover both `/journal` and `/notes`.
 

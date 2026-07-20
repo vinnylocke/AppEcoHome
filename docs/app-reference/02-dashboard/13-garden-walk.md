@@ -13,7 +13,7 @@
 - `src/components/walk/WalkPlantCard.tsx` — one full-bleed card **per (plant × area) group** + sticky action bar + its task rows. Same-plant, same-area instances collapse into one card (RHO-18): the card shows a "N plants" count chip + a collapsible per-instance list, and Snap/Note offer a "which plant(s)?" multi-select (`InstancePicker`, defaults to all) so a photo/note files against the chosen instance(s)
 - `src/components/walk/WalkTaskRow.tsx` — one task row (complete / postpone / skip, plus the full in-window harvest strip) shared by section and plant cards
 - `src/components/walk/WalkSummaryCard.tsx` — end-of-walk celebration (+ sections visited, readings logged, skipped-earlier list; persona framing)
-- `src/components/walk/WalkStartTile.tsx` — wide tile on Quick Access
+- Launched from the dashboard's `dash-garden-walk` button (`src/components/home/HomeMain.tsx`, both densities, when `totalPlants >= 5`) — the old `WalkStartTile` on the retired `/quick` home is gone
 - `src/lib/gardenWalk.ts` — plant signals (`composeAndOrderWalk`) + hierarchical route composer (`composeWalkRoute`, pure + unit-tested) + fetch orchestration (`buildWalkRoute`); exports `MAX_PLANTS_PER_WALK`, `derivePlanPhase`
 - `src/lib/taskActions.ts` — shared task mutation core (complete / skip / postpone / `snoozeHarvestTask`) used by the walk AND TaskList
 - `src/services/walkService.ts` — session + visit writes, resume lookup, section visits
@@ -393,7 +393,7 @@ Set your persona in your Garden Profile. **New gardener** (the default): guidanc
 - `src/components/walk/WalkTaskRow.tsx` — task row + postpone sheet + in-window harvest strip (mounts the Task Detail harvest sheets)
 - `src/components/walk/WalkPlantCard.tsx` — plant card (+ its task rows, passing `plantName` for AI grounding)
 - `src/components/walk/WalkSummaryCard.tsx` — end-of-walk view (readings stat, persona framing)
-- `src/components/walk/WalkStartTile.tsx` — Quick Access entry tile
+- `src/components/home/HomeMain.tsx` — the `dash-garden-walk` launch button (replaced the retired `WalkStartTile`)
 - `src/lib/gardenWalk.ts` — `composeAndOrderWalk`, `composeWalkRoute`, `buildWalkRoute`, `MAX_PLANTS_PER_WALK`, `derivePlanPhase`, `WalkDevice` / `AreaLatestReadings` / `WalkWatchlistItem` / `WalkPlanDigest` types
 - `src/lib/taskActions.ts` — shared complete/skip/postpone/`snoozeHarvestTask` mutation core
 - `src/services/planStagingService.ts` — `activateMaintenanceBlueprints` (the walk's phase-5 action reuses it verbatim)

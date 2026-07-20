@@ -175,12 +175,12 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   // RHO-7/8: return to wherever the walk was launched from. The launch
-  // sites pass `state.from` (dashboard → "/dashboard", Quick Access tile →
-  // "/quick"). Default to "/quick" when absent — a hard refresh mid-walk
-  // drops location.state, and the mobile Quick Access menu is the safe
-  // fallback (matches the pre-fix behaviour).
+  // sites pass `state.from` (e.g. dashboard → "/dashboard"). Default to
+  // "/dashboard" when absent — a hard refresh mid-walk drops location.state,
+  // and the one responsive home is the safe fallback (the old /quick home was
+  // retired 2026-07-20).
   const returnTo =
-    (location.state as { from?: string } | null)?.from ?? "/quick";
+    (location.state as { from?: string } | null)?.from ?? "/dashboard";
   const [state, dispatch] = useReducer(reducer, { kind: "loading" } as WalkState);
   // `startedAtMs` is tracked per-walk-instance — re-set on Walk Again so
   // the new session's duration starts at zero, not from the original

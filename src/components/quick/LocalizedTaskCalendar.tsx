@@ -114,12 +114,12 @@ export default function LocalizedTaskCalendar({ homeId, aiEnabled, isPremium }: 
         <button
           type="button"
           data-testid="quick-calendar-back"
-          onClick={() => navigate("/quick")}
+          onClick={() => navigate("/dashboard")}
           className="inline-flex items-center gap-1 min-h-[44px] px-2 -ml-2 text-sm font-bold text-rhozly-on-surface/60 hover:text-rhozly-primary transition"
-          aria-label="Back to Quick Access"
+          aria-label="Back to dashboard"
         >
           <ChevronLeft size={18} />
-          Quick
+          Home
         </button>
         <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-primary/70">
           Today's Calendar

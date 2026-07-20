@@ -43,12 +43,14 @@ const MOCK_PLANTING_GUIDANCE = {
 test.describe("Quick Calendar — mobile routing", () => {
   test.use({ viewport: MOBILE_VIEWPORT });
 
-  test("QUICK-CAL-001: Today tile on /quick navigates to /quick/calendar", async ({ authenticatedPage }) => {
-    // Mock both edge fn calls so the calendar screen renders fully.
+  test("QUICK-CAL-001: the dashboard Today tile navigates to /quick/calendar", async ({ authenticatedPage }) => {
+    // Mock the edge fn call so the calendar screen renders fully.
     await mockEdgeFunction(authenticatedPage, "plant-doctor", MOCK_FROST_DATES);
 
-    await authenticatedPage.goto("/quick");
-    await authenticatedPage.getByTestId("quick-tile-calendar").click();
+    // The launcher lives on the responsive dashboard now (the /quick home was
+    // retired 2026-07-20); the "Today" tile opens the planting helper.
+    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.getByTestId("home-quick-tile-today").click();
     await expect(authenticatedPage).toHaveURL(/\/quick\/calendar$/);
     await expect(authenticatedPage.getByTestId("localized-task-calendar")).toBeVisible();
   });
@@ -99,11 +101,11 @@ test.describe("Quick Calendar — mobile routing", () => {
     await expect(authenticatedPage.getByText("Harden off before transplanting outdoors.")).toBeVisible();
   });
 
-  test("QUICK-CAL-005: back button on calendar returns to /quick", async ({ authenticatedPage }) => {
+  test("QUICK-CAL-005: back button on the calendar returns to /dashboard", async ({ authenticatedPage }) => {
     await mockEdgeFunction(authenticatedPage, "plant-doctor", MOCK_FROST_DATES);
     await authenticatedPage.goto("/quick/calendar");
     await authenticatedPage.getByTestId("quick-calendar-back").click();
-    await expect(authenticatedPage).toHaveURL(/\/quick$/);
+    await expect(authenticatedPage).toHaveURL(/\/dashboard$/);
   });
 
   test("QUICK-CAL-006: Add button opens QuickAddTaskModal and saving inserts a task", async ({ authenticatedPage }) => {

@@ -1,6 +1,6 @@
 # Localized Task Calendar
 
-> The mobile home screen for "what's happening in my garden today?" Three cards stacked top-to-bottom: a frost-aware planting helper, a rain-vs-watering advice tile, and today's pending tasks. Mounted at `/quick/calendar` and reachable from the Today tile on Quick Access Home. Mobile shortcut layer — desktop users keep getting the full Dashboard.
+> The mobile planting-helper screen for "what's happening in my garden today?" Three cards stacked top-to-bottom: a frost-aware planting helper, a rain-vs-watering advice tile, and today's pending tasks. Mounted at `/quick/calendar` and reachable from the **"Today" launcher tile on the dashboard** (`home-quick-tile-today`; since the `/quick` launcher home was retired 2026-07-20, the Today tile lives in the dashboard's `QuickActionsRow`). Still a focus-mode tool on mobile; its back button returns to `/dashboard`. Desktop users keep getting the full Dashboard.
 
 **Route:** `/quick/calendar`
 **Source files (entry points):**
@@ -26,7 +26,7 @@ The screen is **additive** — `/dashboard` and `/dashboard?view=calendar` are u
 
 ```
 LocalizedTaskCalendar (mounted at /quick/calendar)
-├── Back chrome (chevron-left "Quick" + "Today's Calendar" label)
+├── Back chrome (chevron-left "Home" label → navigate("/dashboard"); was "Quick" → /quick before the 2026-07-20 retirement)
 ├── PlantingCalendarCard
 │   ├── Frost dates row (last frost / first frost)
 │   ├── Plant input + Submit
@@ -221,7 +221,7 @@ No difference.
 
 ### Recommended workflows
 
-- **"Should I plant this today?"**: open Quick Access → Today tile → type the plant → read the verdict. Two taps total.
+- **"Should I plant this today?"**: open the dashboard → Today launcher tile → type the plant → read the verdict. Two taps total.
 - **"Do I water today?"**: open Today, scan the middle tile, done.
 - **"Customise my rain advice"**: go to Account → Home Management → Climate Settings tab → Rain advice thresholds section. Save once; the calendar uses your numbers from then on.
 
@@ -234,7 +234,8 @@ No difference.
 
 ## Related reference files
 
-- [Quick Access Home](./09-quick-access-home.md) — parent screen; the Today tile lives here
+- [Home (Main Dashboard)](./17-home-main.md) — the Today launcher tile that opens this screen now lives in the dashboard's `QuickActionsRow`
+- [Quick Access Home](./09-quick-access-home.md) — **RETIRED (2026-07-20)**; the old parent screen that used to host the Today tile
 - [Quick Add Task Modal](../08-modals-and-overlays/35-quick-add-task-modal.md) — the slim modal the + Add button mounts
 - [Add Task / Edit Schedule Modal](../08-modals-and-overlays/01-add-task-modal.md) — the full sibling for recurring schedules + area/plant binding
 - [Plant Doctor](../05-tools/02-plant-doctor.md) — owner of the `lookup_frost_dates` + `plant_when_to_plant` actions
@@ -258,4 +259,4 @@ No difference.
 - `tests/unit/components/RainWaterAdvice.test.ts` — pure helper + render tests
 - `tests/unit/components/PlantingCalendarCard.test.ts` — loading + error + submit flows
 - `tests/unit/components/LocalizedTaskCalendar.test.ts` — composition + back navigation
-- `tests/e2e/specs/quick-calendar.spec.ts` — routing + AI lookup happy path
+- `tests/e2e/specs/quick-calendar.spec.ts` — routing + AI lookup happy path (QUICK-CAL-001 enters via the dashboard Today tile; QUICK-CAL-005 back button now expects `/dashboard`)

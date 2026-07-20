@@ -8,7 +8,7 @@
 
 ## Quick Summary
 
-Mobile-only (`md:hidden`) fixed bar with five slots: **Home** (`/dashboard`), **Plants** (`/shed`), the raised **Capture** FAB (centre — opens the [Capture sheet](../08-modals-and-overlays/41-capture-sheet.md)), **Planner** (`/planner`), and **More** (opens the **Shelf** overflow drawer). Only the three destination tabs derive an active state from the route; the Capture FAB and More are **actions**, not destinations, so they never light. Home carries the overdue-task badge. Hidden entirely in focus mode (`/quick` routes own their chrome) and on desktop (the sidebar owns navigation there). On phones this is the **only** primary nav — the [sidebar](./02-sidebar.md) is gated behind `isMdBreakpoint` (Phase 6a) and never co-renders on mobile. **Plant Doctor and Tools no longer have dedicated slots**: Doctor is the Capture sheet's hero action; Tools and the long tail (Quick, Journal, Integrations, Head Gardener) live in the **Shelf** the More slot opens.
+Mobile-only (`md:hidden`) fixed bar with five slots: **Home** (`/dashboard`), **Plants** (`/shed`), the raised **Capture** FAB (centre — opens the [Capture sheet](../08-modals-and-overlays/41-capture-sheet.md)), **Planner** (`/planner`), and **More** (opens the **Shelf** overflow drawer). Only the three destination tabs derive an active state from the route; the Capture FAB and More are **actions**, not destinations, so they never light. Home carries the overdue-task badge. Hidden entirely in focus mode (`/quick` routes own their chrome) and on desktop (the sidebar owns navigation there). On phones this is the **only** primary nav — the [sidebar](./02-sidebar.md) is gated behind `isMdBreakpoint` (Phase 6a) and never co-renders on mobile. **Plant Doctor and Tools no longer have dedicated slots**: Doctor is the Capture sheet's hero action; Tools and the long tail (Journal, Integrations, Head Gardener) live in the **Shelf** the More slot opens.
 
 ---
 
@@ -68,7 +68,7 @@ The slot descriptor gained action + variant fields so a single array can express
 
 ### The More slot
 
-`id: "more"`, `Menu` icon, `variant` defaults to `"nav"` but it carries **no `matchPaths`** (so `active` is always false — it never lights) and **no `to`**; its `onPress` → `setQuickDrawerOpen(true)` opens the **Shelf** — the same `MobileNavDrawer` the Phase 6a header hamburger used to open. This is where Tools, Quick, Journal, Notes, Integrations, Head Gardener, and every long-tail destination now live.
+`id: "more"`, `Menu` icon, `variant` defaults to `"nav"` but it carries **no `matchPaths`** (so `active` is always false — it never lights) and **no `to`**; its `onPress` → `setQuickDrawerOpen(true)` opens the **Shelf** — the same `MobileNavDrawer` the Phase 6a header hamburger used to open. This is where Tools, Journal, Notes, Integrations, Head Gardener, and every long-tail destination now live. (The mobile-only **Quick** nav item was removed 2026-07-20 when the `/quick` launcher home was folded into the responsive dashboard.)
 
 ### Active-state contract
 
@@ -122,7 +122,7 @@ With one hand on the phone and the other in the soil, the hamburger menu was a r
 
 1. **Jump between core screens** — tap Home, Plants, or Planner; the green label and the little bar above the icon show where you are.
 2. **Capture what's in front of you** — tap the raised green **+** in the centre. A sheet slides up with **Diagnose a plant** front and centre, plus quick verbs: add a plant, jot a journal note, add a task, start a garden walk. Each one drops you straight into that flow.
-3. **Reach everything else** — tap **More** to open the **Shelf**: Plant Doctor's toolbox neighbours, Quick Access, Journal, Notes, Integrations, Head Gardener, and the rest.
+3. **Reach everything else** — tap **More** to open the **Shelf**: Plant Doctor's toolbox neighbours, Journal, Notes, Integrations, Head Gardener, and the rest.
 4. **See what's overdue at a glance** — the red count on Home is your overdue tasks; it clears as you complete them.
 
 ### Information on display — what every field means
@@ -142,8 +142,8 @@ Identical for every tier. (What the Capture sheet's Diagnose action leads to is 
 ### Common mistakes / pitfalls
 
 - **Hunting for a "Doctor" tab.** Plant Doctor lost its dedicated slot in Phase 6b — it's now the hero action inside **Capture** (the green +). Tap +, then "Diagnose a plant".
-- **Hunting for a "Tools" tab.** The toolbox, Journal, Notes, Integrations, Head Gardener and Quick all live under **More** → the **Shelf**. When you open one, the Deck's nearest destination tab stays neutral (Capture and More never light).
-- **Looking for the bar on `/quick` screens** — focus-mode screens (Quick Access, Garden Walk) intentionally hide it; use their own corner buttons.
+- **Hunting for a "Tools" tab.** The toolbox, Journal, Notes, Integrations and Head Gardener all live under **More** → the **Shelf**. When you open one, the Deck's nearest destination tab stays neutral (Capture and More never light).
+- **Looking for the bar on focus-mode screens** — Garden Walk (`/walk`) and the mobile planting helper (`/quick/calendar`) intentionally hide it; use their own corner buttons.
 
 ### What to do if something looks wrong
 
@@ -159,7 +159,8 @@ Identical for every tier. (What the Capture sheet's Diagnose action leads to is 
 - [Sidebar Navigation](./02-sidebar.md) — the full nav (desktop-only since Phase 6a; the Shelf drawer is the phone overflow)
 - [Header / Top Bar](./01-header.md) — de-crowded on mobile (Phase 6b): the Deck's Capture FAB + More carry create + overflow
 - [Global Quick Add](../08-modals-and-overlays/23-global-quick-add.md) — the desktop header "+" the Capture sheet folds in on phones
-- [Quick Access Home](../02-dashboard/09-quick-access-home.md) — the focus-mode world where the bar hides
+- [Garden Walk](../02-dashboard/13-garden-walk.md) — the focus-mode surface where the bar hides (with the mobile `/quick/calendar` planting helper)
+- [Quick Access Home](../02-dashboard/09-quick-access-home.md) — **RETIRED (2026-07-20)**; the old phone landing that used to hide the bar, now folded into the dashboard
 - [Design System](../99-cross-cutting/40-design-system.md) — blur budget, press language, `Z` ladder
 - [Routing](../99-cross-cutting/21-routing.md)
 

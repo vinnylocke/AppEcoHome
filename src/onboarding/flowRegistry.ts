@@ -609,34 +609,9 @@ export const flowRegistry: FlowDef[] = [
   //                       the welcome flow
   // Throttle (one auto-tour per day) applies unless `important: true`.
 
-  {
-    id: "quick_access_tour",
-    order: 13,
-    trigger: "automatic",
-    route: "/quick",
-    prerequisite: "global_welcome",
-    title: "Quick Access Home (Mobile)",
-    description: "Why the mobile shell trims away the nav, and how to flip back to the full app.",
-    category: "Getting Started",
-    estimated_minutes: 1,
-    steps: [
-      {
-        title: "Welcome to focus mode",
-        body: "You landed on Quick Access Home — a stripped-back shell designed for one-handed use on mobile. Push notifications, share extensions, and home-screen shortcuts all open here.",
-        attachTo: { element: null, on: null },
-      },
-      {
-        title: "Just the essentials",
-        body: "The page shows today's priority card and a small set of tiles tuned for fast action — water, log a note, scan a leaf with Plant Doctor. Tap any tile to jump straight into that flow.",
-        attachTo: { element: null, on: null },
-      },
-      {
-        title: "Back to the full app",
-        body: "Tap the back arrow (or any deep link) to return to the regular dashboard with its full nav. Quick Access is opt-in per visit — you never get stuck here.",
-        attachTo: { element: null, on: null },
-      },
-    ],
-  },
+  // quick_access_tour removed 2026-07-20 — the phone /quick launcher home it
+  // described was retired ("one responsive home"); its launcher now lives on
+  // the responsive /dashboard (see quick_launcher_customise_tour below).
 
   {
     id: "weekly_overview_tour",
@@ -960,15 +935,15 @@ export const flowRegistry: FlowDef[] = [
     order: 23,
     trigger: "manual-only",
     route: "/profile",
-    prerequisite: "quick_access_tour",
+    prerequisite: "global_welcome",
     title: "Customise the Quick Launcher",
-    description: "Pick which 8 (or more) tiles appear in the + menu, and in what order.",
+    description: "Pick which 8 (or more) tiles appear in the Quick Actions on your dashboard, and in what order.",
     category: "Getting Started",
     estimated_minutes: 1,
     steps: [
       {
         title: "Your toolbox, your way",
-        body: "The Quick Launcher (the round + button in the header, plus the Quick Access Home tiles) defaults to the eight most-used shortcuts. Sixteen are available — let's pick yours.",
+        body: "The Quick Launcher — the Quick Actions tiles on your dashboard — defaults to the eight most-used shortcuts. Sixteen are available — let's pick yours.",
         attachTo: { element: null, on: null },
       },
       {

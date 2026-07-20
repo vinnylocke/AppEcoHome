@@ -52,7 +52,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [AI Assistant Card](./02-dashboard/06-assistant-card.md) — user_insights surface
 - [x] [Location Page (Drill-In)](./02-dashboard/07-location-page.md) — `?locationId=` view
 - [x] [Weather Alert Banner](./02-dashboard/08-weather-alert-banner.md) — frost / heat / wind / rain alerts
-- [x] [Quick Access Home](./02-dashboard/09-quick-access-home.md) — mobile shortcut home (`/quick`) with the customisable launcher (defaults: **Plant Doctor / Today / Capture / Plants**)
+- [~] [Quick Access Home](./02-dashboard/09-quick-access-home.md) — **RETIRED — folded into the responsive dashboard** (2026-07-20, "one responsive home"); `/quick` now redirects to `/dashboard`, whose `QuickActionsRow` carries the same customisable launcher; the planting helper is kept at `/quick/calendar` via the dashboard's Today tile
 - [x] [Localized Task Calendar](./02-dashboard/10-localized-task-calendar.md) — mobile `/quick/calendar` with frost-aware planting helper, rain-vs-watering advice, and today's pending tasks
 - [~] [Quick Capture Journal](./02-dashboard/11-quick-capture-journal.md) — **RETIRED:** `/quick/journal` removed; Capture tile now deep-links to `/journal?open=add-entry`
 - [~] [The Library](./02-dashboard/12-the-library.md) — **RETIRED:** `/library/*` UI removed. Plant search lives inside Add-to-Shed, Shopping, Multi-ID and the Nursery picker; the `plant_library` DB table is unchanged. The detail overlay (Care / Grow Guide / Companions / Light) is now `PlantDetailModal`, opened from any search-result row.

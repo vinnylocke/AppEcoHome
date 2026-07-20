@@ -227,10 +227,10 @@ describe("LocalizedTaskCalendar", () => {
     expect(list.getAttribute("data-target-date")).toBe(new Date().toDateString());
   });
 
-  test("back button routes to /quick", () => {
+  test("back button routes to /dashboard", () => {
     renderCalendar();
     fireEvent.click(screen.getByTestId("quick-calendar-back"));
-    expect(navigateMock).toHaveBeenCalledWith("/quick");
+    expect(navigateMock).toHaveBeenCalledWith("/dashboard");
   });
 
   test("Add button is enabled when the user has tasks.create_home", () => {

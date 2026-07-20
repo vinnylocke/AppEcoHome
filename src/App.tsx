@@ -12,7 +12,6 @@ import {
   RefreshCw,
   AlertCircle,
   HelpCircle,
-  Zap,
   BookOpen,
   Leaf,
 } from "lucide-react";
@@ -96,7 +95,6 @@ const PlantLibraryAdmin = lazyWithRetry(() => import("./components/admin/PlantLi
 const AiCallsAdmin = lazyWithRetry(() => import("./components/admin/AiCallsAdmin"));
 const ContentFeedbackAdmin = lazyWithRetry(() => import("./components/admin/ContentFeedbackAdmin"));
 const PlantDoctor         = lazyWithRetry(() => import("./components/PlantDoctor"));
-const QuickAccessHome     = lazyWithRetry(() => import("./components/QuickAccessHome"));
 const LocalizedTaskCalendar = lazyWithRetry(() => import("./components/quick/LocalizedTaskCalendar"));
 const JournalNotesHub       = lazyWithRetry(() => import("./components/JournalNotesHub"));
 const CaptureSheet          = lazyWithRetry(() => import("./components/CaptureSheet"));
@@ -204,7 +202,6 @@ export default function App() {
 }
 
 const TAB_URL: Record<string, string> = {
-  quick:           "/quick",
   quick_calendar:  "/quick/calendar",
   journal:         "/journal",
   notes:           "/notes",
@@ -252,13 +249,15 @@ function AppShell() {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const isMobile = useIsMobile();
-  // Mobile Quick Access Wave 6 — focus-mode shell on /quick/* mobile routes:
-  // hide the top bar + persistent side nav, expose nav via an overlay drawer.
-  // Garden Walk at /walk is a full-screen guided surface that must be
-  // focus-mode on EVERY viewport, not just phone-width (RHO-18): on a landscape
-  // tablet isMobile was false, so the sticky app header overlapped the walk's
-  // own header. /quick stays phone/native-only focus-mode (its desktop
-  // experience is the padded dashboard).
+  // Focus-mode shell (hide the top bar + Deck, expose nav via the Shelf drawer)
+  // applies to two surfaces:
+  //  - Garden Walk (/walk) — a full-screen guided surface, focus-mode on EVERY
+  //    viewport (RHO-18): on a landscape tablet isMobile was false, so the
+  //    sticky app header overlapped the walk's own header.
+  //  - The phone planting helper (/quick/calendar) — its own back chrome.
+  // The old /quick launcher HOME was retired (one responsive home, 2026-07-20);
+  // it now redirects to /dashboard, so `startsWith("/quick")` only matches
+  // /quick/calendar in practice.
   const isWalk = routerLocation.pathname.startsWith("/walk");
   const isFocusMode =
     isWalk || (isMobile && routerLocation.pathname.startsWith("/quick"));
@@ -1368,12 +1367,9 @@ function AppShell() {
     badgeTone?: "amber" | "rose" | "primary";
     group?: "garden" | "plan" | "ai";
   }> = [
-    // "Quick" is mobile-only — the shortcut home for phone users. Hidden on
-    // desktop to keep the nav focused on the full surfaces.
-    ...(isMobile
-      ? [{ id: "quick", icon: <Zap />, label: "Quick", matchPaths: ["/quick"] }]
-      : []),
-    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/management", "/home-management", ...(isMobile ? [] : ["/"])], badge: overdueTaskCount, badgeTone: "rose", group: "garden" },
+    // One responsive home (2026-07-20): the mobile-only "Quick" launcher item
+    // was retired with the /quick home — phone + desktop both use /dashboard.
+    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/management", "/home-management", "/"], badge: overdueTaskCount, badgeTone: "rose", group: "garden" },
     { id: "shed",      icon: <IconPlants />, label: "Plants", matchPaths: ["/shed", "/watchlist"], group: "garden" },
     // Phase 5 IA — /schedule (Routines) reparented under Planner so the nav
     // resolves an active item when you're on it; Notes folded into Journal.
@@ -1663,21 +1659,16 @@ function AppShell() {
                     )}
                     <Suspense fallback={RouteFallback}>
                     <Routes>
-                      <Route path="/" element={<Navigate to={isMobile ? "/quick" : "/dashboard"} replace />} />
+                      {/* One responsive home — phone + desktop both land on the
+                          responsive /dashboard (simple density on phone, the
+                          two-column studio on desktop). The old phone-only
+                          /quick launcher home was retired (2026-07-20): it
+                          duplicated the dashboard's simple density, whose
+                          QuickActionsRow already reuses the same launcher pins. */}
+                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-                      <Route path="/quick" element={
-                        <div className="h-full animate-in fade-in duration-500">
-                          <QuickAccessHome
-                            firstName={profile?.first_name ?? null}
-                            homeId={profile?.home_id ?? null}
-                            userId={session?.user?.id ?? null}
-                            subscriptionTier={profile?.subscription_tier ?? null}
-                            aiEnabled={!!profile?.ai_enabled}
-                            isPremium={!!profile?.enable_perenual}
-                            isBeta={!!profile?.is_beta}
-                          />
-                        </div>
-                      } />
+                      {/* Legacy /quick deep-links → the responsive dashboard. */}
+                      <Route path="/quick" element={<Navigate to="/dashboard" replace />} />
                       <Route path="/quick/calendar" element={
                         <div className="h-full animate-in fade-in duration-500">
                           <LocalizedTaskCalendar

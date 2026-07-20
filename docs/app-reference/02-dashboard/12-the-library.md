@@ -254,4 +254,4 @@ It's also the right tool for a curious afternoon — when you're not shopping, b
 - `src/lib/plantCatalogue.ts` — ensure-in-catalogue + adapter helpers
 - `src/lib/saveToShed.ts` — extracted save-to-shed helper (also used by `src/components/TheShed.tsx`)
 - `src/App.tsx` — route mount + focus-mode wiring for `/library/*`
-- `src/components/QuickAccessHome.tsx` — the tile entry point
+  (the old `/quick` `QuickAccessHome` tile entry point was retired 2026-07-20)

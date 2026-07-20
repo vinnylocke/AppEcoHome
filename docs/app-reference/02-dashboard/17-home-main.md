@@ -1,8 +1,8 @@
 # Home (Main Dashboard)
 
-> The single `/dashboard` view — "how is my garden doing right now?" answered on one screen, rendered in two densities. The old sibling **"Overview"** sub-tab was merged in here (design overhaul Phase 4.2): its Daily Brief hero, full task list, and stat wall (now **Garden Snapshot**) live behind the **Detailed** density, while the Head Gardener, AI Insights, and Week Ahead cards render in **both** densities (product call 2026-07-19).
+> The single `/dashboard` view — "how is my garden doing right now?" answered on one screen, rendered in two densities. The old sibling **"Overview"** sub-tab was merged in here (design overhaul Phase 4.2): its Daily Brief hero, full task list, and stat wall (now **Garden Snapshot**) live behind the **Detailed** density, while the Head Gardener, AI Insights, and Week Ahead cards render in **both** densities (product call 2026-07-19). **Since 2026-07-20 ("one responsive home") this is the SOLE home for BOTH phone and desktop** — the phone-only `/quick` launcher home (`QuickAccessHome`) was retired and folded in here (Simple density on phone is the fast glanceable view; its customisable launcher is the `QuickActionsRow` below — same catalogue + pins). Previously phone landed on `/quick`; now `/` redirects both platforms here.
 
-**Route / how to reach it:** `/dashboard` (no `?view=` param, explicit `?view=home`, legacy `?view=dashboard`, legacy `?view=overview`, or any unknown value — **all** fall through to home). Labelled **"Dashboard"** in the four-tab sub-tab switcher (Dashboard / Locations / Calendar / Weather). The Overview tab no longer exists — see [Dashboard Tab (Overview) — ARCHIVED](./01-dashboard-tab.md).
+**Route / how to reach it:** `/dashboard` (no `?view=` param, explicit `?view=home`, legacy `?view=dashboard`, legacy `?view=overview`, or any unknown value — **all** fall through to home). It is also the **`/` landing for both phone and desktop**, and the target of the legacy `/quick` redirect. Labelled **"Dashboard"** in the four-tab sub-tab switcher (Dashboard / Locations / Calendar / Weather). The Overview tab no longer exists — see [Dashboard Tab (Overview) — ARCHIVED](./01-dashboard-tab.md).
 **Source files (entry points):**
 - `src/components/home/HomeMain.tsx` — the page (lazy-loaded from App.tsx); owns density state and the single `useHomeDashboardStats` mount
 - `src/components/home/HomeStatusStrip.tsx` — Simple-density hero (greeting + signal chips)
@@ -243,7 +243,7 @@ One card per location: indoors/outdoors icon, name, "Outdoors · 3 areas · 12 p
 
 #### 7. Quick actions
 
-Up to 6 tiles — your saved Quick Launcher pins, or persona-aware defaults. Customise opens the picker at `/gardener?section=quick-launcher`; changes apply here *and* on `/quick`.
+Up to 6 tiles — your saved Quick Launcher pins, or persona-aware defaults. Customise opens the picker at `/gardener?section=quick-launcher`; the changes apply here (this is now the only surface the launcher lives on since the `/quick` home was retired).
 
 #### 8. Garden Walk launcher (both densities)
 
@@ -353,7 +353,7 @@ No differences (the BetaFeedbackBanner renders app-wide above the page as usual)
 - [Weekly Overview Page](./15-weekly-overview.md) — WeekAheadPreview's target
 - [Locations Tab](./02-locations-tab.md), [Calendar Tab](./03-calendar-tab.md), [Weather Tab](./04-weather-tab.md) — the other three sub-tabs
 - [Location Page (Drill-In)](./07-location-page.md) — where card headers and area rows land
-- [Quick Access Home](./09-quick-access-home.md) — the shared launcher catalogue + pins
+- [Quick Access Home](./09-quick-access-home.md) — **RETIRED (2026-07-20)**; its customisable launcher catalogue + pins now live here in `QuickActionsRow`
 - [Garden Walk](./13-garden-walk.md) — the walk launcher's destination
 - [Seasonal Picks Card](./14-seasonal-picks.md) — Simple density
 - [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md), [Garden Quiz](../01-onboarding/05-garden-quiz.md), [Notification Opt-In](../01-onboarding/07-notification-opt-in.md), [PWA Install Prompt](../01-onboarding/08-pwa-install.md) — the single-slot cascade

@@ -9,10 +9,9 @@
 ```
 BrowserRouter
 └── App.tsx routes
-    ├── /                  ← Conditional redirect: useIsMobile() === true → /quick, else → /dashboard
-    ├── /quick             ← QuickAccessHome (Mobile Quick Access Wave 2 — mobile home page)
-    │     └── (retired: /quick/lens, /quick/journal — see Wave 17 notes)
-    ├── /quick/calendar    ← LocalizedTaskCalendar (Mobile Quick Access Wave 3 — planting + rain advice + today's tasks)
+    ├── /                  ← Redirect → /dashboard (BOTH phone + desktop; the phone-only /quick landing was retired 2026-07-20 — "one responsive home")
+    ├── /quick             ← Redirect → /dashboard replace (legacy deep-links only; QuickAccessHome was RETIRED 2026-07-20 — its customisable launcher now lives in the dashboard's QuickActionsRow)
+    ├── /quick/calendar    ← LocalizedTaskCalendar (planting + rain advice + today's tasks; reached via the dashboard's "Today" launcher tile; still focus-mode on mobile)
     │   (retired: /library/* — the entire Library UI was removed in Wave 17.
     │    Plant search is now in-context (Add-to-Shed / Shopping / Multi-ID /
     │    Nursery picker); the detail overlay is PlantDetailModal, opened from
@@ -25,7 +24,11 @@ BrowserRouter
     │    focus-mode at EVERY viewport width (not just mobile) — it's a
     │    full-screen guided surface; the floating profile dropdown is
     │    suppressed on /walk so it doesn't clash with the card's Stop button.
-    │    isFocusMode = isWalk || (isMobile && /quick).
+    │    isFocusMode = isWalk || (isMobile && /quick) — UNCHANGED, but since
+    │    the /quick HOME now redirects to /dashboard (retired 2026-07-20),
+    │    /quick/calendar is the only /quick route that still paints in focus
+    │    mode. Focus-mode surfaces are therefore: /walk (all viewports) +
+    │    /quick/calendar (mobile planting helper).
     │    Phase 6a: the MobileNavDrawer (the "Shelf") is no longer focus-only.
     │    It's now a SINGLE app-level mount rendered whenever
     │    (isFocusMode || !isMdBreakpoint), so it serves every phone route as
@@ -151,6 +154,8 @@ Legacy / alias paths that immediately `Navigate ... replace` to their canonical 
 
 | From | To |
 |---|---|
+| `/` (index) | `/dashboard` (BOTH phone + desktop since 2026-07-20 — previously phone redirected to `/quick`) |
+| `/quick` | `/dashboard` (`replace`; the phone-only Quick Access Home was retired — the launcher now lives on the dashboard) |
 | `/notes` | `/journal?tab=notes` (Phase 5 IA — Notes folded into the Journal hub) |
 | `/insights` | `/manager?tab=insights` |
 | `/watchlist` | `/shed?tab=watchlist` |

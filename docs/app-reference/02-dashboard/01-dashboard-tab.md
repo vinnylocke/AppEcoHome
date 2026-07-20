@@ -6,7 +6,7 @@ Where each piece went:
 
 - **DailyBriefCard** (the hero), the **full TaskList**, and the stat wall (now **GardenSnapshot** — collapsible, zero-value tiles hidden, dot-based day strip) → the merged home's **Detailed** density; **HeadGardenerCard**, **AssistantCard** (now passed `showUpgradeWhenLocked`), and **WeekAheadPreview** (FeatureGate `ai_insights`) → **both** densities (product call 2026-07-19).
 - **Quiz prompt card** → the single-slot onboarding cascade in App.tsx's home branch (checklist → quiz → notification opt-in → PWA install).
-- **TodayFocusCard** → no longer mounts on the dashboard; it lives on `/quick` only.
+- **TodayFocusCard** → retired 2026-07-20 with the `/quick` launcher home (it only ever mounted there).
 - **EmptyGardenPanel**, **TasksPanel** (via the deleted `HomeDashboard.tsx`) and **WeekPulse.tsx** → retired outright; the merged home's `home-empty-garden` card and GardenSnapshot's dot strip cover their roles.
 
 **For the current dashboard documentation, see [Home (Main Dashboard)](./17-home-main.md).** Stat semantics (RHO-13/14/15/16) are documented there and in `supabase/functions/_shared/dashboardStats.ts`.

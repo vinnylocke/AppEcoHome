@@ -48,6 +48,7 @@ Single-worker run against a freshly seeded local Supabase. `npm run test:e2e` ag
 
 ## Recent history
 
+- **2026-07-20 — One responsive home:** the phone-only `/quick` launcher home (`QuickAccessHome`) was retired — phone + desktop now both land on the responsive `/dashboard`. New section [33-one-responsive-home.md](./33-one-responsive-home.md) documents the rewritten `quick-access.spec.ts` (QUICK-* redirect + launcher-on-dashboard rows) and `quick-calendar.spec.ts` (QUICK-CAL-001 repointed to the dashboard Today tile; QUICK-CAL-005 back button → `/dashboard`). **`quick-journal.spec.ts` deleted** (tested the already-retired `/quick/journal`); `QuickAccessHome.test.ts` deleted with the component.
 - **2026-06-15 — Restructure:** docs/e2e-test-plan.md split into per-section files. No row content changed; section numbers re-monotonic; UUID table corrected; dead appendices archived.
 - **2026-06-15 — PR 9:** AI freshness + override specs (7 tests) closed. Reverted the bad `beforeAll` cleanup in `shed-crud.spec.ts` that had been silently deleting the per-worker AI seed forks.
 - **2026-06-15 — Stale test cleanup:** 3 Vitest failures (taskEngine, TodayFocusCard, QuickAccessHome) + 2 SHED failures closed.
