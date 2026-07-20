@@ -171,10 +171,10 @@ export default function HomeStatusStrip({
                   <button
                     data-testid={`hero-seg-${seg.id}`}
                     onClick={() => navigate(seg.to!)}
-                    className={`hover:underline underline-offset-2 transition-colors ${
+                    className={`can-hover:hover:underline underline-offset-2 transition-colors ${
                       seg.tone === "danger"
-                        ? "text-red-700"
-                        : "text-rhozly-on-surface/65 hover:text-rhozly-primary"
+                        ? "text-status-danger-ink"
+                        : "text-rhozly-on-surface/65 can-hover:hover:text-rhozly-primary"
                     }`}
                   >
                     {seg.label}
@@ -207,7 +207,7 @@ export default function HomeStatusStrip({
               }}
               aria-label="Ask Rhozly AI a question"
               title="Ask Rhozly AI"
-              className="inline-flex items-center gap-1 text-2xs font-black uppercase tracking-widest text-rhozly-primary/80 hover:text-rhozly-primary transition-colors"
+              className="inline-flex items-center gap-1 text-2xs font-black uppercase tracking-widest text-rhozly-primary/80 can-hover:hover:text-rhozly-primary transition-colors"
             >
               <MessageSquare size={11} aria-hidden />
               Ask AI
@@ -232,12 +232,12 @@ export default function HomeStatusStrip({
       </h1>
       <p
         data-testid="hero-sentence"
-        className="mt-2 text-sm sm:text-base font-bold text-rhozly-on-surface/60 leading-snug max-w-xl"
+        className="mt-2 text-sm sm:text-base font-bold text-rhozly-on-surface-variant leading-snug max-w-xl"
       >
         {sentence}
       </p>
       {sunLine && (
-        <p className="mt-1.5 text-2xs font-bold text-rhozly-on-surface/35 tabular-nums select-none">
+        <p className="mt-1.5 text-2xs font-bold text-rhozly-on-surface/70 tabular-nums select-none">
           {sunLine}
         </p>
       )}
@@ -253,7 +253,7 @@ export default function HomeStatusStrip({
           <button
             data-testid="hero-weather-chip"
             onClick={() => navigate("/dashboard?view=weather")}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/60 bg-rhozly-primary/5 px-3 py-2 min-h-[36px] rounded-full hover:bg-rhozly-primary/10 active:scale-[0.97] transition-all duration-100"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/60 bg-rhozly-primary/5 px-3 py-2 min-h-[36px] rounded-full can-hover:hover:bg-rhozly-primary/10 active:scale-[0.97] transition-all duration-100"
           >
             {weather.Icon ? <weather.Icon size={14} aria-hidden /> : null}
             {Math.round(weather.temp)}° {weather.description}

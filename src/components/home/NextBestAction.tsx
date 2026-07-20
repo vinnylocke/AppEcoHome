@@ -86,7 +86,7 @@ export default function NextBestAction({ attentionItems, firstTaskTitle }: Props
       <button
         data-testid="next-best-action-cta"
         onClick={resolved.go}
-        className="w-full flex items-start gap-3.5 text-left bg-white rounded-3xl shadow-sm border border-rhozly-primary/10 px-4 py-4 sm:px-5 hover:border-rhozly-primary/25 hover:shadow transition group"
+        className="w-full flex items-start gap-3.5 text-left bg-rhozly-surface-lowest rounded-card border border-rhozly-outline/10 shadow-card px-4 py-4 sm:px-5 transition-[transform,box-shadow] duration-200 ease-spring can-hover:hover:shadow-raised can-hover:hover:-translate-y-0.5 active:scale-[0.98] active:duration-100 touch-manipulation group"
       >
         <span className="shrink-0 mt-0.5 w-9 h-9 rounded-2xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center">
           <Icon size={18} />

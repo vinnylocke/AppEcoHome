@@ -129,7 +129,7 @@ function SeasonalPicksCardInner({
     return (
       <section
         data-testid="seasonal-picks-loading"
-        className="rounded-3xl bg-white border border-rhozly-outline/15 shadow-sm p-4 sm:p-5"
+        className="rounded-card bg-rhozly-surface-lowest border border-rhozly-outline/10 shadow-card p-4 sm:p-5"
       >
         <Header variant={variant} />
         <div className="flex items-center gap-2 text-xs text-rhozly-on-surface/55 mt-3">
@@ -144,7 +144,7 @@ function SeasonalPicksCardInner({
     return (
       <section
         data-testid="seasonal-picks-error"
-        className="rounded-3xl bg-white border border-rhozly-outline/15 shadow-sm p-4 sm:p-5"
+        className="rounded-card bg-rhozly-surface-lowest border border-rhozly-outline/10 shadow-card p-4 sm:p-5"
       >
         <Header variant={variant} />
         <div className="flex items-start gap-2 mt-3 text-xs">
@@ -186,7 +186,7 @@ function SeasonalPicksCardInner({
   return (
     <section
       data-testid="seasonal-picks-card"
-      className={`rounded-3xl bg-white border border-rhozly-outline/15 shadow-sm ${
+      className={`rounded-card bg-rhozly-surface-lowest border border-rhozly-outline/10 shadow-card ${
         isCarousel ? "p-3" : "p-4 sm:p-5"
       }`}
     >
@@ -207,7 +207,7 @@ function SeasonalPicksCardInner({
               onClick={() => goToIndex(activeIndex - 1)}
               disabled={activeIndex === 0}
               aria-label="Previous pick"
-              className="w-8 h-8 rounded-xl bg-white border border-rhozly-outline/20 text-rhozly-on-surface/60 hover:text-rhozly-primary hover:border-rhozly-primary/30 transition flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+              className="w-8 h-8 rounded-xl bg-rhozly-surface-lowest border border-rhozly-outline/20 text-rhozly-on-surface-variant can-hover:hover:text-rhozly-primary can-hover:hover:border-rhozly-primary/30 transition flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronLeft size={14} />
             </button>
@@ -217,7 +217,7 @@ function SeasonalPicksCardInner({
               onClick={() => goToIndex(activeIndex + 1)}
               disabled={activeIndex >= total - 1}
               aria-label="Next pick"
-              className="w-8 h-8 rounded-xl bg-white border border-rhozly-outline/20 text-rhozly-on-surface/60 hover:text-rhozly-primary hover:border-rhozly-primary/30 transition flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+              className="w-8 h-8 rounded-xl bg-rhozly-surface-lowest border border-rhozly-outline/20 text-rhozly-on-surface-variant can-hover:hover:text-rhozly-primary can-hover:hover:border-rhozly-primary/30 transition flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronRight size={14} />
             </button>
@@ -230,7 +230,7 @@ function SeasonalPicksCardInner({
             onClick={() => load({ forceRegen: true })}
             disabled={refreshing}
             title="Refresh picks for this week"
-            className="shrink-0 w-9 h-9 rounded-xl bg-white border border-rhozly-outline/20 text-rhozly-on-surface/60 hover:text-rhozly-primary hover:border-rhozly-primary/30 transition flex items-center justify-center disabled:opacity-40"
+            className="shrink-0 w-9 h-9 rounded-xl bg-rhozly-surface-lowest border border-rhozly-outline/20 text-rhozly-on-surface-variant can-hover:hover:text-rhozly-primary can-hover:hover:border-rhozly-primary/30 transition flex items-center justify-center disabled:opacity-40"
           >
             {refreshing ? (
               <Loader2 size={14} className="animate-spin" />
@@ -245,7 +245,7 @@ function SeasonalPicksCardInner({
           onClick={toggleCollapsed}
           aria-pressed={collapsed}
           aria-label={collapsed ? "Expand seasonal picks" : "Collapse seasonal picks"}
-          className={`shrink-0 ${isCarousel ? "w-8 h-8" : "w-9 h-9"} rounded-xl bg-white border border-rhozly-outline/20 text-rhozly-on-surface/60 hover:text-rhozly-primary hover:border-rhozly-primary/30 transition flex items-center justify-center`}
+          className={`shrink-0 ${isCarousel ? "w-8 h-8" : "w-9 h-9"} rounded-xl bg-rhozly-surface-lowest border border-rhozly-outline/20 text-rhozly-on-surface-variant can-hover:hover:text-rhozly-primary can-hover:hover:border-rhozly-primary/30 transition flex items-center justify-center`}
         >
           {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
         </button>

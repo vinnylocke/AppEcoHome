@@ -52,7 +52,7 @@ export default function QuickActionsRow({ userId, homeId, persona, availabilityC
         <button
           data-testid="home-quick-actions-customise"
           onClick={() => navigate("/gardener?section=quick-launcher")}
-          className="flex items-center gap-1 text-[11px] font-bold text-rhozly-on-surface/45 hover:text-rhozly-primary transition"
+          className="flex items-center gap-1 text-[11px] font-bold text-rhozly-on-surface/45 can-hover:hover:text-rhozly-primary transition"
         >
           <Settings2 size={12} />
           Customise

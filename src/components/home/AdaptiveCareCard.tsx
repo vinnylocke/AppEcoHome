@@ -145,7 +145,7 @@ export default function AdaptiveCareCard({
   return (
     <div
       data-testid="adaptive-care-card"
-      className={embedded ? "space-y-3" : "bg-white rounded-3xl border border-rhozly-outline/10 shadow-sm p-4 sm:p-5 space-y-3"}
+      className={embedded ? "space-y-3" : "bg-rhozly-surface-lowest rounded-card border border-rhozly-outline/10 shadow-card p-4 sm:p-5 space-y-3"}
     >
       <div className="flex items-center gap-2">
         <div className="bg-rhozly-primary/10 p-1.5 rounded-xl"><Brain size={16} className="text-rhozly-primary" /></div>
@@ -199,7 +199,7 @@ export default function AdaptiveCareCard({
                 data-testid="adaptive-care-apply"
                 onClick={() => void apply(adj)}
                 disabled={busyId === adj.id}
-                className="flex-1 h-9 rounded-xl bg-rhozly-primary text-white text-[11px] font-black flex items-center justify-center gap-1.5 hover:opacity-90 disabled:opacity-50"
+                className="flex-1 h-9 rounded-xl bg-rhozly-primary text-white text-[11px] font-black flex items-center justify-center gap-1.5 can-hover:hover:opacity-90 active:scale-[0.98] transition disabled:opacity-50"
               >
                 {busyId === adj.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
                 {adj.kind === "create_watering_routine" ? `Create routine (every ${adj.suggested_frequency_days}d)` :
@@ -210,7 +210,7 @@ export default function AdaptiveCareCard({
                 data-testid="adaptive-care-dismiss"
                 onClick={() => void dismiss(adj)}
                 disabled={busyId === adj.id}
-                className="h-9 px-3 rounded-xl bg-rhozly-surface text-rhozly-on-surface/60 text-[11px] font-black flex items-center justify-center gap-1 hover:bg-rhozly-surface-mid disabled:opacity-50"
+                className="h-9 px-3 rounded-xl bg-rhozly-surface text-rhozly-on-surface/60 text-[11px] font-black flex items-center justify-center gap-1 can-hover:hover:bg-rhozly-surface-mid active:scale-[0.98] transition disabled:opacity-50"
               >
                 <X size={12} /> Dismiss
               </button>

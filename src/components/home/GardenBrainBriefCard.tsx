@@ -183,7 +183,7 @@ export default function GardenBrainBriefCard({
   return (
     <div
       data-testid="garden-brain-brief"
-      className={embedded ? "space-y-3" : "bg-white rounded-3xl border border-rhozly-outline/10 shadow-sm p-4 sm:p-5 space-y-3"}
+      className={embedded ? "space-y-3" : "bg-rhozly-surface-lowest rounded-card border border-rhozly-outline/10 shadow-card p-4 sm:p-5 space-y-3"}
     >
       <div className="flex items-center gap-2">
         <div className="bg-rhozly-primary/10 p-1.5 rounded-xl"><Sparkles size={16} className="text-rhozly-primary" /></div>
@@ -257,7 +257,7 @@ export default function GardenBrainBriefCard({
               <div
                 key={`${item.kind}-${i}`}
                 data-testid={`daily-brief-item-${item.kind}`}
-                className={`rounded-xl border border-rhozly-outline/10 px-3 py-2 flex items-start gap-2 ${applied ? "opacity-55" : "hover:border-rhozly-primary/30"} transition`}
+                className={`rounded-xl border border-rhozly-outline/10 px-3 py-2 flex items-start gap-2 ${applied ? "opacity-55" : "can-hover:hover:border-rhozly-primary/30"} transition`}
               >
                 <button
                   onClick={() => navigate(item.route)}
@@ -276,7 +276,7 @@ export default function GardenBrainBriefCard({
                     data-testid="daily-brief-item-apply"
                     onClick={() => void applyItemAction(item, i)}
                     disabled={applyingIdx === i}
-                    className="shrink-0 h-8 px-3 rounded-lg bg-rhozly-primary text-white text-[10px] font-black flex items-center gap-1 hover:opacity-90 disabled:opacity-50"
+                    className="shrink-0 h-8 px-3 rounded-lg bg-rhozly-primary text-white text-[10px] font-black flex items-center gap-1 can-hover:hover:opacity-90 active:scale-[0.98] transition disabled:opacity-50"
                   >
                     {applyingIdx === i ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
                     {item.action.label}

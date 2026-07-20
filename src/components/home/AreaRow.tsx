@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronRight, Droplets, Thermometer, BatteryLow, CheckCircle2 } from "lucide-react";
+import { ChevronRight, Droplets, Thermometer, BatteryLow, CheckCircle2, AlertTriangle } from "lucide-react";
 import type { OverviewArea } from "../../hooks/useHomeOverview";
 
 /**
@@ -26,11 +26,12 @@ interface Props {
   onClick: () => void;
 }
 
-// Soil banding mirrors _shared/homeOverview.ts soilBand.
+// Soil banding mirrors _shared/homeOverview.ts soilBand. status-* token
+// families (not raw palette) so soil chips honour High Contrast mode.
 function soilLabel(moisture: number): { label: string; classes: string } {
-  if (moisture < 30) return { label: "Dry", classes: "bg-yellow-50 text-yellow-800" };
-  if (moisture > 70) return { label: "Wet", classes: "bg-sky-50 text-sky-700" };
-  return { label: "OK", classes: "bg-green-50 text-green-700" };
+  if (moisture < 30) return { label: "Dry", classes: "bg-status-caution-fill text-status-caution-ink" };
+  if (moisture > 70) return { label: "Wet", classes: "bg-status-water-fill text-status-water-ink" };
+  return { label: "OK", classes: "bg-status-success-fill text-status-success-ink" };
 }
 
 function minutesLeft(untilIso: string): number {
@@ -68,8 +69,10 @@ function SensorChip({ sensor, density }: { sensor: NonNullable<OverviewArea["sen
 function ValveChip({ valve, density }: { valve: NonNullable<OverviewArea["valve"]>; density: "simple" | "detailed" }) {
   if (valve.state === "running") {
     return (
-      <span data-testid="home-valve-chip" className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+      <span data-testid="home-valve-chip" className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-status-water-fill text-status-water-ink">
+        {/* Static filled dot — the "Watering" label already communicates the
+            live state; a pulsing dot per row blows the ≤1-live-element budget. */}
+        <span className="w-1.5 h-1.5 rounded-full bg-status-water-ink" />
         {density === "simple" || !valve.runningUntil
           ? "Watering"
           : `Watering · ${minutesLeft(valve.runningUntil)} min left`}
@@ -78,8 +81,9 @@ function ValveChip({ valve, density }: { valve: NonNullable<OverviewArea["valve"
   }
   if (valve.state === "failed") {
     return (
-      <span data-testid="home-valve-chip" className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-red-50 text-red-700">
-        ⚠ Valve failed
+      <span data-testid="home-valve-chip" className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-status-danger-fill text-status-danger-ink">
+        <AlertTriangle size={10} />
+        Valve failed
       </span>
     );
   }
@@ -148,7 +152,7 @@ export default function AreaRow({ areaName, plants, density, telemetry, onClick 
     <button
       data-testid={`home-area-row-${areaName.toLowerCase().replace(/\s+/g, "-")}`}
       onClick={onClick}
-      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-rhozly-primary/5 transition text-left group"
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl can-hover:hover:bg-rhozly-primary/5 transition text-left group"
     >
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-rhozly-on-surface truncate">{areaName}</p>

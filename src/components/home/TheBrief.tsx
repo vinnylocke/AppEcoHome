@@ -62,7 +62,7 @@ export default function TheBrief({ homeId, userId, density }: Props) {
     <section
       data-testid="the-brief"
       hidden={!showCard}
-      className="bg-white rounded-3xl border border-rhozly-outline/10 shadow-sm p-4 sm:p-5"
+      className="bg-rhozly-surface-lowest rounded-card border border-rhozly-outline/10 shadow-card p-4 sm:p-5"
     >
       <p className="text-3xs font-black uppercase tracking-widest text-rhozly-on-surface/40 select-none mb-3">
         From Rhozly

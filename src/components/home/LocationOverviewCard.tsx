@@ -56,11 +56,11 @@ export default function LocationOverviewCard({ location, tasksToday, density, te
   return (
     <div
       data-testid={`home-location-card-${location.id}`}
-      className="bg-white rounded-3xl shadow-sm border border-rhozly-primary/5 overflow-hidden"
+      className="bg-rhozly-surface-lowest rounded-card shadow-card border border-rhozly-outline/10 overflow-hidden"
     >
       <button
         onClick={openLocation}
-        className="w-full flex items-center gap-2.5 px-4 pt-4 pb-2 text-left hover:bg-rhozly-primary/5 transition"
+        className="w-full flex items-center gap-2.5 px-4 pt-4 pb-2 text-left can-hover:hover:bg-rhozly-primary/5 transition"
       >
         <div className="bg-rhozly-primary/10 p-2 rounded-xl shrink-0">
           {location.is_outside ? (
@@ -84,7 +84,7 @@ export default function LocationOverviewCard({ location, tasksToday, density, te
       </button>
 
       {location.hazard && (
-        <div className="mx-4 mb-1 flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-xl">
+        <div className="mx-4 mb-1 flex items-center gap-1.5 text-[11px] font-bold text-status-caution-ink bg-status-caution-fill border border-status-caution-line px-2.5 py-1.5 rounded-xl">
           <AlertTriangle size={12} className="shrink-0" />
           <span className="truncate">{location.hazard}</span>
         </div>
@@ -94,7 +94,7 @@ export default function LocationOverviewCard({ location, tasksToday, density, te
         {areas.length === 0 ? (
           <button
             onClick={openLocation}
-            className="w-full text-left px-3 py-2.5 text-[12px] font-bold text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl transition"
+            className="w-full text-left px-3 py-2.5 text-[12px] font-bold text-rhozly-primary can-hover:hover:bg-rhozly-primary/5 rounded-2xl transition"
           >
             + Add an area to start tracking plants here
           </button>

@@ -198,23 +198,31 @@ export default function HomeMain({
   const postureToggle = (
     <div
       data-testid="home-density-toggle"
+      role="group"
+      aria-label="Home layout"
       className="bg-rhozly-primary/5 p-0.5 rounded-xl flex shrink-0"
     >
       <button
+        type="button"
         data-testid="home-density-simple"
         onClick={() => setPosture("porch")}
-        title="Simple view"
-        className={`p-1.5 rounded-lg transition ${posture === "porch" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-primary"}`}
+        aria-pressed={posture === "porch"}
+        aria-label="Simple layout"
+        title="Simple layout"
+        className={`flex items-center justify-center min-w-9 min-h-9 pointer-coarse:min-w-11 pointer-coarse:min-h-11 rounded-lg transition-colors ${posture === "porch" ? "bg-rhozly-surface-lowest text-rhozly-primary shadow-card" : "text-rhozly-on-surface-variant can-hover:hover:text-rhozly-primary"}`}
       >
-        <LayoutList size={14} />
+        <LayoutList size={15} />
       </button>
       <button
+        type="button"
         data-testid="home-density-detailed"
         onClick={() => setPosture("workbench")}
-        title="Detailed view"
-        className={`p-1.5 rounded-lg transition ${posture === "workbench" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-primary"}`}
+        aria-pressed={posture === "workbench"}
+        aria-label="Detailed layout"
+        title="Detailed layout"
+        className={`flex items-center justify-center min-w-9 min-h-9 pointer-coarse:min-w-11 pointer-coarse:min-h-11 rounded-lg transition-colors ${posture === "workbench" ? "bg-rhozly-surface-lowest text-rhozly-primary shadow-card" : "text-rhozly-on-surface-variant can-hover:hover:text-rhozly-primary"}`}
       >
-        <Rows3 size={14} />
+        <Rows3 size={15} />
       </button>
     </div>
   );
@@ -262,7 +270,7 @@ export default function HomeMain({
       ) : (
         <section
           data-testid="home-empty-garden"
-          className="bg-white rounded-3xl shadow-sm border border-rhozly-primary/5 p-5"
+          className="bg-rhozly-surface-lowest rounded-card shadow-card border border-rhozly-outline/10 p-5"
         >
           <p className="font-black text-sm text-rhozly-on-surface mb-1">Let's set up your garden</p>
           <p className="text-xs text-rhozly-on-surface/60 mb-4">
@@ -271,19 +279,19 @@ export default function HomeMain({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button
               onClick={() => navigate("/management?open=add-location")}
-              className="flex items-center gap-2 bg-rhozly-primary/5 hover:bg-rhozly-primary/10 rounded-2xl px-3 py-3 text-xs font-bold text-rhozly-on-surface transition"
+              className="flex items-center gap-2 bg-rhozly-primary/5 can-hover:hover:bg-rhozly-primary/10 active:scale-[0.98] rounded-2xl px-3 py-3 text-xs font-bold text-rhozly-on-surface transition"
             >
               <MapPin size={16} className="text-rhozly-primary shrink-0" /> Create a location
             </button>
             <button
               onClick={() => navigate("/shed?open=add-plant")}
-              className="flex items-center gap-2 bg-rhozly-primary/5 hover:bg-rhozly-primary/10 rounded-2xl px-3 py-3 text-xs font-bold text-rhozly-on-surface transition"
+              className="flex items-center gap-2 bg-rhozly-primary/5 can-hover:hover:bg-rhozly-primary/10 active:scale-[0.98] rounded-2xl px-3 py-3 text-xs font-bold text-rhozly-on-surface transition"
             >
               <Sprout size={16} className="text-rhozly-primary shrink-0" /> Add your first plant
             </button>
             <button
               onClick={() => navigate("/profile")}
-              className="flex items-center gap-2 bg-rhozly-primary/5 hover:bg-rhozly-primary/10 rounded-2xl px-3 py-3 text-xs font-bold text-rhozly-on-surface transition"
+              className="flex items-center gap-2 bg-rhozly-primary/5 can-hover:hover:bg-rhozly-primary/10 active:scale-[0.98] rounded-2xl px-3 py-3 text-xs font-bold text-rhozly-on-surface transition"
             >
               <Leaf size={16} className="text-rhozly-primary shrink-0" /> Take the garden quiz
             </button>

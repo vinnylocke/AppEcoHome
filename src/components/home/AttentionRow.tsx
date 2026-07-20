@@ -10,13 +10,19 @@ import type { AttentionItem } from "../../hooks/useHomeOverview";
  * a pro sees their real problem list.
  */
 
+// status-* token families (not raw Tailwind palette) so these cards — which
+// flag failed automation / dry soil / low battery — respond to the app's High
+// Contrast mode instead of bypassing it (redesign Stage 1, D#3).
 const KIND_STYLES: Record<string, { icon: LucideIcon; classes: string }> = {
-  overdue_tasks: { icon: AlertCircle, classes: "bg-red-50 text-red-700 border-red-100" },
-  weather_alert: { icon: CloudLightning, classes: "bg-sky-50 text-sky-700 border-sky-100" },
-  automation_failed: { icon: Zap, classes: "bg-amber-50 text-amber-700 border-amber-100" },
-  low_battery: { icon: BatteryLow, classes: "bg-orange-50 text-orange-700 border-orange-100" },
-  soil_dry: { icon: Droplets, classes: "bg-yellow-50 text-yellow-800 border-yellow-100" },
-  harvest_closing: { icon: Wheat, classes: "bg-lime-50 text-lime-800 border-lime-100" },
+  overdue_tasks: { icon: AlertCircle, classes: "bg-status-danger-fill text-status-danger-ink border-status-danger-line" },
+  weather_alert: { icon: CloudLightning, classes: "bg-status-weather-fill text-status-weather-ink border-status-weather-line" },
+  automation_failed: { icon: Zap, classes: "bg-status-caution-fill text-status-caution-ink border-status-caution-line" },
+  low_battery: { icon: BatteryLow, classes: "bg-status-caution-fill text-status-caution-ink border-status-caution-line" },
+  // Dry soil = caution (orange), NOT water (blue) — blue stays "water present /
+  // wet / actively watering" consistently with AreaRow's soil + valve chips, so
+  // the same blue never means "wet" in one card and "dry" in another on one screen.
+  soil_dry: { icon: Droplets, classes: "bg-status-caution-fill text-status-caution-ink border-status-caution-line" },
+  harvest_closing: { icon: Wheat, classes: "bg-status-success-fill text-status-success-ink border-status-success-line" },
 };
 
 export default function AttentionRow({
@@ -50,7 +56,7 @@ export default function AttentionRow({
               key={`${item.kind}-${i}`}
               data-testid={`home-attention-${item.kind}`}
               onClick={() => navigate(item.route)}
-              className={`flex items-start gap-2.5 min-w-[220px] max-w-[280px] shrink-0 text-left border rounded-2xl px-3.5 py-3 hover:opacity-90 transition ${style.classes}`}
+              className={`flex items-start gap-2.5 min-w-[220px] max-w-[280px] shrink-0 text-left border rounded-2xl px-3.5 py-3 can-hover:hover:opacity-90 active:scale-[0.98] transition ${style.classes}`}
             >
               <Icon size={16} className="shrink-0 mt-0.5" />
               <span className="flex-1 min-w-0">

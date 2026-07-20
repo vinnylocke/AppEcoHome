@@ -278,6 +278,19 @@ html.high-contrast .border-rhozly-outline\/20,
 html.high-contrast .border-rhozly-outline\/30 {
   border-color: rgba(26, 28, 27, 0.5) !important;
 }
+/* Status chips (soil / valve / attention / hazard etc.) — bump each family's
+   ink to its darker `-ink-strong` variant so the status colour system also
+   responds to high contrast, not just on-surface opacities. The chips migrated
+   off the raw Tailwind palette (which bypassed this block entirely) to these
+   tokens in the home redesign Stage-1 craft sweep. */
+html.high-contrast .text-status-weather-ink { color: var(--color-status-weather-ink-strong) !important; }
+html.high-contrast .text-status-caution-ink { color: var(--color-status-caution-ink-strong) !important; }
+html.high-contrast .text-status-water-ink   { color: var(--color-status-water-ink-strong) !important; }
+html.high-contrast .text-status-sensor-ink  { color: var(--color-status-sensor-ink-strong) !important; }
+html.high-contrast .text-status-success-ink { color: var(--color-status-success-ink-strong) !important; }
+html.high-contrast .text-status-ai-ink      { color: var(--color-status-ai-ink-strong) !important; }
+html.high-contrast .text-status-watch-ink   { color: var(--color-status-watch-ink-strong) !important; }
+html.high-contrast .text-status-danger-ink  { color: var(--color-status-danger-ink-strong) !important; }
 
 /* =========================================
    PRINT — PDF export from report-style screens
