@@ -111,6 +111,60 @@ test.describe("Home dashboard (Section 30)", () => {
     // The task-board entry point is a real button (Stage 3 D#5), not a faint link.
     await expect(home.tasksSeeAll).toBeVisible();
   });
+
+  test("HOME-015: owner can add a location inline on the grid and delete it (full round trip)", async ({ authenticatedPage }) => {
+    // Stats+locations redesign Stage 4b: the garden grid manages locations in
+    // place. Owner (seeded test account) → create + delete round-trips through
+    // the same locationMutations path as /management, with the grid refetching.
+    const home = new HomeMainPage(authenticatedPage);
+    await home.goto();
+    await home.waitForLoad();
+
+    const name = `E2E Grid Loc ${Date.now()}`;
+
+    await authenticatedPage.getByTestId("home-add-location-btn").click();
+    const nameInput = authenticatedPage.getByTestId("home-add-location-name-input");
+    await expect(nameInput).toBeVisible({ timeout: 10000 });
+    await nameInput.fill(name);
+    await authenticatedPage.getByTestId("home-add-location-save").click();
+
+    // The refetch surfaces the new card.
+    const newCard = authenticatedPage
+      .locator('[data-testid^="home-location-card-"]')
+      .filter({ hasText: name });
+    await expect(newCard).toBeVisible({ timeout: 10000 });
+
+    // Delete it via the card's own manage kebab → confirm (self-cleanup).
+    await newCard.locator('[data-testid^="location-manage-"]').click();
+    await authenticatedPage.getByTestId("location-manage-delete").click();
+    await authenticatedPage.getByTestId("confirm-modal-confirm").click();
+    await expect(newCard).toHaveCount(0, { timeout: 10000 });
+  });
+
+  test("HOME-016: a viewer sees NO add-location button and NO manage kebab (permission gating)", async ({ authenticatedPage }) => {
+    // Security: RLS enforces only home membership, not the spatial permission
+    // keys — the client `can()` gate is the only guard. Force the role query to
+    // "viewer" (no locations.* keys) and assert the mutate affordances vanish.
+    const supabaseUrl = process.env.VITE_SUPABASE_URL ?? "";
+    await authenticatedPage.route(/\/rest\/v1\/home_members\?select=role/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([{ role: "viewer", permissions: {} }]),
+      }),
+    );
+
+    const home = new HomeMainPage(authenticatedPage);
+    await home.goto();
+    await home.waitForLoad();
+
+    // The grid still renders (viewers can look) …
+    await expect(home.overviewGrid).toBeVisible({ timeout: 15000 });
+    // … but none of the create / manage affordances.
+    await expect(authenticatedPage.getByTestId("home-add-location-btn")).toHaveCount(0);
+    await expect(authenticatedPage.locator('[data-testid^="location-manage-"]')).toHaveCount(0);
+    expect(supabaseUrl).toBeTruthy();
+  });
 });
 
 test.describe("Home dashboard — telemetry (Phase 2)", () => {

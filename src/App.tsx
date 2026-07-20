@@ -1887,6 +1887,7 @@ function AppShell() {
                                             homeId: profile?.home_id ?? null,
                                           }}
                                           promoSlot={promoSlot}
+                                          onLocationsChanged={handleHomeDataRealtime}
                                         />
                                       )}
                                     </Suspense>

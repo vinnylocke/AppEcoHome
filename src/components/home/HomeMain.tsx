@@ -7,11 +7,13 @@ import QuickActionsRow from "./QuickActionsRow";
 import AttentionRow from "./AttentionRow";
 import TheBrief from "./TheBrief";
 import NextBestAction from "./NextBestAction";
+import AddLocationSheet from "./AddLocationSheet";
 import WeekAheadPreview from "../shared/WeekAheadPreview";
 import FeatureGate from "../shared/FeatureGate";
 import TaskList from "../TaskList";
 import SeasonalPicksCard from "../seasonal/SeasonalPicksCard";
 import { usePersona } from "../../hooks/usePersona";
+import { usePermissions } from "../../context/HomePermissionsContext";
 import { useHomeOverview, type OverviewArea } from "../../hooks/useHomeOverview";
 import { useHomeDashboardStats } from "../../hooks/useHomeDashboardStats";
 import { buildTodaySummary } from "../../lib/todaySummary";
@@ -83,6 +85,9 @@ interface Props {
   /** The single-slot onboarding/promo card (App owns the cascade). Rendered
    *  BELOW the hero so the greeting always leads (redesign Stage 1). */
   promoSlot?: React.ReactNode;
+  /** Refetch App's `locations` state after an inline add/manage on the grid
+   *  (stats+locations redesign Stage 4b) — App passes handleHomeDataRealtime. */
+  onLocationsChanged?: () => void;
 }
 
 export default function HomeMain({
@@ -102,9 +107,14 @@ export default function HomeMain({
   isPremium,
   availabilityCtx,
   promoSlot,
+  onLocationsChanged,
 }: Props) {
   const navigate = useNavigate();
   const persona = usePersona();
+  const { can } = usePermissions();
+  const [addLocationOpen, setAddLocationOpen] = useState(false);
+  // Stable no-op fallback so children don't need null-checks.
+  const refetchLocations = onLocationsChanged ?? (() => {});
 
   // Posture: stored override wins (explicit preset key, or the legacy density
   // key aliased — readStoredPosture handles the ladder); otherwise follow the
@@ -262,6 +272,8 @@ export default function HomeMain({
           locationTaskCounts={locationTaskCounts}
           density={density}
           telemetryByArea={telemetryByArea}
+          onAddLocation={() => setAddLocationOpen(true)}
+          onLocationsChanged={refetchLocations}
         />
       ) : (
         <section
@@ -273,12 +285,15 @@ export default function HomeMain({
             Add a location, then areas within it, and Rhozly will keep watch over every plant.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <button
-              onClick={() => navigate("/management?open=add-location")}
-              className="flex items-center gap-2 bg-rhozly-primary/5 can-hover:hover:bg-rhozly-primary/10 active:scale-[0.98] rounded-2xl px-3 py-3 text-xs font-bold text-rhozly-on-surface transition"
-            >
-              <MapPin size={16} className="text-rhozly-primary shrink-0" /> Create a location
-            </button>
+            {can("locations.create") && (
+              <button
+                data-testid="empty-garden-add-location"
+                onClick={() => setAddLocationOpen(true)}
+                className="flex items-center gap-2 bg-rhozly-primary/5 can-hover:hover:bg-rhozly-primary/10 active:scale-[0.98] rounded-2xl px-3 py-3 text-xs font-bold text-rhozly-on-surface transition"
+              >
+                <MapPin size={16} className="text-rhozly-primary shrink-0" /> Create a location
+              </button>
+            )}
             <button
               onClick={() => navigate("/shed?open=add-plant")}
               className="flex items-center gap-2 bg-rhozly-primary/5 can-hover:hover:bg-rhozly-primary/10 active:scale-[0.98] rounded-2xl px-3 py-3 text-xs font-bold text-rhozly-on-surface transition"
@@ -417,6 +432,17 @@ export default function HomeMain({
     );
   };
 
+  // Inline add-location modal (Stage 4b) — ModalShell portals itself, so its
+  // position in the tree doesn't affect layout; included in both postures.
+  const addLocationSheet = (
+    <AddLocationSheet
+      isOpen={addLocationOpen}
+      onClose={() => setAddLocationOpen(false)}
+      homeId={homeId}
+      onCreated={refetchLocations}
+    />
+  );
+
   // ── Porch: one centered editorial column at every width ──
   if (posture === "porch") {
     return (
@@ -425,6 +451,7 @@ export default function HomeMain({
         className="mx-auto w-full max-w-[1100px] flex flex-col gap-5"
       >
         {preset.sectionOrder.map(renderSection)}
+        {addLocationSheet}
       </div>
     );
   }
@@ -447,6 +474,7 @@ export default function HomeMain({
           {asideIds.map(renderSection)}
         </aside>
       </div>
+      {addLocationSheet}
     </div>
   );
 }

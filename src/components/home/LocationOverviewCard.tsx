@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Home as HomeIcon, TreeDeciduous, AlertTriangle, CheckCircle2 } from "lucide-react";
 import AreaRow, { type AreaRowPlant } from "./AreaRow";
+import LocationManageMenu from "./LocationManageMenu";
 
 /**
  * One card per location in the Garden Overview grid (new-home-dashboard
@@ -32,9 +33,11 @@ interface Props {
   density: "simple" | "detailed";
   /** Per-area telemetry from home-overview (Phase 2); empty until it lands. */
   telemetryByArea?: Map<string, import("../../hooks/useHomeOverview").OverviewArea>;
+  /** Refetch the grid after an inline manage action (Stage 4b). */
+  onChanged?: () => void;
 }
 
-export default function LocationOverviewCard({ location, tasksToday, density, telemetryByArea }: Props) {
+export default function LocationOverviewCard({ location, tasksToday, density, telemetryByArea, onChanged }: Props) {
   const navigate = useNavigate();
   const areas = location.areas ?? [];
   const items = location.inventory_items ?? [];
@@ -58,30 +61,43 @@ export default function LocationOverviewCard({ location, tasksToday, density, te
       data-testid={`home-location-card-${location.id}`}
       className="bg-rhozly-surface-lowest rounded-card shadow-card border border-rhozly-outline/10 overflow-hidden"
     >
-      <button
-        onClick={openLocation}
-        className="w-full flex items-center gap-2.5 px-4 pt-4 pb-2 text-left can-hover:hover:bg-rhozly-primary/5 transition"
-      >
-        <div className="bg-rhozly-primary/10 p-2 rounded-xl shrink-0">
-          {location.is_outside ? (
-            <TreeDeciduous size={16} className="text-rhozly-primary" />
-          ) : (
-            <HomeIcon size={16} className="text-rhozly-primary" />
+      {/* Header row: the drill-in is its own <button> (icon + name); the tasks
+          chip + manage kebab are SIBLINGS, not nested — button-in-button is
+          invalid HTML, and the kebab needs its own click target (Stage 4b). */}
+      <div className="flex items-center gap-2.5 px-4 pt-4 pb-2">
+        <button
+          onClick={openLocation}
+          className="flex-1 min-w-0 flex items-center gap-2.5 text-left rounded-lg can-hover:hover:opacity-80 transition"
+        >
+          <div className="bg-rhozly-primary/10 p-2 rounded-xl shrink-0">
+            {location.is_outside ? (
+              <TreeDeciduous size={16} className="text-rhozly-primary" />
+            ) : (
+              <HomeIcon size={16} className="text-rhozly-primary" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black text-rhozly-on-surface truncate">{location.name}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-rhozly-on-surface/40">
+              {location.is_outside ? "Outdoors" : "Indoors"} · {areas.length} area{areas.length === 1 ? "" : "s"} · {items.length} plant{items.length === 1 ? "" : "s"}
+            </p>
+          </div>
+        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          {tasksToday > 0 && (
+            <span className="flex items-center gap-1 text-[11px] font-black text-rhozly-primary bg-rhozly-primary/10 px-2.5 py-1 rounded-full">
+              <CheckCircle2 size={12} />
+              {tasksToday}
+            </span>
+          )}
+          {onChanged && (
+            <LocationManageMenu
+              location={{ id: location.id, name: location.name, is_outside: location.is_outside }}
+              onChanged={onChanged}
+            />
           )}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-black text-rhozly-on-surface truncate">{location.name}</p>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-rhozly-on-surface/40">
-            {location.is_outside ? "Outdoors" : "Indoors"} · {areas.length} area{areas.length === 1 ? "" : "s"} · {items.length} plant{items.length === 1 ? "" : "s"}
-          </p>
-        </div>
-        {tasksToday > 0 && (
-          <span className="flex items-center gap-1 text-[11px] font-black text-rhozly-primary bg-rhozly-primary/10 px-2.5 py-1 rounded-full shrink-0">
-            <CheckCircle2 size={12} />
-            {tasksToday}
-          </span>
-        )}
-      </button>
+      </div>
 
       {location.hazard && (
         <div className="mx-4 mb-1 flex items-center gap-1.5 text-[11px] font-bold text-status-caution-ink bg-status-caution-fill border border-status-caution-line px-2.5 py-1.5 rounded-xl">

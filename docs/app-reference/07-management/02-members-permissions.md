@@ -53,6 +53,19 @@ function resolvePermissions(role, overrides): Record<PermissionKey, boolean> {
 
 Used everywhere via `usePermissions().can("shed.add")` etc.
 
+### Where the `locations.*` keys are enforced (home grid inline manage, Stage 4b)
+
+Since the stats+locations redesign Stage 4b (2026-07-20) the **home garden grid** is a second consumer of the `locations.create` / `locations.edit` / `locations.delete` keys, alongside LocationManager (`/management`). The grid's inline affordances gate on exactly these keys **client-side**:
+
+| Affordance | Key |
+|------------|-----|
+| `home-add-location-btn` → the Add-a-location sheet | `locations.create` |
+| Card ⋮ → Rename / Switch inside-outside | `locations.edit` |
+| Card ⋮ → Delete | `locations.delete` |
+| The card ⋮ menu itself | `locations.edit` OR `locations.delete` (hidden entirely otherwise) |
+
+By the standard role matrix this means **owner/admin** get everything, a **member** can add + rename + re-flag but **cannot delete**, and a **viewer** sees **no add button and no ⋮ menu at all** on the grid. **Critically, this is a client-only guard.** RLS on `locations` gates only home *membership*, not these permission keys (only `tasks.view_members` + `audit.view_all` are RLS-enforced today — see [RLS Patterns § current enforcement reality](../99-cross-cutting/19-rls-patterns.md)), so `usePermissions().can(...)` in `LocationManageMenu` / `GardenOverviewGrid` is **the only thing standing between a viewer/member and a spatial write**. Change these keys and both the grid and LocationManager must move together. See [Home (Main Dashboard) → Inline location management](../02-dashboard/17-home-main.md).
+
 ### Data flow — read paths
 
 Inherits from parent home fetch (see [01-home-management-overview.md](./01-home-management-overview.md#data-flow--read-paths)).

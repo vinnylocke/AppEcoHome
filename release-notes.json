@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "label": "Manage your locations right on the dashboard",
+    "items": [
+      "Add a new location without leaving the home screen — tap “Add location” on your garden grid.",
+      "Each location card now has a menu to rename it, switch it between indoor and outdoor, or delete it.",
+      "Everything updates in place — no trip to a settings page.",
+      "Permissions are respected: viewers can look but not change; members can add and edit but not delete."
+    ]
+  }
+]

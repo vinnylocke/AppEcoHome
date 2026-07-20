@@ -7,7 +7,7 @@
 > **Where each piece went:**
 > - **The grid of location cards + task-count badges** → the home's **Garden Overview grid** (`GardenOverviewGrid` / `LocationOverviewCard` / `AreaRow`). See [Home (Main Dashboard)](./17-home-main.md).
 > - **Tapping a location → drill-in (`?locationId=`)** → **unchanged**, but now reached by tapping a **garden-grid location card** (`home-location-card-{id}`) instead of a `LocationTile`. See [Location Page (Drill-In)](./07-location-page.md).
-> - **The "Add Location" empty-state CTA → `/management`** → `/management` (LocationManager) is **UNCHANGED and remains the locations/areas CRUD surface.** Inline add/manage directly on the home grid is **Stage 4b** work — **not yet shipped**; until it lands, `/management` is still the place to create and edit locations.
+> - **The "Add Location" empty-state CTA → `/management`** → **repointed in Stage 4b (2026-07-20).** The empty-garden CTA (`empty-garden-add-location`) now opens the inline `AddLocationSheet` on the home grid instead of navigating to `/management`. **Inline add + manage on the home grid is now DONE (Stage 4b):** the grid fully owns **add** (`home-add-location-btn` → `AddLocationSheet`), **rename**, **switch inside/outside**, and **delete** (each card's `location-manage-{id}` kebab → `LocationManageMenu`), all gated by the `locations.create/edit/delete` keys client-side and sharing `src/lib/locationMutations.ts` with LocationManager. `/management` (LocationManager) **remains the power-user bulk CRUD view** and now shares that same one DB path. See [Home (Main Dashboard) → Inline location management](./17-home-main.md).
 >
 > The historical body below is preserved for reference — read every statement as pre-Stage-4a history.
 
@@ -208,5 +208,6 @@ No difference.
 - ~~`src/components/LocationTile.tsx`~~ *(deleted 2026-07-20 — Stage 4a)*
 - `src/components/home/GardenOverviewGrid.tsx` / `LocationOverviewCard.tsx` / `AreaRow.tsx` — the home grid that absorbed this view's job
 - `src/components/LocationPage.tsx` — drill-in view (still live — reached from the garden grid's `home-location-card-{id}` cards)
-- `src/components/LocationManager.tsx` (`/management`) — the unchanged locations/areas CRUD surface (Stage 4b will add inline manage to the grid)
+- `src/components/LocationManager.tsx` (`/management`) — the power-user bulk locations/areas CRUD surface; **Stage 4b (2026-07-20): inline add/manage now lives on the home grid too, and both share `src/lib/locationMutations.ts` (one DB path)**
+- `src/components/home/AddLocationSheet.tsx` / `LocationManageMenu.tsx` / `src/lib/locationMutations.ts` — the home grid's inline add + manage affordances that absorbed this view's add/edit CTAs (Stage 4b)
 - `supabase/functions/home-dashboard-stats/index.ts` — supplies the locations + counts

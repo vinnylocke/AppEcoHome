@@ -60,11 +60,14 @@ LocationManager
 
 | Action | Operation |
 |--------|-----------|
-| Create location | `supabase.from("locations").insert({ home_id, name, is_outside })` |
-| Rename location | `update({ name }).eq("id", ...)` |
-| Delete location | `delete().eq("id", ...)` — cascades to areas + inventory items |
+| Create location | `createLocation({ name, isOutside, homeId })` |
+| Rename location | `renameLocation(id, name)` |
+| Switch inside/outside | `setLocationEnvironment(id, isOutside)` |
+| Delete location | `deleteLocation(id)` — cascades to areas + inventory items |
 | Create area | `supabase.from("areas").insert({ location_id, name, ... })` |
 | Edit area metrics | `update({ light_intensity_lux, ph, water_movement, growing_medium, ... }).eq("id", areaId)` |
+
+**Shared location-mutation lib (stats+locations redesign Stage 4b, 2026-07-20):** the four **location** writes above no longer hand-roll `supabase.from("locations")` — LocationManager now imports `createLocation` / `renameLocation` / `setLocationEnvironment` / `deleteLocation` from [`src/lib/locationMutations.ts`](../../../src/lib/locationMutations.ts) (lines 6-10, called at 239 / 263 / 326 / 364). **This is the same one DB path the home garden grid's inline add/manage uses** ([`AddLocationSheet`](../../../src/components/home/AddLocationSheet.tsx) + [`LocationManageMenu`](../../../src/components/home/LocationManageMenu.tsx)) — so the two surfaces create / rename / re-flag / delete locations identically and can never drift. **No behaviour change here:** LocationManager remains the power-user bulk CRUD view; each mutation returns the raw `{ error }` and the caller still owns its own `can()` gate, toasts, and refetch. Area writes were left as-is (not part of the Stage 4b lib).
 
 ### Edge functions invoked
 
@@ -219,6 +222,7 @@ No difference.
 ## Code references for ongoing maintenance
 
 - `src/components/LocationManager.tsx` — entire component
+- `src/lib/locationMutations.ts` — the shared `createLocation` / `renameLocation` / `setLocationEnvironment` / `deleteLocation` DB path (Stage 4b), imported by both this surface and the home garden grid's inline add/manage (`AddLocationSheet` / `LocationManageMenu`)
 - `src/components/area/AreaSensorsPanel.tsx` — Readings tab
 - `src/components/area/AreaAiAnalysisPanel.tsx` — AI Area Coach tab
 - `src/lib/areaInsight.ts` — pure status/label helpers for the AI panel

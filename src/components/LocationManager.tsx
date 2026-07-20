@@ -3,6 +3,12 @@ import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import { supabase } from "../lib/supabase";
 import { logEvent, EVENT } from "../events/registry";
 import {
+  createLocation,
+  renameLocation,
+  setLocationEnvironment,
+  deleteLocation,
+} from "../lib/locationMutations";
+import {
   Home,
   Sun,
   Trash2,
@@ -230,13 +236,11 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnab
     }
 
     try {
-      const { error } = await supabase.from("locations").insert([
-        {
-          name: newLoc.name.trim(),
-          is_outside: newLoc.is_outside,
-          home_id: homeId,
-        },
-      ]);
+      const { error } = await createLocation({
+        name: newLoc.name,
+        isOutside: newLoc.is_outside,
+        homeId,
+      });
 
       if (error) throw error;
 
@@ -256,10 +260,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnab
   const handleUpdateLocationDB = async (loc: any) => {
     if (!loc.name.trim()) return;
     setSavingLocationId(loc.id);
-    const { error } = await supabase
-      .from("locations")
-      .update({ name: loc.name.trim() })
-      .eq("id", loc.id);
+    const { error } = await renameLocation(loc.id, loc.name);
 
     setSavingLocationId(null);
     if (error) {
@@ -322,10 +323,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnab
   const toggleEnvironment = async (loc: any) => {
     const newIsOutside = !loc.is_outside;
     setSavingLocationId(loc.id);
-    const { error } = await supabase
-      .from("locations")
-      .update({ is_outside: newIsOutside })
-      .eq("id", loc.id);
+    const { error } = await setLocationEnvironment(loc.id, newIsOutside);
 
     setSavingLocationId(null);
     if (error) {
@@ -361,10 +359,10 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnab
     setIsDeleting(true);
     try {
       const { type, id } = itemToDelete;
-      const { error } = await supabase
-        .from(type === "location" ? "locations" : "areas")
-        .delete()
-        .eq("id", id);
+      const { error } =
+        type === "location"
+          ? await deleteLocation(id)
+          : await supabase.from("areas").delete().eq("id", id);
       if (error) throw error;
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted.`);
       fetchHierarchy();
