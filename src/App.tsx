@@ -1544,9 +1544,14 @@ function AppShell() {
                   isMdBreakpoint kills the old "two nav bars on mobile" problem
                   (the bottom bar already self-hides on desktop via md:hidden). */}
               {!isFocusMode && isMdBreakpoint && (
+              /* Phase 6d — scope the collapse transition to the props that
+                 actually change (width/padding) with a real easing, instead of
+                 `transition-all` (which tweened every property, imprecise). The
+                 rail is desktop-only now, so this width tween never runs in the
+                 mobile WebView. */
               <nav
                 aria-label="Primary navigation"
-                className={`flex flex-col justify-between transition-all duration-300 border-r border-rhozly-primary/20 bg-rhozly-primary-container shrink-0 h-full overflow-hidden
+                className={`flex flex-col justify-between transition-[width,padding] duration-300 ease-out-quart border-r border-rhozly-primary/20 bg-rhozly-primary-container shrink-0 h-full overflow-hidden
                   ${sidebarIsCollapsed ? "w-20 items-center p-3" : "w-72 p-6"}
                 `}
               >

@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "A little more polish",
+    "items": [
+      "Collapsing the desktop sidebar now animates a touch more smoothly and precisely."
+    ]
+  }
+]
