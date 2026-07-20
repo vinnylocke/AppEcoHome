@@ -18,9 +18,13 @@ Mobile-only (`md:hidden`) fixed bar with five slots: **Home** (`/dashboard`), **
 
 ```
 BottomTabBar (nav, aria-label="Quick navigation", data-testid="bottom-tab-bar")
+├── sliding active marker (Phase 6d — ONE top hairline pill shared by all
+│   slots; slides on `transform`/ease-spring to the active destination's
+│   centre, opacity 0 when no destination is active, e.g. Capture/More
+│   surfaces. Measured via refs + a ResizeObserver on the row, mirroring
+│   SegmentedTabs — replaces the old per-tab fade-in underline.)
 └── slot × 5 (data-testid="bottom-tab-{id}")
     ├── nav tab (variant "nav" — Home / Plants / Planner)
-    │   ├── active indicator (top hairline pill)
     │   ├── icon (lucide, strokeWidth 1.75 / 2.2 when active)
     │   ├── badge (Home only — overdue count, bg-rhozly-error)
     │   └── label (text-3xs)

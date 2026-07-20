@@ -36,6 +36,11 @@ interface BottomTabBarProps {
  * four destinations wrapped around a raised centre Capture FAB, with a "More"
  * slot that opens the Shelf drawer for the long tail).
  *
+ * Phase 6d — the active accent is ONE marker that slides between destinations
+ * on `transform` (compositor-only, ease-spring), rather than a per-tab underline
+ * that fades: the "same indicator moving" craft used by SegmentedTabs. It hides
+ * when no destination is active (Capture / More surfaces).
+ *
  * Hidden from `md:` up (the sidebar owns desktop) and suppressed in focus mode.
  *
  * This is the screen's ONE allowed backdrop-blur surface (design-system
@@ -44,6 +49,44 @@ interface BottomTabBarProps {
  * zone via `pb-28` on mobile.
  */
 export default function BottomTabBar({ tabs, currentPath, onNavigate }: BottomTabBarProps) {
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  const tabRefs = React.useRef(new Map<string, HTMLButtonElement>());
+
+  const isActive = React.useCallback(
+    (tab: BottomTab) =>
+      tab.variant !== "fab" &&
+      !!tab.matchPaths?.some((p) => currentPath === p || currentPath.startsWith(p + "/")),
+    [currentPath],
+  );
+
+  const activeId = tabs.find((t) => isActive(t))?.id ?? null;
+  const [marker, setMarker] = React.useState<{ x: number; visible: boolean }>({ x: 0, visible: false });
+
+  const measure = React.useCallback(() => {
+    if (!activeId) {
+      setMarker((m) => (m.visible ? { ...m, visible: false } : m));
+      return;
+    }
+    const btn = tabRefs.current.get(activeId);
+    // A zero-size rect means a display:none ancestor (e.g. md:hidden on desktop)
+    // — keep the marker hidden until a real measurement arrives.
+    if (!btn || btn.offsetWidth === 0) {
+      setMarker({ x: 0, visible: false });
+      return;
+    }
+    // Centre of the active tab, minus half the 32px (w-8) marker width.
+    setMarker({ x: btn.offsetLeft + btn.offsetWidth / 2 - 16, visible: true });
+  }, [activeId]);
+
+  React.useLayoutEffect(() => {
+    measure();
+    const row = rowRef.current;
+    if (!row || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [measure]);
+
   return (
     <nav
       aria-label="Quick navigation"
@@ -51,7 +94,13 @@ export default function BottomTabBar({ tabs, currentPath, onNavigate }: BottomTa
       className="md:hidden fixed inset-x-0 bottom-0 border-t border-rhozly-outline/15 bg-rhozly-surface-lowest/90 backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
       style={{ zIndex: Z.nav }}
     >
-      <div className="flex items-stretch">
+      <div ref={rowRef} className="relative flex items-stretch">
+        {/* The single sliding active marker (Phase 6d). */}
+        <span
+          aria-hidden
+          className="absolute top-0 h-0.5 w-8 rounded-full bg-rhozly-primary transition-[transform,opacity] duration-200 ease-spring"
+          style={{ transform: `translateX(${marker.x}px)`, opacity: marker.visible ? 1 : 0 }}
+        />
         {tabs.map((tab) => {
           const name = tab.ariaLabel ?? tab.label;
           const press = () => (tab.onPress ? tab.onPress() : tab.to && onNavigate(tab.to));
@@ -84,14 +133,15 @@ export default function BottomTabBar({ tabs, currentPath, onNavigate }: BottomTa
           }
 
           // ── Standard destination / action tab ───────────────────────────
-          // (variant is already narrowed to non-"fab" by the early return.)
-          const active = !!tab.matchPaths?.some(
-            (p) => currentPath === p || currentPath.startsWith(p + "/"),
-          );
+          const active = isActive(tab);
           const badge = tab.badge ?? 0;
           return (
             <button
               key={tab.id}
+              ref={(el) => {
+                if (el) tabRefs.current.set(tab.id, el);
+                else tabRefs.current.delete(tab.id);
+              }}
               type="button"
               data-testid={`bottom-tab-${tab.id}`}
               aria-current={active ? "page" : undefined}
@@ -103,13 +153,6 @@ export default function BottomTabBar({ tabs, currentPath, onNavigate }: BottomTa
                 active ? "text-rhozly-primary" : "text-rhozly-on-surface-variant",
               )}
             >
-              <span
-                aria-hidden
-                className={cn(
-                  "absolute top-0 h-0.5 w-8 rounded-full bg-rhozly-primary transition-opacity duration-150",
-                  active ? "opacity-100" : "opacity-0",
-                )}
-              />
               <span className="relative">
                 {React.cloneElement(tab.icon as React.ReactElement<{ className?: string; strokeWidth?: number }>, {
                   className: "w-6 h-6",
