@@ -809,37 +809,13 @@ test.describe("Dashboard — Calendar view (Section 04)", () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Section 02 — Garden Snapshot stat tiles (RHO-13)
-// ─────────────────────────────────────────────────────────────────────────────
-
-test.describe("Dashboard — Garden Snapshot stat tiles (RHO-13)", () => {
-  // The Garden Snapshot is collapsed for non-experienced personas; expand it
-  // so the stat tiles render, then click the Total Tasks tile.
-  async function openSnapshot(page: import("@playwright/test").Page) {
-    const toggle = page.getByTestId("dash-snapshot-toggle");
-    await toggle.waitFor({ state: "visible", timeout: 10000 });
-    const totalTile = page.getByTestId("dash-stat-tasks-total");
-    if (!(await totalTile.isVisible().catch(() => false))) {
-      await toggle.click();
-    }
-    await totalTile.waitFor({ state: "visible", timeout: 10000 });
-  }
-
-  test("DASH-050: Total Tasks tile navigates to the calendar view (not /schedule)", async ({ authenticatedPage }) => {
-    const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
-    await dashboard.waitForLoad();
-
-    await openSnapshot(authenticatedPage);
-    await authenticatedPage.getByTestId("dash-stat-tasks-total").click();
-
-    // RHO-13: must land on the Calendar agenda, matching the sibling tiles —
-    // NOT the Routines page (/schedule).
-    await expect(authenticatedPage).toHaveURL(/view=calendar/, { timeout: 8000 });
-    await expect(authenticatedPage).not.toHaveURL(/\/schedule/);
-  });
-});
+// Section 02 — Garden Snapshot stat tiles (RHO-13) — RETIRED 2026-07-20.
+// The Garden Snapshot stat wall was deleted outright in the home stats+locations
+// redesign Stage 2 (docs/plans/home-screen-redesign-2026-07.md): ~25 vanity /
+// retrospective / duplicate tiles removed from the home with no relocation. The
+// dash-stat-* / dash-snapshot-toggle testids no longer exist. DASH-050 (Total
+// Tasks tile → calendar) is gone with the surface; the Calendar agenda is
+// covered by the CAL-* suite.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section 02 — Week Ahead card tier gating (RHO-9)

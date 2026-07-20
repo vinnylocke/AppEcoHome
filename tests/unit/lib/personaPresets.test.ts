@@ -121,17 +121,15 @@ describe("HOME_PRESETS — structural invariants the section loop depends on", (
       }
     }
   });
-  test("posture identity: porch has nextBestAction+learn and no attention/week/snapshot; workbench the inverse", () => {
+  test("posture identity: porch has nextBestAction+learn and no attention/week; workbench the inverse", () => {
     const porch = new Set(HOME_PRESETS.porch.sectionOrder);
     const bench = new Set(HOME_PRESETS.workbench.sectionOrder);
     expect(porch.has("nextBestAction")).toBe(true);
     expect(porch.has("learn")).toBe(true);
     expect(porch.has("attention")).toBe(false);
     expect(porch.has("week")).toBe(false);
-    expect(porch.has("snapshot")).toBe(false);
     expect(bench.has("attention")).toBe(true);
     expect(bench.has("week")).toBe(true);
-    expect(bench.has("snapshot")).toBe(true);
     expect(bench.has("nextBestAction")).toBe(false);
     expect(bench.has("learn")).toBe(false);
   });
@@ -142,10 +140,5 @@ describe("HOME_PRESETS — structural invariants the section loop depends on", (
   test("promo: porch renders the card in-flow; workbench demotes to a line", () => {
     expect(HOME_PRESETS.porch.variants.promo).toBe("card");
     expect(HOME_PRESETS.workbench.variants.promo).toBe("line");
-  });
-  test("snapshot never starts expanded (declutter default)", () => {
-    for (const p of postures) {
-      expect(HOME_PRESETS[p].snapshotOpen).toBe(false);
-    }
   });
 });

@@ -6,7 +6,6 @@ import GardenOverviewGrid from "./GardenOverviewGrid";
 import QuickActionsRow from "./QuickActionsRow";
 import AttentionRow from "./AttentionRow";
 import TheBrief from "./TheBrief";
-import GardenSnapshot from "./GardenSnapshot";
 import NextBestAction from "./NextBestAction";
 import WeekAheadPreview from "../shared/WeekAheadPreview";
 import FeatureGate from "../shared/FeatureGate";
@@ -48,8 +47,10 @@ import type { QuickLauncherAvailabilityCtx } from "../../lib/quickLauncherCatalo
  * toggle is now the posture override (same control, same testids, same
  * legacy localStorage key mirrored for pre-redesign users + e2e seeds).
  *
- * The single useHomeDashboardStats mount here feeds BOTH the status summary
- * and GardenSnapshot — don't add second consumers (the edge fn is uncached).
+ * The single useHomeDashboardStats mount here feeds the status "X of Y done
+ * today" summary and the Garden Walk gate — don't add second consumers (the
+ * edge fn is uncached). It used to also feed the Garden Snapshot stat wall,
+ * deleted outright in the stats+locations redesign Stage 2 (2026-07-20).
  */
 
 /** Attention kinds the dashboard suppresses (redesign Stage 2 one-owner map):
@@ -61,7 +62,6 @@ const ATTENTION_EXCLUDE_KINDS = ["overdue_tasks", "weather_alert"];
 const WORKBENCH_ASIDE_SECTIONS: ReadonlySet<HomeSectionId> = new Set([
   "brief",
   "week",
-  "snapshot",
 ]);
 
 interface Props {
@@ -158,17 +158,13 @@ export default function HomeMain({
   // due-date day-strip bucket, which missed overdue-completed-today). The day
   // bucket is still used for the SKIPPED / POSTPONED passthrough. Mounted in
   // BOTH postures so the breakdown shows for porch (Sprout) users too.
-  // This single hook instance also feeds GardenSnapshot on the workbench.
   // Soft-fails: the hook returns null stats on error and the strip still
   // renders pending.
-  const {
-    stats: dashStats,
-    loading: dashLoading,
-    error: dashError,
-    refresh: dashRefresh,
-    weekStart,
-    weekEnd,
-  } = useHomeDashboardStats(homeId);
+  // Kept for the today summary + the walk gate even though the Garden Snapshot
+  // stat wall (the hook's other consumer) was deleted in Stage 2 — todaySummary
+  // still needs tasks.doneToday + the day bucket, and the walk tile needs
+  // garden.totalPlants.
+  const { stats: dashStats } = useHomeDashboardStats(homeId);
   const todayBucket = dashStats?.dayStrip?.find((d) => d.isToday) ?? null;
   const todaySummary = buildTodaySummary(todayTaskCount, dashStats?.tasks.doneToday, todayBucket);
 
@@ -360,19 +356,6 @@ export default function HomeMain({
     </FeatureGate>
   );
 
-  // Collapsed by default (preset.snapshotOpen is false for both postures —
-  // GardenSnapshot's own persisted-collapse state honours that default).
-  const snapshot = (
-    <GardenSnapshot
-      stats={dashStats}
-      loading={dashLoading}
-      error={dashError}
-      refresh={dashRefresh}
-      weekStart={weekStart}
-      weekEnd={weekEnd}
-    />
-  );
-
   const seasonalPicks = (
     <SeasonalPicksCard
       homeId={homeId}
@@ -408,7 +391,6 @@ export default function HomeMain({
     learn: seasonalPicks,
     brief: theBrief,
     week: weekAhead,
-    snapshot,
   };
 
   // Wrapper contract: `data-section` names the slot (Next Best Action's

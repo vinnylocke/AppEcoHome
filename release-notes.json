@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Less clutter, more focus on your home screen",
+    "items": [
+      "Removed the big statistics wall from the dashboard — the completion-rate, streak, yield and activity scoreboards that looked busy but rarely changed what you'd do next.",
+      "Your home now leads with what's actually actionable: today's tasks, what needs attention, and your garden at a glance.",
+      "The detailed view's side panel is now just your daily brief and the week ahead — calmer and quicker to read."
+    ]
+  }
+]

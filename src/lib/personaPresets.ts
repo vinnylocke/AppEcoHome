@@ -45,17 +45,13 @@ export type HomeSectionId =
   | "quickActions"
   | "learn"
   | "brief"
-  | "week"
-  | "snapshot";
+  | "week";
 
 export interface HomePreset {
   /** Ordered list of VISIBLE sections — omission hides a section. */
   sectionOrder: HomeSectionId[];
   /** Per-section presentation variant (consumed by each section's renderer). */
   variants: Partial<Record<HomeSectionId, string>>;
-  /** Whether the Garden Snapshot starts expanded (only meaningful when
-   *  "snapshot" is in sectionOrder). */
-  snapshotOpen: boolean;
 }
 
 export const HOME_PRESETS: Record<HomePosture, HomePreset> = {
@@ -80,11 +76,11 @@ export const HOME_PRESETS: Record<HomePosture, HomePreset> = {
       today: "gentle",
       brief: "gentle",
     },
-    snapshotOpen: false,
   },
   // 🛠️ The Workbench — an operations console. Console-line hero, attention
   // inbox, telemetry grid, compact tasks + "Open board", the merged Brief,
-  // week ahead, collapsed snapshot. Almost no hand-holding.
+  // week ahead. Almost no hand-holding. (The Garden Snapshot stat wall was
+  // deleted outright in the stats+locations redesign Stage 2 — 2026-07-20.)
   workbench: {
     sectionOrder: [
       "hero",
@@ -95,7 +91,6 @@ export const HOME_PRESETS: Record<HomePosture, HomePreset> = {
       "week",
       "quickActions",
       "promo",
-      "snapshot",
     ],
     variants: {
       hero: "console",
@@ -104,7 +99,6 @@ export const HOME_PRESETS: Record<HomePosture, HomePreset> = {
       today: "throughput",
       brief: "full",
     },
-    snapshotOpen: false,
   },
 };
 
