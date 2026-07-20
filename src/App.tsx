@@ -5,6 +5,7 @@ import { supabase } from "./lib/supabase";
 import {
   Menu,
   Home,
+  Plus,
   Loader2,
   X,
   MapPin,
@@ -15,7 +16,7 @@ import {
   BookOpen,
   Leaf,
 } from "lucide-react";
-import { IconPlants, IconPlanner, IconDoctor, IconAI, IconIntegrations, IconTools } from "./constants/icons";
+import { IconPlants, IconPlanner, IconAI, IconIntegrations, IconTools } from "./constants/icons";
 
 // 🚀 NATIVE IMPORT
 import { App as CapApp } from "@capacitor/app";
@@ -98,6 +99,7 @@ const PlantDoctor         = lazyWithRetry(() => import("./components/PlantDoctor
 const QuickAccessHome     = lazyWithRetry(() => import("./components/QuickAccessHome"));
 const LocalizedTaskCalendar = lazyWithRetry(() => import("./components/quick/LocalizedTaskCalendar"));
 const JournalNotesHub       = lazyWithRetry(() => import("./components/JournalNotesHub"));
+const CaptureSheet          = lazyWithRetry(() => import("./components/CaptureSheet"));
 const WeeklyOverviewPage    = lazyWithRetry(() => import("./components/WeeklyOverviewPage"));
 const HeadGardenerPage      = lazyWithRetry(() => import("./components/manager/HeadGardenerPage"));
 const CreditsPage           = lazyWithRetry(() => import("./components/CreditsPage"));
@@ -261,6 +263,8 @@ function AppShell() {
   const isFocusMode =
     isWalk || (isMobile && routerLocation.pathname.startsWith("/quick"));
   const [quickDrawerOpen, setQuickDrawerOpen] = useState(false);
+  // Phase 6b — the phone Deck's raised centre FAB opens the Capture sheet.
+  const [captureSheetOpen, setCaptureSheetOpen] = useState(false);
 
   // One-shot purge of legacy v1 dashboard cache entries on app mount.
   // v1 snapshots cached a serialised lucide forwardRef which crashed
@@ -269,15 +273,12 @@ function AppShell() {
     purgeLegacyV1DashboardCaches();
   }, []);
 
-  // Close the drawer whenever the route changes (e.g. after picking a link).
+  // Close the Shelf drawer whenever the route changes (e.g. after picking a
+  // link). The Shelf is the phone overflow nav — the desktop-close is handled
+  // in the matchMedia effect below.
   useEffect(() => {
     setQuickDrawerOpen(false);
   }, [routerLocation.pathname]);
-
-  // Close the drawer if the viewport stops being mobile.
-  useEffect(() => {
-    if (!isFocusMode) setQuickDrawerOpen(false);
-  }, [isFocusMode]);
 
   const [session, setSession] = useState<any>(null);
   // Ref mirror of `session` for stable callbacks (handleProfileRealtime has
@@ -315,8 +316,6 @@ function AppShell() {
     return () => clearInterval(id);
   }, []);
 
-  // Mobile Nav State
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [helpCenterOpen, setHelpCenterOpen] = useState(false);
   const [isMdBreakpoint, setIsMdBreakpoint] = useState(() => window.matchMedia("(min-width: 768px)").matches);
   const [showPrivacy, setShowPrivacy] = useState(false);
@@ -633,7 +632,9 @@ function AppShell() {
     const mq = window.matchMedia("(min-width: 768px)");
     const handler = (e: MediaQueryListEvent) => {
       setIsMdBreakpoint(e.matches);
-      if (e.matches) setIsMobileSidebarOpen(false);
+      // Becoming desktop: the left sidebar takes over, so close the phone
+      // Shelf drawer if it was open.
+      if (e.matches) setQuickDrawerOpen(false);
     };
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
@@ -1368,11 +1369,15 @@ function AppShell() {
   // own slot — the app's flagship AI flow was previously two taps deep under
   // Tools — so the Tools tab's matchPaths deliberately exclude /doctor here.
   const bottomTabs = [
+    // Phase 6b — the Deck: four destinations wrapped around a raised centre
+    // Capture FAB. Plant Doctor is reached via Capture (its hero action) and
+    // Tools/Journal/Integrations/etc. via the "More" → Shelf slot, so the phone
+    // never faces the full estate at once.
     { id: "dashboard", label: "Home", icon: <Home />, to: TAB_URL.dashboard, matchPaths: ["/dashboard", "/management", "/home-management"], badge: overdueTaskCount },
     { id: "shed", label: "Plants", icon: <IconPlants />, to: TAB_URL.shed, matchPaths: ["/shed", "/watchlist"] },
-    { id: "doctor", label: "Doctor", icon: <IconDoctor />, to: TAB_URL.doctor, matchPaths: ["/doctor"], ariaLabel: "Plant Doctor" },
+    { id: "capture", label: "Capture", icon: <Plus />, variant: "fab" as const, ariaLabel: "Capture", onPress: () => setCaptureSheetOpen(true) },
     { id: "planner", label: "Planner", icon: <IconPlanner />, to: TAB_URL.planner, matchPaths: ["/planner", "/shopping", "/schedule", "/journal", "/notes"] },
-    { id: "tools", label: "Tools", icon: <IconTools />, to: TAB_URL.tools, matchPaths: ["/tools", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory", "/weekly"] },
+    { id: "more", label: "More", icon: <Menu />, ariaLabel: "More menu", onPress: () => setQuickDrawerOpen(true) },
   ];
 
   const canUsePortal = typeof document !== "undefined";
@@ -1387,7 +1392,9 @@ function AppShell() {
     "Notification" in window &&
     Notification.permission === "default" &&
     localStorage.getItem("rhozly_notif_optin_dismissed") !== "true";
-  const sidebarIsCollapsed = isMdBreakpoint ? isNavCollapsed : !isMobileSidebarOpen;
+  // The sidebar is desktop-only (Phase 6a) — the phone uses the bottom bar +
+  // Shelf drawer instead — so collapse follows the persisted desktop pref.
+  const sidebarIsCollapsed = isNavCollapsed;
 
   const RouteFallback = (
     <div className="flex items-center justify-center h-40">
@@ -1447,9 +1454,12 @@ function AppShell() {
             // cover everything.
             <header className="sticky top-0 z-50 bg-brand-gradient border-b border-white/10 px-4 md:px-8 py-4 flex justify-between items-center shadow-raised">
               <div className="flex items-center gap-3 font-display font-black text-2xl tracking-tight text-white">
+                {/* Phase 6b — desktop-only: collapses the sidebar rail. On
+                    phone the Deck's "More" slot opens the Shelf, so the header
+                    sheds the hamburger and stays calm. */}
                 <button
-                  onClick={() => isMdBreakpoint ? setIsNavCollapsed(!isNavCollapsed) : setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-                  className="flex hover:bg-white/20 p-2 rounded-xl transition-colors items-center justify-center mr-1 min-h-[44px] min-w-[44px]"
+                  onClick={() => setIsNavCollapsed(!isNavCollapsed)}
+                  className="hidden md:flex hover:bg-white/20 p-2 rounded-xl transition-colors items-center justify-center mr-1 min-h-[44px] min-w-[44px]"
                   aria-label="Toggle navigation"
                 >
                   <Menu className="w-6 h-6" />
@@ -1473,7 +1483,11 @@ function AppShell() {
                   />
                   <QueuedActionsBadge />
                   <GlobalSearch homeId={profile?.home_id ?? null} />
-                  <GlobalQuickAdd />
+                  {/* Phase 6b — desktop-only: the phone's create/capture entry
+                      is the Deck's centre Capture FAB, so the header "+" hides. */}
+                  <span className="hidden md:block">
+                    <GlobalQuickAdd />
+                  </span>
                 </div>
               </div>
               <UserProfileDropdown
@@ -1495,7 +1509,11 @@ function AppShell() {
             <BetaFeedbackBanner />
 
             <div className="flex flex-1 overflow-hidden relative z-10 w-full">
-              {!isFocusMode && (
+              {/* Phase 6a — the sidebar is DESKTOP-ONLY. On phones the bottom
+                  tab bar + Shelf drawer are the nav, so gating the rail behind
+                  isMdBreakpoint kills the old "two nav bars on mobile" problem
+                  (the bottom bar already self-hides on desktop via md:hidden). */}
+              {!isFocusMode && isMdBreakpoint && (
               <nav
                 aria-label="Primary navigation"
                 className={`flex flex-col justify-between transition-all duration-300 border-r border-rhozly-primary/20 bg-rhozly-primary-container shrink-0 h-full overflow-hidden
@@ -1526,12 +1544,9 @@ function AppShell() {
                           icon={link.icon}
                           label={link.label}
                           active={link.matchPaths.some(p => routerLocation.pathname === p || routerLocation.pathname.startsWith(p + "/"))}
-                          onClick={() => {
-                            navigate(TAB_URL[link.id]);
-                            if (!isMdBreakpoint) setIsMobileSidebarOpen(false);
-                          }}
+                          onClick={() => navigate(TAB_URL[link.id])}
                           isCollapsed={sidebarIsCollapsed}
-                          isMobile={!isMdBreakpoint}
+                          isMobile={false}
                           badge={link.badge}
                           badgeTone={link.badgeTone}
                         />
@@ -1546,9 +1561,9 @@ function AppShell() {
                     active={false}
                     onClick={() => setHelpCenterOpen(true)}
                     isCollapsed={sidebarIsCollapsed}
-                    isMobile={!isMdBreakpoint}
+                    isMobile={false}
                   />
-                  <div className={`flex flex-col gap-1 mt-1 ${!isMdBreakpoint && sidebarIsCollapsed ? "hidden" : ""}`}>
+                  <div className="flex flex-col gap-1 mt-1">
                     <button
                       onClick={() => setShowPrivacy(true)}
                       className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center py-2 px-1"
@@ -2253,6 +2268,17 @@ function AppShell() {
                   single source of truth for the user menu again. Future
                   thumb-zone work would need to MOVE the dropdown, not add
                   a second instance. */}
+            </Suspense>
+          )}
+
+          {/* Phase 6a — the Shelf: the mobile overflow nav drawer, promoted out
+              of the focus-mode block to a SINGLE app-level mount so it serves
+              every phone route (opened by the Deck's "More" slot on normal
+              routes and by QuickAccessMenuButton in focus mode). It renders null
+              when closed and portals to body, so a single instance is safe.
+              Mounted only on phone or in focus mode — desktop uses the sidebar. */}
+          {(isFocusMode || !isMdBreakpoint) && (
+            <Suspense fallback={null}>
               <MobileNavDrawer
                 open={quickDrawerOpen}
                 navLinks={navLinks}
@@ -2268,6 +2294,18 @@ function AppShell() {
                 onOpenCookies={() => setShowCookies(true)}
                 appVersion={appVersion ?? undefined}
                 onVersionClick={() => setReleaseNotesMode("history")}
+              />
+            </Suspense>
+          )}
+
+          {/* Phase 6b — the Capture sheet, opened by the Deck's centre FAB.
+              Phone/focus only (on desktop the header "+" covers create). */}
+          {(isFocusMode || !isMdBreakpoint) && (
+            <Suspense fallback={null}>
+              <CaptureSheet
+                open={captureSheetOpen}
+                onClose={() => setCaptureSheetOpen(false)}
+                onNavigate={(url) => navigate(url)}
               />
             </Suspense>
           )}

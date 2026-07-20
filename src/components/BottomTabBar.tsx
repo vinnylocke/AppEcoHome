@@ -7,13 +7,21 @@ export interface BottomTab {
   /** Short visible label — one word, the bar has five slots on a small phone. */
   label: string;
   icon: React.ReactElement;
-  to: string;
+  /** Destination for `variant: "nav"` slots. Omitted for action slots. */
+  to?: string;
+  /** Action handler for non-nav slots (the Capture FAB, the More/Shelf slot). */
+  onPress?: () => void;
   /** Same semantics as the sidebar's matchPaths — exact match or prefix + "/". */
-  matchPaths: string[];
+  matchPaths?: string[];
   /** Count badge (e.g. overdue tasks). 0 hides it. */
   badge?: number;
   /** Full accessible name when the visible label is a short form (e.g. "Doctor" → "Plant Doctor"). */
   ariaLabel?: string;
+  /**
+   * "nav" (default) — a destination tab with active-state + matchPaths.
+   * "fab" — the raised centre Capture action (green circle, no active state).
+   */
+  variant?: "nav" | "fab";
 }
 
 interface BottomTabBarProps {
@@ -23,10 +31,12 @@ interface BottomTabBarProps {
 }
 
 /**
- * Mobile-only thumb-reach navigation for the core destinations — every screen
- * used to be two taps away via the hamburger; the bar makes the daily loop one.
- * Hidden from `md:` up (the sidebar owns desktop) and suppressed entirely in
- * focus mode (`/quick` routes have their own drawer chrome).
+ * Mobile-only thumb-reach navigation — the phone's ONE primary nav (Phase 6a
+ * removed the co-rendered sidebar rail; Phase 6b reshaped this into the Deck:
+ * four destinations wrapped around a raised centre Capture FAB, with a "More"
+ * slot that opens the Shelf drawer for the long tail).
+ *
+ * Hidden from `md:` up (the sidebar owns desktop) and suppressed in focus mode.
  *
  * This is the screen's ONE allowed backdrop-blur surface (design-system
  * budget) — a 12px static blur over a 90%-opaque token background, so contrast
@@ -43,19 +53,50 @@ export default function BottomTabBar({ tabs, currentPath, onNavigate }: BottomTa
     >
       <div className="flex items-stretch">
         {tabs.map((tab) => {
-          const active = tab.matchPaths.some(
+          const name = tab.ariaLabel ?? tab.label;
+          const press = () => (tab.onPress ? tab.onPress() : tab.to && onNavigate(tab.to));
+
+          // ── Raised Capture FAB ──────────────────────────────────────────
+          if (tab.variant === "fab") {
+            return (
+              <div key={tab.id} className="flex-1 flex flex-col items-center justify-end pb-1">
+                <button
+                  type="button"
+                  data-testid={`bottom-tab-${tab.id}`}
+                  aria-label={name}
+                  onClick={press}
+                  className={cn(
+                    "-mt-5 grid place-items-center w-14 h-14 rounded-full",
+                    "bg-rhozly-primary text-white shadow-raised ring-4 ring-rhozly-surface-lowest",
+                    "transition-transform duration-100 ease-spring active:scale-95 touch-manipulation",
+                  )}
+                >
+                  {React.cloneElement(tab.icon as React.ReactElement<{ className?: string; strokeWidth?: number }>, {
+                    className: "w-7 h-7",
+                    strokeWidth: 2.2,
+                  })}
+                </button>
+                <span className="text-3xs font-semibold text-rhozly-on-surface-variant mt-0.5">
+                  {tab.label}
+                </span>
+              </div>
+            );
+          }
+
+          // ── Standard destination / action tab ───────────────────────────
+          // (variant is already narrowed to non-"fab" by the early return.)
+          const active = !!tab.matchPaths?.some(
             (p) => currentPath === p || currentPath.startsWith(p + "/"),
           );
           const badge = tab.badge ?? 0;
-          const name = tab.ariaLabel ?? tab.label;
           return (
             <button
               key={tab.id}
               type="button"
               data-testid={`bottom-tab-${tab.id}`}
               aria-current={active ? "page" : undefined}
-              aria-label={badge > 0 ? `${name}, ${badge} overdue` : tab.ariaLabel}
-              onClick={() => onNavigate(tab.to)}
+              aria-label={badge > 0 ? `${name}, ${badge} overdue` : name}
+              onClick={press}
               className={cn(
                 "relative flex-1 min-h-[56px] flex flex-col items-center justify-center gap-0.5 select-none touch-manipulation",
                 "transition-[color,transform] duration-150 active:scale-95 active:duration-100",

@@ -25,7 +25,13 @@ BrowserRouter
     │    focus-mode at EVERY viewport width (not just mobile) — it's a
     │    full-screen guided surface; the floating profile dropdown is
     │    suppressed on /walk so it doesn't clash with the card's Stop button.
-    │    isFocusMode = isWalk || (isMobile && /quick).)
+    │    isFocusMode = isWalk || (isMobile && /quick).
+    │    Phase 6a: the MobileNavDrawer (the "Shelf") is no longer focus-only.
+    │    It's now a SINGLE app-level mount rendered whenever
+    │    (isFocusMode || !isMdBreakpoint), so it serves every phone route as
+    │    the overflow nav — opened by the header hamburger on normal routes,
+    │    by QuickAccessMenuButton in focus mode. The left sidebar rail is
+    │    gated behind isMdBreakpoint and never renders on phones now.)
     ├── /dashboard         ← Dashboard container (Dashboard [home] / Locations / Calendar / Weather sub-tabs via ?view=)
     ├── /shed              ← GardenHub (Shed / Watchlist / Senescence sub-tabs via ?tab=)
     ├── /schedule          ← BlueprintManager

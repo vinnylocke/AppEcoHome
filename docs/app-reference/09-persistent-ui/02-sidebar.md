@@ -1,6 +1,6 @@
 # Sidebar Navigation
 
-> Primary nav rail on the left of every authenticated, non-focus screen. Grouped top-level routes with icon + label + optional badge. Collapsible on desktop; slide-in drawer on mobile (which also has the [Bottom Tab Bar](./11-bottom-tab-bar.md) for the five core destinations).
+> Primary nav rail on the left of every authenticated, non-focus screen — **desktop-only since Phase 6a**. Grouped top-level routes with icon + label + optional badge, collapsible to an icon rail. On phones the rail does not render at all; phone navigation is the [Bottom Tab Bar](./11-bottom-tab-bar.md) (five core destinations) plus the **Shelf** — the `MobileNavDrawer` overflow drawer opened by the header hamburger.
 
 **Source file:** `src/App.tsx` (`<nav>` block — `navLinks` + `NAV_GROUP_LABELS` + grouped render) + `src/components/NavItem.tsx`
 
@@ -8,7 +8,7 @@
 
 ## Quick Summary
 
-Vertical rail on the `bg-rhozly-primary-container` green, grouped under small uppercase labels — **Garden** (Dashboard, Plants), **Plan** (Planner, Journal), **AI & Tools** (Tools, Integrations, Head Gardener — Evergreen only) — plus a mobile-only **Quick** item at the top. (The standalone **Notes** item was retired in the Phase 5 IA pass — Notes is now a tab inside the Journal hub.) The active item shows a calm left accent bar + white tint (the old white-pill + icon-zoom treatment was retired in the design overhaul). Help Center, Privacy, Cookies pinned at the bottom. Active route highlighted via `routerLocation.pathname` match against `matchPaths`.
+**Desktop-only** vertical rail (Phase 6a — the render gate is `{!isFocusMode && isMdBreakpoint && (…)}`, so phones never see it) on the `bg-rhozly-primary-container` green, grouped under small uppercase labels — **Garden** (Dashboard, Plants), **Plan** (Planner, Journal), **AI & Tools** (Tools, Integrations, Head Gardener — Evergreen only). The rail's NavItems now always pass `isMobile={false}`. (The standalone **Notes** item was retired in the Phase 5 IA pass — Notes is now a tab inside the Journal hub.) The mobile-only **Quick** item still lives in `navLinks` but, since the rail is desktop-only, it now surfaces in the **Shelf** (the `MobileNavDrawer`) rather than the rail. The active item shows a calm left accent bar + white tint (the old white-pill + icon-zoom treatment was retired in the design overhaul). Help Center, Privacy, Cookies pinned at the bottom. Active route highlighted via `routerLocation.pathname` match against `matchPaths`. On phones, primary nav is the [Bottom Tab Bar](./11-bottom-tab-bar.md) plus the Shelf overflow drawer — see the collapsed-state note below.
 
 ---
 
@@ -55,10 +55,11 @@ Group labels render only when a group differs from the previous link's group (`N
 
 Maps `link.id` → destination route. Used by `navigate(TAB_URL[link.id])`.
 
-### Collapsed state
+### Render gate & collapsed state
 
-- Desktop: `isNavCollapsed` toggles via header hamburger (w-72 ↔ w-20 icon rail).
-- Mobile: `isMobileSidebarOpen` — closed shows the w-20 icon rail; the hamburger expands it.
+- **Desktop only.** The rail renders solely at the `md` breakpoint and up — `{!isFocusMode && isMdBreakpoint && (<nav …>)}`. Phones never render it.
+- **Desktop collapse:** `sidebarIsCollapsed` (now just `isNavCollapsed` — the old `isMobileSidebarOpen` branch was deleted) toggles via the header hamburger (w-72 ↔ w-20 icon rail) and persists to `localStorage` (`rhozly_nav`).
+- **Mobile:** the rail does not render. Phones get the [Bottom Tab Bar](./11-bottom-tab-bar.md) for the core five, plus the **Shelf** — the app-level `MobileNavDrawer` overflow drawer — for everything else; the header hamburger opens the Shelf. The old `isMobileSidebarOpen` state, its matchMedia reset, and the w-20-rail-on-mobile treatment were **removed in Phase 6a**: they caused the sidebar to co-render with the bottom tab bar, stacking two nav bars on phones.
 
 ### Active treatment (NavItem)
 
@@ -82,7 +83,7 @@ Items requiring permissions may be hidden if the user lacks them.
 
 ### Error states
 
-None — sidebar always renders outside focus mode.
+None — the rail renders only outside focus mode and at the `md` breakpoint and up; it has no data-fetching failure surface.
 
 ### Performance
 
@@ -101,13 +102,13 @@ None.
 
 The full map of the app, now grouped the way you think: **Garden** is what's growing, **Plan** is what's next, **AI & Tools** is the clever kit. The quiet white bar on the left edge of an item shows where you are.
 
-On mobile you'll mostly live in the [bottom bar](./11-bottom-tab-bar.md) — the sidebar is for everything beyond the core five (Journal, Integrations, and — on Evergreen — Head Gardener). Notes now lives as a tab inside Journal rather than as its own item.
+On a phone there is no sidebar at all (Phase 6a) — the rail is a desktop convenience. You live in the [bottom bar](./11-bottom-tab-bar.md) for the core five, and reach everything beyond it (Journal, Integrations, and — on Evergreen — Head Gardener) through the **Shelf**: the overflow drawer the header hamburger slides in. Notes now lives as a tab inside Journal rather than as its own item.
 
 ### Every flow
 
-1. **Navigate** — tap an item.
-2. **Collapse / expand (desktop)** — hamburger in the header toggles the wide rail down to icons.
-3. **Mobile drawer** — hamburger expands the icon rail; tapping an item navigates and tucks it away.
+1. **Navigate (desktop)** — tap an item in the rail.
+2. **Collapse / expand (desktop)** — the hamburger in the header toggles the wide rail down to icons (remembered between sessions).
+3. **Mobile overflow (the Shelf)** — on a phone the rail is gone; the header hamburger opens the Shelf drawer, which lists the same grouped items. Tap one to navigate and the drawer closes.
 
 ### Tier-by-tier experience
 
@@ -126,6 +127,7 @@ Same layout, with one difference: **Head Gardener only appears on Evergreen**. L
 
 - **Active state wrong:** `matchPaths` in App.tsx may not include the current path. File a bug.
 - **Sidebar won't collapse:** breakpoint flag stuck; resize window or refresh.
+- **Sidebar showing on a phone:** it shouldn't since Phase 6a (the rail is `md`-and-up only). If you see the rail and the bottom bar at once, that's the old two-nav-bar regression — file a bug.
 
 ---
 

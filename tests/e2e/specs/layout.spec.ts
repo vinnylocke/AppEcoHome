@@ -44,8 +44,8 @@ test.describe("Global layout — navigation (Section 16)", () => {
     await authenticatedPage.goto("/dashboard");
 
     // Click the Tools nav item and verify URL. (There is no desktop nav button
-    // named "Plant Doctor" — the doctor lives under Tools on desktop and has
-    // its own bottom-bar tab on mobile, covered by NAV-009.)
+    // named "Plant Doctor" — the doctor lives under Tools on desktop; on mobile
+    // it's reached via the Deck's centre Capture FAB, covered by NAV-009.)
     await authenticatedPage
       .getByRole("button", { name: "Tools" })
       .first()
@@ -75,23 +75,34 @@ test.describe("Global layout — navigation (Section 16)", () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test("NAV-006: App renders consistently at 375×812 mobile viewport", async ({ authenticatedPage }) => {
+  test("NAV-006: Phone has exactly one primary nav — the bottom bar, not the sidebar rail", async ({ authenticatedPage }) => {
     await authenticatedPage.setViewportSize({ width: 375, height: 812 });
     await authenticatedPage.goto("/dashboard");
 
-    // App should load without crashing — look for any nav element or dashboard content
-    const navOrContent = authenticatedPage
-      .getByRole("button", { name: /Dashboard|Daily Tasks|Menu/i })
-      .first();
+    // Phase 6a — the old "two nav bars on mobile" bug: the desktop sidebar
+    // <nav aria-label="Primary navigation"> must NOT render on phones, and the
+    // bottom tab bar is the sole primary nav.
+    await expect(authenticatedPage.getByTestId("bottom-tab-bar")).toBeVisible({ timeout: 10000 });
+    await expect(
+      authenticatedPage.getByRole("navigation", { name: "Primary navigation" }),
+    ).toHaveCount(0);
+  });
 
-    const hasSomething = await navOrContent.isVisible({ timeout: 10000 }).catch(() => false);
+  test("NAV-011: The Deck's More slot opens the Shelf drawer (mobile overflow nav)", async ({ authenticatedPage }) => {
+    await authenticatedPage.setViewportSize({ width: 375, height: 812 });
+    await authenticatedPage.goto("/dashboard");
 
-    // Fallback: if navigation is hidden on mobile, at least the route should load
-    if (!hasSomething) {
-      await expect(authenticatedPage).toHaveURL(/\/dashboard/);
-    } else {
-      expect(hasSomething).toBe(true);
-    }
+    // Phase 6b — the Shelf is the phone entry point for the long tail the Deck
+    // can't hold (Journal, Integrations, Head Gardener, Quick), opened by the
+    // Deck's "More" slot (the mobile header no longer carries a hamburger).
+    await authenticatedPage.getByTestId("bottom-tab-more").click();
+    const drawer = authenticatedPage.getByTestId("mobile-nav-drawer");
+    await expect(drawer).toBeVisible({ timeout: 5000 });
+
+    // Journal has no Deck slot — reachable only via the Shelf on phone.
+    await drawer.getByRole("button", { name: "Journal" }).click();
+    await expect(authenticatedPage).toHaveURL(/\/journal/, { timeout: 8000 });
+    await expect(authenticatedPage.getByTestId("mobile-nav-drawer")).toHaveCount(0);
   });
 
   test("NAV-004: HomeDropdown — 'Create New Home' button appears in the dropdown", async ({ authenticatedPage }) => {
@@ -116,28 +127,36 @@ test.describe("Global layout — navigation (Section 16)", () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test("NAV-009: Bottom tab bar navigates between core screens on mobile viewport", async ({ authenticatedPage }) => {
+  test("NAV-009: Deck navigates core screens + the Capture FAB opens the sheet", async ({ authenticatedPage }) => {
     await authenticatedPage.setViewportSize({ width: 375, height: 812 });
     await authenticatedPage.goto("/dashboard");
 
     const bar = authenticatedPage.getByTestId("bottom-tab-bar");
     await expect(bar).toBeVisible({ timeout: 10000 });
 
-    // Plant Doctor is a first-class tab on mobile — one tap to /doctor.
-    await authenticatedPage.getByTestId("bottom-tab-doctor").click();
-    await expect(authenticatedPage).toHaveURL("/doctor", { timeout: 8000 });
-    await expect(authenticatedPage.getByTestId("bottom-tab-doctor")).toHaveAttribute(
+    // Phase 6b — the Deck is Home / Plants / [Capture FAB] / Planner / More.
+    // Plants destination tab → /shed, with the active accent following.
+    await authenticatedPage.getByTestId("bottom-tab-shed").click();
+    await expect(authenticatedPage).toHaveURL(/\/shed/, { timeout: 8000 });
+    await expect(authenticatedPage.getByTestId("bottom-tab-shed")).toHaveAttribute(
       "aria-current",
       "page",
     );
 
-    // And back home; the active state follows.
+    // Back home.
     await authenticatedPage.getByTestId("bottom-tab-dashboard").click();
-    await expect(authenticatedPage).toHaveURL("/dashboard", { timeout: 8000 });
+    await expect(authenticatedPage).toHaveURL(/\/dashboard/, { timeout: 8000 });
     await expect(authenticatedPage.getByTestId("bottom-tab-dashboard")).toHaveAttribute(
       "aria-current",
       "page",
     );
+
+    // The centre Capture FAB opens the Capture sheet (a router into the create
+    // flows) — its hero routes to Plant Doctor.
+    await authenticatedPage.getByTestId("bottom-tab-capture").click();
+    await expect(authenticatedPage.getByTestId("capture-sheet")).toBeVisible({ timeout: 5000 });
+    await authenticatedPage.getByTestId("capture-diagnose").click();
+    await expect(authenticatedPage).toHaveURL(/\/doctor/, { timeout: 8000 });
   });
 
   test("NAV-010: Bottom tab bar is hidden on desktop viewport", async ({ authenticatedPage }) => {

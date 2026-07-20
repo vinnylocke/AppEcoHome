@@ -172,6 +172,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Plant Detail Modal](./08-modals-and-overlays/38-plant-detail-modal.md) — full Care/Grow/Companions/Light overlay opened from "See full care" in the Add-to-Shed search preview
 - [x] [Bulk Assign Modal](./08-modals-and-overlays/39-bulk-assign-modal.md) — assign several selected plants into one area at once (per-plant quantity + optional smart schedules)
 - [x] [To-Do Lists (Add + Manage)](./08-modals-and-overlays/40-todo-lists.md) — group N tasks under one date; tick / edit / delete tasks; delete list with keep-or-cascade
+- [x] [Capture Sheet](./08-modals-and-overlays/41-capture-sheet.md) — the phone Deck's centre Capture FAB opens this bottom sheet; a router into existing flows (Diagnose hero → Plant Doctor, plus add-plant / journal / add-task / garden-walk); mounted phone/focus only
 
 ## 09 — Persistent UI
 
@@ -185,7 +186,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Error Page](./09-persistent-ui/08-error-page.md) — top-level Sentry boundary
 - [x] [Maintenance Screen](./09-persistent-ui/09-maintenance-screen.md)
 - [x] [Toast / Toaster](./09-persistent-ui/10-toaster.md)
-- [x] [Bottom Tab Bar (Mobile)](./09-persistent-ui/11-bottom-tab-bar.md) — thumb-reach nav: Home / Plants / Doctor / Planner / Tools; mobile-only, hidden in focus mode
+- [x] [Bottom Tab Bar — "The Deck" (Mobile)](./09-persistent-ui/11-bottom-tab-bar.md) — thumb-reach nav: Home / Plants / [Capture FAB] / Planner / More (Phase 6b); Doctor via the Capture sheet, Tools + long tail via More → Shelf; mobile-only, hidden in focus mode
 
 ## 99 — Cross-Cutting Concerns
 
