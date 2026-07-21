@@ -49,6 +49,7 @@ This file is the **index**. Each section's test rows + seed dependencies + page-
 | 32 | Journal / Notes Hub | `journal-notes-hub.spec.ts` | [32-journal-notes-hub.md](e2e-test-plan/32-journal-notes-hub.md) |
 | 33 | One Responsive Home + Planting Helper | `quick-access.spec.ts` · `quick-calendar.spec.ts` | [33-one-responsive-home.md](e2e-test-plan/33-one-responsive-home.md) |
 | 34 | Today's Tasks Tray | `today-tasks-tray.spec.ts` | [34-today-tasks-tray.md](e2e-test-plan/34-today-tasks-tray.md) |
+| 35 | Stage 4 — Discoverability & Error States | `stage4-discoverability.spec.ts` | [35-stage4-discoverability.md](e2e-test-plan/35-stage4-discoverability.md) |
 
 ## Workflow
 

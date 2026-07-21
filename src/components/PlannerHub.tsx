@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { Repeat } from "lucide-react";
 import { IconPlanner, IconShopping } from "../constants/icons";
 import PlannerDashboard from "./PlannerDashboard";
 import ShoppingLists from "./ShoppingLists";
+import BlueprintManager from "./BlueprintManager";
 
 interface Props {
   homeId: string;
@@ -12,6 +14,9 @@ interface Props {
 
 const TABS = [
   { id: "planner",  label: "Planner",  icon: <IconPlanner size={15} /> },
+  // B12 (dashboard-nav-tasks-tray Stage 4): Routines (recurring care rules) had
+  // no tab despite the IA already reparenting /schedule under Planner — surfaced here.
+  { id: "routines", label: "Routines", icon: <Repeat size={15} /> },
   { id: "shopping", label: "Shopping", icon: <IconShopping size={15} /> },
 ] as const;
 
@@ -77,6 +82,9 @@ export default function PlannerHub({ homeId, aiEnabled = false, perenualEnabled 
         <div key={contentKey} style={{ opacity, transition: "opacity 0.15s ease" }} className="h-full">
           {contentKey === "planner" && (
             <PlannerDashboard homeId={homeId} aiEnabled={aiEnabled} />
+          )}
+          {contentKey === "routines" && (
+            <BlueprintManager homeId={homeId} aiEnabled={aiEnabled} embedded />
           )}
           {contentKey === "shopping" && (
             <ShoppingLists homeId={homeId} aiEnabled={aiEnabled} perenualEnabled={perenualEnabled} />

@@ -9,7 +9,7 @@
 - The per-plant AI feature on the Plant Assignment modal that auto-generates routines is **Smart Routines** (previously "Smart Schedule").
 - Smart-device schedules under Integrations remain **Automations** (separate concept, separate table).
 
-**Route:** `/schedule`
+**Route:** `/schedule` — **and, since the dashboard-nav-tasks-tray Stage 4 (2026-07-21, B12), also the Planner's "Routines" tab** (`/planner?tab=routines`, rendered by `PlannerHub`): the IA already reparented `/schedule` under the Planner nav item, so Routines is now a first-class tab there rather than only reachable from the account dropdown. In the tab it renders with the **`embedded` prop**, which skips BlueprintManager's mount-time URL deep-link consumption (`?open` / `?category` / `?tab`) — those deep-links target the standalone `/schedule` route, and consuming them embedded would strip PlannerHub's own `?tab=routines` and bounce the tab (review-caught defect).
 **Source files:**
 - `src/components/BlueprintManager.tsx` — list + filters
 - `src/components/AddTaskModal.tsx` — builder modal

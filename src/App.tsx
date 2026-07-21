@@ -2297,7 +2297,7 @@ function AppShell() {
             <Suspense fallback={null}>
               <MobileNavDrawer
                 open={quickDrawerOpen}
-                navLinks={navLinks}
+                navLinks={isFocusMode ? navLinks : navLinks.filter((l) => !["dashboard", "shed", "planner"].includes(l.id))}
                 activePath={routerLocation.pathname}
                 onClose={() => setQuickDrawerOpen(false)}
                 onNavigate={(path) => {

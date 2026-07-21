@@ -14,6 +14,7 @@ import {
   Compass,
   GraduationCap,
   NotebookText,
+  Bug,
   type LucideIcon,
 } from "lucide-react";
 
@@ -162,6 +163,15 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
     icon: GraduationCap,
     accent: "slate",
     route: "/guides",
+  },
+  {
+    // B5 — pin the Ailment Library (was only reachable from the Watchlist).
+    id: "ailment-library",
+    label: "Ailments",
+    description: "Browse common pests, diseases and invasives.",
+    icon: Bug,
+    accent: "amber",
+    route: "/ailment-library",
   },
   {
     id: "garden-layout",

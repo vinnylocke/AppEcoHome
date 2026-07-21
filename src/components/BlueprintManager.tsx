@@ -38,9 +38,13 @@ import { getLocalDateString } from "../lib/taskEngine";
 interface BlueprintManagerProps {
   homeId: string;
   aiEnabled?: boolean;
+  /** When rendered embedded (e.g. inside the Planner's Routines tab, B12), skip
+   *  the URL deep-link consumption below — otherwise it strips the host's own
+   *  `?tab=` param (PlannerHub uses `?tab=routines`), bouncing the tab back. */
+  embedded?: boolean;
 }
 
-export default function BlueprintManager({ homeId, aiEnabled = false }: BlueprintManagerProps) {
+export default function BlueprintManager({ homeId, aiEnabled = false, embedded = false }: BlueprintManagerProps) {
   const { preferences } = usePlantDoctor();
   const { can } = usePermissions();
   const { requestFeedback } = useBetaFeedbackContext();
@@ -108,6 +112,10 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
   });
 
   useEffect(() => {
+    // Embedded (Planner Routines tab, B12): don't consume/strip URL params — the
+    // ?open/?category/?tab deep-links target the standalone /schedule route, and
+    // stripping them would clobber the host PlannerHub's own ?tab=routines.
+    if (embedded) return;
     if (openHandled.current) return;
     const open = searchParams.get("open");
     const category = searchParams.get("category");

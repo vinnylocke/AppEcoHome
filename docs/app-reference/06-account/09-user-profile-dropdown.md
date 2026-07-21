@@ -1,6 +1,6 @@
 # User Profile Dropdown
 
-> The top-right menu opened from the user avatar in the persistent header. Contains links to Account Settings, Garden Quiz, Location/Home Management, Task Schedules, the Audit Log (admin), the Guide Studio (admin), Getting Started, Contact Support, and Sign Out. Also surfaces a "What's New" pill when a new app version has shipped recently.
+> The top-right menu opened from the user avatar in the persistent header. Contains links to Account Settings, Garden Quiz, Location/Home Management, Task Schedules, the Audit Log (admin), the Guide Studio (admin), Contact Support, and Sign Out. Also surfaces a "What's New" pill when a new app version has shipped recently. (The no-op "Getting Started" item was removed in the dashboard-nav-tasks-tray Stage 4, 2026-07-21, B8.)
 
 **Trigger:** Tap the user avatar in the top-right of the header.
 **Source file:** `src/components/UserProfileDropdown.tsx`
@@ -15,7 +15,7 @@ A multi-section dropdown:
 - **Account** — Account Settings, Garden Quiz & Preferences
 - **Management** — Location Management, Members & Permissions, Task Manager, Audit Log (if `canViewAudit`)
 - **Admin** — Guide Studio, Content Feedback (`/admin/content-feedback`) (if `isAdmin`)
-- **Help** — What's New (if recent version), Getting Started, Help & FAQ (deep-links to `/help` → `/guides?tab=help`), Contact Support, Image credits
+- **Help** — What's New (if recent version), Help & FAQ (deep-links to `/help` → `/guides?tab=help`), Contact Support, Image credits
 - **Sign Out** — `supabase.auth.signOut()`
 - **Footer** — app version label (tap to open release notes)
 
@@ -36,7 +36,7 @@ UserProfileDropdown
     ├── Account section
     ├── Management section
     ├── Admin section (conditional)
-    ├── Help section (What's New / Getting Started / Help & FAQ / Contact Support / Image credits)
+    ├── Help section (What's New / Help & FAQ / Contact Support / Image credits)
     ├── Sign Out
     └── App version label
 └── ContactSupportModal (when supportOpen)
@@ -90,7 +90,6 @@ Dismissed by tapping the What's New button or app version label.
 | Audit Log | `/audit` |
 | Guide Studio | `/admin/guides` |
 | Content Feedback | `/admin/content-feedback` |
-| Getting Started | `/dashboard` |
 
 ### Data flow
 
@@ -172,9 +171,9 @@ This is the catch-all "settings + advanced" menu. Most casual users open it twic
 - Pulse dot only appears for 7 days after a new version first hits your device.
 - Auto-dismisses once you've tapped it.
 
-#### 6. Getting Started
+#### 6. Getting Started — REMOVED (Stage 4, 2026-07-21, B8)
 
-- Returns you to the dashboard (which surfaces the onboarding checklist for new users).
+- The item used to just navigate to `/dashboard` with no tour — a no-op sitting directly above the real Help & FAQ entry, so it was removed. Onboarding for new users is surfaced by the dashboard's Getting Started checklist and the Help & FAQ / What's New items that remain here.
 
 #### 7. Contact Support
 

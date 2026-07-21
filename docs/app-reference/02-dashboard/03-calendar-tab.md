@@ -25,7 +25,9 @@ A two-pane layout: calendar grid (month or week) on the left, agenda for the sel
 ```
 TaskCalendar.tsx
 ├── Header
-│   ├── Title "Schedule"
+│   ├── Title "Schedule" + live summary subtitle (B15, Stage 4 — was the hollow
+│   │     "Operational Hub"; now "N tasks · M overdue" / "N tasks scheduled" /
+│   │     "Nothing scheduled" computed from the loaded tasks + overdueTasks)
 │   ├── View toggle (Month / Week)        ← persisted in localStorage as rhozly_calendar_view
 │   ├── Filter button (Type / Location / Area / Plan)
 │   ├── Export ICS button

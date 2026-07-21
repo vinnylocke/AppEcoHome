@@ -13,7 +13,6 @@ import {
   LifeBuoy,
   Image as ImageIcon,
   ClipboardList,
-  Rocket,
   Sparkles,
   RefreshCw,
   Loader2,
@@ -340,17 +339,10 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                   <span className="text-[9px] font-black uppercase tracking-widest text-amber-700 bg-amber-200 px-1.5 py-0.5 rounded-full">New</span>
                 </button>
               )}
-              <button
-                data-testid="user-profile-getting-started"
-                onClick={(e) => { e.stopPropagation(); go("/dashboard"); }}
-                className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group"
-              >
-                <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
-                  <Rocket size={15} />
-                </span>
-                <span className="flex-1 text-left">Getting Started</span>
-                <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
-              </button>
+              {/* B8 (dashboard-nav-tasks-tray Stage 4, 2026-07-21): the
+                  "Getting Started" item was removed — its onClick was a no-op
+                  go("/dashboard") (no tour), sitting right above the real
+                  Help & FAQ entry below, so it was pure templated filler. */}
               {/* UX review 2026-06-15 item 6.8 — first-class entry into
                   App Help. Lands on the GuideList help tab via /help → redirect. */}
               <button

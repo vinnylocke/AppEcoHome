@@ -25,7 +25,7 @@ ToolsHub
 ├── Tool groups
 │   ├── Plan & Design (Garden Layout, Plant Visualiser)
 │   ├── Measure & Track (Light Sensor, Sun Tracker)
-│   └── Diagnose & Learn (Plant Doctor, Guides)
+│   └── Diagnose & Learn (Plant Doctor, Guides, Ailment Library)
 ├── Connect Hardware card → /integrations
 └── Workflows (3 multi-step recipes)
 ```
@@ -38,7 +38,7 @@ ToolsHub
 [
   { id: "plan",     label: "Plan & Design",   tools: [{ id: "garden-layout", path: "/garden-layout" }, { id: "plant-visualiser", path: "/visualiser" }] },
   { id: "measure",  label: "Measure & Track", tools: [{ id: "light-sensor",  path: "/lightsensor"  }, { id: "sun-tracker",      path: "/sun-trajectory" }] },
-  { id: "diagnose", label: "Diagnose & Learn", tools: [{ id: "garden-ai",     path: "/doctor"       }, { id: "guides",            path: "/guides" }] },
+  { id: "diagnose", label: "Diagnose & Learn", tools: [{ id: "garden-ai",     path: "/doctor"       }, { id: "guides",            path: "/guides" }, { id: "ailment-library", path: "/ailment-library" /* B5, Stage 4 — was Watchlist-only */ }] },
 ]
 ```
 

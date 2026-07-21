@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { readSnapshot, writeSnapshot } from "../../lib/snapshotCache";
 import { supabase } from "../../lib/supabase";
-import { Plus, Loader2, Zap } from "lucide-react";
+import { Plus, Loader2, Zap, AlertCircle, RefreshCw } from "lucide-react";
 import AutomationCard from "./AutomationCard";
 import AutomationBuilderModal from "./AutomationBuilderModal";
 import AutomationDefaultsCard from "./AutomationDefaultsCard";
@@ -37,6 +37,7 @@ interface Props {
 export default function AutomationsSection({ homeId, canManage, canRun }: Props) {
   const [automations, setAutomations] = useState<AutomationFull[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState("");
   // Unified builder (Phase 2): undefined = closed, null = new, string = edit id.
   const [builderId, setBuilderId] = useState<string | null | undefined>(undefined);
@@ -44,6 +45,7 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
   const filtered = filterByText(automations, query, (a) => [a.name, summariseTree(a.trigger_logic), a.area_name, a.location_name]);
 
   const load = useCallback(async () => {
+    setLoadError(false);
     // Offline-first Phase 2: paint the cached automations list instantly so
     // the section opens offline (read-only offline — editing is gated).
     const cached = homeId ? readSnapshot<AutomationFull[]>("automations", homeId) : null;
@@ -67,7 +69,11 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
       .order("created_at");
 
     // Offline / fetch error: keep the cached list rather than blanking it.
+    // B13 (Stage 4): with NO cache, surface an error + Retry instead of silently
+    // falling through to the "No automations yet" empty state — a failed first
+    // load looked identical to "you have none".
     if (rawErr) {
+      if (!cached) setLoadError(true);
       setLoading(false);
       return;
     }
@@ -163,6 +169,20 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 size={20} className="animate-spin text-rhozly-on-surface-variant" />
+        </div>
+      ) : loadError && automations.length === 0 ? (
+        <div data-testid="automations-load-error" className="flex flex-col items-center justify-center text-center gap-3 py-10">
+          <AlertCircle size={28} className="text-status-danger-ink" />
+          <p className="text-sm font-bold text-rhozly-on-surface">Couldn't load your automations</p>
+          <p className="text-xs text-rhozly-on-surface-variant max-w-xs">Check your connection and try again.</p>
+          <button
+            type="button"
+            data-testid="automations-load-retry"
+            onClick={() => load()}
+            className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-2xl bg-rhozly-primary text-white text-sm font-black active:scale-95 transition"
+          >
+            <RefreshCw size={14} /> Try again
+          </button>
         </div>
       ) : automations.length === 0 ? (
         <AutomationsEmptyState onNew={canManage ? openNew : undefined} />

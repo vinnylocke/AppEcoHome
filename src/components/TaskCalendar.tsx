@@ -642,8 +642,16 @@ export default function TaskCalendar({
           <h2 className="text-4xl font-black font-display text-rhozly-on-surface">
             Schedule
           </h2>
-          <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-            Operational Hub
+          {/* B15 (dashboard-nav-tasks-tray Stage 4): the hollow "Operational Hub"
+              label became a live at-a-glance summary computed from the loaded tasks. */}
+          <p className="text-sm font-bold text-rhozly-on-surface-variant tracking-wide mt-1">
+            {(() => {
+              const pending = tasks.filter((t) => t.status !== "Completed").length;
+              const overdue = overdueTasks.length;
+              if (overdue > 0) return `${pending} task${pending === 1 ? "" : "s"} · ${overdue} overdue`;
+              if (pending > 0) return `${pending} task${pending === 1 ? "" : "s"} scheduled`;
+              return "Nothing scheduled";
+            })()}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">

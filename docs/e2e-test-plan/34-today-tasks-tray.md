@@ -11,11 +11,11 @@
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| TRAY-001 | ✅ | The header trigger opens the tray from a non-home screen (`/shed`); the "Today's tasks" heading shows; the close button dismisses it (`toHaveCount(0)`) | — | 🔲 Pending (first run) |
-| TRAY-002 | ✅ | The tray lists task rows, each exposing inline **complete** (`Mark task … as complete`) and **postpone** (`Postpone task …`) — act without leaving the screen | — | 🔲 Pending (first run) |
-| TRAY-003 | ✅ | The tray's quick-add (`today-tray-quick-add`) opens the slim `quick-add-task-modal` | — | 🔲 Pending (first run) |
-| TRAY-004 | ✅ | The tray's "Open the full board" (`today-tray-open-board`) navigates to `?view=calendar` | — | 🔲 Pending (first run) |
-| TRAY-010 | ✅ | Focus mode (`/walk`) hides the header, so `today-tasks-tray-trigger` has count 0 | — | 🔲 Pending (first run) |
+| TRAY-001 | ✅ | The header trigger opens the tray from a non-home screen (`/shed`); the "Today's tasks" heading shows; the close button dismisses it (`toHaveCount(0)`) | — | ✅ Passing |
+| TRAY-002 | ✅ | The tray lists task rows, each exposing inline **complete** (`Mark task … as complete`) and **postpone** (`Postpone task …`) — act without leaving the screen | — | ✅ Passing |
+| TRAY-003 | ✅ | The tray's quick-add (`today-tray-quick-add`) opens the slim `quick-add-task-modal` | — | ✅ Passing |
+| TRAY-004 | ✅ | The tray's "Open the full board" (`today-tray-open-board`) navigates to `?view=calendar` | — | ✅ Passing |
+| TRAY-010 | ✅ | Focus mode (`/walk`) hides the header, so `today-tasks-tray-trigger` has count 0 | — | ✅ Passing |
 
 **Notes**
 - The tray shares the `TaskEngine` 60s cache with the home/calendar, so opening it on a warmed screen paints instantly (`peekCache`).

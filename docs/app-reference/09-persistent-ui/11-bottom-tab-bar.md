@@ -68,7 +68,7 @@ The slot descriptor gained action + variant fields so a single array can express
 
 ### The More slot
 
-`id: "more"`, `Menu` icon, `variant` defaults to `"nav"` but it carries **no `matchPaths`** (so `active` is always false — it never lights) and **no `to`**; its `onPress` → `setQuickDrawerOpen(true)` opens the **Shelf** — the same `MobileNavDrawer` the Phase 6a header hamburger used to open. This is where Tools, Journal, Notes, Integrations, Head Gardener, and every long-tail destination now live. (The mobile-only **Quick** nav item was removed 2026-07-20 when the `/quick` launcher home was folded into the responsive dashboard.)
+`id: "more"`, `Menu` icon, `variant` defaults to `"nav"` but it carries **no `matchPaths`** (so `active` is always false — it never lights) and **no `to`**; its `onPress` → `setQuickDrawerOpen(true)` opens the **Shelf** — the same `MobileNavDrawer` the Phase 6a header hamburger used to open. This is where Tools, Journal, Notes, Integrations, Head Gardener, and every long-tail destination now live. **Since the dashboard-nav-tasks-tray Stage 4 (2026-07-21, B7) the Shelf is passed a FILTERED `navLinks` in normal mode** — App.tsx drops the three ids already on the Deck (`dashboard` / `shed` / `planner`) at the call site, so "More" shows only true overflow (Journal / Tools / Integrations / Head Gardener) instead of re-listing Home / Plants / Planner. **In focus mode the FULL `navLinks` is passed** (`isFocusMode ? navLinks : navLinks.filter(...)`) — there the Deck is hidden and the Shelf is the only nav surface, so Home/Plants/Planner must stay reachable. (The mobile-only **Quick** nav item was removed 2026-07-20 when the `/quick` launcher home was folded into the responsive dashboard.)
 
 ### Active-state contract
 

@@ -231,6 +231,7 @@ None.
 |-------|--------|
 | Provider failure on a queued `turn_on` | Queue row `failed` + **the parent `automation_runs` row is downgraded** to `failed` (or `partial` when another valve in the same run did fire) with `error_message` set — rendered by `AutomationRunHistory` (`run-valve-error`). The corrective "failed" receipt still goes out. **Before 2026-07-16 the run row stayed `success`** — the 2026-07-15 incident: valve never opened, history claimed success. |
 | No devices selected | Builder validation error |
+| **Automations list fetch fails with no cache (B13, Stage 4, 2026-07-21)** | `AutomationsSection` now shows an explicit **error card + "Try again"** (`automations-load-error` / `automations-load-retry` → re-runs `load()`) instead of silently falling through to the "No automations yet" empty state — a failed first load used to look identical to "you have none". A fetch failure *with* a cached snapshot still keeps the cached list (no error UI). |
 | Skip-if-rained triggered | `automation_runs.status = "skipped"`; no provider call |
 
 ### Performance
