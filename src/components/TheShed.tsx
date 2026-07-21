@@ -1740,31 +1740,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       </div>
     );
 
-  // ── Full-page "Find a plant" takeover (overhaul Stage 2, 2026-07-21) ──────
-  // Replaces BulkSearchModal as the Shed's front door: while open it IS the
-  // page (early return — the header/toolbar/grid come back on close). All
-  // openers are unchanged (`shed-add-plant-btn`, `?open=add-plant&query=`,
-  // `/shed/add/*`, empty-state CTA, SourcePicker → initialCartItems→review).
-  // handleProceedToBulkAdd's first line closes this view, so the import-
-  // progress modal in the main tree below renders as before.
-  if (showBulkSearch) {
-    return (
-      <div className="h-full p-4 md:p-8 animate-in fade-in duration-300 overflow-y-auto">
-        <PlantSearchTakeover
-          homeId={homeId}
-          isPremium={perenualEnabled}
-          isAiEnabled={aiEnabled}
-          initialSearchTerm={initialSearchTerm}
-          initialFilters={initialSearchFilters}
-          initialCartItems={initialCartItems}
-          onClose={handleCloseModals}
-          onProceedToBulkAdd={handleProceedToBulkAdd}
-          onManualSave={handleManualSave}
-        />
-      </div>
-    );
-  }
-
+  // The "Search plants" overlay renders in-tree near the other modals below
+  // (hub search-first overhaul Stage 1) — the grid stays mounted underneath,
+  // so scroll position and the `shed-plant-list` tour anchor survive for free.
   return (
     <>
       <div className="h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700 relative">
@@ -2806,9 +2784,27 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 }}
               />
             )}
-            {/* The Add-to-Shed search is no longer a modal — `showBulkSearch`
-                early-returns the full-page PlantSearchTakeover above (overhaul
-                Stage 2). BulkSearchModal lives on inside CompanionPlantsTab. */}
+            {/* The Add-to-Shed search — a fixed z-[60] overlay that covers the
+                app chrome while the grid stays mounted underneath (hub
+                search-first overhaul Stage 1). All openers unchanged
+                (`shed-add-plant-btn`, `?open=add-plant&query=`, `/shed/add/*`,
+                empty-state CTA, SourcePicker → initialCartItems→review).
+                handleProceedToBulkAdd's first line closes it, so the import-
+                progress modal below renders as before. BulkSearchModal lives
+                on inside CompanionPlantsTab. */}
+            {showBulkSearch && (
+              <PlantSearchTakeover
+                homeId={homeId}
+                isPremium={perenualEnabled}
+                isAiEnabled={aiEnabled}
+                initialSearchTerm={initialSearchTerm}
+                initialFilters={initialSearchFilters}
+                initialCartItems={initialCartItems}
+                onClose={handleCloseModals}
+                onProceedToBulkAdd={handleProceedToBulkAdd}
+                onManualSave={handleManualSave}
+              />
+            )}
             {showBulkPaste && (
               <BulkPastePlantsModal
                 homeId={homeId}

@@ -303,12 +303,13 @@ test.describe("Shed — Add plant modal", () => {
 
     await expect(shed.bulkSearchInput).toBeVisible({ timeout: 8000 });
     await shed.bulkSearchInput.fill("Tomato");
-    // Debounced library search runs automatically; the empty prompt clears once
-    // criteria are present. We don't assert specific rows because the shared
-    // plant_library is not seeded in the test DB.
-    await authenticatedPage.waitForTimeout(700);
+    // Debounced library search runs automatically — seed 17 guarantees a
+    // Tomato library row (910001) so the row contract is deterministic.
+    await expect(
+      authenticatedPage.getByTestId("plant-search-result-library-910001"),
+    ).toBeVisible({ timeout: 8000 });
 
-    // The opt-in "search more databases" CTA is offered (live, not a nudge).
+    // The opt-in "Search wider" CTA is offered (live, not a nudge).
     await expect(shed.bulkSearchExternalBtn).toBeVisible({ timeout: 6000 });
   });
 
@@ -345,28 +346,22 @@ test.describe("Shed — Add plant modal", () => {
     await shed.bulkSearchExternalBtn.click();
     await authenticatedPage.waitForTimeout(1200);
 
-    // A multi-select result row should appear.
-    if (await shed.bulkResultFirst.isVisible({ timeout: 6000 }).catch(() => false)) {
-      // Info icon previews details inline WITHOUT selecting (no cart bar yet).
-      if (await shed.bulkResultInfoFirst.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await shed.bulkResultInfoFirst.click();
-        await expect(shed.bulkPreviewPanel).toBeVisible({ timeout: 6000 });
-        await expect(shed.bulkReviewBtn).toHaveCount(0); // preview didn't select
+    // A result row should appear (seed-17 library row and/or the mocked
+    // external row).
+    await expect(shed.bulkResultFirst).toBeVisible({ timeout: 6000 });
 
-        // "See full care" opens the detail modal (care/grow/companions); closing
-        // it returns to the search with nothing selected.
-        if (await shed.bulkFullCareBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await shed.bulkFullCareBtn.click();
-          await expect(shed.bulkDetailModal).toBeVisible({ timeout: 8000 });
-          await expect(shed.bulkReviewBtn).toHaveCount(0); // still nothing selected
-          await shed.bulkDetailClose.click();
-          await expect(shed.bulkDetailModal).toBeHidden({ timeout: 6000 });
-        }
-      }
-      // Selecting the row reveals the cart/review bar.
-      await shed.bulkResultFirst.click();
-      await expect(shed.bulkReviewBtn).toBeVisible({ timeout: 6000 });
-    }
+    // Overlay contract (Stage 1): tapping the row BODY opens the full detail
+    // modal (care/grow/companions) WITHOUT selecting — viewing ≠ adding.
+    await shed.bulkResultFirst.click();
+    await expect(shed.bulkDetailModal).toBeVisible({ timeout: 8000 });
+    await expect(shed.bulkReviewBtn).toHaveCount(0); // nothing selected yet
+    await shed.bulkDetailClose.click();
+    await expect(shed.bulkDetailModal).toBeHidden({ timeout: 6000 });
+
+    // The trailing + button adds it to the cart — the top-bar basket (the
+    // review opener) pops in only once something is selected.
+    await shed.bulkResultAddFirst.click();
+    await expect(shed.bulkReviewBtn).toBeVisible({ timeout: 6000 });
   });
 
   test("SHED-021: Add to Shed — nonsense query surfaces no selectable rows", async ({ authenticatedPage }) => {
@@ -1017,6 +1012,41 @@ test.describe("Shed — plant-search takeover (Stage 2)", () => {
     await authenticatedPage.getByTestId("shed-search-back").click();
     await expect(authenticatedPage.getByTestId("plant-search-takeover")).toHaveCount(0);
     await expect(authenticatedPage.getByTestId("shed-plant-list")).toBeVisible({ timeout: 10000 });
+  });
+
+  test("SHED-TKO-003: the overlay pins the search input keyboard-safe at the top and covers the app chrome", async ({ authenticatedPage }) => {
+    // Stage 1 regression guard: the previous takeover put the input at y=601
+    // on a phone — under the keyboard, zero results visible. The overlay must
+    // keep the input inside the top band at ANY viewport (top bar is
+    // top-anchored) and sit above the app header (z-[60] > header z-50).
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+    await shed.addButton.click();
+
+    await expect(shed.bulkSearchInput).toBeVisible({ timeout: 10000 });
+    const box = await shed.bulkSearchInput.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y).toBeLessThan(130);
+
+    // The overlay paints OVER the app header — the element at the input's
+    // centre point must be the input itself, not header chrome.
+    const hit = await authenticatedPage.evaluate(() => {
+      const el = document.querySelector('[data-testid="plant-search-input"]');
+      if (!el) return "missing";
+      const r = el.getBoundingClientRect();
+      return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+        ?.getAttribute("data-testid") ?? "occluded";
+    });
+    expect(hit).toBe("plant-search-input");
+
+    // Escape ladder: a typed query clears first; a second Escape closes.
+    await shed.bulkSearchInput.fill("lavender");
+    await authenticatedPage.keyboard.press("Escape");
+    await expect(shed.bulkSearchInput).toHaveValue("");
+    await expect(authenticatedPage.getByTestId("plant-search-takeover")).toBeVisible();
+    await authenticatedPage.keyboard.press("Escape");
+    await expect(authenticatedPage.getByTestId("plant-search-takeover")).toHaveCount(0);
   });
 });
 

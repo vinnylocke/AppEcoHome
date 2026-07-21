@@ -2,7 +2,7 @@
 
 **Spec files:** `tests/e2e/specs/plants.spec.ts` · `tests/e2e/specs/shed-crud.spec.ts` · `tests/e2e/specs/shed-discovery.spec.ts` · `tests/e2e/specs/plant-edit-assignment.spec.ts` · `tests/e2e/specs/instance-edit-tabs.spec.ts` · `tests/e2e/specs/favourites.spec.ts`
 **Page Objects:** `tests/e2e/pages/ShedPage.ts` · `tests/e2e/pages/PlantEditPage.ts` · `tests/e2e/pages/PlantAssignmentPage.ts` · `tests/e2e/pages/BulkAssignPage.ts` · `tests/e2e/pages/InstanceEditPage.ts`
-**Seed dependencies:** `01_locations_areas.sql`, `02_plants_shed.sql`, `13_ai_freshness.sql` (AI-source lock case), `15_favourites.sql` (favourites fixtures + W1 second home)
+**Seed dependencies:** `01_locations_areas.sql`, `02_plants_shed.sql`, `13_ai_freshness.sql` (AI-source lock case), `15_favourites.sql` (favourites fixtures + W1 second home), `17_plant_library.sql` (3 global catalogue rows `910001–910003` for deterministic library-first search results)
 **App-reference:** [03-garden-hub/01-the-shed.md](../app-reference/03-garden-hub/01-the-shed.md)
 
 > **Design overhaul Phase 4.3 (2026-07):** the Shed toolbar collapsed to a single sticky row — the source/sort selects and smart-filter chips now live behind a **Filters** disclosure (`shed-filters-btn` → `shed-filters-panel`, with a real active-filter count badge), and the per-card ghost icons (layout / light / Ask AI / archive / delete) moved into a **kebab menu** (`plant-card-kebab-{id}` → `plant-card-menu-{id}`, `role=menu`) next to the favourite heart. All original aria-labels and menu-item testids are preserved, so existing locators still resolve once the container is open. `ShedPage` gained `filtersButton` / `filtersPanel` locators plus `openFilters()` and `openCardMenu(name)` helpers; specs call `openFilters()` before any source/sort select interaction and `openCardMenu()` before every archive/restore/delete/light click (~15 sites, incl. the favourites Snapdragon flows and the SHED-BULK-004 cleanup loop, which now gates on card visibility before opening the menu). Unphotographed plants render a genus-tinted `PlantInitialTile` (`plant-initial-tile`) instead of the old shared Unsplash forest photo.
@@ -40,15 +40,16 @@
 | SHED-016 | ✅ | Takeover — Escape closes without saving; plant count unchanged (Escape-to-close is real now — the old modal never handled it) | — | ✅ Passing |
 | SHED-TKO-001 | ✅ | `?open=add-plant&query=` deep-links into the full-page takeover (`plant-search-takeover`, no `aria-modal` dialog, query seeded into `plant-search-input`, params consumed) | — | ✅ Passing |
 | SHED-TKO-002 | ✅ | The takeover's back button (`shed-search-back`) returns to the Shed grid | — | ✅ Passing |
+| SHED-TKO-003 | ✅ | Overlay pins `plant-search-input` in the top band (y<130), paints over the app header (`elementFromPoint` = the input), and the Escape ladder clears a typed query before closing | — | ✅ Passing |
 | SHED-S3-001 | ✅ | Stage 3: a thin own-shed search (≥3 chars, ≤2 matches) shows the library escalation row (`shed-search-library-escalation`); tapping it opens the takeover with the query carried | — | ✅ Passing |
 | SHED-S3-002 | ✅ | Stage 3: persona browse chips (`shed-browse-chips`, new-gardener + <12 active plants) open the takeover in browse-by-filter mode with the filter panel visible; self-skips on a dirty DB ≥12 plants | — | ✅ Passing |
 | SHED-FAV-001 | ✅ | Stage 4: "Add & assign…" (`favourite-add-assign-{id}`, seeded Fig favourite 0017-…03) copies the favourite into this home and opens the assignment modal; self-cleaning (cancels + deletes the copy via the card flow) | — | ✅ Passing |
 | SHED-017 | ✅ | Manual plant happy path | — | ✅ Passing |
 | SHED-018 | ❌ | Manual plant — empty name validation | — | ✅ Passing |
 | SHED-019 | ❌ | Manual plant — duplicate name warning | — | ✅ Passing |
-| SHED-020 | ✅ | Library-first input opens by default; "search more databases" CTA on typing | — | ✅ Passing |
+| SHED-020 | ✅ | Library-first input opens by default; seed-17 Tomato row (910001) renders; "Search wider" CTA on typing | Seed 17 (plant_library) | ✅ Passing |
 | SHED-021 | ❌ | Nonsense query — no result rows, no Review CTA (library + mocked-empty external) | Perenual API mock (empty) | ✅ Passing |
-| SHED-022a | ✅ | Preview → "See full care" → cart select → Review & Add CTA appears | Perenual API mock | ✅ Passing |
+| SHED-022a | ✅ | Row-body tap → `PlantDetailModal` (viewing ≠ adding); `+` button adds → top-bar basket (`bulk-search-review`) pops in | Perenual API mock + Seed 17 | ✅ Passing |
 | SHED-022b | 🔲 | Result thumbnails self-resolve via `plant-image-search` | `plant-image-search` mock | 🔲 Planned |
 | SHED-022c | 🔲 | Library clone keeps the selected variant's name (`ensureCataloguePlantFromLibrary`) | — | 🔲 Planned |
 

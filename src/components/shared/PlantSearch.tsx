@@ -62,6 +62,16 @@ interface Props {
    *  button that hands the selection to the host (e.g. to open the full
    *  care / grow guide / companions detail modal). */
   onViewDetails?: (sel: PlantSelection) => void;
+  /** Controlled mode (hub search overlay, 2026-07-21): the host owns the
+   *  input in its pinned top bar and feeds the live query down. PlantSearch
+   *  hides its own input row + empty-state prompt and searches (debounced)
+   *  whenever this value changes. Suggestion chips report back through
+   *  `onQueryChange` so the host input stays in sync. */
+  controlledQuery?: string;
+  /** Overlay result contract: tapping the row body opens the full detail
+   *  (via onViewDetails) instead of selecting; adding happens only on the
+   *  trailing + button. The inline ⓘ preview is hidden (redundant). */
+  tapOpensDetails?: boolean;
 }
 
 const CYCLE_OPTIONS = [
@@ -110,8 +120,10 @@ export default function PlantSearch({
   isSelected,
   allowPreview = false,
   onViewDetails,
+  controlledQuery,
+  tapOpensDetails = false,
 }: Props) {
-  const [query, setQuery] = useState(initialQuery);
+  const [query, setQuery] = useState(controlledQuery ?? initialQuery);
   const [libraryRows, setLibraryRows] = useState<PlantLibraryRow[]>([]);
   const [searching, setSearching] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -234,6 +246,30 @@ export default function PlantSearch({
     debounceRef.current = setTimeout(() => runLibrary(val), 350);
   };
 
+  // Suggestion chips ("did you mean" / AI "try") apply a query directly —
+  // in controlled mode the host input must follow, so route through
+  // onQueryChange as well as searching immediately.
+  const applyQuery = (val: string) => {
+    setQuery(val);
+    onQueryChange?.(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    runLibrary(val);
+  };
+
+  // Controlled mode — follow the host-owned input. Skips values we already
+  // hold (applyQuery echoes back through onQueryChange → host → here).
+  const queryRef = useRef(query);
+  queryRef.current = query;
+  useEffect(() => {
+    if (controlledQuery === undefined) return;
+    if (controlledQuery === queryRef.current) return;
+    setQuery(controlledQuery);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => runLibrary(controlledQuery), 350);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlledQuery]);
+  const isControlled = controlledQuery !== undefined;
+
   const applyFilter = (next: PlantFilters) => {
     setFilters(next);
     filtersRef.current = next;
@@ -244,8 +280,9 @@ export default function PlantSearch({
   // with filters (the browse chips — empty query + filters = browse-by-filter,
   // which runLibrary supports natively).
   useEffect(() => {
-    if (initialQuery.trim().length >= 2 || countActiveFilters(initialFilters ?? {}) > 0) {
-      runLibrary(initialQuery);
+    const seed = controlledQuery ?? initialQuery;
+    if (seed.trim().length >= 2 || countActiveFilters(initialFilters ?? {}) > 0) {
+      runLibrary(seed);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -351,41 +388,68 @@ export default function PlantSearch({
 
   return (
     <div data-testid="plant-search" className="space-y-3">
-      {/* Input (+ filters toggle) */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-rhozly-on-surface/40 pointer-events-none" />
-          <input
-            type="search"
-            data-testid="plant-search-input"
-            // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus={autoFocus}
-            placeholder={placeholder}
-            value={query}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full pl-10 pr-9 py-3 min-h-[48px] rounded-2xl bg-white border border-rhozly-outline/20 text-sm font-bold text-rhozly-on-surface placeholder:text-rhozly-on-surface/40 outline-none focus:border-rhozly-primary/50"
-          />
-          {searching && (
-            <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-rhozly-on-surface/40" />
+      {/* Input (+ filters toggle). In controlled mode the host owns the input
+          (pinned in its top bar) — only the filters toggle renders here, as a
+          slim right-aligned row so filter logic stays encapsulated. */}
+      {isControlled ? (
+        showFilters && (
+          <div className="flex items-center justify-end gap-2">
+            {searching && (
+              <Loader2 size={14} className="animate-spin text-rhozly-on-surface/40" />
+            )}
+            <button
+              type="button"
+              data-testid="plant-search-filters-toggle"
+              onClick={() => setFilterPanelOpen((v) => !v)}
+              className={`relative shrink-0 flex items-center gap-1.5 px-3 min-h-[40px] pointer-coarse:min-h-11 rounded-2xl text-xs font-black border transition-colors ${filterPanelOpen ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white text-rhozly-on-surface/70 border-rhozly-outline/20 hover:border-rhozly-primary/30"}`}
+            >
+              <SlidersHorizontal size={15} />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rhozly-primary text-white rounded-full text-[9px] font-black flex items-center justify-center border-2 border-white">
+                  {activeFilterCount}
+                </span>
+              )}
+              <ChevronDown size={13} className={`transition-transform ${filterPanelOpen ? "rotate-180" : ""}`} />
+            </button>
+          </div>
+        )
+      ) : (
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-rhozly-on-surface/40 pointer-events-none" />
+            <input
+              type="search"
+              data-testid="plant-search-input"
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus={autoFocus}
+              placeholder={placeholder}
+              value={query}
+              onChange={(e) => onChange(e.target.value)}
+              className="w-full pl-10 pr-9 py-3 min-h-[48px] rounded-2xl bg-white border border-rhozly-outline/20 text-sm font-bold text-rhozly-on-surface placeholder:text-rhozly-on-surface/40 outline-none focus:border-rhozly-primary/50"
+            />
+            {searching && (
+              <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-rhozly-on-surface/40" />
+            )}
+          </div>
+          {showFilters && (
+            <button
+              type="button"
+              data-testid="plant-search-filters-toggle"
+              onClick={() => setFilterPanelOpen((v) => !v)}
+              className={`relative shrink-0 flex items-center gap-1.5 px-3 min-h-[48px] rounded-2xl text-xs font-black border transition-colors ${filterPanelOpen ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white text-rhozly-on-surface/70 border-rhozly-outline/20 hover:border-rhozly-primary/30"}`}
+            >
+              <SlidersHorizontal size={15} />
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rhozly-primary text-white rounded-full text-[9px] font-black flex items-center justify-center border-2 border-white">
+                  {activeFilterCount}
+                </span>
+              )}
+              <ChevronDown size={13} className={`transition-transform ${filterPanelOpen ? "rotate-180" : ""}`} />
+            </button>
           )}
         </div>
-        {showFilters && (
-          <button
-            type="button"
-            data-testid="plant-search-filters-toggle"
-            onClick={() => setFilterPanelOpen((v) => !v)}
-            className={`relative shrink-0 flex items-center gap-1.5 px-3 min-h-[48px] rounded-2xl text-xs font-black border transition-colors ${filterPanelOpen ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white text-rhozly-on-surface/70 border-rhozly-outline/20 hover:border-rhozly-primary/30"}`}
-          >
-            <SlidersHorizontal size={15} />
-            {activeFilterCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rhozly-primary text-white rounded-full text-[9px] font-black flex items-center justify-center border-2 border-white">
-                {activeFilterCount}
-              </span>
-            )}
-            <ChevronDown size={13} className={`transition-transform ${filterPanelOpen ? "rotate-180" : ""}`} />
-          </button>
-        )}
-      </div>
+      )}
 
       {/* Filter panel — capped height + internal scroll for mobile. */}
       {showFilters && filterPanelOpen && (
@@ -430,8 +494,8 @@ export default function PlantSearch({
         </div>
       )}
 
-      {/* Empty prompt */}
-      {!hasCriteria && (
+      {/* Empty prompt — controlled hosts render their own idle state. */}
+      {!hasCriteria && !isControlled && (
         <p data-testid="plant-search-prompt" className="text-[12px] font-bold text-rhozly-on-surface/45 px-1 leading-snug">
           Start typing a plant name — e.g. <span className="text-rhozly-primary">"tomato"</span> or <span className="text-rhozly-primary">"lavender"</span>{showFilters ? ", or filter by cycle, sunlight and more" : ""}.
         </p>
@@ -445,8 +509,8 @@ export default function PlantSearch({
             <button
               key={s}
               type="button"
-              onClick={() => { setQuery(s); runLibrary(s); }}
-              className="text-[11px] font-black text-rhozly-primary bg-rhozly-primary/10 px-2.5 py-1 rounded-full hover:bg-rhozly-primary/20 transition-colors"
+              onClick={() => applyQuery(s)}
+              className="text-xs font-black text-rhozly-primary bg-rhozly-primary/10 px-3 py-2 min-h-[36px] pointer-coarse:min-h-11 rounded-full hover:bg-rhozly-primary/20 transition-colors"
             >
               {s}
             </button>
@@ -476,8 +540,8 @@ export default function PlantSearch({
               key={s.name}
               type="button"
               title={s.reason || undefined}
-              onClick={() => { setQuery(s.name); runLibrary(s.name); }}
-              className="text-[11px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
+              onClick={() => applyQuery(s.name)}
+              className="text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 min-h-[36px] pointer-coarse:min-h-11 rounded-full hover:bg-amber-100 transition-colors"
             >
               {s.name}
             </button>
@@ -506,7 +570,9 @@ export default function PlantSearch({
                   multiSelect={multiSelect}
                   selected={multiSelect ? !!isSelected?.(sel) : false}
                   onClick={() => onSelect(sel)}
-                  allowPreview={allowPreview}
+                  tapOpensDetails={tapOpensDetails && !!onViewDetails}
+                  onDetails={() => onViewDetails?.(sel)}
+                  allowPreview={allowPreview && !tapOpensDetails}
                   onInfo={() => togglePreview(sel, rowKey)}
                   infoActive={previewKey === rowKey}
                   infoLoading={previewLoading.has(rowKey)}
@@ -541,7 +607,9 @@ export default function PlantSearch({
                     multiSelect={multiSelect}
                     selected={multiSelect ? !!isSelected?.(sel) : false}
                     onClick={() => onSelect(sel)}
-                    allowPreview={allowPreview}
+                    tapOpensDetails={tapOpensDetails && !!onViewDetails}
+                    onDetails={() => onViewDetails?.(sel)}
+                    allowPreview={allowPreview && !tapOpensDetails}
                     onInfo={() => togglePreview(sel, rowKey)}
                     infoActive={previewKey === rowKey}
                     infoLoading={previewLoading.has(rowKey)}
@@ -558,16 +626,19 @@ export default function PlantSearch({
           : <>{libSection}{extSection}</>;
       })()}
 
-      {/* Opt-in CTAs + fallbacks — shown once the user has a query */}
+      {/* Escalation ladder (hub overhaul, 2026-07-21) — quiet, left-aligned,
+          result-styled rows appended after real results, sequenced so each
+          step appears only when the previous one is exhausted. Never a stack
+          of centered CTAs. Testids unchanged (e2e + PO contracts). */}
       {hasQuery && (
         <div className="space-y-2 pt-1">
           {noLibraryResults && externalRows.length === 0 && !externalLoading && (
-            <p className="text-[12px] font-bold text-rhozly-on-surface/45 px-1">
-              Nothing in our library for "{query.trim()}". Try the options below.
+            <p className="text-[13px] font-bold text-rhozly-on-surface/55 px-1">
+              Nothing called "{query.trim()}" yet.
             </p>
           )}
 
-          {/* Search more databases (Botanist+ — Verdantly + Perenual both gated) */}
+          {/* Step 1 — search wider (Botanist+: Verdantly + Perenual) */}
           {!externalDone && (
             canExternal ? (
               <button
@@ -575,34 +646,59 @@ export default function PlantSearch({
                 data-testid="plant-search-external"
                 onClick={handleSearchExternal}
                 disabled={externalLoading}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-rhozly-outline/20 text-xs font-black text-rhozly-on-surface/70 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors disabled:opacity-60"
+                className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-2xl border border-rhozly-outline/15 bg-white text-left can-hover:hover:border-rhozly-primary/30 transition-colors disabled:opacity-60"
               >
-                {externalLoading ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
-                Search more databases
+                <span className="w-9 h-9 shrink-0 rounded-xl bg-rhozly-surface-low flex items-center justify-center text-rhozly-on-surface/50">
+                  {externalLoading ? <Loader2 size={16} className="animate-spin" /> : <Database size={16} />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-black text-rhozly-on-surface">Search wider</span>
+                  <span className="block text-[11px] font-bold text-rhozly-on-surface/45">Perenual + Verdantly plant databases</span>
+                </span>
               </button>
             ) : (
-              <div className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-dashed border-rhozly-outline/20 text-[11px] font-bold text-rhozly-on-surface/40">
-                <Lock size={12} /> Upgrade to Botanist to search more databases
+              <div className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-2xl border border-dashed border-rhozly-outline/20 text-left">
+                <span className="w-9 h-9 shrink-0 rounded-xl bg-rhozly-surface-low flex items-center justify-center text-rhozly-on-surface/35">
+                  <Lock size={14} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-black text-rhozly-on-surface/50">Search wider</span>
+                  <span className="block text-[11px] font-bold text-rhozly-on-surface/40">Upgrade to Botanist to search more databases</span>
+                </span>
               </div>
             )
           )}
 
-          {/* Create with AI (Sage+) */}
-          {gates.canCreateWithAI ? (
-            <button
-              type="button"
-              data-testid="plant-search-create-ai"
-              onClick={handleCreateWithAI}
-              disabled={aiCreating}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-amber-300 text-xs font-black text-amber-600 hover:bg-amber-50 transition-colors disabled:opacity-60"
-            >
-              {aiCreating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              Create "{query.trim()}" with AI
-            </button>
-          ) : (
-            <div className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-dashed border-amber-200 text-[11px] font-bold text-amber-500/70">
-              <Lock size={12} /> Upgrade to Sage to create plants with AI
-            </div>
+          {/* Step 2 — add it anyway (Sage+, AI-written care details). Only
+              once wider search is exhausted (or unavailable to this tier). */}
+          {(canExternal ? externalDone && externalRows.length === 0 : noLibraryResults) && (
+            gates.canCreateWithAI ? (
+              <button
+                type="button"
+                data-testid="plant-search-create-ai"
+                onClick={handleCreateWithAI}
+                disabled={aiCreating}
+                className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-2xl border border-amber-200 bg-amber-50/40 text-left can-hover:hover:bg-amber-50 transition-colors disabled:opacity-60"
+              >
+                <span className="w-9 h-9 shrink-0 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
+                  {aiCreating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-black text-amber-700">Add "{query.trim()}" anyway</span>
+                  <span className="block text-[11px] font-bold text-amber-600/70">We'll write up the care details for you</span>
+                </span>
+              </button>
+            ) : (
+              <div className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-2xl border border-dashed border-amber-200 text-left">
+                <span className="w-9 h-9 shrink-0 rounded-xl bg-amber-50 flex items-center justify-center text-amber-400">
+                  <Lock size={14} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-black text-amber-600/60">Add "{query.trim()}" anyway</span>
+                  <span className="block text-[11px] font-bold text-amber-500/70">Upgrade to Sage and we'll write up the care details</span>
+                </span>
+              </div>
+            )
           )}
           {aiError && <p className="text-[11px] font-bold text-rose-600 px-1">{aiError}</p>}
 
@@ -612,9 +708,9 @@ export default function PlantSearch({
               type="button"
               data-testid="plant-search-manual"
               onClick={() => onSelect({ source: "manual", common_name: query.trim() })}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-xs font-black text-rhozly-on-surface/55 hover:text-rhozly-on-surface hover:bg-rhozly-surface transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2.5 min-h-[48px] rounded-2xl text-left text-xs font-black text-rhozly-on-surface/55 can-hover:hover:text-rhozly-on-surface can-hover:hover:bg-rhozly-surface transition-colors"
             >
-              <Pencil size={13} /> Add "{query.trim()}" manually
+              <Pencil size={13} /> Enter "{query.trim()}" manually
             </button>
           )}
 
@@ -627,6 +723,7 @@ export default function PlantSearch({
 
 function ResultRow({
   testId, name, sub, other, thumb, credit, source, onClick, multiSelect = false, selected = false,
+  tapOpensDetails = false, onDetails,
   allowPreview = false, onInfo, infoActive = false, infoLoading = false, preview = null,
 }: {
   testId: string;
@@ -636,12 +733,15 @@ function ResultRow({
   other?: string[];
   thumb: string | null;
   /** Wave 22.0005 — forwarded to PlantResultThumb so the credit badge
-   *  renders on the 44px tile when the row carries provider metadata. */
+   *  renders on the thumbnail tile when the row carries provider metadata. */
   credit?: unknown;
   source: string;
   onClick: () => void;
   multiSelect?: boolean;
   selected?: boolean;
+  /** Overlay contract: row body opens the full detail; + adds. */
+  tapOpensDetails?: boolean;
+  onDetails?: () => void;
   allowPreview?: boolean;
   onInfo?: () => void;
   infoActive?: boolean;
@@ -654,21 +754,24 @@ function ResultRow({
       <div
         className={`rounded-2xl bg-white border overflow-hidden transition-colors ${selected ? "border-rhozly-primary ring-1 ring-rhozly-primary/30" : "border-rhozly-outline/15 hover:border-rhozly-primary/40"}`}
       >
-        <div className="flex items-center gap-2 p-3">
+        <div className="flex items-center gap-2 pl-3 pr-2 py-2.5 min-h-[72px]">
           <button
             type="button"
             data-testid={testId}
             data-selected={selected || undefined}
-            aria-pressed={multiSelect ? selected : undefined}
-            onClick={onClick}
+            aria-pressed={multiSelect && !tapOpensDetails ? selected : undefined}
+            onClick={tapOpensDetails && onDetails ? onDetails : onClick}
             className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
           >
-            <div className="w-11 h-11 shrink-0 rounded-2xl overflow-hidden bg-rhozly-primary/5 flex items-center justify-center text-rhozly-primary/50">
-              <PlantResultThumb name={name} url={thumb} source={source} iconSize={18} credit={credit} />
+            <div className="w-14 h-14 shrink-0 rounded-2xl overflow-hidden bg-rhozly-primary/5 flex items-center justify-center text-rhozly-primary/50">
+              <PlantResultThumb name={name} url={thumb} source={source} iconSize={22} credit={credit} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-black text-rhozly-on-surface text-sm leading-tight truncate">{name}</p>
-              {sub && <p className="text-[11px] font-bold italic text-rhozly-on-surface/45 truncate">{sub}</p>}
+              <p className="font-black text-rhozly-on-surface text-base leading-tight truncate">{name}</p>
+              <p className="text-xs font-bold text-rhozly-on-surface/45 truncate">
+                {sub && <span className="italic">{sub} · </span>}
+                {badge.label}
+              </p>
               {other && other.length > 0 && (
                 <p
                   data-testid={`${testId}-other-names`}
@@ -677,9 +780,6 @@ function ResultRow({
                   Also known as: {other.slice(0, 3).join(", ")}
                 </p>
               )}
-              <span className={`inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md ${badge.className}`}>
-                {badge.label}
-              </span>
             </div>
           </button>
 
@@ -690,27 +790,23 @@ function ResultRow({
               aria-label={infoActive ? "Hide details" : "View details"}
               aria-expanded={infoActive}
               onClick={onInfo}
-              className={`shrink-0 p-2 rounded-xl transition-colors ${infoActive ? "text-rhozly-primary bg-rhozly-primary/10" : "text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-primary/5"}`}
+              className={`shrink-0 p-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11 rounded-xl transition-colors ${infoActive ? "text-rhozly-primary bg-rhozly-primary/10" : "text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-primary/5"}`}
             >
               {infoLoading ? <Loader2 size={16} className="animate-spin" /> : infoActive ? <ChevronUp size={16} /> : <Info size={16} />}
             </button>
           )}
 
+          {/* Add / select — its own 44px hit area, visually separated from the
+              row body so "open detail" and "add" never fight for a thumb. */}
           <button
             type="button"
-            aria-label={selected ? "Deselect plant" : "Select plant"}
+            data-testid={`${testId}-add`}
+            aria-label={selected ? `Remove ${name} from selection` : `Add ${name}`}
+            aria-pressed={multiSelect ? selected : undefined}
             onClick={onClick}
-            className="shrink-0 flex items-center justify-center"
+            className={`shrink-0 w-11 h-11 rounded-full border-2 flex items-center justify-center transition-colors active:scale-[0.92] ${selected ? "bg-rhozly-primary border-rhozly-primary text-white" : "bg-white border-rhozly-outline/25 text-rhozly-on-surface/50 can-hover:hover:border-rhozly-primary/50 can-hover:hover:text-rhozly-primary"}`}
           >
-            {multiSelect ? (
-              <span
-                className={`w-5 h-5 rounded-md flex items-center justify-center border-2 transition-colors ${selected ? "bg-rhozly-primary border-rhozly-primary text-white" : "bg-white border-rhozly-outline/30 text-transparent"}`}
-              >
-                <Check size={12} strokeWidth={3} />
-              </span>
-            ) : (
-              <Plus size={16} className="text-rhozly-on-surface/40" />
-            )}
+            {selected ? <Check size={18} strokeWidth={3} /> : <Plus size={18} />}
           </button>
         </div>
 

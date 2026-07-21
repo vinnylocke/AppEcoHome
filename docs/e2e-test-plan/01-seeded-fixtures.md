@@ -235,6 +235,16 @@ W1_PACKET_KALE_HOME      = 00000001-0000-0000-0019-99000000000b  (home packet "C
 W1_FAV_PACKET_KALE       = 00000001-0000-0000-0019-000000000003  (favourite, identity 'cavolo nero|'; "Add to this home" in home 1, "In this home" in the Rooftop Terrace)
 ```
 
+### Plant library catalogue rows — integer ids at `910001+` (`17_plant_library.sql`)
+
+Hub search-first overhaul Stage 1 (2026-07-21). `plant_library` is **global** (no home_id) — the seed is per-worker idempotent via explicit ids + `ON CONFLICT (id)`, pre-deleting same-`scientific_name_key` strays (generated unique column — never inserted). Names avoid `15_favourites`' snapshot-only tombstone ("Snapdragon"). Gives library-first search deterministic result rows (SHED-020 asserts the Tomato row; SHED-022a exercises row-tap → detail + `+` → cart).
+
+```
+LIB_PLANT_TOMATO    = 910001  (Solanum lycopersicum — annual, full sun, edible)
+LIB_PLANT_LAVENDER  = 910002  (Lavandula angustifolia — perennial, full sun)
+LIB_PLANT_SUNFLOWER = 910003  (Helianthus annuus — annual, full sun)
+```
+
 ### Rhozly guides (shared across all workers)
 
 ```

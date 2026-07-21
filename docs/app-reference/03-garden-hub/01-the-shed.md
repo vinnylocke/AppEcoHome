@@ -101,8 +101,10 @@ TheShed
 │   ├── Bulk archive / restore
 │   ├── Bulk delete
 │   └── Cancel
-├── PlantSearchTakeover (when Find a plant is open — an EARLY RETURN: the takeover
-│     IS the page; header/toolbar/grid come back on close. Stage 2, 2026-07-21)
+├── PlantSearchTakeover (when search is open — a FIXED z-[60] OVERLAY covering
+│     the app header / weather bar / hub tabs; the grid stays MOUNTED under it,
+│     so scroll + tour anchors survive. Input pinned in the top bar (~y=60,
+│     keyboard-safe). Hub search-first overhaul Stage 1, 2026-07-21)
 ├── PlantSourcePicker (companion plants flow)
 ├── PlantEditModal (when tapping a card)
 ├── PlantAssignmentModal (when assigning a plant to area)
@@ -120,7 +122,7 @@ TheShed
 | `filterSource` / `sortMode` / `smartFilter` | The three controls inside the Filters panel (source select, sort select, smart chips). `activeFilterCount` is derived from them — each non-default value counts one, driving the badge on the Filters button |
 | `filtersOpen` | Filters disclosure panel open/closed (Phase 4.3) |
 | `openMenuPlantId` | Which card's kebab menu is open (`null` = none; only one at a time) |
-| `showBulkSearch` | The full-page PlantSearchTakeover open (early-returns the page; was BulkSearchModal pre-Stage-2) |
+| `showBulkSearch` | The PlantSearchTakeover overlay open (fixed z-[60] over all chrome; the grid stays mounted underneath — was an early-return page pre-Stage-1 of the search-first overhaul, and BulkSearchModal before that) |
 | `editingPlant` / `editingPlantTab` | PlantEditModal target + the tab it opens on (`"care"` default; `"light"` from the kebab's Light needs item) |
 | `selectedPlant` | PlantAssignmentModal target (the Assign button) |
 | `bulkQueue` | Active bulk-add operations |

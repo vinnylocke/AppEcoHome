@@ -17,9 +17,7 @@ export class ShedPage {
   readonly bulkSearchInput: Locator;
   readonly bulkSearchExternalBtn: Locator;
   readonly bulkResultFirst: Locator;
-  readonly bulkResultInfoFirst: Locator;
-  readonly bulkPreviewPanel: Locator;
-  readonly bulkFullCareBtn: Locator;
+  readonly bulkResultAddFirst: Locator;
   readonly bulkDetailModal: Locator;
   readonly bulkDetailClose: Locator;
   readonly bulkReviewBtn: Locator;
@@ -101,10 +99,10 @@ export class ShedPage {
 
     this.bulkSearchInput = page.locator('[data-testid="plant-search-input"]');
     this.bulkSearchExternalBtn = page.locator('[data-testid="plant-search-external"]');
-    this.bulkResultFirst = page.locator('[data-testid^="plant-search-result-"]:not([data-testid$="-info"])').first();
-    this.bulkResultInfoFirst = page.locator('[data-testid^="plant-search-result-"][data-testid$="-info"]').first();
-    this.bulkPreviewPanel = page.locator('[data-testid="plant-search-preview-panel"]').first();
-    this.bulkFullCareBtn = page.locator('[data-testid^="plant-search-result-"][data-testid$="-full-care"]').first();
+    // Overlay result contract (Stage 1): the row BODY opens the detail modal;
+    // the trailing `-add` button selects into the cart.
+    this.bulkResultFirst = page.locator('[data-testid^="plant-search-result-"]:not([data-testid$="-info"]):not([data-testid$="-add"]):not([data-testid$="-other-names"])').first();
+    this.bulkResultAddFirst = page.locator('[data-testid^="plant-search-result-"][data-testid$="-add"]').first();
     this.bulkDetailModal = page.locator('[data-testid="plant-detail-modal"]');
     this.bulkDetailClose = page.locator('[data-testid="plant-detail-close"]');
     this.bulkReviewBtn = page.locator('[data-testid="bulk-search-review"]');
