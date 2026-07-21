@@ -17,6 +17,7 @@ import {
   Library,
   Loader2,
   Lock,
+  MapPin,
   Plus,
   Sparkles,
   X,
@@ -60,6 +61,10 @@ interface Props {
   onFavouritesChanged: () => void;
   /** Parent refreshes the shed after an add-to-home copy lands. */
   onHomePlantsChanged: () => void;
+  /** "Add & assign…" (overhaul Stage 4): after the copy lands, hands the new
+   *  home `plants` row up so the parent can open the assignment flow on it
+   *  (areas → quantities → smart schedules — the full existing pipeline). */
+  onAddedForAssign?: (plantRow: Record<string, unknown>) => void;
 }
 
 function sourceBadge(source: string, isLibrary: boolean) {
@@ -112,6 +117,7 @@ export default function FavouritePlantsGrid({
   perenualEnabled,
   onFavouritesChanged,
   onHomePlantsChanged,
+  onAddedForAssign,
 }: Props) {
   const [hintDismissed, setHintDismissed] = useState(
     () => localStorage.getItem(HINT_KEY) === "true",
@@ -136,10 +142,10 @@ export default function FavouritePlantsGrid({
     localStorage.setItem(HINT_KEY, "true");
   };
 
-  const handleAddToHome = async (fav: FavouritePlant) => {
+  const handleAddToHome = async (fav: FavouritePlant, thenAssign = false) => {
     setBusyFavId(fav.id);
     try {
-      await addFavouritePlantToHome(fav, homeId);
+      const row = await addFavouritePlantToHome(fav, homeId);
       logEvent(EVENT.FAVOURITE_ADDED_TO_HOME, {
         plant_ref_id: fav.plant_id,
         source: fav.plant?.source ?? fav.source,
@@ -148,6 +154,9 @@ export default function FavouritePlantsGrid({
         homeName ? `Added to ${homeName}.` : "Added to this home.",
       );
       onHomePlantsChanged();
+      // Stage 4 — "Add & assign…": hand the fresh home row straight into the
+      // assignment flow (one motion from favourite → in the ground).
+      if (thenAssign && row) onAddedForAssign?.(row as Record<string, unknown>);
     } catch (err: any) {
       Logger.error(
         "Add favourite to home failed",
@@ -309,30 +318,53 @@ export default function FavouritePlantsGrid({
                         <HomeIcon size={13} /> In this home
                       </span>
                     ) : (
-                      <button
-                        data-testid={`favourite-add-to-home-${fav.id}`}
-                        onClick={() => !locked && handleAddToHome(fav)}
-                        disabled={busy || locked}
-                        title={
-                          locked
-                            ? lockedSourceMessage(source)
-                            : "Copy this plant into your current home"
-                        }
-                        className={`flex-1 h-10 px-3 rounded-2xl flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
-                          locked
-                            ? "bg-rhozly-surface-low text-rhozly-on-surface/30 cursor-not-allowed"
-                            : "bg-rhozly-primary/10 text-rhozly-primary hover:bg-rhozly-primary hover:text-white"
-                        }`}
-                      >
-                        {busy ? (
-                          <Loader2 size={13} className="animate-spin" />
-                        ) : locked ? (
-                          <Lock size={13} />
-                        ) : (
-                          <Plus size={13} />
-                        )}
-                        Add to this home
-                      </button>
+                      <>
+                        {/* Stage 4 — the primary action plants the favourite in one
+                            motion: copy to this home, then straight into the
+                            assignment flow (areas → tasks → smart schedules). */}
+                        <button
+                          data-testid={`favourite-add-assign-${fav.id}`}
+                          onClick={() => !locked && handleAddToHome(fav, true)}
+                          disabled={busy || locked}
+                          title={
+                            locked
+                              ? lockedSourceMessage(source)
+                              : "Copy into this home and assign it to an area"
+                          }
+                          className={`flex-1 h-10 pointer-coarse:min-h-11 px-3 rounded-2xl flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
+                            locked
+                              ? "bg-rhozly-surface-low text-rhozly-on-surface/30 cursor-not-allowed"
+                              : "bg-rhozly-primary text-white can-hover:hover:opacity-90 active:scale-[0.98]"
+                          }`}
+                        >
+                          {busy ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : locked ? (
+                            <Lock size={13} />
+                          ) : (
+                            <MapPin size={13} />
+                          )}
+                          Add &amp; assign
+                        </button>
+                        <button
+                          data-testid={`favourite-add-to-home-${fav.id}`}
+                          onClick={() => !locked && handleAddToHome(fav)}
+                          disabled={busy || locked}
+                          aria-label={`Add ${name} to this home without assigning`}
+                          title={
+                            locked
+                              ? lockedSourceMessage(source)
+                              : "Copy into this home without assigning"
+                          }
+                          className={`w-10 h-10 pointer-coarse:w-11 pointer-coarse:h-11 rounded-2xl flex items-center justify-center transition-all ${
+                            locked
+                              ? "bg-rhozly-surface-low text-rhozly-on-surface/30 cursor-not-allowed"
+                              : "bg-rhozly-primary/10 text-rhozly-primary can-hover:hover:bg-rhozly-primary can-hover:hover:text-white active:scale-[0.95]"
+                          }`}
+                        >
+                          {busy ? <Loader2 size={14} className="animate-spin" /> : locked ? <Lock size={14} /> : <Plus size={14} />}
+                        </button>
+                      </>
                     )}
                     <button
                       data-testid={`favourite-remove-${fav.id}`}
@@ -340,7 +372,7 @@ export default function FavouritePlantsGrid({
                       disabled={busy}
                       aria-label={`Remove ${name} from favourites`}
                       title="Remove from favourites"
-                      className="w-10 h-10 rounded-2xl text-rhozly-on-surface/45 hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center transition-colors"
+                      className="w-10 h-10 pointer-coarse:w-11 pointer-coarse:h-11 rounded-2xl text-rhozly-on-surface/45 can-hover:hover:bg-rose-50 can-hover:hover:text-rose-600 flex items-center justify-center transition-colors"
                     >
                       <Heart size={16} className="fill-current" />
                     </button>

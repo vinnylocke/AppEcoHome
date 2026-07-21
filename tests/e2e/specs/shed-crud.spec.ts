@@ -1058,3 +1058,48 @@ test.describe("Shed — search-first landing (Stage 3)", () => {
     await expect(authenticatedPage.getByTestId("plant-search-filter-panel")).toBeVisible({ timeout: 10000 });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Favourites that act (overhaul Stage 4, 2026-07-21) — "Add & assign…" copies a
+// cross-home favourite into this home and opens the assignment flow on it.
+// Fixture: favourite 0017-…03 ("Fig") — a live cross-home favourite whose plant
+// is NOT in this home, so the action buttons render (15_favourites.sql).
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe("Shed — favourites Add & assign (Stage 4)", () => {
+  const workerNum = parseInt(process.env.PLAYWRIGHT_WORKER_INDEX ?? "0", 10) + 1;
+  const FIG_FAV_ID = `0000000${workerNum}-0000-0000-0017-000000000003`;
+
+  test("SHED-FAV-001: Add & assign copies the favourite home and opens the assignment modal (self-cleaning)", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await authenticatedPage.goto("/shed?scope=favourites");
+    await shed.waitForLoad();
+
+    const addAssign = authenticatedPage.getByTestId(`favourite-add-assign-${FIG_FAV_ID}`);
+    // If a previous run left the Fig in-home, the buttons are replaced by the
+    // "In this home" chip — clean it below either way; skip only if truly absent.
+    if (!(await addAssign.isVisible().catch(() => false))) {
+      test.skip(
+        await authenticatedPage.getByTestId(`favourite-in-home-${FIG_FAV_ID}`).isVisible().catch(() => false),
+        "Fig already in home from a previous run — cleaned at the end of a full pass",
+      );
+    }
+    await addAssign.click();
+
+    // The copy lands and the assignment flow opens on the fresh row.
+    await expect(authenticatedPage.getByText("Assign Plant")).toBeVisible({ timeout: 15000 });
+    await authenticatedPage.getByLabel("Close assignment modal").click();
+
+    // Self-clean: the copy (no instances — we cancelled) is deleted through
+    // the standard card flow so the seeded fixture state is restored.
+    await expect(authenticatedPage.getByTestId("shed-plant-list")).toBeVisible({ timeout: 10000 });
+    await authenticatedPage.getByLabel("Search your saved plants").fill("Fig");
+    const figCard = authenticatedPage.locator("[data-plant-card]").filter({ hasText: "Fig" }).first();
+    await expect(figCard).toBeVisible({ timeout: 10000 });
+    const figId = await figCard.getAttribute("data-testid");
+    const id = figId?.replace("plant-card-", "") ?? "";
+    await authenticatedPage.getByTestId(`plant-card-kebab-${id}`).click();
+    await authenticatedPage.getByTestId(`plant-card-menu-${id}`).getByText("Delete").click();
+    await authenticatedPage.getByRole("button", { name: /^Delete$/i }).click();
+    await expect(figCard).toHaveCount(0, { timeout: 10000 });
+  });
+});

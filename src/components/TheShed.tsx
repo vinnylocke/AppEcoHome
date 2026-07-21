@@ -92,6 +92,7 @@ import InfoTooltip from "./InfoTooltip";
 import EmptyState from "./shared/EmptyState";
 import AssistantCard from "./AssistantCard";
 import { getLocalDateString } from "../lib/taskEngine";
+import { AutomationEngine } from "../lib/automationEngine";
 
 async function fetchFirstAvailableImage(plantName: string): Promise<string> {
   const [wiki, pixabay] = await Promise.all([
@@ -161,7 +162,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const [archivingPlantId, setArchivingPlantId] = useState<number | null>(null);
 
   const [viewTab, setViewTab] = useState<"active" | "archived">("active");
-  const [filterSource, setFilterSource] = useState<"all" | "manual" | "api" | "ai">(
+  const [filterSource, setFilterSource] = useState<"all" | "manual" | "api" | "ai" | "verdantly">(
     "all",
   );
   const [sortMode, setSortMode] = useState<"alphabetical" | "preference">("alphabetical");
@@ -1157,11 +1158,31 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       const { data: inserted, error: insertError } = await supabase
         .from("inventory_items")
         .insert(rows)
-        .select("id, plant_id");
+        // home_id AND location_id included because applyPlantedAutomations
+        // reads both off the first item when creating blueprints/tasks
+        // (parity repair below; review-caught — location_id was missed first).
+        .select("id, plant_id, home_id, location_id");
       if (insertError) throw insertError;
 
       // Wave 23.0001 — first plant added unlocks the post-shed walkthrough.
       void recordSignal("first_plant_created");
+
+      // Repair (overhaul Stage 4, recon-verified asymmetry): planted BULK
+      // assigns previously skipped AutomationEngine.applyPlantedAutomations
+      // entirely — unlike the single-assign path — so bulk "already planted"
+      // plants got no recurring blueprints from their plant_schedules. Parity
+      // restored (the engine self-short-circuits when areaId is null).
+      if (data.isPlanted && !noArea && (inserted ?? []).length > 0) {
+        const baseDateStr = data.isEstablished
+          ? getLocalDateString(new Date())
+          : data.plantedDate;
+        // Best-effort (review finding): the inventory rows are ALREADY inserted —
+        // an engine hiccup must not strand them behind the catch's error toast
+        // (retrying would double-insert). Mirrors the smart-schedules loop.
+        await AutomationEngine.applyPlantedAutomations(inserted ?? [], data.areaId, baseDateStr).catch(
+          (err) => Logger.warn("Bulk assign blueprint generation failed (best-effort)", { err }),
+        );
+      }
 
       const totalTypes = selectedPlants.length;
 
@@ -1994,6 +2015,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                   <option value="all">All Sources</option>
                   <option value="manual">Manual</option>
                   <option value="api">Plant Database</option>
+                  <option value="verdantly">Verdantly</option>
                   <option value="ai">AI</option>
                 </select>
                 <select
@@ -2068,6 +2090,13 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             onHomePlantsChanged={() => {
               refreshShed();
               loadFavourites();
+            }}
+            onAddedForAssign={(row) => {
+              // "Add & assign…" (Stage 4): jump to the Home scope so the new
+              // plant is visible behind the assignment flow, then open the
+              // full assignment modal on the fresh row.
+              switchScope("home");
+              setSelectedPlant(row as unknown as Plant);
             }}
           />
         )}
@@ -2339,7 +2368,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                                 ? "Remove from favourites"
                                 : "Save to favourites — follows you across homes"
                           }
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors active:scale-95 ${
+                          className={`w-9 h-9 pointer-coarse:w-11 pointer-coarse:h-11 rounded-xl flex items-center justify-center transition-colors active:scale-95 ${
                             locked
                               ? "text-rhozly-on-surface/20 cursor-not-allowed"
                               : isFavourited
@@ -2375,7 +2404,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                         aria-haspopup="menu"
                         aria-expanded={openMenuPlantId === plant.id}
                         title="More actions"
-                        className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-rhozly-on-surface flex items-center justify-center transition-colors active:scale-95"
+                        className="w-9 h-9 pointer-coarse:w-11 pointer-coarse:h-11 rounded-xl text-rhozly-on-surface/55 can-hover:hover:bg-rhozly-surface-low can-hover:hover:text-rhozly-on-surface flex items-center justify-center transition-colors active:scale-95"
                       >
                         <MoreVertical size={16} />
                       </button>

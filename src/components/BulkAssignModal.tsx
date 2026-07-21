@@ -184,7 +184,7 @@ export default function BulkAssignModal({
                       type="button"
                       aria-label={`Decrease ${p.common_name}`}
                       onClick={() => setQty(p.id as number, qty - 1)}
-                      className="w-8 h-8 rounded-xl bg-white border border-rhozly-outline/20 flex items-center justify-center text-rhozly-on-surface/60 hover:text-rhozly-primary disabled:opacity-40"
+                      className="w-8 h-8 pointer-coarse:w-11 pointer-coarse:h-11 rounded-xl bg-white border border-rhozly-outline/20 flex items-center justify-center text-rhozly-on-surface/60 can-hover:hover:text-rhozly-primary disabled:opacity-40"
                       disabled={qty <= 1}
                     >
                       <Minus size={14} />
@@ -202,7 +202,7 @@ export default function BulkAssignModal({
                       type="button"
                       aria-label={`Increase ${p.common_name}`}
                       onClick={() => setQty(p.id as number, qty + 1)}
-                      className="w-8 h-8 rounded-xl bg-white border border-rhozly-outline/20 flex items-center justify-center text-rhozly-on-surface/60 hover:text-rhozly-primary"
+                      className="w-8 h-8 pointer-coarse:w-11 pointer-coarse:h-11 rounded-xl bg-white border border-rhozly-outline/20 flex items-center justify-center text-rhozly-on-surface/60 can-hover:hover:text-rhozly-primary"
                     >
                       <Plus size={14} />
                     </button>
