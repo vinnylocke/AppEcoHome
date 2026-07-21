@@ -708,3 +708,32 @@ test.describe("Watchlist — Bulk add (RHO-4 Phase 2)", () => {
     ).toHaveValue("invasive_plant");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Full-page "Find an ailment" takeover (overhaul Stage 5, 2026-07-21) — the
+// add flow is a page, not a modal (mirrors the Shed's PlantSearchTakeover).
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe("Watchlist — ailment-add takeover (Stage 5)", () => {
+  test("WL-TKO-001: Find an ailment opens the full-page takeover; back returns to the watchlist", async ({ authenticatedPage }) => {
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    await wl.addButton.click();
+    const takeover = authenticatedPage.getByTestId("ailment-add-takeover");
+    await expect(takeover).toBeVisible({ timeout: 10000 });
+    // A page, not a dialog — no aria-modal overlay.
+    await expect(authenticatedPage.locator('[role="dialog"][aria-modal="true"]')).toHaveCount(0);
+    await expect(wl.addModalHeading).toBeVisible();
+
+    await authenticatedPage.getByTestId("ailment-add-back").click();
+    await expect(takeover).toHaveCount(0);
+    await expect(authenticatedPage.getByTestId("watchlist-add-btn")).toBeVisible({ timeout: 10000 });
+  });
+
+  test("WL-TKO-002: ?open=add-ailment deep-links straight into the takeover", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/shed?tab=watchlist&open=add-ailment");
+    await expect(authenticatedPage.getByTestId("ailment-add-takeover")).toBeVisible({ timeout: 15000 });
+    await expect(authenticatedPage.locator('[data-testid="ailment-search-input"]')).toBeVisible();
+  });
+});

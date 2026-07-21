@@ -64,3 +64,12 @@
 | FAV-WL-004 | ✅ | "Add to this home" copies the Rose Rust favourite into the active home; button flips to "In this home"; copy on Home tab | — | ✅ Passing |
 | FAV-WL-005 | ✅ | Tier lock — Sprout sees a disabled heart on the seeded perenual-source ailment; manual ailments stay heartable | route-intercepted Sprout profile | ✅ Passing |
 | FAV-WL-006 | ✅ | W1 only — favourite ailments persist across a home switch while the add-state recomputes (Slugs) | — | ✅ Passing |
+
+## Ailment-add takeover (overhaul Stage 5, 2026-07-21)
+
+The "Find an ailment" flow is a **full-page takeover** (`ailment-add-takeover`), not a portal modal — mirroring the Shed's `PlantSearchTakeover`. All internal testids + the `?open=add-ailment` deep link unchanged; the pre-existing WL-MOBILE-002 / WL-MODAL-003 rows keep passing against the new shell (28/28 suite green on conversion day).
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| WL-TKO-001 | ✅ | "Find an ailment" opens the full-page takeover (no `aria-modal` dialog); the `ailment-add-back` "Watchlist" control returns to the grid | — | ✅ Passing |
+| WL-TKO-002 | ✅ | `?open=add-ailment` deep-links straight into the takeover with the search input ready | — | ✅ Passing |

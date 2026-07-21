@@ -871,7 +871,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `scanJournalPhotos.test.ts` | 17 | Garden Brain Phase 3 photo scan (`_shared/scanJournalPhotos.ts`, SJP-001..031) — `selectPhotos` predicate (plant-linked, has image, never observed, 14-day window, oldest-first, 10-cap), `validateObservation` closed-vocabulary contract (unknown kinds dropped, ≤2 actions, due_in_days clamp 0–14, create_task requires task_type+title, check_for_ailment requires suspected, text caps 160/200/80, status always `proposed`, unusable core → null), `shouldApplyStage` (≥0.8 + differs), responseSchema enum pinning, prompt content |
 | `homeOverview.test.ts` | 16 | `home-overview` pure helpers (`_shared/homeOverview.ts`, HOME-OV-001..016) — `deriveValveState` (running inside the turn_on countdown, never past `duration_seconds`, newer turn_off wins, failed-queue-newer-than-last-event → failed, `nextRunAt` = earliest pending turn_on), `soilBand` (<30 dry / >70 wet), `rankAttention` (overdue > alert > failed automation > battery/soil > harvest; max 4; empty when calm), `summariseSoilReading` (null-safe, `readingAgeMin`, battery falls back to the reading payload), RHO-17 Phase 2 `shapeWalkDevices` (unassigned/location/area assignments + name-sorted, multi-sensor areas, valve state + control metadata with duration fallback, stale reading ages, unknown device types dropped) |
 
-### E2E tests — 557 tests across 38 files (+ 13 isolation tests)
+### E2E tests — 559 tests across 38 files (+ 13 isolation tests)
 
 > **Onboarding tours are seeded dismissed.** `00_bootstrap.sql` writes a full `onboarding_state` baseline (every `flowRegistry` Shepherd flow + `welcome_modal` = `dismissed`) for the worker accounts. Without it, the `global_welcome` tour (route `global`, `important: true` — bypasses the daily throttle; its per-session guard is sessionStorage, fresh in every test context) renders a centred pointer-intercepting card ~800ms after every navigation on any account with an empty state. Specs that need un-dismissed flows mock their own profile fetch (see `tests/e2e/fixtures/welcome-modal-ready.ts`).
 
@@ -919,7 +919,7 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `area-setup.spec.ts` | 21 | Location management, create location, create area, assign plant, delete flows |
 | `garden-profile.spec.ts` | 16 | Garden Profile heading, quiz/completion state, option toggling, Next/Back, progress bar |
 | `guides.spec.ts` | 25 | Guide list, search/filter by level, open guide detail, breadcrumb navigation; Guides tab in PlantEditModal (GDE-021–025) |
-| `watchlist.spec.ts` | 29 | Ailment list, type filters, add manual/AI, detail modal tabs, archive/restore/delete |
+| `watchlist.spec.ts` | 31 | Ailment list, type filters, add manual/AI, detail modal tabs, archive/restore/delete; + Stage 5 takeover (WL-TKO-001 full-page open/back, WL-TKO-002 ?open=add-ailment deep link) |
 | `layout.spec.ts` | 9 | Nav bar visibility, active route highlighting, responsive layout |
 | `lightsensor.spec.ts` | 13 | Light sensor page load, readings display, permission flow |
 | `visualiser.spec.ts` | 11 | Plant visualiser page load, canvas/overlay rendering |

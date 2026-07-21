@@ -855,31 +855,57 @@ function AddAilmentModal({
   const showSteps = mode === "manual";
   const totalSelected = checkedPerenualIds.size + checkedAiIds.size;
 
+  // Escape (Stage 5 takeover): review → back to tabs; a deeper search tier →
+  // back to library search; library search → close. Never on the Manual form
+  // (it would discard typed work — the form has its own Cancel).
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (modeRef.current === "manual") return;
+      if (stepRef.current === "review") setStep("tabs");
+      else if (modeRef.current !== "search") setMode("search");
+      else onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
-      {/* Frame matches BulkSearchModal ("Find a plant") so the two search
-          modals read as one family — same size, header + tab bar. */}
-      <div className="bg-rhozly-surface-lowest w-full max-w-3xl h-[85vh] flex flex-col rounded-3xl shadow-2xl border border-rhozly-outline/20 overflow-hidden relative">
+    // Full-page takeover (overhaul Stage 5, 2026-07-21) — mirrors the Shed's
+    // PlantSearchTakeover: search is the page, not a max-w-3xl h-[85vh]
+    // porthole. AilmentWatchlist early-returns this while open; every internal
+    // testid (ailment-tab-*, ailment-search-*, ailment-library-*) is unchanged.
+    <div className="max-w-3xl mx-auto w-full pb-8 animate-in fade-in" data-testid="ailment-add-takeover">
         {/* Header */}
-        <div className="p-8 pb-4 shrink-0 flex justify-between items-start">
+        <button
+          onClick={onClose}
+          data-testid="ailment-add-back"
+          aria-label="Back to watchlist"
+          className="inline-flex items-center gap-1.5 text-xs font-black text-rhozly-on-surface-variant can-hover:hover:text-rhozly-on-surface mb-3 min-h-[44px] active:scale-[0.97] transition"
+        >
+          <ChevronLeft size={15} /> Watchlist
+        </button>
+        <div className="pb-4 flex justify-between items-start">
           <div>
-            <h3 className="text-3xl font-black flex items-center gap-3">
+            <h3 className="text-2xl sm:text-3xl font-black font-display tracking-tight flex items-center gap-3">
               <Biohazard className="text-rhozly-primary" /> Add to Watchlist
             </h3>
-            <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
+            <p className="text-2xs font-black text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
               Search and add pests, diseases &amp; weeds
             </p>
           </div>
-          <button onClick={onClose} aria-label="Close modal" className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform">
-            <X size={24} />
-          </button>
         </div>
 
         {/* Tab bar — Search / Manual, mirroring BulkSearchModal. "Search"
             covers the tiered library → databases → AI flow; deeper tiers keep
             their own "Back to Search" control inside the search panel. */}
         {step === "tabs" && (
-          <div className="px-8 shrink-0">
+          <div>
             <div role="tablist" className="flex bg-rhozly-surface-low p-1 rounded-2xl gap-1">
               <button
                 role="tab"
@@ -906,7 +932,7 @@ function AddAilmentModal({
         {/* Back-to-search control for the deeper tiers (Perenual / AI). Manual
             is reached via the tab bar, so it doesn't need this. */}
         {step === "tabs" && mode !== "search" && mode !== "manual" && (
-          <div className="mx-8 mt-3 mb-1">
+          <div className="mt-3 mb-1">
             <button
               onClick={() => setMode("search")}
               data-testid="ailment-back-to-search"
@@ -917,7 +943,7 @@ function AddAilmentModal({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto px-8 py-5 custom-scrollbar space-y-5">
+        <div className="py-5 space-y-5">
 
           {/* ── Review step: combined cart ── */}
           {step === "review" && (
@@ -1513,7 +1539,7 @@ function AddAilmentModal({
 
         {/* Footer — shared selection bar (Perenual + AI tabs) */}
         {step === "tabs" && totalSelected > 0 && mode !== "manual" && (
-          <div className="shrink-0 px-8 py-4 border-t border-rhozly-outline/10 animate-in slide-in-from-bottom-2">
+          <div className="sticky bottom-2 py-4 animate-in slide-in-from-bottom-2">
             <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-2xl p-4 flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-black text-rhozly-on-surface">{totalSelected} Selected</p>
@@ -1537,7 +1563,7 @@ function AddAilmentModal({
 
         {/* Footer — review: commit */}
         {step === "review" && (
-          <div className="px-8 py-6 pt-4 border-t border-rhozly-outline/10 flex gap-3">
+          <div className="py-6 pt-4 border-t border-rhozly-outline/10 flex gap-3">
             <button
               onClick={() => setStep("tabs")}
               className="flex-1 py-3.5 rounded-2xl border-2 border-rhozly-outline/20 font-black text-sm text-rhozly-on-surface/60 hover:text-rhozly-on-surface transition-colors"
@@ -1557,7 +1583,7 @@ function AddAilmentModal({
 
         {/* Footer — Manual form */}
         {showSteps && (
-          <div className="px-8 py-6 pt-4 border-t border-rhozly-outline/10 flex gap-3">
+          <div className="py-6 pt-4 border-t border-rhozly-outline/10 flex gap-3">
             <button
               onClick={onClose}
               className="flex-1 py-3.5 rounded-2xl border-2 border-rhozly-outline/20 font-black text-sm text-rhozly-on-surface/60 hover:text-rhozly-on-surface transition-colors"
@@ -1574,7 +1600,6 @@ function AddAilmentModal({
             </button>
           </div>
         )}
-      </div>
     </div>
   );
 }
@@ -2007,6 +2032,25 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   };
   const cm = confirmMeta[confirmState.type];
 
+  // Full-page "Find an ailment" takeover (overhaul Stage 5) — while open it IS
+  // the tab body (the watchlist header/grid come back on close). All hooks are
+  // above; the ?open=add-ailment deep link + onSaved contract are unchanged.
+  if (showAdd) {
+    return (
+      <div className="animate-in fade-in duration-300">
+        <AddAilmentModal
+          homeId={homeId}
+          aiEnabled={aiEnabled}
+          onSaved={(a) => { setAilments((prev) => [a, ...prev]); requestFeedback("ailment_add"); }}
+          onClose={() => setShowAdd(false)}
+          existingKeys={new Set(
+            ailments.filter((a) => !a.is_archived).map((a) => ailmentIdentityKey(a.name)).filter(Boolean),
+          )}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Page header */}
@@ -2243,18 +2287,8 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
       )}
 
       {/* Modals — rendered via portal so they escape any parent overflow/z-index */}
-      {showAdd && createPortal(
-        <AddAilmentModal
-          homeId={homeId}
-          aiEnabled={aiEnabled}
-          onSaved={(a) => { setAilments((prev) => [a, ...prev]); requestFeedback("ailment_add"); }}
-          onClose={() => setShowAdd(false)}
-          existingKeys={new Set(
-            ailments.filter((a) => !a.is_archived).map((a) => ailmentIdentityKey(a.name)).filter(Boolean),
-          )}
-        />,
-        document.body,
-      )}
+      {/* The Find-an-ailment flow is no longer a portal modal — `showAdd`
+          early-returns the full-page takeover above (overhaul Stage 5). */}
       {showBulkAdd && (
         <BulkAddAilmentsModal
           homeId={homeId}

@@ -70,17 +70,27 @@ Roll up `plant_instance_ailments` into `affectedCounts: Record<ailmentId, number
 
 ### Data flow — write paths
 
-#### Add Ailment — tiered search (2026-06-19)
+#### Add Ailment — tiered search (2026-06-19; FULL-PAGE TAKEOVER since 2026-07-21)
 
 The header CTA is **"Find an ailment"** (`data-testid="watchlist-add-btn"`) — renamed from "Add"
 to parallel the Shed's "Find a plant". `AddAilmentModal` now mirrors the plant search: **one**
 search box with progressive tiers (the old AI / Perenual tabs were removed). Source files:
-`AilmentWatchlist.tsx` (modal) + `src/services/ailmentLibraryService.ts` (`filterAilmentLibrary`,
+`AilmentWatchlist.tsx` (the flow) + `src/services/ailmentLibraryService.ts` (`filterAilmentLibrary`,
 `persistAiAilmentToLibrary`).
 
-**Visual parity with `BulkSearchModal`.** The modal is deliberately aligned to the Shed's
-"Find a plant" modal so the two read as one family:
-- **Frame:** `max-w-3xl h-[85vh]`, `bg-rhozly-surface-lowest`, rounded, `overflow-hidden`.
+> **Stage 5 of the ailment-library-shed-search overhaul (2026-07-21): the flow is a FULL-PAGE
+> TAKEOVER, not a modal** — mirroring the Shed's `PlantSearchTakeover`. `AilmentWatchlist`
+> early-returns it while `showAdd` is true (`data-testid="ailment-add-takeover"`; the watchlist
+> header/grid come back on close via the `ailment-add-back` "Watchlist" button). The old
+> `fixed inset-0` portal shell, `max-w-3xl h-[85vh]` cap and `backdrop-blur-xl` are gone; every
+> internal testid (`ailment-tab-search/manual`, `ailment-search-*`, `ailment-library-*`,
+> `ailment-back-to-search`) and the `?open=add-ailment` deep link + `ailment_source` preference
+> are unchanged. Escape steps back through the flow (review → tabs → library search → close),
+> never on the Manual form.
+
+**Visual parity with the Shed's "Find a plant".** The flow is deliberately aligned to the Shed's
+add flow so the two read as one family (both are now full-page takeovers):
+- **Frame:** a `max-w-3xl` page column (was `max-w-3xl h-[85vh]` pre-Stage-5).
 - **Header:** `p-8`, `Biohazard` icon + `text-3xl` title + muted uppercase subtitle.
 - **Tabs:** a **Search / Manual** tab bar (`data-testid="ailment-tab-search"` / `ailment-tab-manual`).
 - **Search body (mirrors `PlantSearch`):** a magnifier field (`bg-white border` + leading `Search`
