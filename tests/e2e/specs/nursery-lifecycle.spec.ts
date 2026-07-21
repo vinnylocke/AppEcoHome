@@ -849,4 +849,42 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
     await authenticatedPage.waitForTimeout(1500);
     await expect(nursery.seedRefillBanner).toHaveCount(0);
   });
+
+  // ── Stage 4 (2026-07-21): the Nursery is a first-class hub tab with the
+  //    shared HubHeader — a real inline search + one "Add seeds" sheet. ──────
+
+  test("NURSERY-060: the hub tab + Add-seeds sheet — every add path opens from one primary", async ({ authenticatedPage }) => {
+    await createPacket(supabase, { variety: "Cherokee Purple", plant_id: PLANT_TOMATO });
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.goto(); // /shed?tab=nursery deep link
+
+    await expect(authenticatedPage.getByTestId("garden-hub-tab-nursery")).toHaveAttribute("aria-selected", "true");
+    await authenticatedPage.getByTestId("nursery-add-seeds-btn").click();
+
+    // The sheet carries the classic testids on its rows.
+    await expect(authenticatedPage.getByTestId("nursery-paste-packets")).toBeVisible({ timeout: 5000 });
+    await authenticatedPage.getByTestId("nursery-add-packets").click();
+    await expect(nursery.addPacketModal).toBeVisible({ timeout: 8000 });
+    await authenticatedPage.keyboard.press("Escape");
+  });
+
+  test("NURSERY-061: the inline search filters packets as you type", async ({ authenticatedPage }) => {
+    await createPacket(supabase, { variety: "Cherokee Purple", plant_id: PLANT_TOMATO });
+    await createPacket(supabase, { variety: "Sweet Genovese", plant_id: PLANT_BASIL });
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.goto();
+
+    const rows = authenticatedPage.locator('[data-testid^="nursery-row-"]');
+    await expect(rows).toHaveCount(2, { timeout: 10000 });
+
+    const search = authenticatedPage.getByTestId("nursery-search-input");
+    await search.fill("Cherokee");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("Cherokee Purple");
+
+    await search.fill("zzz-no-match");
+    await expect(rows).toHaveCount(0);
+    await search.fill("");
+    await expect(rows).toHaveCount(2);
+  });
 });

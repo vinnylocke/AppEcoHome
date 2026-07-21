@@ -1,5 +1,18 @@
 # The Nursery
 
+> **Nursery promotion (hub search-first overhaul Stage 4, 2026-07-21):** the Nursery is a
+> **first-class hub tab** (`garden-hub-tab-nursery`, deep link `/shed?tab=nursery`) — the
+> Plants|Nursery toggle inside TheShed (`shed-view-toggle`) is GONE, and with it the
+> mismatched "Plants" header that used to sit above this surface. The tab now opens with the
+> shared `HubHeader` (title "Nursery" + packet count + persona guidance), a REAL inline
+> search (`nursery-search-input` — data is local, no takeover; filters by variety / plant /
+> vendor), a single primary **"Add seeds"** (`nursery-add-seeds-btn`) opening an action
+> sheet (Scan a packet / Paste a list / Type one in — the `nursery-scan-packets` /
+> `nursery-paste-packets` / `nursery-add-packets` testids moved onto the sheet rows), and an
+> All / ♥ Favourites chip row (`nursery-scope-toggle` / `-home` / `-favourites` preserved).
+> The old summary-line button cluster is gone; empty-state CTAs (`nursery-*-empty`) are
+> unchanged.
+
 > The seed-side of The Shed — where unopened packets, in-progress sowings, and germinating seedlings live until they earn their place in the garden. Reached from a Plants / Nursery toggle on `/shed`. Seedlings *graduate* from the Nursery into the Shed via the Plant Out flow, which inserts a real `inventory_items` row linked back to the originating sowing.
 
 **Route:** `/shed` (Plants / Nursery toggle near the title)

@@ -98,8 +98,10 @@ export class NurseryPage {
   constructor(page: Page) {
     this.page = page;
 
-    this.shedViewPlantsBtn = page.getByTestId("shed-view-plants");
-    this.shedViewNurseryBtn = page.getByTestId("shed-view-nursery");
+    // Stage 4: the Nursery is a first-class hub tab — the Plants|Nursery
+    // toggle (shed-view-*) died; navigation goes through the hub tab strip.
+    this.shedViewPlantsBtn = page.getByTestId("garden-hub-tab-shed");
+    this.shedViewNurseryBtn = page.getByTestId("garden-hub-tab-nursery");
 
     this.nurseryTab = page.getByTestId("nursery-tab");
     this.nurseryList = page.getByTestId("nursery-list");
@@ -172,11 +174,10 @@ export class NurseryPage {
     this.favouritesHintDismiss = page.getByTestId("nursery-favourites-hint-dismiss");
   }
 
-  /** Open The Shed, flip to the Nursery view (Home scope). */
+  /** Open the Nursery hub tab directly (Stage 4: ?tab=nursery deep link). */
   async goto() {
-    await this.gotoShed();
-    await this.shedViewNurseryBtn.waitFor({ state: "visible", timeout: 15000 });
-    await this.shedViewNurseryBtn.click();
+    await this.page.goto("/shed?tab=nursery");
+    await this.waitForLoad();
     await this.scopeToggle.waitFor({ state: "visible", timeout: 15000 });
   }
 

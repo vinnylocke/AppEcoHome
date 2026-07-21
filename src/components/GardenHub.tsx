@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Leaf } from "lucide-react";
+import { Leaf, Sprout } from "lucide-react";
 import { IconPlants, IconAilment } from "../constants/icons";
 import TheShed from "./TheShed";
 import AilmentWatchlist from "./AilmentWatchlist";
 import SenescenceTab from "./garden/SenescenceTab";
+import NurseryTab from "./nursery/NurseryTab";
 
 interface Props {
   homeId: string;
@@ -12,9 +13,15 @@ interface Props {
   perenualEnabled?: boolean;
 }
 
+// Stage 4 (2026-07-21): the Nursery is a FIRST-CLASS tab — it used to hide
+// behind a Plants|Nursery toggle inside TheShed while the page still showed
+// the wrong "Plants" header above it. Order keeps the two Shepherd-anchored
+// tabs (shed, watchlist) in slots 1–2 so the tour never targets a tab that
+// narrow-viewport strip scrolling could push off-screen.
 const TABS = [
   { id: "shed",       label: "Plants",    icon: <IconPlants size={16} /> },
   { id: "watchlist",  label: "Watchlist", icon: <IconAilment size={16} /> },
+  { id: "nursery",    label: "Nursery",   icon: <Sprout size={16} /> },
   { id: "senescence", label: "Senescence", icon: <Leaf size={16} /> },
 ] as const;
 
@@ -52,7 +59,8 @@ export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled =
       {/* Tab bar. overflow-x-auto + scrollbar-none keeps any overflow
           contained inside the strip so it can never push the whole page
           wide (mobile horizontal-scroll bug). Compact sizing on mobile
-          so all three tabs fit without scrolling on common phone widths. */}
+          so the anchored first two of the four tabs always fit on common
+          phone widths (the strip scrolls for the rest). */}
       <div className="sticky top-0 z-10 bg-rhozly-bg/95 backdrop-blur-sm border-b border-rhozly-outline/10 px-2 md:px-8 pt-4">
         <div
           role="tablist"
@@ -90,6 +98,9 @@ export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled =
           )}
           {activeTab === "watchlist" && (
             <AilmentWatchlist homeId={homeId} aiEnabled={aiEnabled} perenualEnabled={perenualEnabled} />
+          )}
+          {activeTab === "nursery" && (
+            <NurseryTab homeId={homeId} aiEnabled={aiEnabled} perenualEnabled={perenualEnabled} />
           )}
           {activeTab === "senescence" && (
             <SenescenceTab homeId={homeId} aiEnabled={aiEnabled} />

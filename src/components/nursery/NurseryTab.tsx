@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Sprout, Calendar, Package, AlertCircle, Loader2, Plus, Sun, Cloud,
   CheckCircle2, Inbox, ClipboardPaste, Camera, Heart, Loader,
@@ -25,6 +26,7 @@ import ScanSeedPacketModal from "./ScanSeedPacketModal";
 import FavouriteSeedPacketsGrid from "../favourites/FavouriteSeedPacketsGrid";
 import { recordSignal } from "../../onboarding/signals";
 import FeatureGate from "../shared/FeatureGate";
+import HubHeader from "../garden/HubHeader";
 
 interface Props {
   homeId: string;
@@ -179,36 +181,137 @@ function NurseryTabInner({
     [favourites, favouriteKeys, togglingKey, homeId, loadFavourites],
   );
 
-  const scopePills = (
-    <div
-      data-testid="nursery-scope-toggle"
-      className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10 self-start w-fit"
-    >
-      {(["home", "favourites"] as const).map((s) => (
+  // Nursery promotion (hub search-first overhaul Stage 4, 2026-07-21): the
+  // tab gets the shared HubHeader — a REAL inline search (data is local; no
+  // takeover) + a single "Add seeds" primary that opens an action sheet
+  // (Scan / Paste / Type — the old 3-button toolbar cluster).
+  const [searchQuery, setSearchQuery] = useState("");
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
+
+  const header = (
+    <div className="flex flex-col gap-3">
+      <HubHeader
+        title="Nursery"
+        count={entries.length}
+        guidance="Seed packets, sowings and germination — your bench before the garden."
+        searchMode="input"
+        searchPlaceholder="Search your packets…"
+        searchTestId="nursery-search-input"
+        searchAriaLabel="Search your seed packets"
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        stickyTrailing={
+          <button
+            type="button"
+            data-testid="nursery-add-seeds-btn"
+            onClick={() => setAddSheetOpen(true)}
+            className="shrink-0 flex items-center gap-1.5 h-11 px-4 rounded-control bg-rhozly-primary text-white text-sm font-black shadow-raised active:scale-[0.97] transition"
+          >
+            <Plus size={16} /> <span className="hidden sm:inline">Add seeds</span>
+          </button>
+        }
+      />
+      {/* Chip row — the single browsing axis. Testids preserved. */}
+      <div
+        data-testid="nursery-scope-toggle"
+        role="tablist"
+        aria-label="Nursery scope"
+        className="flex flex-wrap items-center gap-2"
+      >
         <button
-          key={s}
-          type="button"
-          data-testid={`nursery-scope-${s}`}
-          onClick={() => setScope(s)}
-          className={`flex items-center gap-1.5 px-5 py-2 min-h-[40px] rounded-xl text-sm font-black transition-all ${
-            scope === s
-              ? "bg-white text-rhozly-primary shadow-sm"
-              : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+          role="tab"
+          aria-selected={scope === "home"}
+          data-testid="nursery-scope-home"
+          onClick={() => setScope("home")}
+          className={`px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full text-sm font-black transition-colors touch-manipulation ${
+            scope === "home"
+              ? "bg-rhozly-primary text-white"
+              : "bg-rhozly-surface-lowest border border-rhozly-outline/15 text-rhozly-on-surface/60 can-hover:hover:text-rhozly-primary can-hover:hover:border-rhozly-primary/30"
           }`}
         >
-          {s === "favourites" && (
-            <Heart size={13} className={scope === "favourites" ? "fill-current" : ""} />
-          )}
-          {s === "home" ? "Home" : "Favourites"}
-          {s === "favourites" && favourites.length > 0 && (
-            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
-              {favourites.length}
-            </span>
-          )}
+          All{entries.length > 0 ? ` · ${entries.length}` : ""}
         </button>
-      ))}
+        <button
+          role="tab"
+          aria-selected={scope === "favourites"}
+          data-testid="nursery-scope-favourites"
+          onClick={() => setScope("favourites")}
+          className={`flex items-center gap-1.5 px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full text-sm font-black transition-colors touch-manipulation ${
+            scope === "favourites"
+              ? "bg-status-watch-fill text-status-watch-ink border border-status-watch-line"
+              : "bg-rhozly-surface-lowest border border-rhozly-outline/15 text-rhozly-on-surface/60 can-hover:hover:text-status-watch-ink can-hover:hover:border-status-watch-line"
+          }`}
+        >
+          <Heart size={13} className={scope === "favourites" ? "fill-current" : ""} />
+          Favourites{favourites.length > 0 ? ` · ${favourites.length}` : ""}
+        </button>
+      </div>
     </div>
   );
+
+  // "Add seeds" action sheet — one verb-led entry for the three add paths.
+  const addSheet = addSheetOpen
+    ? createPortal(
+        <div className="fixed inset-0 z-[70]" role="dialog" aria-label="Add seeds">
+          <button
+            aria-label="Close"
+            onClick={() => setAddSheetOpen(false)}
+            className="absolute inset-0 bg-black/30 animate-in fade-in duration-150"
+          />
+          <div className="absolute bottom-0 inset-x-0 bg-rhozly-bg rounded-t-3xl shadow-overlay p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] animate-in slide-in-from-bottom-4 duration-200">
+            <div className="w-10 h-1 rounded-full bg-rhozly-outline/25 mx-auto mb-4" />
+            <p className="text-base font-black text-rhozly-on-surface mb-3">Add seeds</p>
+            <div className="space-y-2">
+              {aiEnabled && (
+                <button
+                  type="button"
+                  data-testid="nursery-scan-packets"
+                  onClick={() => { setAddSheetOpen(false); setShowScanModal(true); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-2xl border border-rhozly-outline/15 bg-white text-left can-hover:hover:border-rhozly-primary/30 transition-colors"
+                >
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-rhozly-surface-low flex items-center justify-center text-rhozly-on-surface/50">
+                    <Camera size={16} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-black text-rhozly-on-surface">Scan a packet</span>
+                    <span className="block text-[11px] font-bold text-rhozly-on-surface/45">Photograph it — Rhozly AI reads the details</span>
+                  </span>
+                </button>
+              )}
+              <button
+                type="button"
+                data-testid="nursery-paste-packets"
+                onClick={() => { setAddSheetOpen(false); setShowBulkPasteModal(true); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-2xl border border-rhozly-outline/15 bg-white text-left can-hover:hover:border-rhozly-primary/30 transition-colors"
+              >
+                <span className="w-9 h-9 shrink-0 rounded-xl bg-rhozly-surface-low flex items-center justify-center text-rhozly-on-surface/50">
+                  <ClipboardPaste size={16} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-black text-rhozly-on-surface">Paste a list</span>
+                  <span className="block text-[11px] font-bold text-rhozly-on-surface/45">A whole seed box at once</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                data-testid="nursery-add-packets"
+                onClick={() => { setAddSheetOpen(false); setShowAddModal(true); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-2xl border border-rhozly-outline/15 bg-white text-left can-hover:hover:border-rhozly-primary/30 transition-colors"
+              >
+                <span className="w-9 h-9 shrink-0 rounded-xl bg-rhozly-surface-low flex items-center justify-center text-rhozly-on-surface/50">
+                  <Plus size={16} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-black text-rhozly-on-surface">Type one in</span>
+                  <span className="block text-[11px] font-bold text-rhozly-on-surface/45">Pick the plant, fill the packet details</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )
+    : null;
 
   // Wave 23.0001 — gate the nursery walkthrough (23.0003) so it only
   // fires after the tab has been opened.
@@ -233,20 +336,30 @@ function NurseryTabInner({
   if (scope === "favourites") {
     return (
       <div data-testid="nursery-tab" className="space-y-3">
-        {scopePills}
+        {header}
         <FavouriteSeedPacketsGrid
           homeId={homeId}
           homeName={homeName}
           homeEntries={entries}
           favourites={favourites}
           loading={favouritesLoading}
-          searchQuery=""
+          searchQuery={searchQuery}
           onFavouritesChanged={loadFavourites}
           onHomePacketsChanged={() => {
             load();
             loadFavourites();
           }}
         />
+        {addSheet}
+      {showAddModal && (
+        <AddSeedPacketModal homeId={homeId} onClose={() => setShowAddModal(false)} onCreated={() => load()} />
+      )}
+      {showBulkPasteModal && (
+        <BulkPasteSeedPacketsModal homeId={homeId} aiEnabled={aiEnabled} onClose={() => setShowBulkPasteModal(false)} onCreated={() => load()} />
+      )}
+      {showScanModal && aiEnabled && (
+        <ScanSeedPacketModal homeId={homeId} onClose={() => setShowScanModal(false)} onCreated={() => load()} />
+      )}
       </div>
     );
   }
@@ -254,7 +367,7 @@ function NurseryTabInner({
   if (loading) {
     return (
       <div className="space-y-3">
-        {scopePills}
+        {header}
         <div
           data-testid="nursery-loading"
           className="flex items-center gap-2 px-2 py-10 text-sm text-rhozly-on-surface/55 justify-center"
@@ -262,6 +375,16 @@ function NurseryTabInner({
           <Loader2 size={16} className="animate-spin" />
           Loading your nursery…
         </div>
+        {addSheet}
+      {showAddModal && (
+        <AddSeedPacketModal homeId={homeId} onClose={() => setShowAddModal(false)} onCreated={() => load()} />
+      )}
+      {showBulkPasteModal && (
+        <BulkPasteSeedPacketsModal homeId={homeId} aiEnabled={aiEnabled} onClose={() => setShowBulkPasteModal(false)} onCreated={() => load()} />
+      )}
+      {showScanModal && aiEnabled && (
+        <ScanSeedPacketModal homeId={homeId} onClose={() => setShowScanModal(false)} onCreated={() => load()} />
+      )}
       </div>
     );
   }
@@ -269,7 +392,7 @@ function NurseryTabInner({
   if (error) {
     return (
       <div className="space-y-3">
-        {scopePills}
+        {header}
       <div
         data-testid="nursery-error"
         className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
@@ -289,6 +412,16 @@ function NurseryTabInner({
           </div>
         </div>
       </div>
+      {addSheet}
+      {showAddModal && (
+        <AddSeedPacketModal homeId={homeId} onClose={() => setShowAddModal(false)} onCreated={() => load()} />
+      )}
+      {showBulkPasteModal && (
+        <BulkPasteSeedPacketsModal homeId={homeId} aiEnabled={aiEnabled} onClose={() => setShowBulkPasteModal(false)} onCreated={() => load()} />
+      )}
+      {showScanModal && aiEnabled && (
+        <ScanSeedPacketModal homeId={homeId} onClose={() => setShowScanModal(false)} onCreated={() => load()} />
+      )}
       </div>
     );
   }
@@ -296,7 +429,7 @@ function NurseryTabInner({
   if (entries.length === 0) {
     return (
       <>
-        <div className="mb-3">{scopePills}</div>
+        <div className="mb-3">{header}</div>
         <div
           data-testid="nursery-empty"
           className="rounded-3xl bg-white border border-rhozly-outline/15 p-8 text-center"
@@ -365,16 +498,16 @@ function NurseryTabInner({
             onCreated={() => load()}
           />
         )}
+        {addSheet}
       </>
     );
   }
 
   return (
     <div data-testid="nursery-tab" className="space-y-3">
-      {scopePills}
-      {/* Summary header — stacks on phone so the summary text reads in full;
-          side-by-side on sm+ where there's room for both. */}
-      <div className="flex flex-col items-stretch gap-2 px-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      {header}
+      {/* Summary line — the add cluster moved into the "Add seeds" sheet. */}
+      <div className="px-1">
         <p className="text-[11px] text-rhozly-on-surface/60">
           <span className="font-bold text-rhozly-on-surface">{summary.total}</span>
           {summary.total === 1 ? " packet" : " packets"}
@@ -389,47 +522,19 @@ function NurseryTabInner({
             </span>
           )}
         </p>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {aiEnabled && (
-            <button
-              type="button"
-              data-testid="nursery-scan-packets"
-              onClick={() => setShowScanModal(true)}
-              title="Scan a seed packet — Sage+ AI extracts the details"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-xl bg-white border border-rhozly-outline/20 text-rhozly-on-surface/70 text-[10px] font-black uppercase tracking-widest hover:border-rhozly-primary/30 transition"
-            >
-              <Camera size={12} />
-              <span className="hidden sm:inline">Scan</span>
-              <span className="sm:hidden">Scan</span>
-            </button>
-          )}
-          <button
-            type="button"
-            data-testid="nursery-paste-packets"
-            onClick={() => setShowBulkPasteModal(true)}
-            title="Bulk add — paste a list of packets and we'll extract the details"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-xl bg-white border border-rhozly-outline/20 text-rhozly-on-surface/70 text-[10px] font-black uppercase tracking-widest hover:border-rhozly-primary/30 transition"
-          >
-            <ClipboardPaste size={12} />
-            <span className="hidden sm:inline">Paste a list</span>
-            <span className="sm:hidden">Paste</span>
-          </button>
-          <button
-            type="button"
-            data-testid="nursery-add-packets"
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-xl bg-rhozly-primary text-white text-[10px] font-black uppercase tracking-widest hover:opacity-95 transition"
-          >
-            <Plus size={12} />
-            <span className="hidden sm:inline">Add packets</span>
-            <span className="sm:hidden">Add</span>
-          </button>
-        </div>
       </div>
 
       {/* Packet list */}
       <ul data-testid="nursery-list" className="flex flex-col gap-2">
-        {entries.map((entry) => {
+        {entries.filter((entry) => {
+          const q = searchQuery.trim().toLowerCase();
+          if (!q) return true;
+          return (
+            (entry.packet.variety ?? "").toLowerCase().includes(q) ||
+            (entry.plant?.common_name ?? "").toLowerCase().includes(q) ||
+            (entry.packet.vendor ?? "").toLowerCase().includes(q)
+          );
+        }).map((entry) => {
           const key = packetIdentityKey(
             entry.packet.variety,
             entry.plant?.common_name ?? null,
@@ -469,6 +574,7 @@ function NurseryTabInner({
           onCreated={() => load()}
         />
       )}
+      {addSheet}
       {activeEntry && (
         <SeedPacketDetailModal
           homeId={homeId}

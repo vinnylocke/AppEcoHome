@@ -36,11 +36,18 @@ interface Props {
   /** ⋯ overflow items (the old secondary buttons live here). */
   menuItems?: HubHeaderMenuItem[];
   menuTestId?: string;
-  /** The search launcher. */
+  /** The search affordance. "launcher" (default) is a button that opens a
+   *  full-screen takeover; "input" is a REAL inline input for tabs whose data
+   *  is local (the Nursery) — no takeover, instant filtering. */
+  searchMode?: "launcher" | "input";
   searchPlaceholder: string;
   searchTestId: string;
   searchAriaLabel: string;
-  onSearchTap: () => void;
+  /** launcher mode */
+  onSearchTap?: () => void;
+  /** input mode */
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
   /** Filters affordance beside the launcher (omit to hide). */
   filterCount?: number;
   filtersTestId?: string;
@@ -59,10 +66,13 @@ export default function HubHeader({
   guidance,
   menuItems,
   menuTestId,
+  searchMode = "launcher",
   searchPlaceholder,
   searchTestId,
   searchAriaLabel,
   onSearchTap,
+  searchValue,
+  onSearchChange,
   filterCount,
   filtersTestId,
   onFiltersTap,
@@ -152,16 +162,31 @@ export default function HubHeader({
           span edge-to-edge so cards scroll cleanly behind it. */}
       <div className={`sticky top-0 z-10 bg-rhozly-bg py-2 mt-1 ${bleed ? "-mx-4 px-4 md:-mx-8 md:px-8" : ""}`}>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            data-testid={searchTestId}
-            aria-label={searchAriaLabel}
-            onClick={onSearchTap}
-            className="flex-1 min-w-0 flex items-center gap-3 h-[52px] px-4 rounded-control bg-white border border-rhozly-outline/20 shadow-card text-left can-hover:hover:border-rhozly-primary/40 active:scale-[0.995] transition"
-          >
-            <Search size={17} className="shrink-0 text-rhozly-on-surface/40" />
-            <span className="text-base font-bold text-rhozly-on-surface/40 truncate">{searchPlaceholder}</span>
-          </button>
+          {searchMode === "input" ? (
+            <div className="relative flex-1 min-w-0">
+              <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-rhozly-on-surface/40 pointer-events-none" />
+              <input
+                type="search"
+                data-testid={searchTestId}
+                aria-label={searchAriaLabel}
+                placeholder={searchPlaceholder}
+                value={searchValue ?? ""}
+                onChange={(e) => onSearchChange?.(e.target.value)}
+                className="w-full h-[52px] pl-11 pr-4 rounded-control bg-white border border-rhozly-outline/20 shadow-card text-base font-bold text-rhozly-on-surface placeholder:text-rhozly-on-surface/40 outline-none focus:border-rhozly-primary/50 [&::-webkit-search-cancel-button]:hidden"
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              data-testid={searchTestId}
+              aria-label={searchAriaLabel}
+              onClick={onSearchTap}
+              className="flex-1 min-w-0 flex items-center gap-3 h-[52px] px-4 rounded-control bg-white border border-rhozly-outline/20 shadow-card text-left can-hover:hover:border-rhozly-primary/40 active:scale-[0.995] transition"
+            >
+              <Search size={17} className="shrink-0 text-rhozly-on-surface/40" />
+              <span className="text-base font-bold text-rhozly-on-surface/40 truncate">{searchPlaceholder}</span>
+            </button>
+          )}
           {onFiltersTap && (
             <button
               type="button"

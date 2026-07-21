@@ -836,7 +836,7 @@ export const flowRegistry: FlowDef[] = [
     steps: [
       {
         title: "From packet to plant-out",
-        body: "The Nursery tracks everything before plants make it into a bed — seed packets, active sowings, germinated seedlings, and the plant-out queue. Flip between Shed and Nursery from the page header.",
+        body: "The Nursery tracks everything before plants make it into a bed — seed packets, active sowings, germinated seedlings, and the plant-out queue. It has its own Nursery tab in the Garden hub now — right between Watchlist and Senescence.",
         attachTo: { element: null, on: null },
       },
       {

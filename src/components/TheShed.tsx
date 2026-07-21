@@ -38,7 +38,6 @@ import {
   Wheat,
 } from "lucide-react";
 import { PlantInitialTile } from "./ui/PlantInitialTile";
-import { SegmentedTabs } from "./ui/SegmentedTabs";
 import type { PlantFilters } from "../lib/unifiedPlantSearch";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -69,7 +68,6 @@ import { recordSignal } from "../onboarding/signals";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
-import NurseryTab from "./nursery/NurseryTab";
 import FavouritePlantsGrid from "./favourites/FavouritePlantsGrid";
 import {
   buildForkRow,
@@ -192,15 +190,6 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   // Stage 3 — the persona browse chips seed the takeover's structured filters
   // ("Edible favourites" → {edible:true} etc.). undefined = no seed.
   const [initialSearchFilters, setInitialSearchFilters] = useState<PlantFilters | undefined>(undefined);
-  // Stable tabs arrays for the SegmentedTabs adopters below — an inline array
-  // would re-fire the primitive's layout effect on every TheShed render.
-  const viewToggleTabs = useMemo(
-    () => [
-      { id: "plants", label: "Plants", testId: "shed-view-plants" },
-      { id: "nursery", label: "Nursery", testId: "shed-view-nursery" },
-    ],
-    [],
-  );
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [sourcePickerPlants, setSourcePickerPlants] = useState<string[]>([]);
 
@@ -225,7 +214,6 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   // Plants / Nursery toggle — defaults to the existing Plants grid; "nursery"
   // swaps the body to the seed-packet list (kept inside The Shed so the user
   // doesn't have to learn a new route).
-  const [view, setView] = useState<"plants" | "nursery">("plants");
 
   // ── Cross-home favourites (Phase 1 — plants) ──────────────────────────────
   // Scope pill: "Home" = today's home-scoped grid; "Favourites" = the user's
@@ -1740,25 +1728,17 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             onSearchTap={() => setShowBulkSearch(true)}
             filterCount={activeFilterCount}
             filtersTestId="shed-filters-btn"
-            onFiltersTap={view === "plants" && scope === "home" ? () => setFiltersOpen((v) => !v) : undefined}
+            onFiltersTap={scope === "home" ? () => setFiltersOpen((v) => !v) : undefined}
             bleed
           />
 
-          {/* Plants / Nursery toggle (promotes to a hub tab in Stage 4) +
-              silent-sync indicator. */}
-          <div className="flex items-center gap-3">
-            <SegmentedTabs
-              data-testid="shed-view-toggle"
-              aria-label="Shed view"
-              size="sm"
-              value={view}
-              onChange={(id) => setView(id as "plants" | "nursery")}
-              tabs={viewToggleTabs}
-            />
-            {isBackgroundSyncing && (
-              <Loader2 className="animate-spin text-rhozly-on-surface/20" size={18} />
-            )}
-          </div>
+          {/* The Plants|Nursery toggle died in Stage 4 — the Nursery is a
+              first-class hub tab now (garden-hub-tab-nursery). */}
+          {isBackgroundSyncing && (
+            <div className="flex items-center gap-2 text-rhozly-on-surface/20">
+              <Loader2 className="animate-spin" size={18} />
+            </div>
+          )}
           {shedFetchError && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-red-600">
               <AlertCircle size={14} />
@@ -1770,7 +1750,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               Archived) + clearable applied-filter chips. Replaces the old
               Home|Favourites + Active|Archived double toggle. Testids + the
               role="tab" names the POs target are preserved. */}
-          {view === "plants" && (
+          {(
             <div
               className="flex flex-wrap items-center gap-2"
               data-testid="shed-scope-toggle"
@@ -1845,7 +1825,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         {/* Filters — a bottom sheet over the grid (Stage 3; was an inline
             disclosure panel). Same controls + testids; "Done" shows the live
             result count. */}
-        {view === "plants" && scope === "home" && filtersOpen && createPortal(
+        {scope === "home" && filtersOpen && createPortal(
           <div className="fixed inset-0 z-[70]" role="dialog" aria-label="Plant filters">
             <button
               aria-label="Close filters"
@@ -1940,17 +1920,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           document.body,
         )}
 
-        {/* Nursery body — read-only Wave 1 packet list. */}
-        {view === "nursery" && (
-          <NurseryTab
-            homeId={homeId}
-            aiEnabled={aiEnabled}
-            perenualEnabled={perenualEnabled}
-          />
-        )}
 
         {/* Favourites scope body — the user's cross-home favourites list. */}
-        {view === "plants" && scope === "favourites" && (
+        {scope === "favourites" && (
           <FavouritePlantsGrid
             homeId={homeId}
             homeName={homeName}
@@ -1975,7 +1947,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           />
         )}
 
-        {view === "plants" && scope === "home" && (
+        {scope === "home" && (
         <>
         {/* AI Assistant — surfaces insights related to the Shed (plant counts,
             care reminders, suitability flags) right where the user is browsing. */}

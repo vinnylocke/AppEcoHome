@@ -2,9 +2,8 @@
   {
     "label": "Improved",
     "items": [
-      "The Plants and Watchlist screens got a big clean-up — one clear search bar leads each page, the button pile-up moved into a tidy ⋯ menu, and filters open in a bottom sheet with a live result count.",
-      "One search now does everything: type a name and your own plants appear first (\"In your Shed\" / \"On your watchlist\"), with the library right below — no more separate search boxes.",
-      "Little things: bigger touch targets on Senescence, clearable filter chips, and your favourites are one tap away on every screen."
+      "The Nursery is now its own tab in the Garden hub — no more hunting for it behind a toggle (and no more wrong \"Plants\" heading above your seed packets).",
+      "The Nursery got the same clean treatment: a proper search box that filters your packets as you type, and one \"Add seeds\" button for scanning, pasting a list, or typing one in."
     ]
   }
 ]

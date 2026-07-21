@@ -129,9 +129,10 @@ export class ShedPage {
     this.hubTabShed = page.locator('[data-testid="garden-hub-tab-shed"]');
     this.hubTabWatchlist = page.locator('[data-testid="garden-hub-tab-watchlist"]');
     this.hubTabSenescence = page.locator('[data-testid="garden-hub-tab-senescence"]');
-    this.viewToggle = page.locator('[data-testid="shed-view-toggle"]');
-    this.viewPlantsBtn = page.locator('[data-testid="shed-view-plants"]');
-    this.viewNurseryBtn = page.locator('[data-testid="shed-view-nursery"]');
+    // Stage 4: the Plants|Nursery toggle died — the Nursery is a hub tab.
+    this.viewToggle = page.locator('[role="tablist"][aria-label="Garden sections"]');
+    this.viewPlantsBtn = page.getByTestId("garden-hub-tab-shed");
+    this.viewNurseryBtn = page.getByTestId("garden-hub-tab-nursery");
 
     this.scopeToggle = page.locator('[data-testid="shed-scope-toggle"]');
     this.scopeHomeBtn = page.locator('[data-testid="shed-scope-home"]');

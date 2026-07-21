@@ -23,35 +23,38 @@ test.describe("Shed — discovery, sort, tabs", () => {
     await expect(shed.heading).toBeHidden();
   });
 
-  test("SHED-DSC-002: shed-view toggle flips to Nursery and hides the plant grid", async ({
+  test("SHED-DSC-002: the Nursery hub tab replaces the plant grid (Stage 4 — the shed-view toggle died)", async ({
     authenticatedPage,
   }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await expect(shed.viewPlantsBtn).toBeVisible();
-    await shed.viewNurseryBtn.click();
+    await expect(shed.viewPlantsBtn).toBeVisible(); // garden-hub-tab-shed
+    await shed.viewNurseryBtn.click(); // garden-hub-tab-nursery
 
-    // Nursery view replaces the plants grid (search + plant cards hidden).
-    await expect(shed.searchInput).toBeHidden();
+    // The Nursery tab body replaces the plants grid entirely.
+    await expect(authenticatedPage.getByTestId("nursery-tab")).toBeVisible({ timeout: 10000 });
     await expect(shed.plantCard("Tomato")).toBeHidden();
   });
 
-  test("SHED-DSC-003: search by scientific name (Solanum) matches the Tomato card", async ({
+  test("SHED-DSC-003: search by scientific name (Solanum) matches the owned Tomato (one-search takeover)", async ({
     authenticatedPage,
   }) => {
+    // Stage 3: the landing grid-filter died — scientific-name lookup lives in
+    // the takeover's "In your Shed" section (same matching rules).
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await shed.searchInput.fill("Solanum");
+    await shed.addButton.click();
+    await shed.bulkSearchInput.fill("Solanum");
 
+    const owned = authenticatedPage.getByTestId("search-owned-section");
+    await expect(owned).toBeVisible({ timeout: 10000 });
     // Tomato has scientific_name = ["Solanum lycopersicum"] in the seed.
-    await expect(shed.plantCard("Tomato")).toBeVisible();
-    // Other plants with different scientific names should be filtered out.
-    await expect(shed.plantCard("Boston Fern")).toBeHidden();
-    await expect(shed.plantCard("Lavender")).toBeHidden();
+    await expect(owned.getByText("Tomato").first()).toBeVisible();
+    await expect(owned.getByText("Boston Fern")).toHaveCount(0);
   });
 
   test("SHED-DSC-004: sort A-Z orders cards alphabetically (first < last)", async ({

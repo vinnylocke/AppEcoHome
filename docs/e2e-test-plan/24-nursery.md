@@ -66,7 +66,7 @@
 
 ## Cross-home favourites — seed packets (Phase 3, FINAL)
 
-**Spec file:** `tests/e2e/specs/favourites.spec.ts` (Section FAV-NU). **Fixtures:** `15_favourites.sql` 0019 segment (see [01-seeded-fixtures.md](./01-seeded-fixtures.md)). The Nursery scope pill is **component state** (no URL param) — `NurseryPage` flips the Plants/Nursery toggle then the scope pill.
+**Spec file:** `tests/e2e/specs/favourites.spec.ts` (Section FAV-NU). **Fixtures:** `15_favourites.sql` 0019 segment (see [01-seeded-fixtures.md](./01-seeded-fixtures.md)). The Nursery is a hub tab since Stage 4 — `NurseryPage.goto()` deep-links `/shed?tab=nursery`; the scope chips (All / ♥ Favourites) remain component state.
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
@@ -76,3 +76,10 @@
 | FAV-NU-004 | ✅ | "Add to this home" recreates the Sensation Mix packet in the active home; card flips to "In this home"; copy visible on the Home tab | — | ✅ Passing |
 | FAV-NU-005 | ✅ | Packet hearts are UNGATED — a forced-Sprout viewer's heart on any packet is enabled (packets have no source → no tier lock) | Sprout route intercept | ✅ Passing |
 | FAV-NU-006 | ✅ | (W1 only) Favourite packets persist across a home switch while the add-state recomputes (Cavolo Nero in the second home) | — | ✅ Passing |
+
+## Hub-tab promotion (Stage 4, 2026-07-21)
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| NURSERY-060 | ✅ | `/shed?tab=nursery` hub tab active; "Add seeds" (`nursery-add-seeds-btn`) opens the action sheet; "Type one in" (`nursery-add-packets` on the sheet row) opens AddSeedPacketModal | — | ✅ Passing |
+| NURSERY-061 | ✅ | Inline search (`nursery-search-input`) filters packet rows live (variety match, no-match → 0 rows, clear → all) | — | ✅ Passing |
