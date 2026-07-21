@@ -40,6 +40,8 @@
 | SHED-016 | ✅ | Takeover — Escape closes without saving; plant count unchanged (Escape-to-close is real now — the old modal never handled it) | — | ✅ Passing |
 | SHED-TKO-001 | ✅ | `?open=add-plant&query=` deep-links into the full-page takeover (`plant-search-takeover`, no `aria-modal` dialog, query seeded into `plant-search-input`, params consumed) | — | ✅ Passing |
 | SHED-TKO-002 | ✅ | The takeover's back button (`shed-search-back`) returns to the Shed grid | — | ✅ Passing |
+| SHED-S3-001 | ✅ | Stage 3: a thin own-shed search (≥3 chars, ≤2 matches) shows the library escalation row (`shed-search-library-escalation`); tapping it opens the takeover with the query carried | — | ✅ Passing |
+| SHED-S3-002 | ✅ | Stage 3: persona browse chips (`shed-browse-chips`, new-gardener + <12 active plants) open the takeover in browse-by-filter mode with the filter panel visible; self-skips on a dirty DB ≥12 plants | — | ✅ Passing |
 | SHED-017 | ✅ | Manual plant happy path | — | ✅ Passing |
 | SHED-018 | ❌ | Manual plant — empty name validation | — | ✅ Passing |
 | SHED-019 | ❌ | Manual plant — duplicate name warning | — | ✅ Passing |

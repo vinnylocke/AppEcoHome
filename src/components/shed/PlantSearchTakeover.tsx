@@ -21,7 +21,7 @@ import PlantDetailModal from "../PlantDetailModal";
 import PlantResultThumb from "../PlantResultThumb";
 import { libraryRowToPlantDetails } from "../../lib/plantCatalogue";
 import { isUsablePlantImageUrl } from "../../lib/plantThumb";
-import { selectionToProviderResult, type PlantSelection } from "../../lib/unifiedPlantSearch";
+import { selectionToProviderResult, type PlantSelection, type PlantFilters } from "../../lib/unifiedPlantSearch";
 import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
 
 interface Props {
@@ -31,6 +31,8 @@ interface Props {
   onClose: () => void;
   onProceedToBulkAdd: (selectedPlants: any[]) => void;
   initialSearchTerm?: string;
+  /** Seed the structured filters (the Shed's persona browse chips — Stage 3). */
+  initialFilters?: PlantFilters;
   initialCartItems?: { type: "api" | "ai" | "verdantly"; data: any }[];
   onManualSave?: (plantData: any) => void;
 }
@@ -59,6 +61,7 @@ export default function PlantSearchTakeover({
   onClose,
   onProceedToBulkAdd,
   initialSearchTerm,
+  initialFilters,
   initialCartItems,
   onManualSave,
 }: Props) {
@@ -552,6 +555,7 @@ export default function PlantSearchTakeover({
             allowPreview
             placeholder="Search any plant by name…"
             initialQuery={searchSeed}
+            initialFilters={initialFilters}
             onQueryChange={setContextQuery}
             gates={{
               // Verdantly is free for all; Perenual self-gates inside searchAllProviders.

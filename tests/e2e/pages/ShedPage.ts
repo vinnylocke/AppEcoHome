@@ -91,8 +91,10 @@ export class ShedPage {
     this.searchInput = page.getByLabel("Search your saved plants");
     this.emptyState = page.getByText("No plants here");
     this.noMatchState = page.getByText("No matches found");
-    this.activeTab = page.getByRole("button", { name: "Active" });
-    this.archivedTab = page.getByRole("button", { name: "Archived" });
+    // Stage 3: the Active/Archived toggle migrated to SegmentedTabs, whose
+    // buttons carry an explicit role="tab" (labels unchanged).
+    this.activeTab = page.getByRole("tab", { name: "Active" });
+    this.archivedTab = page.getByRole("tab", { name: "Archived" });
     this.addButton = page.getByLabel("Find a plant");
     this.clearSearchButton = page.getByLabel("Clear search");
     this.sourceFilterSelect = page.getByLabel("Filter by source");

@@ -9,6 +9,9 @@ export interface SegmentedTab {
   icon?: React.ReactNode;
   /** Optional trailing adornment, e.g. a count chip. */
   badge?: React.ReactNode;
+  /** Optional per-tab data-testid — lets adopters keep load-bearing e2e
+   *  selectors (e.g. the Shed's `shed-scope-home`) through a migration. */
+  testId?: string;
 }
 
 export interface SegmentedTabsProps {
@@ -62,10 +65,18 @@ export const SegmentedTabs: React.FC<SegmentedTabsProps> = ({
     // A zero-size rect means a display:none ancestor — keep the indicator
     // hidden until the ResizeObserver fires with a real measurement.
     if (!btn || btn.offsetWidth === 0) {
-      setIndicator(null);
+      setIndicator((prev) => (prev === null ? prev : null));
       return;
     }
-    setIndicator({ width: btn.offsetWidth, x: btn.offsetLeft });
+    // Bail out when nothing moved — setting a NEW object with identical values
+    // every run turns any parent re-render storm (or an unstable `tabs` array
+    // identity re-firing the layout effect) into a "Maximum update depth
+    // exceeded" crash. Returning the previous state lets React skip the update.
+    const width = btn.offsetWidth;
+    const x = btn.offsetLeft;
+    setIndicator((prev) =>
+      prev && prev.width === width && prev.x === x ? prev : { width, x },
+    );
   }, [value]);
 
   React.useLayoutEffect(() => {
@@ -136,6 +147,7 @@ export const SegmentedTabs: React.FC<SegmentedTabsProps> = ({
             type="button"
             role="tab"
             id={`${baseId}-tab-${tab.id}`}
+            data-testid={tab.testId}
             aria-selected={selected}
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(tab.id)}

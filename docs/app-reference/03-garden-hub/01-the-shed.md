@@ -45,11 +45,24 @@ TheShed
 │   │   └── Bulk add (shed-bulk-paste-btn, can("shed.add")) → BulkPastePlantsModal
 │   ├── Plants | Nursery toggle (shed-view-toggle — unchanged)
 │   └── Fetch-error banner ("Could not refresh — showing cached data")
-├── Sticky toolbar — ONE row, wraps on narrow phones (Plants view only)
-│   ├── Home | Favourites scope pills (shed-scope-toggle)
-│   ├── Search input (flex-1, aria-label "Search your saved plants") + clear
-│   ├── Active | Archived pills (home scope only)
-│   └── Filters button (shed-filters-btn, aria-expanded; home scope only)
+├── Sticky block (Plants view only — SEARCH-FIRST since Stage 3, 2026-07-21; solid bg,
+│   no blur — GardenHub's tab bar is the screen's one blur surface)
+│   ├── HERO search — full-width, focal (min-h 52px, shadow-card); same
+│   │     aria-label "Search your saved plants"; filters your plants live
+│   ├── Library escalation row (shed-search-library-escalation) — appears when
+│   │     a home-scope query ≥3 chars matches ≤2 of your plants: one tap into
+│   │     the PlantSearchTakeover with the query carried over
+│   ├── Persona browse chips (shed-browse-chips / shed-browse-chip-*) — NEW
+│   │     gardeners with a small shed (<12 active, empty search) get 4 warm
+│   │     ways in (Edible favourites · Indoor friends · Sun lovers · Easy
+│   │     annuals), each opening the takeover in browse-by-filter mode
+│   │     (PlantSearch gained `initialFilters`, panel auto-opens)
+│   └── Control row (below the hero)
+│       ├── Home | Favourites scope — SegmentedTabs (adopt-on-touch, Stage 3;
+│       │     per-tab testids shed-scope-{home|favourites} preserved via the
+│       │     primitive's new SegmentedTab.testId)
+│       ├── Active | Archived — SegmentedTabs (labels preserved for e2e text-match)
+│       └── Filters button (shed-filters-btn, aria-expanded; home scope only)
 │       ├── Active-filter count badge — a REAL count (non-default source + sort + smart filter)
 │       └── Filters disclosure panel (shed-filters-panel, animate-in)
 │           ├── Source select (aria-label "Filter by source")

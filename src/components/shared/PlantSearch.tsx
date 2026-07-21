@@ -40,6 +40,12 @@ interface Props {
   placeholder?: string;
   /** Seed the input (e.g. from a ?q= URL param) and run an initial search. */
   initialQuery?: string;
+  /** Seed the structured filters (mount-only, like initialQuery) and run an
+   *  initial browse-by-filter search — the Shed's persona browse chips
+   *  ("Edible favourites" etc.) open the search pre-filtered this way
+   *  (overhaul Stage 3). Also auto-opens the filter panel so the seeded
+   *  filters are visible. */
+  initialFilters?: PlantFilters;
   /** Notified whenever the query changes — lets hosts sync URL / sessionStorage. */
   onQueryChange?: (query: string) => void;
   /** Show the structured filter panel (cycle / sunlight / edible / indoor). */
@@ -97,6 +103,7 @@ export default function PlantSearch({
   autoFocus = false,
   placeholder = "Search any plant…",
   initialQuery = "",
+  initialFilters,
   onQueryChange,
   showFilters = false,
   multiSelect = false,
@@ -118,8 +125,10 @@ export default function PlantSearch({
   const [externalDone, setExternalDone] = useState(false);
   const [aiCreating, setAiCreating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<PlantFilters>({});
-  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [filters, setFilters] = useState<PlantFilters>(initialFilters ?? {});
+  const [filterPanelOpen, setFilterPanelOpen] = useState(
+    () => countActiveFilters(initialFilters ?? {}) > 0,
+  );
 
   // Inline details preview (opt-in via allowPreview). Keyed by the row's
   // stable testId so each row tracks its own expand/loading/details.
@@ -231,9 +240,13 @@ export default function PlantSearch({
     runLibrary(query);
   };
 
-  // Run an initial search when seeded with a query (e.g. ?q= on /library).
+  // Run an initial search when seeded with a query (e.g. ?q= on /library) OR
+  // with filters (the browse chips — empty query + filters = browse-by-filter,
+  // which runLibrary supports natively).
   useEffect(() => {
-    if (initialQuery.trim().length >= 2) runLibrary(initialQuery);
+    if (initialQuery.trim().length >= 2 || countActiveFilters(initialFilters ?? {}) > 0) {
+      runLibrary(initialQuery);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

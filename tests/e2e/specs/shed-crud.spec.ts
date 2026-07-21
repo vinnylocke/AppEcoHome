@@ -1019,3 +1019,42 @@ test.describe("Shed — plant-search takeover (Stage 2)", () => {
     await expect(authenticatedPage.getByTestId("shed-plant-list")).toBeVisible({ timeout: 10000 });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Search-first landing (overhaul Stage 3, 2026-07-21) — hero search,
+// library-escalation row, persona browse chips.
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe("Shed — search-first landing (Stage 3)", () => {
+  test("SHED-S3-001: a thin own-shed search shows the library escalation row; tapping it opens the takeover with the query", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await authenticatedPage.getByLabel("Search your saved plants").fill("dragonfruit");
+    const escalation = authenticatedPage.getByTestId("shed-search-library-escalation");
+    await expect(escalation).toBeVisible({ timeout: 8000 });
+    await escalation.click();
+    await expect(authenticatedPage.getByTestId("plant-search-takeover")).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("plant-search-input")).toHaveValue("dragonfruit");
+  });
+
+  test("SHED-S3-002: persona browse chips (new gardener, small shed) open the takeover in browse-by-filter mode", async ({ authenticatedPage }) => {
+    // Worker accounts seed persona = NULL → "new" → chips render when the shed
+    // is small (< 12 active). A freshly-seeded DB has 6; a dirty local DB may
+    // have accumulated more from non-cleaning specs — skip rather than fail
+    // there (CI / test:e2e:fresh always exercises the visible path).
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    const activeCount = await authenticatedPage.locator("[data-plant-card]").count();
+    test.skip(activeCount >= 12, `Shed has ${activeCount} plants (>= 12) — chips intentionally hidden; reseed to exercise`);
+
+    const chips = authenticatedPage.getByTestId("shed-browse-chips");
+    await expect(chips).toBeVisible({ timeout: 8000 });
+    await authenticatedPage.getByTestId("shed-browse-chip-edible-favourites").click();
+    await expect(authenticatedPage.getByTestId("plant-search-takeover")).toBeVisible({ timeout: 10000 });
+    // The seeded filter opens the panel so the active filter is visible.
+    await expect(authenticatedPage.getByTestId("plant-search-filter-panel")).toBeVisible({ timeout: 10000 });
+  });
+});

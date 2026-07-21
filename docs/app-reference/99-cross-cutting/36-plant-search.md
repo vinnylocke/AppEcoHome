@@ -36,6 +36,7 @@ Design + decisions: [docs/plans/plant-search-overhaul-design.md](../../plans/pla
 | `allowManual?` | Show "Add … manually" fallback (emits `source: "manual"`). |
 | `showFilters?` | Show the structured filter panel (cycle / sunlight / edible / indoor). Live on `/library`. |
 | `initialQuery?` / `onQueryChange?` | Seed + observe the query (e.g. `/library` `?q=` sync). |
+| `initialFilters?` | Seed the structured filters (mount-only, like `initialQuery`) and run an initial browse-by-filter search; auto-opens the filter panel. The Shed's persona browse chips use this (overhaul Stage 3). |
 | `autoFocus?`, `placeholder?` | Input ergonomics. |
 | `multiSelect?` / `isSelected?` | Rows show a checkbox and `onSelect` toggles; `isSelected(sel)` drives the checked state. Host owns the set (Add-to-Shed). |
 | `allowPreview?` | Per-row info (ⓘ) button that expands an inline `PlantInfoPanel` **without** selecting. Library rows preview instantly via `libraryRowToPlantDetails`; Perenual/Verdantly fetch via `getProviderPlantDetails`. Now on every host that uses the shared search (Add-to-Shed, Shopping, `/library`, Nursery). |

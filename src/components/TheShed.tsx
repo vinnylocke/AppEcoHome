@@ -39,8 +39,12 @@ import {
   Globe,
   Leaf,
   Pencil,
+  ArrowRight,
 } from "lucide-react";
 import { PlantInitialTile } from "./ui/PlantInitialTile";
+import { SegmentedTabs } from "./ui/SegmentedTabs";
+import { usePersona } from "../hooks/usePersona";
+import type { PlantFilters } from "../lib/unifiedPlantSearch";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import ManualPlantCreation from "./ManualPlantCreation";
@@ -192,6 +196,27 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const [plantTaskStatus, setPlantTaskStatus] = useState<Map<number, { overdueCount: number; dueTodayCount: number; harvestDue: boolean; ailmentCount: number }>>(new Map());
   const [initialSearchTerm, setInitialSearchTerm] = useState("");
   const [initialCartItems, setInitialCartItems] = useState<any[]>([]);
+  // Stage 3 — the persona browse chips seed the takeover's structured filters
+  // ("Edible favourites" → {edible:true} etc.). undefined = no seed.
+  const [initialSearchFilters, setInitialSearchFilters] = useState<PlantFilters | undefined>(undefined);
+  const persona = usePersona();
+  const isNewGardener = persona !== "experienced";
+  // Stable tabs arrays for the SegmentedTabs adopters below — an inline array
+  // would re-fire the primitive's layout effect on every TheShed render.
+  const viewToggleTabs = useMemo(
+    () => [
+      { id: "plants", label: "Plants", testId: "shed-view-plants" },
+      { id: "nursery", label: "Nursery", testId: "shed-view-nursery" },
+    ],
+    [],
+  );
+  const statusToggleTabs = useMemo(
+    () => [
+      { id: "active", label: "Active" },
+      { id: "archived", label: "Archived" },
+    ],
+    [],
+  );
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [sourcePickerPlants, setSourcePickerPlants] = useState<string[]>([]);
 
@@ -237,6 +262,26 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const [favouritesLoading, setFavouritesLoading] = useState(true);
   const [homeName, setHomeName] = useState<string | null>(null);
   const [togglingFavouriteRef, setTogglingFavouriteRef] = useState<number | null>(null);
+
+  // Stable scope-toggle tabs (SegmentedTabs adopter — see viewToggleTabs note).
+  const scopeToggleTabs = useMemo(
+    () => [
+      { id: "home", label: "Home", testId: "shed-scope-home" },
+      {
+        id: "favourites",
+        label: "Favourites",
+        testId: "shed-scope-favourites",
+        icon: <Heart size={13} className={scope === "favourites" ? "fill-current" : ""} />,
+        badge:
+          favourites.length > 0 ? (
+            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
+              {favourites.length}
+            </span>
+          ) : undefined,
+      },
+    ],
+    [scope, favourites.length],
+  );
 
   const loadFavourites = useCallback(async () => {
     try {
@@ -840,6 +885,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     setShowBulkSearch(false);
     setShowSourcePicker(false);
     setInitialSearchTerm("");
+    setInitialSearchFilters(undefined);
     setInitialCartItems([]);
     setSourcePickerPlants([]);
     handledDeepLink.current = "";
@@ -1688,6 +1734,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           isPremium={perenualEnabled}
           isAiEnabled={aiEnabled}
           initialSearchTerm={initialSearchTerm}
+          initialFilters={initialSearchFilters}
           initialCartItems={initialCartItems}
           onClose={handleCloseModals}
           onProceedToBulkAdd={handleProceedToBulkAdd}
@@ -1782,26 +1829,17 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               </div>
             </div>
             {/* Plants / Nursery toggle — Nursery surfaces seed packets +
-                sowings + the plant-out lifecycle. */}
-            <div
-              data-testid="shed-view-toggle"
-              className="inline-flex items-center gap-1 mt-3 p-1 rounded-2xl bg-rhozly-surface-low border border-rhozly-outline/10"
-            >
-              {(["plants", "nursery"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  data-testid={`shed-view-${option}`}
-                  onClick={() => setView(option)}
-                  className={`px-4 py-1.5 min-h-[36px] rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors ${
-                    view === option
-                      ? "bg-white text-rhozly-primary shadow-sm"
-                      : "text-rhozly-on-surface/55 hover:text-rhozly-on-surface"
-                  }`}
-                >
-                  {option === "plants" ? "Plants" : "Nursery"}
-                </button>
-              ))}
+                sowings + the plant-out lifecycle. SegmentedTabs (adopt-on-touch,
+                Stage 3) with the load-bearing per-tab testids preserved. */}
+            <div className="mt-3">
+              <SegmentedTabs
+                data-testid="shed-view-toggle"
+                aria-label="Shed view"
+                size="sm"
+                value={view}
+                onChange={(id) => setView(id as "plants" | "nursery")}
+                tabs={viewToggleTabs}
+              />
             </div>
             {shedFetchError && (
               <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-red-600">
@@ -1812,85 +1850,113 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             )}
           </div>
           {view === "plants" && (
-          <div className="flex flex-col gap-2 sticky top-0 z-20 bg-rhozly-bg/95 backdrop-blur-sm pt-2 pb-2 -mx-1 px-1 rounded-b-2xl">
-            {/* THE toolbar: scope · search · status · Filters — one row
-                (wraps on narrow phones). Load-bearing selectors: scope pill
-                testids + ?scope=favourites deep link, the search aria-label,
-                and the Active/Archived button text (e2e + PO). */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Home | Favourites scope pills — "Home" is today's shared,
-                  home-scoped grid; "Favourites" is the user's personal
-                  cross-home list. Deep link: /shed?scope=favourites */}
-              <div
-                data-testid="shed-scope-toggle"
-                className="bg-rhozly-surface-low p-1 rounded-2xl flex gap-1 border border-rhozly-outline/10 shrink-0"
+          <div className="flex flex-col gap-2 sticky top-0 z-20 bg-rhozly-bg pt-2 pb-2 -mx-1 px-1 rounded-b-2xl">
+            {/* Search-first landing (Stage 3): the HERO search leads — one box
+                that filters your plants live and escalates to the library when
+                yours run thin. Solid bg (no blur) — GardenHub's tab bar is
+                this screen's one permitted blur surface. Load-bearing
+                selectors preserved: scope testids + ?scope=favourites, the
+                search aria-label, Active/Archived text (e2e + PO). */}
+            <div className="relative flex items-center">
+              <Search
+                className="absolute left-4 text-rhozly-on-surface/40"
+                size={18}
+              />
+              <input
+                type="text"
+                placeholder={
+                  scope === "favourites"
+                    ? "Search your favourites..."
+                    : "Search your saved plants..."
+                }
+                aria-label="Search your saved plants"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-11 pr-10 py-3 min-h-[52px] bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-control text-base font-bold shadow-card outline-none focus:border-rhozly-primary transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/40 can-hover:hover:text-rhozly-on-surface rounded-control transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            {/* Escalation: your shed ran thin → one tap into the library
+                takeover with the query carried over (Stage 3). Only on the
+                unfiltered Active view (review finding) — with the Archived tab
+                or a source/smart filter narrowing things, "you don't have it"
+                would be a lie. */}
+            {scope === "home" && viewTab === "active" && filterSource === "all" &&
+              smartFilter === "none" && searchQuery.trim().length >= 3 && filteredPlants.length <= 2 && (
+              <button
+                type="button"
+                data-testid="shed-search-library-escalation"
+                onClick={() => {
+                  setInitialSearchTerm(searchQuery.trim());
+                  setShowBulkSearch(true);
+                }}
+                className="flex items-center justify-between gap-2 px-4 py-3 min-h-[48px] rounded-card bg-rhozly-primary/5 border border-rhozly-primary/15 text-left can-hover:hover:bg-rhozly-primary/10 active:scale-[0.99] transition"
               >
-                {(["home", "favourites"] as const).map((s) => (
+                <span className="text-sm font-bold text-rhozly-on-surface">
+                  Don't have it yet?{" "}
+                  <span className="font-black text-rhozly-primary">
+                    Search the library for "{searchQuery.trim()}"
+                  </span>
+                </span>
+                <ArrowRight size={16} className="shrink-0 text-rhozly-primary" />
+              </button>
+            )}
+
+            {/* Persona browse chips — a warm way IN for new gardeners with a
+                small shed (guidance, not capability: experienced gardeners
+                just get the tighter toolbar). Each opens the takeover in
+                browse-by-filter mode. */}
+            {isNewGardener && scope === "home" && !searchQuery.trim() &&
+              plants.filter((p) => !p.is_archived).length < 12 && (
+              <div data-testid="shed-browse-chips" className="flex flex-wrap gap-2">
+                {([
+                  { label: "Edible favourites", filters: { edible: true } },
+                  { label: "Indoor friends", filters: { indoor: true } },
+                  { label: "Sun lovers", filters: { sunlight: ["full_sun"] } },
+                  { label: "Easy annuals", filters: { cycle: ["annual"] } },
+                ] as Array<{ label: string; filters: PlantFilters }>).map((chip) => (
                   <button
-                    key={s}
+                    key={chip.label}
                     type="button"
-                    data-testid={`shed-scope-${s}`}
-                    onClick={() => switchScope(s)}
-                    className={`flex items-center gap-1.5 px-4 py-2 min-h-[40px] rounded-xl text-sm font-black transition-all ${
-                      scope === s
-                        ? "bg-white text-rhozly-primary shadow-sm"
-                        : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
-                    }`}
+                    data-testid={`shed-browse-chip-${chip.label.toLowerCase().replace(/\s+/g, "-")}`}
+                    onClick={() => {
+                      setInitialSearchFilters(chip.filters);
+                      setShowBulkSearch(true);
+                    }}
+                    className="px-3 py-1.5 min-h-[36px] pointer-coarse:min-h-11 rounded-full bg-rhozly-surface-lowest border border-rhozly-outline/15 text-xs font-bold text-rhozly-on-surface-variant can-hover:hover:border-rhozly-primary/40 can-hover:hover:text-rhozly-primary active:scale-[0.97] transition touch-manipulation"
                   >
-                    {s === "favourites" && (
-                      <Heart
-                        size={13}
-                        className={scope === "favourites" ? "fill-current" : ""}
-                      />
-                    )}
-                    {s === "home" ? "Home" : "Favourites"}
-                    {s === "favourites" && favourites.length > 0 && (
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
-                        {favourites.length}
-                      </span>
-                    )}
+                    {chip.label}
                   </button>
                 ))}
               </div>
-              <div className="relative flex items-center flex-1 min-w-[220px]">
-                <Search
-                  className="absolute left-4 text-rhozly-on-surface/40"
-                  size={16}
-                />
-                <input
-                  type="text"
-                  placeholder={
-                    scope === "favourites"
-                      ? "Search your favourites..."
-                      : "Search your saved plants..."
-                  }
-                  aria-label="Search your saved plants"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2.5 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-2xl text-sm font-bold outline-none focus:border-rhozly-primary transition-all"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    aria-label="Clear search"
-                    className="absolute right-3 p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-rhozly-on-surface rounded-lg transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Home | Favourites scope — SegmentedTabs (adopt-on-touch),
+                  per-tab testids preserved. Deep link: /shed?scope=favourites */}
+              <SegmentedTabs
+                data-testid="shed-scope-toggle"
+                aria-label="Plant scope"
+                value={scope}
+                onChange={(id) => switchScope(id as "home" | "favourites")}
+                tabs={scopeToggleTabs}
+              />
               {scope === "home" && (
-                <div className="bg-rhozly-surface-low p-1 rounded-2xl flex gap-1 border border-rhozly-outline/10 shrink-0">
-                  {["active", "archived"].map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setViewTab(tab as any)}
-                      className={`flex-1 sm:flex-none px-4 py-2 min-h-[40px] rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-                    >
-                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedTabs
+                  aria-label="Plant status"
+                  value={viewTab}
+                  onChange={(id) => setViewTab(id as any)}
+                  tabs={statusToggleTabs}
+                />
               )}
               {scope === "home" && (
                 <button
