@@ -40,7 +40,8 @@ TheShed
 │   ├── Action cluster (right)
 │   │   ├── Select multi-select toggle (shed-select-mode-btn)
 │   │   ├── Icon-only Layout button (shed-open-layout-btn) → /garden-layout
-│   │   ├── Find a plant (shed-add-plant-btn, can("shed.add")) → BulkSearchModal
+│   │   ├── Find a plant (shed-add-plant-btn, can("shed.add")) → the FULL-PAGE
+│   │   │     PlantSearchTakeover (overhaul Stage 2 — no longer a modal)
 │   │   └── Bulk add (shed-bulk-paste-btn, can("shed.add")) → BulkPastePlantsModal
 │   ├── Plants | Nursery toggle (shed-view-toggle — unchanged)
 │   └── Fetch-error banner ("Could not refresh — showing cached data")
@@ -87,7 +88,8 @@ TheShed
 │   ├── Bulk archive / restore
 │   ├── Bulk delete
 │   └── Cancel
-├── BulkSearchModal (when Find a plant is open)
+├── PlantSearchTakeover (when Find a plant is open — an EARLY RETURN: the takeover
+│     IS the page; header/toolbar/grid come back on close. Stage 2, 2026-07-21)
 ├── PlantSourcePicker (companion plants flow)
 ├── PlantEditModal (when tapping a card)
 ├── PlantAssignmentModal (when assigning a plant to area)
@@ -105,7 +107,7 @@ TheShed
 | `filterSource` / `sortMode` / `smartFilter` | The three controls inside the Filters panel (source select, sort select, smart chips). `activeFilterCount` is derived from them — each non-default value counts one, driving the badge on the Filters button |
 | `filtersOpen` | Filters disclosure panel open/closed (Phase 4.3) |
 | `openMenuPlantId` | Which card's kebab menu is open (`null` = none; only one at a time) |
-| `showBulkSearch` | BulkSearchModal open |
+| `showBulkSearch` | The full-page PlantSearchTakeover open (early-returns the page; was BulkSearchModal pre-Stage-2) |
 | `editingPlant` / `editingPlantTab` | PlantEditModal target + the tab it opens on (`"care"` default; `"light"` from the kebab's Light needs item) |
 | `selectedPlant` | PlantAssignmentModal target (the Assign button) |
 | `bulkQueue` | Active bulk-add operations |
@@ -139,10 +141,12 @@ These power the contextual status chips on each card.
 
 ### Data flow — write paths
 
-#### Add Plant (via BulkSearchModal)
+#### Add Plant (via the full-page PlantSearchTakeover — Stage 2, 2026-07-21)
+
+> The Shed's add flow is a **page, not a modal**: `src/components/shed/PlantSearchTakeover.tsx` extracts BulkSearchModal's machinery (cart shapes, `preloadedDetails` no-Gemini library path, paste-a-list, Search|Manual tabs with the SAME `bulk-search-tab-*` testids the manual-add tour anchors, `bulk-search-review`/`bulk-search-start-import`, the AI page-context lifecycle, `initialCartItems`→review for the `state.autoImport` flows) into a full-width column with a sticky cart tray. Escape closes it (review→search first; never on the Manual form; never under the PlantDetailModal). Grid scroll restores on close. All deep links (`?open=add-plant&query=`, `/shed/add/*`, `state.returnTo`) are unchanged. **BulkSearchModal lives on solely as CompanionPlantsTab's host.**
 
 Multi-step:
-1. User searches plants in BulkSearchModal (Perenual / Verdantly / AI sources, depending on tier).
+1. User searches plants in the takeover (library-first shared `<PlantSearch>`; Perenual / Verdantly / AI opt-in by tier).
 2. Selects one or more results.
 3. For each selected:
    - Fetch full details via `getProviderPlantDetails`.
@@ -298,7 +302,7 @@ The card-grid layout lets you scan visually. The status chips at the bottom of e
 
 #### 1. Add a new plant
 
-- Tap **Find a plant** (top right) → BulkSearchModal opens.
+- Tap **Find a plant** (top right) → the page becomes a full-screen search — room to breathe on a phone, no porthole. Pick as many as you like; the tray at the bottom collects them; Review & Add imports the lot. Your Shed (with your scroll position) returns when you're done.
 - Search by common or scientific name. Up to three sources (depending on tier) return candidate matches.
 - Pick one or many → review → confirm → plants land in your Shed.
 - The **"Bulk add"** button (next to Find a plant) is for adding many plants at once. It offers two ways in:

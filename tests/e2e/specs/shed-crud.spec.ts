@@ -989,3 +989,33 @@ test.describe("Shed — Bulk add (RHO-4 CSV upload)", () => {
     await expect(shed.bulkAddFavouriteAll).toBeVisible();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Full-page "Find a plant" takeover (ailment-library-shed-search overhaul
+// Stage 2, 2026-07-21) — the add flow is a page, not a modal.
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe("Shed — plant-search takeover (Stage 2)", () => {
+  test("SHED-TKO-001: ?open=add-plant&query= deep-links into the full-page takeover with the query seeded", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/shed?open=add-plant&query=tomato");
+    const takeover = authenticatedPage.getByTestId("plant-search-takeover");
+    await expect(takeover).toBeVisible({ timeout: 15000 });
+    // It's a page, not a dialog — no aria-modal overlay in the way.
+    await expect(authenticatedPage.locator('[role="dialog"][aria-modal="true"]')).toHaveCount(0);
+    // The seeded query reached the shared search input.
+    await expect(authenticatedPage.getByTestId("plant-search-input")).toHaveValue("tomato");
+    // The params were consumed (deep-link contract preserved).
+    await expect(authenticatedPage).not.toHaveURL(/open=add-plant/);
+  });
+
+  test("SHED-TKO-002: the takeover's back button returns to the Shed grid", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await shed.addButton.click();
+    await expect(authenticatedPage.getByTestId("plant-search-takeover")).toBeVisible({ timeout: 10000 });
+    await authenticatedPage.getByTestId("shed-search-back").click();
+    await expect(authenticatedPage.getByTestId("plant-search-takeover")).toHaveCount(0);
+    await expect(authenticatedPage.getByTestId("shed-plant-list")).toBeVisible({ timeout: 10000 });
+  });
+});

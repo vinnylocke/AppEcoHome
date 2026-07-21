@@ -47,7 +47,7 @@ import ManualPlantCreation from "./ManualPlantCreation";
 import PlantEditModal from "./PlantEditModal";
 import PlantAssignmentModal from "./PlantAssignmentModal";
 import BulkAssignModal from "./BulkAssignModal";
-import BulkSearchModal from "./BulkSearchModal";
+import PlantSearchTakeover from "./shed/PlantSearchTakeover";
 import BulkPastePlantsModal from "./BulkPastePlantsModal";
 import PlantSourcePicker from "./PlantSourcePicker";
 import { PerenualService } from "../lib/perenualService";
@@ -1673,6 +1673,30 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       </div>
     );
 
+  // ── Full-page "Find a plant" takeover (overhaul Stage 2, 2026-07-21) ──────
+  // Replaces BulkSearchModal as the Shed's front door: while open it IS the
+  // page (early return — the header/toolbar/grid come back on close). All
+  // openers are unchanged (`shed-add-plant-btn`, `?open=add-plant&query=`,
+  // `/shed/add/*`, empty-state CTA, SourcePicker → initialCartItems→review).
+  // handleProceedToBulkAdd's first line closes this view, so the import-
+  // progress modal in the main tree below renders as before.
+  if (showBulkSearch) {
+    return (
+      <div className="h-full p-4 md:p-8 animate-in fade-in duration-300 overflow-y-auto">
+        <PlantSearchTakeover
+          homeId={homeId}
+          isPremium={perenualEnabled}
+          isAiEnabled={aiEnabled}
+          initialSearchTerm={initialSearchTerm}
+          initialCartItems={initialCartItems}
+          onClose={handleCloseModals}
+          onProceedToBulkAdd={handleProceedToBulkAdd}
+          onManualSave={handleManualSave}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700 relative">
@@ -2687,18 +2711,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 }}
               />
             )}
-            {showBulkSearch && (
-              <BulkSearchModal
-                homeId={homeId}
-                isPremium={perenualEnabled}
-                isAiEnabled={aiEnabled}
-                initialSearchTerm={initialSearchTerm}
-                initialCartItems={initialCartItems}
-                onClose={handleCloseModals}
-                onProceedToBulkAdd={handleProceedToBulkAdd}
-                onManualSave={handleManualSave}
-              />
-            )}
+            {/* The Add-to-Shed search is no longer a modal — `showBulkSearch`
+                early-returns the full-page PlantSearchTakeover above (overhaul
+                Stage 2). BulkSearchModal lives on inside CompanionPlantsTab. */}
             {showBulkPaste && (
               <BulkPastePlantsModal
                 homeId={homeId}

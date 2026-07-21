@@ -2,6 +2,8 @@
 
 > The unified multi-provider plant search + cart modal. Search across Perenual, Verdantly, and AI in one query, filter by lifecycle / sun / watering, build a cart of plants, then proceed to bulk-add into the Shed.
 
+> **ROLE CHANGE (ailment-library-shed-search overhaul Stage 2, 2026-07-21):** this modal is **no longer the Shed's add flow** — TheShed now early-returns the full-page [`PlantSearchTakeover`](../03-garden-hub/01-the-shed.md) (`src/components/shed/PlantSearchTakeover.tsx`), which extracts this modal's machinery verbatim (cart shapes, `preloadedDetails`, paste-a-list, the `bulk-search-tab-*` / `bulk-search-review` / `bulk-search-start-import` testids, page-context lifecycle, `initialCartItems`→review). **BulkSearchModal's sole remaining host is `CompanionPlantsTab`** (the companions bulk-add). Everything below still describes the modal accurately for that host.
+
 **Source file:** `src/components/BulkSearchModal.tsx` (~1,000+ lines)
 
 ---

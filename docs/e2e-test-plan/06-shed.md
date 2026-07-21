@@ -36,8 +36,10 @@
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| SHED-015 | ✅ | Add button opens BulkSearchModal | — | ✅ Passing |
-| SHED-016 | ✅ | Add modal — close without saving | — | ✅ Passing |
+| SHED-015 | ✅ | Add button opens the full-page **PlantSearchTakeover** (Stage 2, 2026-07-21 — the Manual tab it asserts kept its `bulk-search-tab-manual` testid) | — | ✅ Passing |
+| SHED-016 | ✅ | Takeover — Escape closes without saving; plant count unchanged (Escape-to-close is real now — the old modal never handled it) | — | ✅ Passing |
+| SHED-TKO-001 | ✅ | `?open=add-plant&query=` deep-links into the full-page takeover (`plant-search-takeover`, no `aria-modal` dialog, query seeded into `plant-search-input`, params consumed) | — | ✅ Passing |
+| SHED-TKO-002 | ✅ | The takeover's back button (`shed-search-back`) returns to the Shed grid | — | ✅ Passing |
 | SHED-017 | ✅ | Manual plant happy path | — | ✅ Passing |
 | SHED-018 | ❌ | Manual plant — empty name validation | — | ✅ Passing |
 | SHED-019 | ❌ | Manual plant — duplicate name warning | — | ✅ Passing |
