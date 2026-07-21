@@ -14,6 +14,7 @@ import {
   Upload,
 } from "lucide-react";
 import { IconAI, IconPrune, IconHarvest } from "../constants/icons";
+import { ConfirmModal } from "./ConfirmModal";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
@@ -159,8 +160,33 @@ export default function AddTaskModal({
     );
   };
 
-  const handleClose = () => {
-    if (isDirty() && !window.confirm("You have unsaved changes. Discard and close?")) return;
+  // B14 (dashboard-nav-tasks-tray Stage 3): a promise-based in-app confirm so the
+  // discard + duplicate-routine prompts use the house ConfirmModal instead of a
+  // blocking OS window.confirm() (a templated tell that ignores the app's styling
+  // + focus handling). One little modal, awaited inline.
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    description: string;
+    confirmText: string;
+    resolve: (ok: boolean) => void;
+  } | null>(null);
+  const askConfirm = (opts: { title: string; description: string; confirmText: string }) =>
+    new Promise<boolean>((resolve) => setConfirmState({ ...opts, resolve }));
+  // While the ConfirmModal is open it owns Escape; keep AddTaskModal's own
+  // Escape handler from also firing (which would double-close / re-prompt).
+  const confirmOpenRef = useRef(false);
+  confirmOpenRef.current = confirmState !== null;
+
+  const handleClose = async () => {
+    if (
+      isDirty() &&
+      !(await askConfirm({
+        title: "Discard changes?",
+        description: "You have unsaved changes. Discard them and close?",
+        confirmText: "Discard",
+      }))
+    )
+      return;
     onClose();
   };
 
@@ -383,6 +409,7 @@ export default function AddTaskModal({
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (confirmOpenRef.current) return;
         handleClose();
       }
     };
@@ -690,9 +717,11 @@ export default function AddTaskModal({
         .or("paused_until.is.null,paused_until.lt.now()");
       const conflict = (dupes ?? []).find((d: any) => d.frequency_days === form.frequency_days);
       if (conflict) {
-        const ok = window.confirm(
-          `You already have an active "${form.type}" schedule for this area, every ${conflict.frequency_days} day${conflict.frequency_days === 1 ? "" : "s"} ("${conflict.title}"). Save this one anyway?`,
-        );
+        const ok = await askConfirm({
+          title: "Duplicate schedule?",
+          description: `You already have an active "${form.type}" schedule for this area, every ${conflict.frequency_days} day${conflict.frequency_days === 1 ? "" : "s"} ("${conflict.title}"). Save this one anyway?`,
+          confirmText: "Save anyway",
+        });
         if (!ok) return;
       }
     }
@@ -859,6 +888,23 @@ export default function AddTaskModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
+      {confirmState && (
+        <ConfirmModal
+          isOpen
+          title={confirmState.title}
+          description={confirmState.description}
+          confirmText={confirmState.confirmText}
+          isDestructive={false}
+          onConfirm={() => {
+            confirmState.resolve(true);
+            setConfirmState(null);
+          }}
+          onClose={() => {
+            confirmState.resolve(false);
+            setConfirmState(null);
+          }}
+        />
+      )}
       <div
         ref={modalRef}
         role="dialog"

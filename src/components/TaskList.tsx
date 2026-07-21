@@ -24,11 +24,13 @@ import {
   CalendarClock,
   Square,
   CheckSquare2,
+  CheckCircle2,
   ListChecks,
   Lock,
   Grid,
   FolderKanban,
   CloudRain,
+  Repeat,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -37,6 +39,7 @@ import TaskModal from "./TaskModal";
 import { TaskEngine, lateCompletionDueDate, completedLocalDate } from "../lib/taskEngine";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { taskDueLabel } from "../lib/taskDueLabel";
+import { taskListEmptyVariant } from "../lib/taskListEmptyState";
 import { AutomationEngine } from "../lib/automationEngine";
 import { buildGhostPayload, hasBlockingDependencies } from "../lib/taskMutations";
 import { materialiseGhost, postponeTask } from "../lib/taskActions";
@@ -1104,18 +1107,35 @@ export default function TaskList({
       )}
 
       {filteredTasks.length === 0 ? (
-        <EmptyState
-          data-testid="task-list-empty"
-          className="animate-in fade-in"
-          icon={<CheckSquare size={28} />}
-          title="No tasks here yet"
-          body="Set up a watering, pruning, or harvesting schedule and tasks will appear here automatically."
-          primaryCta={{
-            label: "Set up a Routine",
-            onClick: () => navigate("/schedule"),
-            "data-testid": "task-list-empty-cta",
-          }}
-        />
+        // B1 (dashboard-nav-tasks-tray Stage 3): three empty states, not one
+        // "Set up a Routine" pitch. Clearing your last task is rewarded with a
+        // celebration, not a setup ad; a genuinely quiet day says so; and only a
+        // task-less list keeps the setup CTA. In compact mode (home / tray) it
+        // renders small + chrome-less so it isn't a giant dashed card mid-feed.
+        taskListEmptyVariant(pendingCount, completedCount) === "all-done" ? (
+          <EmptyState
+            data-testid="task-list-empty"
+            {...(compact ? { size: "sm" as const, chrome: "none" as const } : {})}
+            className="animate-in fade-in"
+            icon={<CheckCircle2 size={compact ? 22 : 28} />}
+            title="All done"
+            body="Nice work — nothing left on the list."
+          />
+        ) : (
+          <EmptyState
+            data-testid="task-list-empty"
+            {...(compact ? { size: "sm" as const, chrome: "none" as const } : {})}
+            className="animate-in fade-in"
+            icon={<CheckSquare size={compact ? 22 : 28} />}
+            title="Nothing on the list"
+            body="You're all caught up. New here? Set up a routine and tasks appear here automatically."
+            primaryCta={{
+              label: "Set up a Routine",
+              onClick: () => navigate("/schedule"),
+              "data-testid": "task-list-empty-cta",
+            }}
+          />
+        )
       ) : (
         <div data-testid="task-list-container" className={`space-y-3 relative ${isBulkEditing ? "pb-24" : ""}`}>
           {isBulkEditing && viewTab === "pending" && (
@@ -1131,7 +1151,7 @@ export default function TaskList({
                     setSelectedTaskIds(new Set(allPendingIds));
                   }
                 }}
-                className="w-6 h-6 shrink-0 rounded-lg flex items-center justify-center border-2 transition-all active:scale-90 hover:border-rhozly-primary"
+                className="w-6 h-6 pointer-coarse:w-11 pointer-coarse:h-11 shrink-0 rounded-lg flex items-center justify-center border-2 transition-all active:scale-90 can-hover:hover:border-rhozly-primary"
                 aria-label="Select all tasks"
               >
                 {selectedTaskIds.size === filteredTasks.filter((t) => t.status !== "Completed").length &&
@@ -1217,11 +1237,11 @@ export default function TaskList({
             } else if (isBlocked) {
               cardStyle = "bg-rhozly-surface-low border-gray-300 opacity-80";
             } else if (isOverdue) {
-              cardStyle = "bg-red-100 border-red-300 hover:border-red-500 shadow-red-100";
+              cardStyle = "bg-status-danger-fill border-status-danger-line can-hover:hover:border-status-danger-ink";
             } else if (isInHarvestWindow) {
-              cardStyle = "bg-amber-50 border-amber-200 hover:border-amber-400";
+              cardStyle = "bg-status-caution-fill border-status-caution-line can-hover:hover:border-status-caution-ink";
             } else if (isToday) {
-              cardStyle = "bg-sky-50 border-sky-200 hover:border-sky-400";
+              cardStyle = "bg-status-water-fill border-status-water-line can-hover:hover:border-status-water-ink";
             }
             if (isBulkEditing && isSelected) {
               cardStyle = "bg-rhozly-primary/5 border-rhozly-primary shadow-md";
@@ -1269,7 +1289,7 @@ export default function TaskList({
                       onClick={(e) => toggleTaskCompletion(task, e)}
                       disabled={isUpdatingTask === task.id || (isBlocked && !isCompleted)}
                       aria-label={`Mark task "${task.title}" as ${isCompleted ? "incomplete" : "complete"}`}
-                      className={`w-8 h-8 sm:w-10 sm:h-10 shrink-0 mt-0.5 rounded-xl sm:rounded-2xl flex items-center justify-center border-2 transition-all active:scale-90 ${isUpdatingTask === task.id ? "border-rhozly-primary/30" : isCompleted ? "bg-green-500 border-green-500 text-white" : isBlocked ? "border-gray-300 text-gray-400 bg-gray-200" : "border-rhozly-outline/20 hover:border-rhozly-primary text-transparent hover:text-rhozly-primary/30"}`}
+                      className={`w-8 h-8 sm:w-10 sm:h-10 pointer-coarse:w-11 pointer-coarse:h-11 shrink-0 mt-0.5 rounded-xl sm:rounded-2xl flex items-center justify-center border-2 transition-all active:scale-90 ${isUpdatingTask === task.id ? "border-rhozly-primary/30" : isCompleted ? "bg-green-500 border-green-500 text-white" : isBlocked ? "border-gray-300 text-gray-400 bg-gray-200" : "border-rhozly-outline/20 can-hover:hover:border-rhozly-primary text-transparent can-hover:hover:text-rhozly-primary/30"}`}
                     >
                       {isUpdatingTask === task.id ? (
                         <Loader2 size={15} className="animate-spin text-rhozly-primary" />
@@ -1316,26 +1336,34 @@ export default function TaskList({
                     )}
 
                     {/* Chips */}
-                    {(plantName || task.areas?.name || planName || task.auto_completed_reason || task.overdueCarryoverSince || lateDue || windowDoneOn || task.weather_event_key) && (
+                    {(plantName || task.areas?.name || planName || task.auto_completed_reason || task.overdueCarryoverSince || lateDue || windowDoneOn || task.weather_event_key || task.blueprint_id || task.isGhost) && (
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {/* B9 — surface that this is a recurring/routine task (a core
+                            concept that was previously invisible on the row). Quiet
+                            neutral pill so it doesn't compete with the status chips. */}
+                        {(task.blueprint_id || task.isGhost) && (
+                          <div data-testid="task-recurring-chip" className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-rhozly-surface-low text-rhozly-on-surface-variant border border-rhozly-outline/10">
+                            <Repeat size={10} /> Recurring
+                          </div>
+                        )}
                         {task.overdueCarryoverSince && (
-                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-100 text-red-700">
+                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-status-danger-fill text-status-danger-ink">
                             <AlertCircle size={10} /> Overdue since {formatDisplayDate(task.overdueCarryoverSince)}
                           </div>
                         )}
                         {lateDue && (
-                          <div data-testid="task-late-chip" className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700">
+                          <div data-testid="task-late-chip" className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-status-caution-fill text-status-caution-ink">
                             <CheckSquare size={10} /> Completed late — due {formatDisplayDate(lateDue)}
                             {lateDone && ` · done ${formatDisplayDate(lateDone)}`}
                           </div>
                         )}
                         {windowDoneOn && (
-                          <div data-testid="task-harvested-chip" className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
+                          <div data-testid="task-harvested-chip" className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-status-success-fill text-status-success-ink">
                             {isPruningWindowTask ? <Scissors size={10} /> : <Wheat size={10} />} {windowDoneLabel} {formatDisplayDate(windowDoneOn)}
                           </div>
                         )}
                         {plantName && (
-                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
+                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-status-success-fill text-status-success-ink">
                             <Leaf size={10} /> {plantName}{count > 1 && ` (x${count})`}
                           </div>
                         )}
@@ -1350,12 +1378,12 @@ export default function TaskList({
                           </div>
                         )}
                         {task.auto_completed_reason && (
-                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600" title={task.auto_completed_reason}>
+                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-status-water-fill text-status-water-ink" title={task.auto_completed_reason}>
                             <CloudRain size={10} /> Auto-watered
                           </div>
                         )}
                         {task.weather_event_key && (
-                          <div data-testid="task-weather-chip" className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700" title="Created automatically from a weather event">
+                          <div data-testid="task-weather-chip" className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-status-caution-fill text-status-caution-ink" title="Created automatically from a weather event">
                             <CloudRain size={10} /> Weather task
                           </div>
                         )}

@@ -18,6 +18,7 @@ Covers `/schedule` (Routines + Suggestions/Optimise tabs).
 | SCH-003 | ✅ | Seeded blueprint cards render | — | ✅ Passing |
 | SCH-004 | ✅ | Card shows task type — now via the colour-coded card (accent bar + tinted icon tile, hue per type) rather than a text badge | — | ✅ Passing |
 | SCH-005 | ✅ | Card shows frequency ("Every 7 Days") | — | ✅ Passing |
+| SCH-B14 | ✅ | Closing the routine editor with unsaved changes shows the in-app ConfirmModal "Discard changes?" (not `window.confirm`); Cancel keeps the draft intact (dashboard-nav-tasks-tray Stage 3, B14) | — | 🔲 Pending (first run) |
 | SCH-006 | ✅ | Empty state — "No routines yet" + "Create your first routine" CTA | — | ✅ Passing |
 | SCH-040 | 🔲 | Card renders 30-day dot track (`blueprint-{id}-dot-track`) with occurrence dots for a seeded recurring routine | — | 🔲 Planned |
 | SCH-041 | 🔲 | Filters button shows active-filter count badge (e.g. `1` after one filter applied, hidden when none) | — | 🔲 Planned |

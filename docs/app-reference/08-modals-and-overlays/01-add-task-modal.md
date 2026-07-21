@@ -201,6 +201,11 @@ Every recurring chore + every ad-hoc task starts here. Most users open it dozens
 
 - One-off → tasks list updates.
 - Recurring → blueprint list updates; next instance appears tomorrow at minimum.
+- **Duplicate-routine guard (in-app since dashboard-nav-tasks-tray Stage 3, 2026-07-21, B14):** creating a recurring routine that matches an existing active blueprint (same area + type + frequency) opens the house **`ConfirmModal`** ("Duplicate schedule?" naming the conflicting routine) — not a blocking OS `window.confirm()`. Cancel aborts the save; "Save anyway" proceeds.
+
+#### 7. Close with unsaved changes
+
+- Closing (X / Escape / backdrop) while the form is dirty opens the in-app **`ConfirmModal`** ("Discard changes?", B14) instead of a native `window.confirm()`. While that confirm is open it owns Escape (a ref guard stops the modal's own Escape handler from also firing). Both confirms are awaited inline via a small promise-based `askConfirm` helper.
 
 ### Information on display — what every field means
 

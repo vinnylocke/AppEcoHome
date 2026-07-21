@@ -27,6 +27,26 @@ test.describe("Schedule — basic render", () => {
     await expect(schedule.frequencyBadge(7)).toBeVisible({ timeout: 10000 });
   });
 
+  test("SCH-B14: closing the routine editor with unsaved changes shows an in-app discard confirm", async ({ authenticatedPage }) => {
+    // dashboard-nav-tasks-tray Stage 3 (B14): the discard prompt is now the house
+    // ConfirmModal, not a blocking OS window.confirm() (which Playwright can't see).
+    const schedule = new SchedulePage(authenticatedPage);
+    await schedule.goto();
+    await schedule.waitForLoad();
+
+    await schedule.newAutomationButton.click();
+    await expect(schedule.titleInput).toBeVisible({ timeout: 10000 });
+    await schedule.titleInput.fill("Discard-me draft");
+
+    // Escape → handleClose → (dirty) the in-app confirm.
+    await authenticatedPage.keyboard.press("Escape");
+    await expect(authenticatedPage.getByText("Discard changes?")).toBeVisible({ timeout: 8000 });
+
+    // Cancel keeps the editor open with the draft intact (proves it's a real, cancellable dialog).
+    await authenticatedPage.getByTestId("confirm-modal-cancel").click();
+    await expect(schedule.titleInput).toHaveValue("Discard-me draft");
+  });
+
   test("SCH-005: Blueprint card shows the task title", async ({ authenticatedPage }) => {
     const schedule = new SchedulePage(authenticatedPage);
     await schedule.goto();

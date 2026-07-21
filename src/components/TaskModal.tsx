@@ -32,6 +32,7 @@ import {
   XCircle,
   Scissors,
   Check,
+  Repeat,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -1049,6 +1050,34 @@ export default function TaskModal({
                   </p>
                 </div>
               </div>
+
+              {/* B9 (dashboard-nav-tasks-tray Stage 3) — Recurring row: surfaces
+                  that this task is part of a routine (previously invisible in the
+                  modal), with the cadence when available; taps through to Routines. */}
+              {(task.blueprint_id || task.isGhost) && (
+                <div
+                  data-testid="task-modal-recurring-row"
+                  className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10 cursor-pointer can-hover:hover:bg-rhozly-surface-low transition-colors"
+                  onClick={() => {
+                    onClose();
+                    navigate("/schedule");
+                  }}
+                >
+                  <div className="w-10 h-10 bg-rhozly-surface rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
+                    <Repeat size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                      Recurring
+                    </p>
+                    <p className="text-sm font-bold text-rhozly-on-surface">
+                      {task.frequency_days
+                        ? `Repeats every ${task.frequency_days} day${task.frequency_days === 1 ? "" : "s"}`
+                        : "Part of a routine"}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Plant row — only when exactly one active instance */}
               {task.area_id && activeIds.length === 1 && inventoryDict[activeIds[0]] && (

@@ -49,7 +49,7 @@ export default function GardenOverviewGrid({
             type="button"
             data-testid="home-add-location-btn"
             onClick={onAddLocation}
-            className="flex items-center gap-1 text-[11px] font-black text-rhozly-primary bg-rhozly-primary/5 px-2.5 py-1 rounded-full can-hover:hover:bg-rhozly-primary/10 active:scale-[0.97] transition"
+            className="flex items-center gap-1 text-[11px] font-black text-rhozly-primary bg-rhozly-primary/5 px-2.5 py-1 pointer-coarse:min-h-11 rounded-full can-hover:hover:bg-rhozly-primary/10 active:scale-[0.97] transition"
           >
             <Plus size={12} /> Add location
           </button>

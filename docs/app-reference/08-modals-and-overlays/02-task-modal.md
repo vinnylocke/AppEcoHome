@@ -46,6 +46,9 @@ When the window has closed without a harvest, the footer switches again to **Har
 TaskModal (Portal, focus-trapped)
 ├── Header (close, title, status)
 ├── Date row (CalendarClock)
+├── Recurring row (Repeat) — B9, Stage 3: shown when task.blueprint_id || isGhost;
+│     "Repeats every N days" when frequency is on the task, else "Part of a
+│     routine"; taps through to /schedule (data-testid task-modal-recurring-row)
 ├── Location → Area → Plan chips
 ├── Linked plant instances list
 ├── Action buttons row
