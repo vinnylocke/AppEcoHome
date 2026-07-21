@@ -11,6 +11,10 @@
 
 A modal with three or four tab sections: Overview (metrics + plants), Lux Readings (history graph), Microclimate (computed sun/wind), and AI Recommendations (Sage/Evergreen). The same fields editable in Location Manager are displayed here with more context — e.g. a lux history sparkline rather than a single value.
 
+> **AreaDetails is the LocationPage drill-in's canonical area-metrics + plant editor (Stage 5, 2026-07-20).** On the `?locationId=` drill-in it renders **inline** (not as a floating modal) when an area is focused, and its close/back control is now labelled — `data-testid="area-detail-back"` / `aria-label="Back to areas"` (a11y + testability; no logic change) — returning to the drill-in's area list.
+>
+> **Deferred (plan Q4).** The redesign plan's Q4 ("AreaDetails is the sole metrics editor") called for retiring LocationManager's own ~300-line tabbed Area-Metrics modal. On inspection that modal also feeds Plant Doctor AI page-context, so retiring it is a substantial, risky refactor of a working component for a de-dup benefit (not a defect — AreaDetails is already the canonical drill-in metrics editor). **It was deferred as its own follow-up decision and LocationManager's metrics modal is NOT yet retired.**
+
 ---
 
 ## Role 1 — Technical Reference
@@ -18,8 +22,8 @@ A modal with three or four tab sections: Overview (metrics + plants), Lux Readin
 ### Component graph
 
 ```
-AreaDetails (modal)
-├── Header (close, edit, area name)
+AreaDetails (modal / inline on the drill-in)
+├── Header (back button — data-testid area-detail-back / aria-label "Back to areas"; edit; area name)
 ├── Overview tab
 │   ├── Metric chips (lux, pH, growing medium, water movement)
 │   ├── AreaInsightsPanel (collapsible — outdoor areas only)
@@ -64,7 +68,8 @@ A collapsible Insights panel rendered between the metric chips and the plant gri
 
 ### Data flow — write paths
 
-- Edit metrics: same writes as Location Manager.
+- Edit metrics (`handleUpdateArea`): `areas` UPDATE — same shape as Location Manager. Gated `areas.edit`.
+- Plant delete / archive / restore (`executeConfirmedAction`) + bulk (`handleBulkAction` / `executeBulkConfig`): `inventory_items` DELETE / UPDATE. Delete gated `shed.delete`; archive/restore/config gated `shed.edit`.
 - "Dismiss recommendations": local state only (clears the AI suggestion).
 
 ### Edge functions invoked
@@ -88,7 +93,22 @@ None.
 
 ### Permissions
 
-- `areas.edit` gates the Edit Area button.
+**Every mutation is client-`can()`-gated (stats+locations redesign Stage 5, 2026-07-20).** AreaDetails is the drill-in's edit host and is reachable by any home member (incl. viewers); RLS gates only home membership, not the spatial/shed keys, so `can()` is the sole guard. Each control is gated at BOTH the render (button hidden) AND the handler (defense in depth). A prior review found these writes were **ungated** — a viewer could rename/rewrite area metrics and delete plants — this closed that leak.
+
+| Control (testid) | Key | Handler guarded | owner | member | viewer |
+|---|---|---|:--:|:--:|:--:|
+| Edit-area gear (`area-edit-btn`) → metrics form → `handleUpdateArea` | `areas.edit` | ✅ | ✅ | ✅ | ❌ |
+| Per-plant edit (Settings2 → InstanceEditModal) | `shed.edit` | — (launch) | ✅ | ✅ | ❌ |
+| Per-plant archive / restore → `executeConfirmedAction` | `shed.edit` | ✅ | ✅ | ✅ | ❌ |
+| Per-plant delete ("Delete Forever") → `executeConfirmedAction` | `shed.delete` | ✅ | ✅ | ❌ | ❌ |
+| "Bulk Edit" entry | `shed.edit \|\| shed.delete` | — | ✅ | ✅ | ❌ |
+| Bulk Configure / Archive / Restore → `executeBulkConfig` / `handleBulkAction` | `shed.edit` | ✅ | ✅ | ✅ | ❌ |
+| Bulk Delete → `handleBulkAction("delete")` | `shed.delete` | ✅ | ✅ | ❌ | ❌ |
+| Per-plant edit modal (`InstanceEditModal`) — via the gear **and** the `?instanceId=` URL param | `shed.edit` | ✅ (modal + auto-open) | ✅ | ✅ | ❌ |
+| Link-Ailment (`IconPest`) → `LinkAilmentModal` (writes `plant_instance_ailments` + AI) | `ailments.add` | ✅ (modal) | ✅ | ✅ | ❌ |
+| Scan-Area (`IconScan`) + Plant recommendations (`IconAI`) → `AreaScanModal` (writes `area_scans`/`task_blueprints`/`tasks` + AI) | `areas.edit` | ✅ (scan modal) | ✅ | ✅ | ❌ |
+
+Keys match the established consumers: `areas.edit` (LocationManager), `shed.edit`/`shed.delete` (TheShed), `ailments.add` (Watchlist). A viewer sees a fully read-only area. A second review pass caught that these last three (edit-modal via URL param, ailment-link, scan) had ALSO been ungated — each is now gated at the launch/auto-open AND inside the modal's own commit handler. (The right-hand "Tasks Today" `TaskList` panel is governed separately by the `tasks.*` keys.)
 
 ### Error states
 

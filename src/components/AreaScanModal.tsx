@@ -14,6 +14,7 @@ import { getQuestionsToAsk } from "../lib/scanQuestions";
 import type { ScanQuestion } from "../lib/scanQuestions";
 import { logEvent, EVENT } from "../events/registry";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { usePermissions } from "../context/HomePermissionsContext";
 import { getLocalDateString } from "../lib/taskEngine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -161,6 +162,7 @@ export default function AreaScanModal({
   onScanSaved,
   aiEnabled = false,
 }: AreaScanModalProps) {
+  const { can } = usePermissions();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const trapRef = useFocusTrap<HTMLDivElement>(true);
@@ -205,6 +207,13 @@ export default function AreaScanModal({
 
   const handleRunScan = async () => {
     if (!imageBase64) return;
+    // Defense in depth: the Scan-Area launch button is areas.edit-gated, but
+    // the scan writes area_scans / task_blueprints / tasks + burns AI, so guard
+    // the run itself too (review finding).
+    if (!can("areas.edit")) {
+      toast.error("You don't have permission to scan this area.");
+      return;
+    }
 
     try {
       // Upload image to Storage

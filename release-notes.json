@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Manage areas from a location, with proper permissions",
+    "items": [
+      "Add a new area (bed, border, pot) to a location right from its page — the Add-Area wizard is built in, no more “go to settings” dead-end.",
+      "Editing an area, adding areas, changing indoor/outdoor, and deleting are now correctly permission-controlled: viewers can look, members can add and edit, and only owners/admins can delete.",
+      "The same rules now apply everywhere you manage a garden — the home grid, a location's page, and inside an area."
+    ]
+  }
+]

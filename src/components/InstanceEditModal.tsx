@@ -37,6 +37,7 @@ import LifecycleCompleteModal from "./LifecycleCompleteModal";
 import LifecycleAnalysisModal from "./LifecycleAnalysisModal";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { usePermissions } from "../context/HomePermissionsContext";
 import { useAiPlantFreshness } from "../hooks/useAiPlantFreshness";
 import CareUpdateCallout from "./aiPlants/CareUpdateCallout";
 
@@ -80,6 +81,7 @@ export default function InstanceEditModal({
   isPremium = false,
 }: InstanceEditModalProps) {
   const { setPageContext } = usePlantDoctor();
+  const { can } = usePermissions();
   const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const [activeTab, setActiveTab] = useState<
@@ -256,6 +258,13 @@ export default function InstanceEditModal({
   }, [activeTab, instance.plant_id, companionPlantRecord]);
 
   const handleUpdateInstance = async () => {
+    // Defense in depth: gate the save even though the launch button + the
+    // AreaDetails URL-param auto-open are already `shed.edit`-gated (a viewer
+    // could otherwise reach this modal via a crafted `?instanceId=`). Review finding.
+    if (!can("shed.edit")) {
+      toast.error("You don't have permission to edit plants here.");
+      return;
+    }
     setSavingInstance(true);
     try {
       const loc = locations.find((l) => l.id === editForm.location_id);

@@ -53,9 +53,15 @@ function resolvePermissions(role, overrides): Record<PermissionKey, boolean> {
 
 Used everywhere via `usePermissions().can("shed.add")` etc.
 
-### Where the `locations.*` keys are enforced (home grid inline manage, Stage 4b)
+### Where the spatial keys are enforced — three client-gated surfaces (home grid Stage 4b + drill-in Stage 5)
 
-Since the stats+locations redesign Stage 4b (2026-07-20) the **home garden grid** is a second consumer of the `locations.create` / `locations.edit` / `locations.delete` keys, alongside LocationManager (`/management`). The grid's inline affordances gate on exactly these keys **client-side**:
+The `locations.*` and `areas.*` keys are enforced **client-side only** across **three** surfaces that share the same DB paths. RLS on `locations` / `areas` gates only home *membership*, not these permission keys (only `tasks.view_members` + `audit.view_all` are RLS-enforced today — see [RLS Patterns § current enforcement reality](../99-cross-cutting/19-rls-patterns.md)), so `usePermissions().can(...)` at each call site is **the only thing standing between a viewer/member and a spatial write**:
+
+1. **LocationManager (`/management`)** — the original power-user CRUD view.
+2. **Home garden grid** (stats+locations redesign Stage 4b, 2026-07-20) — inline add/manage via `GardenOverviewGrid` + `LocationManageMenu`.
+3. **LocationPage drill-in (`?locationId=`)** (Stage 5, 2026-07-20) — now the area **edit host**.
+
+The home grid gates on the `locations.*` keys:
 
 | Affordance | Key |
 |------------|-----|
@@ -64,7 +70,15 @@ Since the stats+locations redesign Stage 4b (2026-07-20) the **home garden grid*
 | Card ⋮ → Delete | `locations.delete` |
 | The card ⋮ menu itself | `locations.edit` OR `locations.delete` (hidden entirely otherwise) |
 
-By the standard role matrix this means **owner/admin** get everything, a **member** can add + rename + re-flag but **cannot delete**, and a **viewer** sees **no add button and no ⋮ menu at all** on the grid. **Critically, this is a client-only guard.** RLS on `locations` gates only home *membership*, not these permission keys (only `tasks.view_members` + `audit.view_all` are RLS-enforced today — see [RLS Patterns § current enforcement reality](../99-cross-cutting/19-rls-patterns.md)), so `usePermissions().can(...)` in `LocationManageMenu` / `GardenOverviewGrid` is **the only thing standing between a viewer/member and a spatial write**. Change these keys and both the grid and LocationManager must move together. See [Home (Main Dashboard) → Inline location management](../02-dashboard/17-home-main.md).
+**Stage 5 closed a verified permission leak on the drill-in.** Two of its writes — the indoor/outdoor environment toggle (`handleToggleEnvironment`, `locations.edit`) and per-area delete (`handleConfirmDeleteArea`, `areas.delete`) — were **previously ungated**, so a viewer could flip the environment or delete a bed via the drill-in. Both are now gated at **BOTH the handler and the rendered control**; the drill-in also gained an `areas.create`-gated inline Add-Area Wizard:
+
+| Affordance (drill-in) | Key | Non-permitted UI |
+|-----------------------|-----|------------------|
+| Indoor/outdoor toggle | `locations.edit` | Read-only environment badge (was ungated) |
+| Per-area delete (trash) | `areas.delete` | Button not rendered (was ungated) |
+| "Add area" → Add-Area Wizard | `areas.create` | Button hidden; "ask a home admin" line |
+
+By the standard role matrix this means **owner/admin** get everything; a **member** can add locations/areas + rename + re-flag environment but **cannot delete** locations or areas; a **viewer** sees **no add button, no ⋮ menu, no environment toggle (read-only badge) and no trash** on any of the three surfaces. **Critically, every one of these guards is client-only.** Change any spatial key and **all three surfaces must move together — and any promotion to RLS enforcement must cover all three at once.** See [Home (Main Dashboard) → Inline location management](../02-dashboard/17-home-main.md) + [Location Page (Drill-In)](../02-dashboard/07-location-page.md).
 
 ### Data flow — read paths
 

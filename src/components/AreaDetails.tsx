@@ -24,6 +24,7 @@ import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import AreaAdvancedFields from "./AreaAdvancedFields";
+import { usePermissions } from "../context/HomePermissionsContext";
 import AreaInsightsPanel from "./area/AreaInsightsPanel";
 import AreaSensorsPanel from "./area/AreaSensorsPanel";
 import AreaAiAnalysisPanel from "./area/AreaAiAnalysisPanel";
@@ -78,6 +79,15 @@ export default function AreaDetails({
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  // Stage 5: AreaDetails is the drill-in's edit host and is reachable by every
+  // home member (incl. viewers). RLS gates only membership, not the spatial
+  // keys, so gate every mutation client-side (matches LocationManager + TheShed):
+  // area edits = areas.edit; plant delete = shed.delete; archive/restore/config = shed.edit.
+  const { can } = usePermissions();
+  const canEditArea = can("areas.edit");
+  const canEditPlants = can("shed.edit");
+  const canDeletePlants = can("shed.delete");
+  const canAddAilments = can("ailments.add");
 
   const [plants, setPlants] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,12 +148,17 @@ export default function AreaDetails({
   }, [area.id]);
 
   useEffect(() => {
+    // Gate the URL-param auto-open too, not only the launch button — a viewer
+    // could otherwise append `&instanceId=<id>` to open the (mutating) editor
+    // despite the hidden gear button (review finding). InstanceEditModal also
+    // guards its own save as defense in depth.
+    if (!canEditPlants) return;
     const instanceIdParam = searchParams.get("instanceId");
     if (instanceIdParam && plants.length > 0) {
       const target = plants.find((p) => String(p.id) === instanceIdParam);
       if (target) setEditingInstance(target);
     }
-  }, [searchParams, plants]);
+  }, [searchParams, plants, canEditPlants]);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -159,6 +174,10 @@ export default function AreaDetails({
 
   const handleBulkAction = async (action: "archive" | "restore" | "delete") => {
     if (selectedIds.size === 0) return;
+    if (action === "delete" ? !canDeletePlants : !canEditPlants) {
+      toast.error("You don't have permission to change plants here.");
+      return;
+    }
     setIsBulkProcessing(true);
     const toastId = toast.loading(`Processing ${selectedIds.size} plants...`);
 
@@ -211,6 +230,10 @@ export default function AreaDetails({
   };
 
   const executeBulkConfig = async (payload: any) => {
+    if (!canEditPlants) {
+      toast.error("You don't have permission to change plants here.");
+      return;
+    }
     setIsBulkProcessing(true);
     const toastId = toast.loading(`Updating ${selectedIds.size} plants...`);
     try {
@@ -265,6 +288,10 @@ export default function AreaDetails({
   const executeConfirmedAction = async () => {
     const { type, item } = confirmState;
     if (!item) return;
+    if (type === "delete" ? !canDeletePlants : !canEditPlants) {
+      toast.error("You don't have permission to change plants here.");
+      return;
+    }
     try {
       if (type === "delete") {
         const { error } = await supabase
@@ -347,6 +374,11 @@ export default function AreaDetails({
   };
 
   const handleUpdateArea = async () => {
+    if (!canEditArea) {
+      toast.error("You don't have permission to edit this area.");
+      setIsEditingArea(false);
+      return;
+    }
     if (!areaEditData.name.trim()) return toast.error("Area name required.");
     setSavingArea(true);
     try {
@@ -386,6 +418,10 @@ export default function AreaDetails({
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {/* Scan creates area tasks/blueprints/area_scans (+ AI) and plant
+                recommendations spend AI — gate both behind areas.edit so a
+                viewer can neither write nor burn credits (review finding). */}
+            {canEditArea && (
             <button
               onClick={() => setShowScanModal(true)}
               className="p-2 sm:p-3 text-rhozly-primary hover:bg-rhozly-primary/10 rounded-2xl transition-all border border-rhozly-primary/10 bg-white shadow-sm"
@@ -393,6 +429,8 @@ export default function AreaDetails({
             >
               <IconScan className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
+            )}
+            {canEditArea && (
             <button
               onClick={getPlantRecommendations}
               disabled={isGettingRecs}
@@ -404,14 +442,21 @@ export default function AreaDetails({
                 <IconAI className="w-5 h-5 sm:w-6 sm:h-6" />
               )}
             </button>
+            )}
+            {canEditArea && (
             <button
+              data-testid="area-edit-btn"
               onClick={() => setIsEditingArea(true)}
+              aria-label="Edit area settings"
               className="p-2 sm:p-3 text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl transition-all border border-rhozly-outline/10"
             >
               <Settings2 className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
+            )}
             <button
               onClick={onClose}
+              data-testid="area-detail-back"
+              aria-label="Back to areas"
               className="p-2 sm:p-3 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-2xl transition-all border border-rhozly-outline/10"
             >
               <X className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -592,7 +637,7 @@ export default function AreaDetails({
               </button>
             </div>
 
-            {displayedPlants.length > 0 && !isBulkEditing && (
+            {displayedPlants.length > 0 && !isBulkEditing && (canEditPlants || canDeletePlants) && (
               <button
                 onClick={() => setIsBulkEditing(true)}
                 className="flex items-center justify-center gap-1.5 px-4 py-3 sm:py-2 bg-rhozly-surface-low rounded-xl text-xs font-black uppercase tracking-widest text-rhozly-on-surface/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
@@ -691,6 +736,7 @@ export default function AreaDetails({
                               </div>
                               {!isBulkEditing && (
                                 <div className="flex items-center gap-1">
+                                  {canAddAilments && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -701,6 +747,8 @@ export default function AreaDetails({
                                   >
                                     <IconPest className="w-4 h-4" />
                                   </button>
+                                  )}
+                                  {canEditPlants && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -711,7 +759,8 @@ export default function AreaDetails({
                                   >
                                     <Settings2 className="w-4 h-4" />
                                   </button>
-                                  {plant.status === "Archived" ? (
+                                  )}
+                                  {canEditPlants && (plant.status === "Archived" ? (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -741,7 +790,8 @@ export default function AreaDetails({
                                     >
                                       <Archive className="w-4 h-4" />
                                     </button>
-                                  )}
+                                  ))}
+                                  {canDeletePlants && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -756,6 +806,7 @@ export default function AreaDetails({
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -797,6 +848,7 @@ export default function AreaDetails({
                   <div className="flex gap-2">
                     {!showHistory ? (
                       <>
+                        {canEditPlants && (
                         <button
                           onClick={() => setShowBulkConfigModal(true)}
                           disabled={selectedIds.size === 0 || isBulkProcessing}
@@ -809,6 +861,8 @@ export default function AreaDetails({
                           )}{" "}
                           Configure
                         </button>
+                        )}
+                        {canEditPlants && (
                         <button
                           onClick={() => handleBulkAction("archive")}
                           disabled={selectedIds.size === 0 || isBulkProcessing}
@@ -817,8 +871,10 @@ export default function AreaDetails({
                         >
                           <Archive size={16} />
                         </button>
+                        )}
                       </>
                     ) : (
+                      canEditPlants && (
                       <button
                         onClick={() => handleBulkAction("restore")}
                         disabled={selectedIds.size === 0 || isBulkProcessing}
@@ -831,7 +887,9 @@ export default function AreaDetails({
                         )}{" "}
                         Restore Active
                       </button>
+                      )
                     )}
+                    {canDeletePlants && (
                     <button
                       onClick={() => handleBulkAction("delete")}
                       disabled={selectedIds.size === 0 || isBulkProcessing}
@@ -840,6 +898,7 @@ export default function AreaDetails({
                     >
                       <Trash2 size={16} />
                     </button>
+                    )}
                   </div>
                 </div>
               </div>

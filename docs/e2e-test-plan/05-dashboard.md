@@ -107,6 +107,8 @@ The Daily Brief "Overdue" chip is now home-scoped + ghost-aware (runs the same `
 
 ## Location detail (LocationPage)
 
+**Stage 5 (2026-07-20) made the drill-in the area EDIT HOST and closed a permission leak.** New selectors on the drill-in: `location-add-area-btn` (header Add-Area button) + `location-add-area-empty-btn` (empty-state) — both `areas.create`-gated and open `AddAreaWizard` in place; `area-detail-back` (AreaDetails' own back control, aria-label "Back to areas"). The env-toggle button matches `/Environment$/` and is `locations.edit`-gated (read-only badge otherwise); per-area delete matches `/^Delete area/` and is `areas.delete`-gated. LOC-021 forces a viewer by mocking `home_members?select=role` → `[{ role: "viewer", permissions: {} }]`.
+
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
 | LOC-001 | ✅ | `?locationId=LOC_GARDEN_ID` → "Outside Garden" heading | — | ✅ Passing |
@@ -117,11 +119,14 @@ The Daily Brief "Overdue" chip is now home-scoped + ghost-aware (runs the same `
 | LOC-006 | n/a | Locked-toggle logic does not exist (`toggleEnvironment()` fires unconditionally) — see archive | — | ❌ N/A |
 | LOC-007 | ✅ | Area card drilldown opens AreaDetails | — | ✅ Passing |
 | LOC-008 | ✅ | Area tasks list visible in area detail | — | ✅ Passing |
-| LOC-009 | ✅ | Back from area detail → area list view | — | ✅ Passing |
+| LOC-009 | ✅ | Back from area detail → area list view — **repointed (Stage 5, 2026-07-20) to AreaDetails' own `area-detail-back` control** (aria-label "Back to areas"), then asserts the "Areas" heading; NOT the page-header "Back to dashboard" button which exits the location | — | ✅ Passing |
 | LOC-010 | ✅ | Scan Area button visible | — | ✅ Passing |
 | LOC-011..013 | ✅ | Area scan modal opens / cancels / shows mocked result | `scan-area` mock | ✅ Passing |
 | LOC-014 | ✅ | Back to dashboard → URL drops `locationId` | — | ✅ Passing |
 | LOC-015 | ❌ | Non-existent locationId → graceful error or redirect | — | ✅ Passing |
+| LOC-020 | ✅ | Owner opens the inline Add-Area Wizard from the drill-in — `location-add-area-btn` visible + click mounts the wizard in place; the old "Go to Settings › Location Management" dead-end is gone (Stage 5) | — | ✅ Passing |
+| LOC-021 | ✅ | Viewer gating on the LocationPage (closes the Stage-5 leak, part 1) — with role mocked to `viewer`: env-toggle (`/Environment$/`) count 0 (read-only badge shown instead), `location-add-area-btn` + `location-add-area-empty-btn` count 0, per-area delete (`/^Delete area/`) count 0 | `home_members?select=role` → `[{ role: "viewer", permissions: {} }]` | ✅ Passing |
+| LOC-022 | ✅ | Viewer gating INSIDE an area (closes the Stage-5 leak, part 2) — drills into an area, then AreaDetails is read-only: `area-edit-btn` count 0, per-plant "Delete Forever" + "Move to History" count 0 (`shed.delete`/`shed.edit` gates). AreaDetails' own writes (area-metrics edit + plant delete/archive) were ungated before Stage 5 | `home_members?select=role` → `[{ role: "viewer", permissions: {} }]` | ✅ Passing |
 
 ## Calendar view
 

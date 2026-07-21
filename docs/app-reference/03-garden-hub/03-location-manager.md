@@ -147,6 +147,7 @@ The Area metrics — pH, lux, water movement, growing medium — drive recommend
   → plants from the Shed or search → create; AI tiers get a suitability review with
   recommendations. "Skip — just create" keeps the quick path (with a real name).
 - Areas are where plants actually live.
+- **The same Add-Area Wizard is now ALSO reachable from the [LocationPage drill-in](../02-dashboard/07-location-page.md)** (`?locationId=`) via its `areas.create`-gated "Add area" button (Stage 5, 2026-07-20). LocationManager keeps its own entry — **both surfaces add areas**, so power-users and quick in-context adds share the same wizard.
 
 #### 3. Edit Area metrics
 

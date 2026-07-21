@@ -311,6 +311,85 @@ test.describe("Dashboard — single-slot onboarding + quiz banner (Section 02)",
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe("Dashboard — LocationPage (Section 03)", () => {
+  test("LOC-020: owner can open the Add-Area wizard from the drill-in (Stage 5 — no more 'go to Management' dead-end)", async ({ authenticatedPage }) => {
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.gotoLocation(LOC_GARDEN_ID);
+    await dashboard.waitForLoad();
+
+    // The old empty-state dead-end ("Go to Settings › Location Management") is gone.
+    await expect(authenticatedPage.getByText("Settings › Location Management")).toHaveCount(0);
+
+    // The gated Add-Area button opens the wizard in place.
+    const addArea = authenticatedPage.getByTestId("location-add-area-btn");
+    await expect(addArea).toBeVisible({ timeout: 10000 });
+    await addArea.click();
+    // AddAreaWizard's first step is the bed form — a name field appears.
+    await expect(
+      authenticatedPage.locator('input[placeholder*="name" i], input[placeholder*="bed" i], input[placeholder*="Raised" i]').first(),
+    ).toBeVisible({ timeout: 10000 });
+  });
+
+  test("LOC-021: a VIEWER cannot mutate on the drill-in — no env toggle, no add-area, no delete (closes the Stage-5 permission leak)", async ({ authenticatedPage }) => {
+    // The env-toggle + area-delete were UNGATED before Stage 5 (RLS gates only
+    // home membership, not the spatial keys). Force a viewer role and assert the
+    // mutate affordances are gone — the environment shows as a read-only badge.
+    await authenticatedPage.route(/\/rest\/v1\/home_members\?select=role/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([{ role: "viewer", permissions: {} }]),
+      }),
+    );
+
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.gotoLocation(LOC_GARDEN_ID);
+
+    // Wait for the drill-in heading directly (the mocked viewer role leaves the
+    // home switcher in a "Select Home" state that would make DashboardPage's
+    // waitForLoad spin, so anchor on the location content instead).
+    await expect(authenticatedPage.getByText("Outside Garden").first()).toBeVisible({ timeout: 15000 });
+    // The Areas heading confirms the LocationPage body rendered.
+    await expect(authenticatedPage.getByRole("heading", { name: "Areas", exact: true })).toBeVisible({ timeout: 10000 });
+
+    // No environment TOGGLE (the editable button labelled "… Environment") …
+    await expect(authenticatedPage.getByRole("button", { name: /Environment$/ })).toHaveCount(0);
+    // … no add-area button, and no per-area delete buttons.
+    await expect(authenticatedPage.getByTestId("location-add-area-btn")).toHaveCount(0);
+    await expect(authenticatedPage.getByTestId("location-add-area-empty-btn")).toHaveCount(0);
+    await expect(authenticatedPage.getByRole("button", { name: /^Delete area/ })).toHaveCount(0);
+  });
+
+  test("LOC-022: a VIEWER cannot mutate inside an area — AreaDetails is read-only (Stage 5 leak closure, part 2)", async ({ authenticatedPage }) => {
+    // AreaDetails (rendered only by this drill-in, reachable by viewers) had its
+    // OWN ungated area-edit + plant delete/archive writes. Force a viewer and
+    // assert the edit gear + bulk-edit controls are gone once drilled into an area.
+    await authenticatedPage.route(/\/rest\/v1\/home_members\?select=role/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([{ role: "viewer", permissions: {} }]),
+      }),
+    );
+
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.gotoLocation(LOC_GARDEN_ID);
+    await expect(authenticatedPage.getByText("Outside Garden").first()).toBeVisible({ timeout: 15000 });
+
+    // Drill into an area → AreaDetails renders.
+    await authenticatedPage.getByText("Raised Bed A").first().click();
+    await expect(authenticatedPage).toHaveURL(/areaId=/, { timeout: 8000 });
+    await expect(authenticatedPage.getByTestId("area-detail-back")).toBeVisible({ timeout: 10000 });
+
+    // No area-edit gear, no Scan-Area (writes area tasks/blueprints + AI), and
+    // no per-plant mutation controls (Delete Forever / Move to History). (The
+    // right-hand "Tasks Today" panel has its own, separately-governed "Bulk
+    // Edit" for tasks — not asserted here.)
+    await expect(authenticatedPage.getByTestId("area-edit-btn")).toHaveCount(0);
+    await expect(authenticatedPage.getByRole("button", { name: "Scan Area" })).toHaveCount(0);
+    await expect(authenticatedPage.getByRole("button", { name: "Delete Forever" })).toHaveCount(0);
+    await expect(authenticatedPage.getByRole("button", { name: "Move to History" })).toHaveCount(0);
+  });
+
   test("LOC-001: Navigating to ?locationId shows the location heading", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.gotoLocation(LOC_GARDEN_ID);
@@ -341,24 +420,19 @@ test.describe("Dashboard — LocationPage (Section 03)", () => {
     await dashboard.gotoLocation(LOC_GARDEN_ID);
     await dashboard.waitForLoad();
 
-    // Click the first visible area to drill down
-    const areaHeading = authenticatedPage
-      .getByText("Raised Bed A")
-      .first();
+    // Drill into an area.
+    const areaHeading = authenticatedPage.getByText("Raised Bed A").first();
     await expect(areaHeading).toBeVisible({ timeout: 10000 });
     await areaHeading.click();
+    await expect(authenticatedPage).toHaveURL(/areaId=/, { timeout: 8000 });
 
-    // A back button should appear — click it
-    const backBtn = authenticatedPage.getByRole("button", { name: /Back|back/i }).first();
-    const backVisible = await backBtn.isVisible({ timeout: 5000 }).catch(() => false);
-    if (backVisible) {
-      await backBtn.click();
-      // Should return to the area list — "Raised Bed A" still visible
-      await expect(
-        authenticatedPage.getByText("Raised Bed A"),
-      ).toBeVisible({ timeout: 10000 });
-    }
-    // If no back button, clicking away or URL change is the navigation — still valid
+    // AreaDetails' OWN back control (`area-detail-back`) returns to the area
+    // list — NOT the page-header "Back to dashboard" button, which exits the
+    // location. (Anchor on the "Areas" heading, not the ambiguous area name.)
+    await authenticatedPage.getByTestId("area-detail-back").click();
+    await expect(
+      authenticatedPage.getByRole("heading", { name: "Areas", exact: true }),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test("LOC-014: Back to dashboard from location removes locationId from URL", async ({ authenticatedPage }) => {

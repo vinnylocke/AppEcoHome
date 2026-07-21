@@ -19,6 +19,7 @@ import { Logger } from "../../lib/errorHandler";
 import { getLocalDateString } from "../../lib/dateUtils";
 import { AutomationEngine } from "../../lib/automationEngine";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
+import { usePermissions } from "../../context/HomePermissionsContext";
 import AreaAdvancedFields from "../AreaAdvancedFields";
 import PlantSearchModal from "../PlantSearchModal";
 import { TaskActionButtons } from "../TaskActionButtons";
@@ -101,6 +102,7 @@ export default function AddAreaWizard({
   onClose,
   onCreated,
 }: Props) {
+  const { can } = usePermissions();
   const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [step, setStep] = useState<Step>("bed");
 
@@ -199,6 +201,14 @@ export default function AddAreaWizard({
   };
 
   const commit = async (opts?: { skipReview?: boolean }) => {
+    // Defense-in-depth: gate the commit itself, not only the callers. Both
+    // callers (LocationPage + LocationManager) gate their trigger with
+    // can("areas.create"), but a future caller that forgets would otherwise
+    // open an ungated create (RLS gates only home membership). Review finding.
+    if (!can("areas.create")) {
+      toast.error("You don't have permission to add areas here.");
+      return;
+    }
     // Synchronous re-entry lock — `committing` state is async, so a fast
     // double-tap could otherwise run two full commits (review finding 3).
     if (commitInFlightRef.current) return;

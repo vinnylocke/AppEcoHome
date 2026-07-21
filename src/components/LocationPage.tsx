@@ -9,9 +9,12 @@ import {
   Trash2,
   CheckSquare,
   Loader2,
+  Plus,
 } from "lucide-react";
 import AreaDetails from "./AreaDetails";
+import AddAreaWizard from "./area/AddAreaWizard";
 import { ConfirmModal } from "./ConfirmModal";
+import { usePermissions } from "../context/HomePermissionsContext";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 import TaskList from "./TaskList";
@@ -35,6 +38,11 @@ export const LocationPage: React.FC<LocationPageProps> = ({
   const areaIdParam = searchParams.get("areaId");
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
+  // Stage 5: the drill-in is the edit host — gate its mutations (RLS gates only
+  // home membership, not the spatial keys, so client can() is the sole guard;
+  // this closed a real leak: env-toggle + area-delete were ungated).
+  const { can } = usePermissions();
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const [areas, setAreas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,6 +138,10 @@ export const LocationPage: React.FC<LocationPageProps> = ({
   }, [areaIdParam, areas]);
 
   const handleToggleEnvironment = async () => {
+    if (!can("locations.edit")) {
+      toast.error("You don't have permission to change this location.");
+      return;
+    }
     setIsUpdatingEnv(true);
     const newEnv = !isOutside;
 
@@ -156,6 +168,11 @@ export const LocationPage: React.FC<LocationPageProps> = ({
 
   const handleConfirmDeleteArea = async () => {
     if (!areaToDelete) return;
+    if (!can("areas.delete")) {
+      toast.error("You don't have permission to delete areas.");
+      setAreaToDelete(null);
+      return;
+    }
     setIsDeleting(true);
     try {
       const { error } = await supabase
@@ -178,6 +195,11 @@ export const LocationPage: React.FC<LocationPageProps> = ({
   const handleDataRefresh = () => {
     fetchAreas();
     setTaskRefreshKey((prev) => prev + 1);
+  };
+
+  const handleAreaCreated = () => {
+    setWizardOpen(false);
+    fetchAreas();
   };
 
   return (
@@ -209,19 +231,27 @@ export const LocationPage: React.FC<LocationPageProps> = ({
           </div>
         </div>
 
-        <button
-          disabled={isUpdatingEnv}
-          onClick={handleToggleEnvironment}
-          className={`px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm whitespace-nowrap disabled:opacity-50
-            ${!isOutside ? "bg-rhozly-primary/10 text-rhozly-primary hover:bg-rhozly-primary/20" : "bg-rhozly-secondary/10 text-rhozly-secondary hover:bg-rhozly-secondary/20"}`}
-        >
-          {!isOutside ? (
-            <Home className="w-5 h-5" />
-          ) : (
-            <Sun className="w-5 h-5" />
-          )}
-          {!isOutside ? "Inside Environment" : "Outside Environment"}
-        </button>
+        {can("locations.edit") ? (
+          <button
+            disabled={isUpdatingEnv}
+            onClick={handleToggleEnvironment}
+            className={`px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm whitespace-nowrap disabled:opacity-50
+              ${!isOutside ? "bg-rhozly-primary/10 text-rhozly-primary hover:bg-rhozly-primary/20" : "bg-rhozly-secondary/10 text-rhozly-secondary hover:bg-rhozly-secondary/20"}`}
+          >
+            {!isOutside ? (
+              <Home className="w-5 h-5" />
+            ) : (
+              <Sun className="w-5 h-5" />
+            )}
+            {!isOutside ? "Inside Environment" : "Outside Environment"}
+          </button>
+        ) : (
+          // Read-only environment badge for members/viewers who can't edit.
+          <span className="px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 whitespace-nowrap bg-rhozly-surface-low text-rhozly-on-surface-variant">
+            {!isOutside ? <Home className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            {!isOutside ? "Inside" : "Outside"}
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
@@ -246,6 +276,16 @@ export const LocationPage: React.FC<LocationPageProps> = ({
                 <h3 className="font-display font-black text-rhozly-on-surface/60 uppercase tracking-widest text-sm">
                   Areas
                 </h3>
+                {can("areas.create") && areas.length > 0 && (
+                  <button
+                    type="button"
+                    data-testid="location-add-area-btn"
+                    onClick={() => setWizardOpen(true)}
+                    className="flex items-center gap-1 text-[11px] font-black text-rhozly-primary bg-rhozly-primary/5 px-2.5 py-1 rounded-full can-hover:hover:bg-rhozly-primary/10 active:scale-[0.97] transition"
+                  >
+                    <Plus size={12} /> Add area
+                  </button>
+                )}
               </div>
 
               {loading ? (
@@ -253,12 +293,22 @@ export const LocationPage: React.FC<LocationPageProps> = ({
                   <Loader2 className="w-8 h-8 animate-spin text-rhozly-primary" />
                 </div>
               ) : areas.length === 0 ? (
-                <div className="p-12 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30 text-rhozly-on-surface/50 font-bold text-sm">
-                  No areas yet. Go to{" "}
-                  <span className="text-rhozly-on-surface/70">
-                    Settings › Location Management
-                  </span>{" "}
-                  to add areas to this location.
+                <div className="p-12 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30 text-rhozly-on-surface/60 font-bold text-sm space-y-4">
+                  <p>No areas yet — areas are the beds, borders and pots inside this location.</p>
+                  {can("areas.create") ? (
+                    // Stage 5: a REAL add-area button (was a dead "go to Settings ›
+                    // Location Management" instruction that pointed nowhere clickable).
+                    <button
+                      type="button"
+                      data-testid="location-add-area-empty-btn"
+                      onClick={() => setWizardOpen(true)}
+                      className="inline-flex items-center gap-2 bg-rhozly-primary text-white px-5 py-2.5 rounded-2xl font-black text-sm shadow-card can-hover:hover:opacity-90 active:scale-[0.98] transition"
+                    >
+                      <Plus size={16} /> Add your first area
+                    </button>
+                  ) : (
+                    <p className="text-rhozly-on-surface/45 font-medium">Ask a home admin to add areas here.</p>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -290,15 +340,18 @@ export const LocationPage: React.FC<LocationPageProps> = ({
                             </div>
                           </div>
 
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAreaToDelete(area);
-                            }}
-                            className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
+                          {can("areas.delete") && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAreaToDelete(area);
+                              }}
+                              aria-label={`Delete area ${area.name}`}
+                              className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -347,6 +400,20 @@ export const LocationPage: React.FC<LocationPageProps> = ({
         confirmText="Delete Area"
         isDestructive={true}
       />
+
+      {/* Stage 5: the Add-Area wizard now lives on the drill-in (was only
+          reachable from /management). The `can("areas.create")`-gated buttons
+          above open it; it self-portals. */}
+      {wizardOpen && can("areas.create") && (
+        <AddAreaWizard
+          homeId={location.home_id}
+          location={{ id: location.id, name: location.name }}
+          aiEnabled={aiEnabled}
+          isPremium={perenualEnabled}
+          onClose={() => setWizardOpen(false)}
+          onCreated={handleAreaCreated}
+        />
+      )}
     </div>
   );
 };

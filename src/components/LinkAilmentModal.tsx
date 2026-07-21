@@ -10,6 +10,7 @@ import { logEvent, EVENT } from "../events/registry";
 import { getLocalDateString } from "../lib/taskEngine";
 import type { Ailment, AilmentType } from "./AilmentWatchlist";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { usePermissions } from "../context/HomePermissionsContext";
 import PhotoUploader from "./PhotoUploader";
 
 const TYPE_META: Record<AilmentType, { label: string; icon: React.ReactNode; colour: string }> = {
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export default function LinkAilmentModal({ homeId, plantInstance, onClose, onLinked }: Props) {
+  const { can } = usePermissions();
   const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [ailments, setAilments] = useState<Ailment[]>([]);
   const [existingLinks, setExistingLinks] = useState<Set<string>>(new Set());
@@ -72,6 +74,10 @@ export default function LinkAilmentModal({ homeId, plantInstance, onClose, onLin
   };
 
   const handleLink = async () => {
+    if (!can("ailments.add")) {
+      toast.error("You don't have permission to add ailments.");
+      return;
+    }
     if (selected.size === 0) { toast.error("Select at least one ailment."); return; }
     setLinking(true);
 
