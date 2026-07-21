@@ -22,7 +22,7 @@ Both modes feed the **same review step**, which surfaces per-row + per-field err
 
 A **Plants / Nursery** toggle pill under the page title swaps the body to [The Nursery](./10-nursery.md) — seed packets + sowings + the plant-out lifecycle. Nursery mode hides the plant search bar and grid; seedlings graduate from the Nursery back into the Shed via the Plant Out flow.
 
-A **Home | Favourites** scope pill (in the control row under the hero search; Plants view only) switches between the shared home-scoped grid and the user's personal, **cross-home favourites** list (Cross-Home Favourites Phase 1, 2026-07-03). "Home" is today's data unchanged; "Favourites" starts empty and follows the *user* (keyed on `user_id`, not `home_id`) so it survives home switches and leaving/joining homes. Deep link: **`/shed?scope=favourites`** — a new param; the existing GardenHub `?tab=` / `?open=` / `?query=` params are untouched. **Favourites act (overhaul Stage 4, 2026-07-21):** each not-in-home favourite card now leads with **"Add & assign…"** (`favourite-add-assign-{id}`) — copies the favourite into this home via the existing `addFavouritePlantToHome` and immediately opens the full `PlantAssignmentModal` on the fresh row (areas → quantities → smart schedules), jumping the scope back to Home so the plant is visible behind the flow. The copy-only add is the compact secondary (`favourite-add-to-home-{id}`, icon button — testid unchanged). Two repairs shipped with it: **bulk assign now calls `AutomationEngine.applyPlantedAutomations`** (parity with single assign — planted bulk assigns previously got no recurring blueprints; the insert select gained `home_id` which the engine reads), and the source filter gained a **Verdantly** option (verdantly plants were only visible under All Sources). See [Cross-Home Favourites (data model)](../99-cross-cutting/03-data-model-plants.md#cross-home-favourites--user_favourite_plants) and [Tier Gating § source × tier action matrix](../99-cross-cutting/17-tier-gating.md#source--tier-action-matrix--cross-home-favourites).
+The **Favourites chip** on the single chip row (Stage 3 — was a Home | Favourites scope pill) switches between the shared home-scoped grid and the user's personal, **cross-home favourites** list (Cross-Home Favourites Phase 1, 2026-07-03). "Home" is today's data unchanged; "Favourites" starts empty and follows the *user* (keyed on `user_id`, not `home_id`) so it survives home switches and leaving/joining homes. Deep link: **`/shed?scope=favourites`** — a new param; the existing GardenHub `?tab=` / `?open=` / `?query=` params are untouched. **Favourites act (overhaul Stage 4, 2026-07-21):** each not-in-home favourite card now leads with **"Add & assign…"** (`favourite-add-assign-{id}`) — copies the favourite into this home via the existing `addFavouritePlantToHome` and immediately opens the full `PlantAssignmentModal` on the fresh row (areas → quantities → smart schedules), jumping the scope back to Home so the plant is visible behind the flow. The copy-only add is the compact secondary (`favourite-add-to-home-{id}`, icon button — testid unchanged). Two repairs shipped with it: **bulk assign now calls `AutomationEngine.applyPlantedAutomations`** (parity with single assign — planted bulk assigns previously got no recurring blueprints; the insert select gained `home_id` which the engine reads), and the source filter gained a **Verdantly** option (verdantly plants were only visible under All Sources). See [Cross-Home Favourites (data model)](../99-cross-cutting/03-data-model-plants.md#cross-home-favourites--user_favourite_plants) and [Tier Gating § source × tier action matrix](../99-cross-cutting/17-tier-gating.md#source--tier-action-matrix--cross-home-favourites).
 
 ---
 
@@ -32,45 +32,31 @@ A **Home | Favourites** scope pill (in the control row under the hero search; Pl
 
 ```
 TheShed
-├── Header (Phase 4.3 — was five stacked control rows)
-│   ├── Title row
-│   │   ├── "Plants" h1 + active-count badge
-│   │   ├── Subtitle "Your Shed — N species · M plants" (the tally, folded in)
-│   │   └── Background sync loader (when refreshing)
-│   ├── Action cluster (right)
-│   │   ├── Select multi-select toggle (shed-select-mode-btn)
-│   │   ├── Icon-only Layout button (shed-open-layout-btn) → /garden-layout
-│   │   ├── Find a plant (shed-add-plant-btn, can("shed.add")) → the FULL-PAGE
-│   │   │     PlantSearchTakeover (overhaul Stage 2 — no longer a modal)
-│   │   └── Bulk add (shed-bulk-paste-btn, can("shed.add")) → BulkPastePlantsModal
-│   ├── Plants | Nursery toggle (shed-view-toggle — unchanged)
-│   └── Fetch-error banner ("Could not refresh — showing cached data")
-├── Sticky block (Plants view only — SEARCH-FIRST since Stage 3, 2026-07-21; solid bg,
-│   no blur — GardenHub's tab bar is the screen's one blur surface)
-│   ├── HERO search — full-width, focal (min-h 52px, shadow-card); same
-│   │     aria-label "Search your saved plants"; filters your plants live
-│   ├── Library escalation row (shed-search-library-escalation) — appears when
-│   │     a home-scope query ≥3 chars matches ≤2 of your plants: one tap into
-│   │     the PlantSearchTakeover with the query carried over
-│   ├── Persona browse chips (shed-browse-chips / shed-browse-chip-*) — NEW
-│   │     gardeners with a small shed (<12 active, empty search) get 4 warm
-│   │     ways in (Edible favourites · Indoor friends · Sun lovers · Easy
-│   │     annuals), each opening the takeover in browse-by-filter mode
-│   │     (PlantSearch gained `initialFilters`, panel auto-opens)
-│   └── Control row (below the hero)
-│       ├── Home | Favourites scope — SegmentedTabs (adopt-on-touch, Stage 3;
-│       │     per-tab testids shed-scope-{home|favourites} preserved via the
-│       │     primitive's new SegmentedTab.testId)
-│       ├── Active | Archived — SegmentedTabs (labels preserved for e2e text-match)
-│       └── Filters button (shed-filters-btn, aria-expanded; home scope only)
-│       ├── Active-filter count badge — a REAL count (non-default source + sort + smart filter)
-│       └── Filters disclosure panel (shed-filters-panel, animate-in)
-│           ├── Source select (aria-label "Filter by source")
-│           ├── Sort select (aria-label "Sort plants")
-│           └── Smart-filter chips (shed-smart-filters → shed-filter-none / -unassigned / -in-plan;
-│               the old "Quick filters:" label was dropped)
-├── Source-badge explainer banner (one-time; Lucide Globe/Leaf/Sparkles/Pencil, no emoji;
-│   dismiss = badge-guide-dismiss, unchanged)
+├── HubHeader (src/components/garden/HubHeader.tsx — the SHARED per-tab header,
+│   landing chrome diet Stage 3, 2026-07-21: 26 controls above the search → 7)
+│   ├── Title row — "Plants" text-xl + muted count + one persona guidance line
+│   │     (new/null only) + ⋯ overflow (shed-overflow-menu) holding:
+│   │     Select plants (shed-select-mode-btn) · Garden layout
+│   │     (shed-open-layout-btn) · Add a whole list (shed-bulk-paste-btn,
+│   │     can("shed.add")) → BulkPastePlantsModal
+│   └── Sticky search row (opaque — GardenHub's tab bar keeps the one blur)
+│       ├── LAUNCHER "Search plants…" (shed-add-plant-btn + Shepherd anchor +
+│       │     aria-label "Search your saved plants") — a BUTTON styled as a
+│       │     field; tap → the PlantSearchTakeover overlay. The old landing
+│       │     grid-filter died (one search): owned matches render INSIDE the
+│       │     takeover ("In your Shed" section) above library results
+│       └── Filters button (shed-filters-btn + count badge; home scope only)
+├── Plants | Nursery toggle (shed-view-toggle) + background-sync loader
+├── Fetch-error banner ("Could not refresh — showing cached data")
+├── ONE chip row (shed-scope-toggle, role=tablist; Plants view only)
+│   ├── Active (shed-scope-home) · Favourites·N (shed-scope-favourites) ·
+│   │     Archived (shed-chip-archived) — role="tab", replaces the old
+│   │     Home|Favourites + Active|Archived double toggle
+│   └── Applied-filter × chips (shed-applied-source / shed-applied-smart)
+├── Filters bottom sheet (portal z-[70]; shed-filters-panel testid kept)
+│   ├── Source select (aria-label "Filter by source") · Sort select
+│   ├── Smart-filter chips (shed-smart-filters → shed-filter-*)
+│   └── Clear all + "Done — N plants" (shed-filters-done)
 ├── AssistantCard ("AI · Your shed")
 ├── Plant grid (responsive: 1/2/3/4 cols)
 │   └── PlantCard ×N (root NOT overflow-hidden — the kebab menu must overflow the card)

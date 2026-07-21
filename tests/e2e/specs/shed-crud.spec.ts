@@ -16,15 +16,16 @@ import { ShedPage } from "../pages/ShedPage";
 // silently breaks 7 E2E tests across two specs.
 
 test.describe("Shed — Tabs and view filters", () => {
-  test("SHED-MOBILE-001: bulk-add + Find a plant are visible on a phone-portrait viewport", async ({ authenticatedPage }) => {
-    // Regression: the bulk-add button was `hidden sm:flex` and vanished below
-    // 640px. It now shows icon-only on mobile.
+  test("SHED-MOBILE-001: the search launcher + overflow menu (with Bulk add) are reachable on a phone-portrait viewport", async ({ authenticatedPage }) => {
+    // Stage 3: the landing carries ONE primary affordance (the search
+    // launcher); Bulk add lives in the ⋯ overflow menu.
     await authenticatedPage.setViewportSize({ width: 390, height: 844 });
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
     await expect(shed.addButton).toBeVisible({ timeout: 10000 });
+    await shed.openOverflowMenu();
     await expect(shed.bulkAddButton).toBeVisible();
   });
 
@@ -76,7 +77,7 @@ test.describe("Shed — Tabs and view filters", () => {
     await shed.openFilters();
 
     await shed.sourceFilterSelect.selectOption("manual");
-    await shed.waitForLoad();
+    await shed.closeFilters(); // Stage 3: the sheet covers the grid
 
     // Manual plants that are active: Tomato, Basil, Rose, Boston Fern
     await expect(shed.plantCard("Tomato")).toBeVisible({ timeout: 10000 });
@@ -92,7 +93,7 @@ test.describe("Shed — Tabs and view filters", () => {
     await shed.openFilters();
 
     await shed.sourceFilterSelect.selectOption("api");
-    await shed.waitForLoad();
+    await shed.closeFilters(); // Stage 3: the sheet covers the grid
 
     // Lavender is the only api-source active plant
     await expect(shed.plantCard("Lavender")).toBeVisible({ timeout: 10000 });
@@ -100,67 +101,72 @@ test.describe("Shed — Tabs and view filters", () => {
   });
 });
 
+// Stage 3 — ONE search: the landing grid-filter died; typed queries live in
+// the takeover, where owned plants surface first ("In your Shed").
 test.describe("Shed — Search", () => {
-  test("SHED-010: Search by exact name shows matching card", async ({ authenticatedPage }) => {
+  const ownedSection = (page: import("@playwright/test").Page) =>
+    page.getByTestId("search-owned-section");
+
+  test("SHED-010: Searching an owned plant surfaces it in the 'In your Shed' section", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await shed.searchInput.fill("Tomato");
-    await authenticatedPage.waitForTimeout(500); // debounce
+    await shed.addButton.click(); // the launcher IS the search
+    await shed.bulkSearchInput.fill("Tomato");
 
-    await expect(shed.plantCard("Tomato")).toBeVisible({ timeout: 10000 });
-    await expect(shed.plantCard("Basil")).not.toBeVisible();
+    await expect(ownedSection(authenticatedPage)).toBeVisible({ timeout: 10000 });
+    await expect(ownedSection(authenticatedPage).getByText("Tomato").first()).toBeVisible();
   });
 
-  test("SHED-011: Search with no match shows no-match state", async ({ authenticatedPage }) => {
+  test("SHED-011: A no-match query shows no owned section and the zero-match copy", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await shed.searchInput.fill("xyzqwerty");
-    await authenticatedPage.waitForTimeout(500);
+    await shed.addButton.click();
+    await shed.bulkSearchInput.fill("xyzqwerty");
+    await authenticatedPage.waitForTimeout(900); // debounce + library round trip
 
-    await expect(shed.noMatchState).toBeVisible({ timeout: 10000 });
-    const cards = authenticatedPage.locator("[data-plant-card]");
-    expect(await cards.count()).toBe(0);
+    await expect(ownedSection(authenticatedPage)).toHaveCount(0);
+    await expect(
+      authenticatedPage.getByText(/Nothing called "xyzqwerty" yet/i),
+    ).toBeVisible({ timeout: 10000 });
   });
 
-  test("SHED-012: Clear search button restores all active plants", async ({ authenticatedPage }) => {
+  test("SHED-012: The clear button empties the query and returns to the idle state", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await shed.searchInput.fill("xyzqwerty");
-    await authenticatedPage.waitForTimeout(500);
-    await expect(shed.noMatchState).toBeVisible({ timeout: 10000 });
+    await shed.addButton.click();
+    await shed.bulkSearchInput.fill("xyzqwerty");
+    await authenticatedPage.getByTestId("plant-search-clear").click();
 
-    await shed.clearSearchButton.click();
-    await shed.waitForLoad();
-
-    await expect(shed.plantCard("Tomato")).toBeVisible({ timeout: 10000 });
+    await expect(shed.bulkSearchInput).toHaveValue("");
+    await expect(authenticatedPage.getByTestId("search-idle-state")).toBeVisible({ timeout: 5000 });
   });
 
-  test("SHED-013: Search is case-insensitive", async ({ authenticatedPage }) => {
+  test("SHED-013: Owned-plant matching is case-insensitive", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await shed.searchInput.fill("tomato");
-    await authenticatedPage.waitForTimeout(500);
+    await shed.addButton.click();
+    await shed.bulkSearchInput.fill("tomato");
 
-    await expect(shed.plantCard("Tomato")).toBeVisible({ timeout: 10000 });
+    await expect(ownedSection(authenticatedPage).getByText("Tomato").first()).toBeVisible({ timeout: 10000 });
   });
 
-  test("SHED-014: Partial search match works", async ({ authenticatedPage }) => {
+  test("SHED-014: Partial owned-plant match works", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await shed.searchInput.fill("Bos");
-    await authenticatedPage.waitForTimeout(500);
+    await shed.addButton.click();
+    await shed.bulkSearchInput.fill("Bos");
 
-    await expect(shed.plantCard("Boston Fern")).toBeVisible({ timeout: 10000 });
+    await expect(ownedSection(authenticatedPage).getByText("Boston Fern").first()).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -493,6 +499,7 @@ test.describe("Shed — Plant card actions", () => {
     const tomato = shed.plantCard("Tomato");
     if (!(await tomato.isVisible({ timeout: 8000 }).catch(() => false))) return;
 
+    await shed.openOverflowMenu(); // Stage 3: Select mode lives in the ⋯ menu
     await shed.selectModeBtn.click();
     await tomato.click(); // select Tomato (has a seeded instance)
     await expect(shed.bulkActionBar).toBeVisible({ timeout: 6000 });
@@ -515,6 +522,7 @@ test.describe("Shed — Plant card actions", () => {
     const tomato = shed.plantCard("Tomato");
     if (!(await tomato.isVisible({ timeout: 8000 }).catch(() => false))) return;
 
+    await shed.openOverflowMenu(); // Stage 3: Select mode lives in the ⋯ menu
     await shed.selectModeBtn.click();
     await tomato.click();
     await expect(shed.bulkActionBar).toBeVisible({ timeout: 6000 });
@@ -1055,35 +1063,32 @@ test.describe("Shed — plant-search takeover (Stage 2)", () => {
 // library-escalation row, persona browse chips.
 // ─────────────────────────────────────────────────────────────────────────────
 test.describe("Shed — search-first landing (Stage 3)", () => {
-  test("SHED-S3-001: a thin own-shed search shows the library escalation row; tapping it opens the takeover with the query", async ({ authenticatedPage }) => {
+  test("SHED-S3-001: one search, two worlds — an owned-plant query shows 'In your Shed' AND library results together", async ({ authenticatedPage }) => {
+    // Stage 3 landing diet: the escalation row died with the landing filter —
+    // owned matches and library results now coexist in the single takeover.
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await authenticatedPage.getByLabel("Search your saved plants").fill("dragonfruit");
-    const escalation = authenticatedPage.getByTestId("shed-search-library-escalation");
-    await expect(escalation).toBeVisible({ timeout: 8000 });
-    await escalation.click();
-    await expect(authenticatedPage.getByTestId("plant-search-takeover")).toBeVisible({ timeout: 10000 });
-    await expect(authenticatedPage.getByTestId("plant-search-input")).toHaveValue("dragonfruit");
+    await shed.addButton.click();
+    await shed.bulkSearchInput.fill("Tomato");
+
+    await expect(authenticatedPage.getByTestId("search-owned-section")).toBeVisible({ timeout: 10000 });
+    // Seed-17 library Tomato (910001) renders below the owned section.
+    await expect(authenticatedPage.getByTestId("plant-search-result-library-910001")).toBeVisible({ timeout: 10000 });
   });
 
-  test("SHED-S3-002: persona browse chips (new gardener, small shed) open the takeover in browse-by-filter mode", async ({ authenticatedPage }) => {
-    // Worker accounts seed persona = NULL → "new" → chips render when the shed
-    // is small (< 12 active). A freshly-seeded DB has 6; a dirty local DB may
-    // have accumulated more from non-cleaning specs — skip rather than fail
-    // there (CI / test:e2e:fresh always exercises the visible path).
+  test("SHED-S3-002: persona browse chips live in the takeover's idle state and seed browse-by-filter mode", async ({ authenticatedPage }) => {
+    // Worker accounts seed persona = NULL → "new" → chips render in the
+    // takeover idle state (no longer gated on shed size — Stage 3 re-home).
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    const activeCount = await authenticatedPage.locator("[data-plant-card]").count();
-    test.skip(activeCount >= 12, `Shed has ${activeCount} plants (>= 12) — chips intentionally hidden; reseed to exercise`);
-
+    await shed.addButton.click();
     const chips = authenticatedPage.getByTestId("shed-browse-chips");
     await expect(chips).toBeVisible({ timeout: 8000 });
     await authenticatedPage.getByTestId("shed-browse-chip-edible-favourites").click();
-    await expect(authenticatedPage.getByTestId("plant-search-takeover")).toBeVisible({ timeout: 10000 });
     // The seeded filter opens the panel so the active filter is visible.
     await expect(authenticatedPage.getByTestId("plant-search-filter-panel")).toBeVisible({ timeout: 10000 });
   });
@@ -1120,9 +1125,9 @@ test.describe("Shed — favourites Add & assign (Stage 4)", () => {
     await authenticatedPage.getByLabel("Close assignment modal").click();
 
     // Self-clean: the copy (no instances — we cancelled) is deleted through
-    // the standard card flow so the seeded fixture state is restored.
+    // the standard card flow so the seeded fixture state is restored. (The
+    // landing text-filter died in Stage 3 — locate the card directly.)
     await expect(authenticatedPage.getByTestId("shed-plant-list")).toBeVisible({ timeout: 10000 });
-    await authenticatedPage.getByLabel("Search your saved plants").fill("Fig");
     const figCard = authenticatedPage.locator("[data-plant-card]").filter({ hasText: "Fig" }).first();
     await expect(figCard).toBeVisible({ timeout: 10000 });
     const figId = await figCard.getAttribute("data-testid");

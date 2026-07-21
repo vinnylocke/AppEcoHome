@@ -32,6 +32,7 @@ import BulkAddAilmentsModal from "./BulkAddAilmentsModal";
 // Aliased — this file has its own local AilmentDetailModal (the WATCHLIST
 // row detail); this one is the field-guide detail for search results.
 import LibraryAilmentDetailModal from "./ailments/AilmentDetailModal";
+import HubHeader from "./garden/HubHeader";
 import { AILMENT_SEVERITY_CLASSES } from "../lib/ailmentPresentation";
 import {
   isAilmentSourceLockedForTier,
@@ -448,6 +449,8 @@ function AddAilmentModal({
   onSaved,
   onClose,
   existingKeys,
+  ownedAilments,
+  onOpenOwnedAilment,
 }: {
   homeId: string;
   aiEnabled: boolean;
@@ -458,6 +461,11 @@ function AddAilmentModal({
    *  render a "Watching ✓" state instead of an Add button, closing the
    *  duplicate-add pitfall the docs used to warn about. */
   existingKeys?: Set<string>;
+  /** Stage 3 — one search: the landing's own search input died, so the
+   *  home's watchlist rows surface here first ("On your watchlist"). */
+  ownedAilments?: Ailment[];
+  /** Tap an owned row → the host closes the overlay + opens its detail. */
+  onOpenOwnedAilment?: (a: Ailment) => void;
 }) {
   const navigate = useNavigate();
   const [mode, setMode] = useState<CreationMode>("search");
@@ -1149,6 +1157,53 @@ function AddAilmentModal({
                       </button>
                     </>
                   )}
+
+                  {/* "On your watchlist" — your own entries first (Stage 3;
+                      absorbs the landing's search input). */}
+                  {query.trim().length >= 2 && ownedAilments && (() => {
+                    const q = query.trim().toLowerCase();
+                    const owned = ownedAilments
+                      .filter((a) => !a.is_archived && a.name.toLowerCase().includes(q))
+                      .slice(0, 4);
+                    if (owned.length === 0) return null;
+                    return (
+                      <div data-testid="ailment-owned-section">
+                        <p className="text-2xs font-black uppercase tracking-widest text-rhozly-on-surface/40 px-1 mb-1.5">
+                          On your watchlist
+                        </p>
+                        <ul className="space-y-1.5">
+                          {owned.map((a) => {
+                            const meta = TYPE_META[a.type as AilmentType];
+                            return (
+                              <li key={a.id}>
+                                <button
+                                  type="button"
+                                  data-testid={`ailment-owned-${a.id}`}
+                                  onClick={() => onOpenOwnedAilment?.(a)}
+                                  className="w-full flex items-center gap-3 pl-3 pr-2 py-2.5 min-h-[72px] rounded-2xl bg-rhozly-primary/5 border border-rhozly-primary/15 text-left can-hover:hover:border-rhozly-primary/40 active:scale-[0.99] transition"
+                                >
+                                  <div className="w-14 h-14 shrink-0 rounded-2xl bg-rhozly-surface-low overflow-hidden flex items-center justify-center text-rhozly-on-surface/25">
+                                    {(a as { image_url?: string | null }).image_url ? (
+                                      <img src={(a as { image_url?: string | null }).image_url!} alt={a.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      meta.icon
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-black text-base text-rhozly-on-surface leading-tight truncate">{a.name}</p>
+                                    <p className="text-xs font-bold text-rhozly-on-surface/45 truncate">
+                                      {meta.label} · Already on your watchlist
+                                    </p>
+                                  </div>
+                                  <ChevronRight size={16} className="shrink-0 text-rhozly-on-surface/30" />
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })()}
 
                   {query.trim() && (
                     <div className="space-y-1.5">
@@ -1961,7 +2016,6 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   const [retryTick, setRetryTick] = useState(0);
   const [viewTab, setViewTab] = useState<"active" | "archived">("active");
   const [filter, setFilter] = useState<AilmentFilter>("all");
-  const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState<Ailment | null>(null);
@@ -2145,14 +2199,9 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   // Counts and display scoped to current view tab
   const tabAilments = ailments.filter((a) => viewTab === "active" ? !a.is_archived : a.is_archived);
 
-  const displayed = tabAilments.filter((a) => {
-    if (filter !== "all" && a.type !== filter) return false;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      return a.name.toLowerCase().includes(q) || (a.scientific_name || "").toLowerCase().includes(q);
-    }
-    return true;
-  });
+  // Landing text-filter retired (Stage 3 — one search; the takeover's
+  // "On your watchlist" section owns name lookup now).
+  const displayed = tabAilments.filter((a) => filter === "all" || a.type === filter);
 
   const counts = {
     all: tabAilments.length,
@@ -2174,74 +2223,111 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   // + onSaved contract are unchanged.
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Page header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="font-black text-3xl text-rhozly-on-surface tracking-tight flex items-center gap-3">
-            Ailment Watchlist
-            {counts.all > 0 && (
-              <span className="text-sm font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
-                {counts.all}
-              </span>
-            )}
-          </h1>
-          <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">Track pests, diseases, and invasive plants</p>
-        </div>
-        {scope === "home" && can("ailments.add") && (
-          // On a phone the CTAs sit on their own row below the title (matching
-          // the Shed) so "Find an ailment" no longer runs off the right edge.
-          <div className="flex items-center gap-2 shrink-0">
-            {/* RHO-4 Phase 2 — bulk add (paste a list or upload a CSV). Subtle
-                styling so it doesn't compete with the primary "Add" CTA. */}
-            <button
-              data-testid="watchlist-bulk-add-btn"
-              onClick={() => setShowBulkAdd(true)}
-              aria-label="Bulk add ailments"
-              title="Paste a list or upload a CSV to add ailments all at once"
-              className="flex items-center gap-2 px-4 py-3 bg-white border border-rhozly-outline/20 text-rhozly-primary rounded-2xl font-black text-sm hover:border-rhozly-primary/30 hover:bg-rhozly-primary/5 transition-colors"
-            >
-              <FileText size={16} /> <span className="hidden sm:inline">Bulk add</span>
-            </button>
-            <button
-              data-testid="watchlist-add-btn"
-              onClick={() => setShowAdd(true)}
-              aria-label="Find an ailment"
-              className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
-            >
-              <Plus size={18} /> Find an ailment
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Landing chrome diet (Stage 3) — 8 chrome blocks become HubHeader +
+          one chip row. The search input that sat at ~y=738 died into the
+          takeover ("On your watchlist" section). */}
+      <div className="flex flex-col gap-3">
+        <HubHeader
+          title="Watchlist"
+          count={counts.all}
+          guidance="Pests and diseases you're keeping an eye on — search to look one up or add it."
+          menuTestId="watchlist-overflow-menu"
+          menuItems={[
+            ...(scope === "home" && can("ailments.add")
+              ? [{
+                  key: "bulk",
+                  label: "Add several at once (CSV / paste)",
+                  icon: <FileText size={16} />,
+                  testId: "watchlist-bulk-add-btn",
+                  onSelect: () => setShowBulkAdd(true),
+                }]
+              : []),
+            {
+              key: "library",
+              label: "Browse the field guide",
+              icon: <Binoculars size={16} />,
+              testId: "browse-ailment-library",
+              onSelect: () => navigate("/ailment-library"),
+            },
+          ]}
+          searchPlaceholder="Search pests & diseases…"
+          searchTestId="watchlist-add-btn"
+          searchAriaLabel="Find an ailment"
+          onSearchTap={() => setShowAdd(true)}
+        />
 
-      {/* Home | Favourites scope pills — "Home" is today's shared, home-scoped
-          watchlist; "Favourites" is the user's personal cross-home list.
-          Deep link: /shed?tab=watchlist&scope=favourites */}
-      <div
-        data-testid="watchlist-scope-toggle"
-        className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10 self-start w-fit"
-      >
-        {(["home", "favourites"] as const).map((s) => (
+        {/* ONE chip row — scope + type + archived on a single axis.
+            Deep link: /shed?tab=watchlist&scope=favourites */}
+        <div
+          data-testid="watchlist-scope-toggle"
+          role="tablist"
+          aria-label="Watchlist scope and type"
+          className="flex flex-wrap items-center gap-2"
+        >
           <button
-            key={s}
-            type="button"
-            data-testid={`watchlist-scope-${s}`}
-            onClick={() => switchScope(s)}
-            className={`flex items-center gap-1.5 px-5 py-2 min-h-[40px] rounded-xl text-sm font-black transition-all ${
-              scope === s ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+            role="tab"
+            aria-selected={scope === "home" && filter === "all" && viewTab === "active"}
+            data-testid="watchlist-scope-home"
+            onClick={() => { switchScope("home"); setFilter("all"); setViewTab("active"); }}
+            className={`px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full text-sm font-black transition-colors touch-manipulation ${
+              scope === "home" && filter === "all" && viewTab === "active"
+                ? "bg-rhozly-primary text-white"
+                : "bg-rhozly-surface-lowest border border-rhozly-outline/15 text-rhozly-on-surface/60 can-hover:hover:text-rhozly-primary can-hover:hover:border-rhozly-primary/30"
             }`}
           >
-            {s === "favourites" && (
-              <Heart size={13} className={scope === "favourites" ? "fill-current" : ""} />
-            )}
-            {s === "home" ? "Home" : "Favourites"}
-            {s === "favourites" && favourites.length > 0 && (
-              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
-                {favourites.length}
-              </span>
-            )}
+            All{counts.all > 0 ? ` · ${counts.all}` : ""}
           </button>
-        ))}
+          {/* Type chips reset viewTab to active (and Archived resets filter)
+              so the tablist stays single-select — two lit chips at once is an
+              ARIA violation (review catch). Archived shows all types. */}
+          {([
+            { id: "pest", label: "Pests", icon: <IconPest size={12} /> },
+            { id: "disease", label: "Diseases", icon: <Biohazard size={12} /> },
+            { id: "invasive_plant", label: "Invasive", icon: <IconPlant size={12} /> },
+          ] as { id: AilmentFilter; label: string; icon?: React.ReactNode }[]).map((f) => (
+            <button
+              key={f.id}
+              role="tab"
+              aria-selected={scope === "home" && viewTab === "active" && filter === f.id}
+              data-testid={`watchlist-type-${f.id}`}
+              onClick={() => { switchScope("home"); setViewTab("active"); setFilter(f.id); }}
+              className={`flex items-center gap-1.5 px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full text-sm font-black transition-colors touch-manipulation ${
+                scope === "home" && viewTab === "active" && filter === f.id
+                  ? "bg-rhozly-primary text-white"
+                  : "bg-rhozly-surface-lowest border border-rhozly-outline/15 text-rhozly-on-surface/60 can-hover:hover:text-rhozly-primary can-hover:hover:border-rhozly-primary/30"
+              }`}
+            >
+              {f.icon}{f.label}{counts[f.id] > 0 ? ` · ${counts[f.id]}` : ""}
+            </button>
+          ))}
+          <button
+            role="tab"
+            aria-selected={scope === "favourites"}
+            data-testid="watchlist-scope-favourites"
+            onClick={() => switchScope("favourites")}
+            className={`flex items-center gap-1.5 px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full text-sm font-black transition-colors touch-manipulation ${
+              scope === "favourites"
+                ? "bg-status-watch-fill text-status-watch-ink border border-status-watch-line"
+                : "bg-rhozly-surface-lowest border border-rhozly-outline/15 text-rhozly-on-surface/60 can-hover:hover:text-status-watch-ink can-hover:hover:border-status-watch-line"
+            }`}
+          >
+            <Heart size={13} className={scope === "favourites" ? "fill-current" : ""} />
+            Favourites{favourites.length > 0 ? ` · ${favourites.length}` : ""}
+          </button>
+          <button
+            role="tab"
+            aria-selected={scope === "home" && viewTab === "archived"}
+            data-testid="watchlist-chip-archived"
+            onClick={() => { switchScope("home"); setViewTab("archived"); setFilter("all"); }}
+            className={`px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full text-sm font-black transition-colors touch-manipulation ${
+              scope === "home" && viewTab === "archived"
+                ? "bg-rhozly-primary text-white"
+                : "bg-rhozly-surface-lowest border border-rhozly-outline/15 text-rhozly-on-surface/60 can-hover:hover:text-rhozly-primary can-hover:hover:border-rhozly-primary/30"
+            }`}
+          >
+            Archived
+          </button>
+        </div>
       </div>
 
       {/* Favourites scope body — the user's cross-home favourite ailments. */}
@@ -2252,7 +2338,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           homeAilments={ailments}
           favourites={favourites}
           loading={favouritesLoading}
-          searchQuery={search}
+          searchQuery=""
           aiEnabled={aiEnabled}
           perenualEnabled={perenualEnabled}
           onFavouritesChanged={loadFavourites}
@@ -2260,62 +2346,6 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
         />
       ) : (
       <>
-      {/* Active / Archived tabs + type filters */}
-      <div className="flex flex-col gap-2">
-        <div role="tablist" aria-label="Ailment status" className="flex gap-1 overflow-x-auto bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10">
-          {(["active", "archived"] as const).map((tab) => (
-            <button
-              key={tab}
-              role="tab"
-              aria-selected={viewTab === tab}
-              onClick={() => setViewTab(tab)}
-              className={`shrink-0 whitespace-nowrap px-6 py-2 min-h-[44px] rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-1.5 overflow-x-auto bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5">
-          {([
-            { id: "all", label: "All" },
-            { id: "invasive_plant", label: "Invasive", icon: <IconPlant size={12} /> },
-            { id: "pest", label: "Pests", icon: <IconPest size={12} /> },
-            { id: "disease", label: "Diseases", icon: <Biohazard size={12} /> },
-          ] as { id: AilmentFilter; label: string; icon?: React.ReactNode }[]).map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilter(f.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-xl text-xs font-black whitespace-nowrap shrink-0 transition-all ${filter === f.id ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-outline/10" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-            >
-              {f.icon}{f.label}
-              <span className="ml-1 opacity-60">{counts[f.id]}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Search */}
-      <div className="relative">
-        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-rhozly-on-surface/30" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={`Search ${viewTab} ailments…`}
-          className="w-full pl-11 pr-4 py-3.5 min-h-[44px] rounded-2xl border border-rhozly-outline/20 bg-white font-bold text-sm focus:outline-none focus:ring-2 focus:ring-rhozly-primary/30"
-        />
-      </div>
-
-      {/* Browse the global ailment library (Phase 2; Binoculars = the watch
-          metaphor — Stage 1 of the ailment-library overhaul) */}
-      <button
-        type="button"
-        data-testid="browse-ailment-library"
-        onClick={() => navigate("/ailment-library")}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-rhozly-outline/30 text-sm font-black text-rhozly-on-surface/60 can-hover:hover:border-rhozly-primary/40 can-hover:hover:text-rhozly-primary active:scale-[0.99] transition-colors"
-      >
-        <Binoculars size={16} /> Browse the ailment library
-      </button>
-
       {/* Grid */}
       {fetchError ? (
         <div className="py-20 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/20">
@@ -2378,27 +2408,19 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
         <EmptyState
           size="lg"
           icon={<AlertTriangle size={32} />}
-          title={
-            search
-              ? "No matching ailments"
-              : viewTab === "archived"
-                ? "No archived ailments"
-                : "Your watchlist is empty"
-          }
+          title={viewTab === "archived" ? "No archived ailments" : "Your watchlist is empty."}
           body={
-            !search && viewTab === "active"
+            viewTab === "active"
               ? "Not sure what you're dealing with? Use Plant Doctor to photograph and identify problems."
-              : search
-                ? "Try adjusting your search term."
-                : "Archived entries will show up here."
+              : "Archived entries will show up here."
           }
           primaryCta={
-            !search && viewTab === "active" && can("ailments.add")
+            viewTab === "active" && can("ailments.add")
               ? { label: "Add your first entry", onClick: () => setShowAdd(true), icon: <Plus size={16} /> }
               : undefined
           }
           secondaryCta={
-            !search && viewTab === "active"
+            viewTab === "active"
               ? { label: "Open Plant Doctor", onClick: () => navigate("/doctor") }
               : undefined
           }
@@ -2419,6 +2441,8 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           existingKeys={new Set(
             ailments.filter((a) => !a.is_archived).map((a) => ailmentIdentityKey(a.name)).filter(Boolean),
           )}
+          ownedAilments={ailments}
+          onOpenOwnedAilment={(a) => { setShowAdd(false); setSelectedAilment(a); }}
         />
       )}
       {showBulkAdd && (

@@ -29,6 +29,15 @@ import { isUsablePlantImageUrl } from "../../lib/plantThumb";
 import { selectionToProviderResult, type PlantSelection, type PlantFilters } from "../../lib/unifiedPlantSearch";
 import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
 
+/** Minimal owned-plant shape for the "In your Shed" section (Stage 3). */
+export interface OwnedPlantMatch {
+  id: number | string;
+  common_name: string;
+  scientific_name?: string[] | null;
+  image_url?: string | null;
+  instance_count?: number | null;
+}
+
 interface Props {
   homeId: string;
   isPremium: boolean;
@@ -36,10 +45,15 @@ interface Props {
   onClose: () => void;
   onProceedToBulkAdd: (selectedPlants: any[]) => void;
   initialSearchTerm?: string;
-  /** Seed the structured filters (the Shed's persona browse chips — Stage 3). */
+  /** Seed the structured filters (the takeover's browse-by-filter entries). */
   initialFilters?: PlantFilters;
   initialCartItems?: { type: "api" | "ai" | "verdantly"; data: any }[];
   onManualSave?: (plantData: any) => void;
+  /** Stage 3 — one search: the landing grid-filter died, so YOUR plants
+   *  surface here first ("In your Shed") above the library results. */
+  ownedPlants?: OwnedPlantMatch[];
+  /** Tap an owned row → the host closes the overlay + opens that plant. */
+  onOpenOwnedPlant?: (plant: OwnedPlantMatch) => void;
 }
 
 // Recent searches — a small local ring so the takeover never opens blank.
@@ -65,6 +79,15 @@ function pushRecent(term: string): string[] {
 }
 
 const EXAMPLE_SEARCHES = ["tomato", "lavender", "monstera"];
+
+// Persona browse chips — re-homed from the Shed landing (Stage 3): a warm way
+// IN for new gardeners; each seeds a browse-by-filter search.
+const BROWSE_CHIPS: Array<{ label: string; filters: PlantFilters }> = [
+  { label: "Edible favourites", filters: { edible: true } },
+  { label: "Indoor friends", filters: { indoor: true } },
+  { label: "Sun lovers", filters: { sunlight: ["full_sun"] } },
+  { label: "Easy annuals", filters: { cycle: ["annual"] } },
+];
 
 /**
  * Search plants — the full-screen search overlay (garden-hub search-first
@@ -96,6 +119,8 @@ export default function PlantSearchTakeover({
   initialFilters,
   initialCartItems,
   onManualSave,
+  ownedPlants,
+  onOpenOwnedPlant,
 }: Props) {
   const { setPageContext } = usePlantDoctor();
   const persona = usePersona();
@@ -109,6 +134,10 @@ export default function PlantSearchTakeover({
   // onQueryChange.
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [recents, setRecents] = useState<string[]>(() => readRecents());
+  // Browse-by-filter seeding: initialFilters is mount-only inside PlantSearch,
+  // so the idle browse chips remount it with a fresh seed (key bump).
+  const [seedFilters, setSeedFilters] = useState<PlantFilters | undefined>(initialFilters);
+  const [seedKey, setSeedKey] = useState(0);
 
   const [listMode, setListMode] = useState(false);
   const [pastedList, setPastedList] = useState("");
@@ -327,6 +356,21 @@ export default function PlantSearchTakeover({
 
   const cartCount = selectedPlantsMap.size;
   const idle = query.trim().length < 2;
+
+  // "In your Shed" — owned matches surface FIRST (Stage 3: this absorbs the
+  // landing grid-filter; one search, two worlds). Same matching rules as the
+  // old grid filter (common + scientific name contains).
+  const ownedMatches = React.useMemo(() => {
+    if (!ownedPlants || query.trim().length < 2) return [] as OwnedPlantMatch[];
+    const q = query.trim().toLowerCase();
+    return ownedPlants
+      .filter(
+        (p) =>
+          p.common_name.toLowerCase().includes(q) ||
+          (p.scientific_name ?? []).some((n) => n.toLowerCase().includes(q)),
+      )
+      .slice(0, 4);
+  }, [ownedPlants, query]);
 
   // PORTAL to document.body: PullToRefresh's scroller keeps a residual
   // `transform` after any pull gesture, which makes it the containing block
@@ -692,18 +736,72 @@ export default function PlantSearchTakeover({
                       </ul>
                     </>
                   ) : null}
+
+                  {/* Browse chips — new gardeners get a filter-first way in. */}
+                  {isNewGardener && (
+                    <div data-testid="shed-browse-chips" className="flex flex-wrap gap-2 mt-3 px-1">
+                      {BROWSE_CHIPS.map((chip) => (
+                        <button
+                          key={chip.label}
+                          type="button"
+                          data-testid={`shed-browse-chip-${chip.label.toLowerCase().replace(/\s+/g, "-")}`}
+                          onClick={() => {
+                            setSeedFilters(chip.filters);
+                            setSeedKey((k) => k + 1);
+                          }}
+                          className="px-3.5 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full bg-rhozly-surface-lowest border border-rhozly-outline/15 text-xs font-bold text-rhozly-on-surface-variant can-hover:hover:border-rhozly-primary/40 can-hover:hover:text-rhozly-primary active:scale-[0.97] transition touch-manipulation"
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* "In your Shed" — your own plants first, then the world's. */}
+              {ownedMatches.length > 0 && (
+                <div className="mb-4" data-testid="search-owned-section">
+                  <p className="text-2xs font-black uppercase tracking-widest text-rhozly-on-surface/40 px-1 mb-1.5">
+                    In your Shed
+                  </p>
+                  <ul className="space-y-1.5">
+                    {ownedMatches.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          data-testid={`search-owned-${p.id}`}
+                          onClick={() => onOpenOwnedPlant?.(p)}
+                          className="w-full flex items-center gap-3 pl-3 pr-2 py-2.5 min-h-[72px] rounded-2xl bg-rhozly-primary/5 border border-rhozly-primary/15 text-left can-hover:hover:border-rhozly-primary/40 active:scale-[0.99] transition"
+                        >
+                          <div className="w-14 h-14 shrink-0 rounded-2xl overflow-hidden bg-rhozly-primary/10 flex items-center justify-center text-rhozly-primary/50">
+                            <PlantResultThumb name={p.common_name} url={p.image_url ?? null} source="library" iconSize={22} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-base text-rhozly-on-surface leading-tight truncate">{p.common_name}</p>
+                            <p className="text-xs font-bold text-rhozly-on-surface/45 truncate">
+                              {p.scientific_name?.[0] ? <span className="italic">{p.scientific_name[0]} · </span> : ""}
+                              Already in your Shed{(p.instance_count ?? 0) > 0 ? ` · ${p.instance_count} planted` : ""}
+                            </p>
+                          </div>
+                          <ChevronLeft size={16} className="shrink-0 rotate-180 text-rhozly-on-surface/30" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
               {/* Library-first unified search — host-owned input, big rows,
                   row tap → full detail, + → cart. */}
               <PlantSearch
+                key={`seed-${seedKey}`}
                 homeId={homeId}
                 showFilters
                 multiSelect
                 tapOpensDetails
                 controlledQuery={query}
-                initialFilters={initialFilters}
+                initialFilters={seedFilters}
                 onQueryChange={setQuery}
                 gates={{
                   // Verdantly is free for all; Perenual self-gates inside searchAllProviders.

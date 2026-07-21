@@ -358,7 +358,7 @@ export default function SenescenceTab({ homeId, aiEnabled, isPremium }: Props) {
                     aria-label={`Open ${name}`}
                     title="Open instance"
                     data-testid={`senescence-row-open-${row.id}`}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
+                    className="w-11 h-11 flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
                   >
                     <Eye size={15} />
                   </button>
@@ -368,7 +368,7 @@ export default function SenescenceTab({ homeId, aiEnabled, isPremium }: Props) {
                     aria-label={`Restore ${name}`}
                     title="Restore to active plants"
                     data-testid={`senescence-row-restore-${row.id}`}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                    className="w-11 h-11 flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
                   >
                     <ArchiveRestore size={15} />
                   </button>

@@ -2,7 +2,9 @@
   {
     "label": "Improved",
     "items": [
-      "Searching for pests & diseases now matches the plant search — full-screen with the search box right at the top, bigger results, and tapping any result opens its full field-guide page (symptoms, treatment, prevention) before you decide to watch it."
+      "The Plants and Watchlist screens got a big clean-up — one clear search bar leads each page, the button pile-up moved into a tidy ⋯ menu, and filters open in a bottom sheet with a live result count.",
+      "One search now does everything: type a name and your own plants appear first (\"In your Shed\" / \"On your watchlist\"), with the library right below — no more separate search boxes.",
+      "Little things: bigger touch targets on Senescence, clearable filter chips, and your favourites are one tap away on every screen."
     ]
   }
 ]

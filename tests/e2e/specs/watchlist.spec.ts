@@ -28,16 +28,17 @@ test.describe("Watchlist — basic render", () => {
     await expect(wl.ailmentCard("Japanese Knotweed")).toBeVisible({ timeout: 10000 });
   });
 
-  test("WL-MOBILE-001: bulk-add + primary CTA are visible on a phone-portrait viewport", async ({ authenticatedPage }) => {
-    // Regression: both were `hidden sm:flex`, so the bulk-add button vanished
-    // below 640px. It now shows icon-only on mobile.
+  test("WL-MOBILE-001: the search launcher + overflow menu (with bulk add) are reachable on a phone-portrait viewport", async ({ authenticatedPage }) => {
+    // Stage 3: the landing carries ONE primary affordance (the search
+    // launcher); bulk add lives in the ⋯ overflow menu.
     await authenticatedPage.setViewportSize({ width: 390, height: 844 });
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
     await wl.waitForLoad();
 
-    await expect(wl.bulkAddButton).toBeVisible({ timeout: 10000 });
-    await expect(wl.addButton).toBeVisible();
+    await expect(wl.addButton).toBeVisible({ timeout: 10000 });
+    await authenticatedPage.getByTestId("watchlist-overflow-menu").click();
+    await expect(wl.bulkAddButton).toBeVisible();
   });
 
   test("WL-MOBILE-002: Add modal opens with the Search / Manual tab bar (BulkSearchModal parity)", async ({ authenticatedPage }) => {
@@ -346,34 +347,35 @@ test.describe("Watchlist — Detail modal", () => {
 });
 
 test.describe("Watchlist — Search", () => {
-  test("WL-022: Searching by name filters the card list", async ({ authenticatedPage }) => {
+  // Stage 3 — ONE search: the landing text-filter died; name lookup lives in
+  // the takeover, where your own watchlist rows surface first.
+  test("WL-022: Searching a watched name surfaces it in the 'On your watchlist' section", async ({ authenticatedPage }) => {
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
     await wl.waitForLoad();
 
-    // The search input is the first text input on the page
-    const searchInput = authenticatedPage.getByRole("searchbox").or(
-      authenticatedPage.getByPlaceholder(/search/i),
-    ).first();
-    await searchInput.fill("Aphid");
-    await authenticatedPage.waitForTimeout(400);
+    await wl.addButton.click(); // the launcher IS the search
+    await authenticatedPage.locator('[data-testid="ailment-search-input"]').fill("Aphid");
 
-    await expect(wl.ailmentCard("Aphid")).toBeVisible({ timeout: 10000 });
-    await expect(wl.ailmentCard("Early Blight")).not.toBeVisible();
+    const owned = authenticatedPage.getByTestId("ailment-owned-section");
+    await expect(owned).toBeVisible({ timeout: 10000 });
+    await expect(owned.getByText("Aphid").first()).toBeVisible();
   });
 
-  test("WL-023: Searching with no match shows no-match state", async ({ authenticatedPage }) => {
+  test("WL-023: A no-match query shows no owned section", async ({ authenticatedPage }) => {
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
     await wl.waitForLoad();
 
-    const searchInput = authenticatedPage.getByRole("searchbox").or(
-      authenticatedPage.getByPlaceholder(/search/i),
-    ).first();
-    await searchInput.fill("xyzqwerty");
-    await authenticatedPage.waitForTimeout(400);
+    await wl.addButton.click();
+    await authenticatedPage.locator('[data-testid="ailment-search-input"]').fill("xyzqwerty");
+    await authenticatedPage.waitForTimeout(600);
 
-    await expect(wl.noMatchState).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("ailment-owned-section")).toHaveCount(0);
+    // The library miss copy renders instead.
+    await expect(
+      authenticatedPage.getByText(/Nothing in our library for "xyzqwerty"/i),
+    ).toBeVisible({ timeout: 8000 });
   });
 });
 

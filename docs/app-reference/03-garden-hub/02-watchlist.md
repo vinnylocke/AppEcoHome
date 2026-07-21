@@ -21,13 +21,20 @@ A **Home | Favourites** scope pill (above the Active/Archived pills) switches be
 
 ```
 AilmentWatchlist
-├── Header
-│   ├── "Watchlist" title + count badge
-│   ├── View tabs: Active / Archived
-│   ├── Type filter (All / Pest / Disease / Invasive)
-│   ├── Search bar
-│   ├── Bulk add button → BulkAddAilmentsModal (RHO-4 Phase 2; perm `ailments.add`; icon-only below sm)
-│   └── "Find an ailment" button (`watchlist-add-btn`) → AddAilmentModal
+├── HubHeader (shared per-tab header — landing chrome diet Stage 3, 2026-07-21:
+│   8 chrome blocks → HubHeader + one chip row; the landing search input that
+│   sat at ~y=738 died into the takeover's "On your watchlist" section)
+│   ├── Title row — "Watchlist" text-xl + muted count + persona guidance line
+│   │     + ⋯ overflow (watchlist-overflow-menu) holding: Add several at once
+│   │     (watchlist-bulk-add-btn → BulkAddAilmentsModal, perm ailments.add) ·
+│   │     Browse the field guide (browse-ailment-library → /ailment-library)
+│   └── Sticky search row — LAUNCHER "Search pests & diseases…"
+│         (watchlist-add-btn, aria "Find an ailment") → the search overlay
+├── ONE chip row (watchlist-scope-toggle, role=tablist)
+│   ├── All·N (watchlist-scope-home) · Pests · Diseases · Invasive
+│   │     (watchlist-type-{pest|disease|invasive_plant}, with counts)
+│   ├── ♥ Favourites·N (watchlist-scope-favourites — watch-family tint)
+│   └── Archived (watchlist-chip-archived)
 ├── AilmentCard ×N
 │   ├── Cover image (from ailment.thumbnail_url)
 │   ├── Source badge (Manual / Library / Perenual / AI — `SOURCE_META`)

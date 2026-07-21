@@ -149,10 +149,11 @@ export const flowRegistry: FlowDef[] = [
         attachTo: { element: "[data-testid='garden-hub-tab-shed']", on: "bottom" },
       },
       {
-        title: "Adding plants",
-        body: "Tap Add to bring up the plant search. Type a name — Rhozly tries the library first, then offers Pl@ntNet, Perenual, Verdantly, and AI as fallbacks. No plant is too obscure.",
-        // Anchor by testid — the button's aria-label is "Find a plant"; the
-        // old "[aria-label='Add plant']" anchor had drifted and matched nothing.
+        title: "One search for everything",
+        body: "The search bar is the way in: it finds plants you already grow AND new ones to add. Type a name — your Shed matches come first, then the free library, with wider databases and Rhozly AI behind them. No plant is too obscure.",
+        // Anchor by testid — since the Stage 3 landing diet this is the
+        // search LAUNCHER (a button styled as a search field), not an
+        // "Add" button. Same testid, same tour anchor.
         attachTo: { element: "[data-testid='shed-add-plant-btn']", on: "bottom" },
       },
       {

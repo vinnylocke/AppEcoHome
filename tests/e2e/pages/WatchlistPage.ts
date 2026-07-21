@@ -115,8 +115,9 @@ export class WatchlistPage {
   }
 
   // ── Bulk add modal helpers (RHO-4 Phase 2) ─────────────────────────────────
-  /** Open the Bulk add modal from the Watchlist header. */
+  /** Open the Bulk add modal — Stage 3: it lives in the ⋯ overflow menu. */
   async openBulkAdd() {
+    await this.page.getByTestId("watchlist-overflow-menu").click();
     await this.bulkAddButton.click();
     await this.bulkAddModal.waitFor({ state: "visible", timeout: 8000 });
   }

@@ -239,11 +239,25 @@ export class ShedPage {
 
   /** Open the Filters disclosure panel (Phase 4.3 — the source/sort selects
    *  and smart chips live inside it; their aria-labels are unchanged). */
+  // Stage 3: Filters is a bottom SHEET (portal) — open it, use the controls,
+  // then closeFilters() before asserting on the grid (the sheet covers it).
   async openFilters() {
-    if ((await this.filtersButton.getAttribute("aria-expanded")) !== "true") {
+    if (!(await this.filtersPanel.isVisible().catch(() => false))) {
       await this.filtersButton.click();
     }
     await this.filtersPanel.waitFor({ state: "visible", timeout: 5000 });
+  }
+
+  async closeFilters() {
+    if (await this.filtersPanel.isVisible().catch(() => false)) {
+      await this.page.getByTestId("shed-filters-done").click();
+      await this.filtersPanel.waitFor({ state: "hidden", timeout: 5000 });
+    }
+  }
+
+  /** Open the ⋯ overflow menu (Select mode / Garden layout / Bulk add). */
+  async openOverflowMenu() {
+    await this.page.getByTestId("shed-overflow-menu").click();
   }
 
   /** Open a plant card's kebab overflow menu (Phase 4.3 — layout / light /
@@ -279,8 +293,9 @@ export class ShedPage {
   }
 
   // ── Bulk add modal helpers (RHO-4) ─────────────────────────────────────────
-  /** Open the Bulk add modal from the Shed header. */
+  /** Open the Bulk add modal — Stage 3: it lives in the ⋯ overflow menu. */
   async openBulkAdd() {
+    await this.openOverflowMenu();
     await this.bulkAddButton.click();
     await this.bulkAddModal.waitFor({ state: "visible", timeout: 8000 });
   }

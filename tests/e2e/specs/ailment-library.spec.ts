@@ -33,10 +33,11 @@ test.describe("Ailment Library — browse (Section 24)", () => {
     await expect(authenticatedPage.getByTestId("ailment-card-900002")).toHaveCount(0);
   });
 
-  test("AILIB-003: 'Browse the ailment library' button navigates from the watchlist", async ({ authenticatedPage }) => {
+  test("AILIB-003: 'Browse the field guide' navigates from the watchlist's ⋯ menu", async ({ authenticatedPage }) => {
+    // Stage 3 landing diet: the browse entry moved into the overflow menu.
     await authenticatedPage.goto("/shed?tab=watchlist");
-    const browse = authenticatedPage.getByTestId("browse-ailment-library");
-    await browse.click({ timeout: 10000 });
+    await authenticatedPage.getByTestId("watchlist-overflow-menu").click({ timeout: 10000 });
+    await authenticatedPage.getByTestId("browse-ailment-library").click();
     await expect(authenticatedPage).toHaveURL(/\/ailment-library/);
   });
 });

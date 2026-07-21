@@ -20,17 +20,17 @@
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| SHED-MOBILE-001 | ✅ | Phone-portrait (390×844): "Find a plant" + Bulk add both visible (regression: bulk add was `hidden sm:flex`) | — | ✅ Passing |
+| SHED-MOBILE-001 | ✅ | Phone-portrait: the search launcher + ⋯ overflow (holding Bulk add) are reachable (Stage 3 — one primary affordance) | — | ✅ Passing |
 | SHED-SOIL-001 | ✅ | Plant edit modal → "Soil Needs" tab renders the sensor-requirements list or empty state | — | ✅ Passing |
 | SHED-005 | ✅ | Active pill is the default (Active\|Archived pills sit in the single sticky toolbar) | — | ✅ Passing |
 | SHED-006 | ✅ | Archived pill (toolbar) shows Mint | — | ✅ Passing |
 | SHED-007 | ✅ | Active plants absent from Archived | — | ✅ Passing |
 | SHED-008..009 | ✅ | Filter by source (Manual / API) — the select now sits inside the Filters panel: `openFilters()` → "Filter by source" (aria-label unchanged) | — | ✅ Passing |
-| SHED-010 | ✅ | Search matching ("Tomato") — toolbar search input, aria-label unchanged | — | ✅ Passing |
-| SHED-011 | ❌ | Search no-match ("xyzqwerty") → empty state (toolbar search) | — | ✅ Passing |
-| SHED-012 | ✅ | Clear search restores plants (toolbar search) | — | ✅ Passing |
-| SHED-013 | ✅ | Case-insensitive search ("tomato") (toolbar search) | — | ✅ Passing |
-| SHED-014 | ✅ | Partial match ("Bos" → "Boston Fern") (toolbar search) | — | ✅ Passing |
+| SHED-010 | ✅ | One search: typed owned-plant name surfaces the takeover's "In your Shed" section | — | ✅ Passing |
+| SHED-011 | ✅ | No-match query: no owned section + `Nothing called "…" yet.` copy | — | ✅ Passing |
+| SHED-012 | ✅ | Clear-× empties the query and returns to the idle state (recents/examples/chips) | — | ✅ Passing |
+| SHED-013 | ✅ | Owned matching is case-insensitive | — | ✅ Passing |
+| SHED-014 | ✅ | Partial owned match works ("Bos" → Boston Fern) | — | ✅ Passing |
 
 ## Add plants
 
@@ -41,8 +41,8 @@
 | SHED-TKO-001 | ✅ | `?open=add-plant&query=` deep-links into the full-page takeover (`plant-search-takeover`, no `aria-modal` dialog, query seeded into `plant-search-input`, params consumed) | — | ✅ Passing |
 | SHED-TKO-002 | ✅ | The takeover's back button (`shed-search-back`) returns to the Shed grid | — | ✅ Passing |
 | SHED-TKO-003 | ✅ | Overlay pins `plant-search-input` in the top band (y<130), paints over the app header (`elementFromPoint` = the input), and the Escape ladder clears a typed query before closing | — | ✅ Passing |
-| SHED-S3-001 | ✅ | Stage 3: a thin own-shed search (≥3 chars, ≤2 matches) shows the library escalation row (`shed-search-library-escalation`); tapping it opens the takeover with the query carried | — | ✅ Passing |
-| SHED-S3-002 | ✅ | Stage 3: persona browse chips (`shed-browse-chips`, new-gardener + <12 active plants) open the takeover in browse-by-filter mode with the filter panel visible; self-skips on a dirty DB ≥12 plants | — | ✅ Passing |
+| SHED-S3-001 | ✅ | One search, two worlds: owned section + seed-17 library row coexist for "Tomato" | Seed 17 | ✅ Passing |
+| SHED-S3-002 | ✅ | Persona browse chips live in the takeover idle state; chip seeds browse-by-filter (panel auto-opens) | — | ✅ Passing |
 | SHED-FAV-001 | ✅ | Stage 4: "Add & assign…" (`favourite-add-assign-{id}`, seeded Fig favourite 0017-…03) copies the favourite into this home and opens the assignment modal; self-cleaning (cancels + deletes the copy via the card flow) | — | ✅ Passing |
 | SHED-017 | ✅ | Manual plant happy path | — | ✅ Passing |
 | SHED-018 | ❌ | Manual plant — empty name validation | — | ✅ Passing |
