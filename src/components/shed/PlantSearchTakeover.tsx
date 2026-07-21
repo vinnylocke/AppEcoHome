@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Search,
   Loader2,
@@ -327,7 +328,12 @@ export default function PlantSearchTakeover({
   const cartCount = selectedPlantsMap.size;
   const idle = query.trim().length < 2;
 
-  return (
+  // PORTAL to document.body: PullToRefresh's scroller keeps a residual
+  // `transform` after any pull gesture, which makes it the containing block
+  // for `fixed` descendants — the overlay would render trapped inside the
+  // content area instead of covering the app chrome (caught live, Stage 2).
+  // A React portal moves only the DOM node; router + context still work.
+  return createPortal(
     <div
       // z-[60]: above the app header (sticky z-50) + bottom nav, below every
       // modal (z-100+; PlantDetailModal z-[140] stacks over this for
@@ -722,6 +728,7 @@ export default function PlantSearchTakeover({
           onClose={() => setDetailResult(null)}
         />
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

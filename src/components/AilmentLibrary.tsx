@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Search, Bug, Biohazard, Sprout, AlertTriangle, Loader2, ArrowLeft, Leaf,
-  Binoculars, Heart, Sparkles, Check, CalendarRange,
+  Binoculars, Check,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -23,13 +23,14 @@ import {
 } from "../services/ailmentLibraryService";
 import { listFavouriteAilments, unfavouriteAilment } from "../services/favouritesService";
 import type { FavouriteAilment } from "../types";
-import { AILMENT_KIND_CLASSES, AILMENT_SEVERITY_CLASSES, matchAffectedPlants } from "../lib/ailmentPresentation";
+import { AILMENT_KIND_CLASSES, AILMENT_SEVERITY_CLASSES } from "../lib/ailmentPresentation";
 import { ailmentIdentityKey } from "../lib/favouriteIdentity";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { usePersona } from "../hooks/usePersona";
 import { supabase } from "../lib/supabase";
 import SmartImage from "./SmartImage";
+import AilmentDetailBody from "./ailments/AilmentDetailBody";
 
 interface Props {
   homeId: string;
@@ -215,17 +216,10 @@ export default function AilmentLibrary({ homeId, aiEnabled = false }: Props) {
   };
 
   // ── Detail takeover — the field-guide page ─────────────────────────────────
+  // The body is the shared <AilmentDetailBody> (Stage 2 extraction) — the
+  // SAME surface the search takeover opens as a modal. This host keeps the
+  // page shell + `?ailment=` URL contract.
   if (selected) {
-    const KindIcon = KIND_ICONS[selected.kind];
-    const kindMeta = AILMENT_KIND_CLASSES[selected.kind];
-    const watching = isWatching(selected);
-    const favRowId = favByLibraryId.get(selected.id);
-    const affects = matchAffectedPlants(
-      [...selected.affected_plant_types, ...selected.affected_families],
-      plantNames,
-    );
-    const heroImage = selected.image_url ?? selected.thumbnail_url;
-
     return (
       <div className="max-w-3xl mx-auto px-4 py-6" data-testid="ailment-detail">
         <button
@@ -236,168 +230,20 @@ export default function AilmentLibrary({ homeId, aiEnabled = false }: Props) {
         >
           <ArrowLeft size={15} /> Ailment Library
         </button>
-
-        {/* Hero */}
-        <div className="flex items-start gap-4 mb-1">
-          {heroImage ? (
-            <SmartImage
-              src={heroImage}
-              alt={selected.name}
-              className="w-24 h-24 sm:w-28 sm:h-28 rounded-card object-cover border border-rhozly-outline/10 shrink-0"
-            />
-          ) : (
-            <span className={`w-24 h-24 sm:w-28 sm:h-28 rounded-card flex items-center justify-center shrink-0 ${kindMeta.tile}`}>
-              <KindIcon size={36} />
-            </span>
-          )}
-          <div className="min-w-0 pt-1">
-            <h1 className="text-2xl sm:text-3xl font-black font-display tracking-tight text-rhozly-on-surface leading-tight">
-              {selected.name}
-            </h1>
-            {selected.scientific_name && (
-              <p className="text-sm italic text-rhozly-on-surface-variant">{selected.scientific_name}</p>
-            )}
-            {selected.aliases.length > 0 && (
-              <p className="text-2xs text-rhozly-on-surface/50 mt-0.5">
-                Also known as {selected.aliases.slice(0, 3).join(", ")}
-              </p>
-            )}
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-chip text-2xs font-bold ${kindMeta.chip}`}>
-                <KindIcon size={11} /> {kindMeta.label}
-              </span>
-              {selected.severity && (
-                <span className={`px-2 py-0.5 rounded-chip text-2xs font-bold ${AILMENT_SEVERITY_CLASSES[selected.severity].chip}`}>
-                  {AILMENT_SEVERITY_CLASSES[selected.severity].label} severity
-                </span>
-              )}
-              {selected.season.length > 0 && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-chip text-2xs font-bold bg-rhozly-surface-low text-rhozly-on-surface-variant border border-rhozly-outline/10">
-                  <CalendarRange size={11} /> {selected.season.join(" · ")}
-                </span>
-              )}
-              {selected.organic_friendly && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-chip text-2xs font-bold bg-status-success-fill text-status-success-ink border border-status-success-line">
-                  <Leaf size={11} /> Organic remedies
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Action bar — Watch / Favourite / Ask AI */}
-        <div className="flex items-center gap-2 mt-4 mb-5">
-          {canWatch && (
-            <button
-              onClick={() => watchAilment(selected)}
-              disabled={watching || watchingBusy === selected.id}
-              data-testid="ailment-add-watchlist"
-              className={`flex-1 sm:flex-none sm:min-w-[220px] py-3 px-4 rounded-control font-black text-sm flex items-center justify-center gap-2 transition active:scale-[0.98] touch-manipulation ${
-                watching
-                  ? "bg-status-success-fill text-status-success-ink border border-status-success-line"
-                  : "bg-rhozly-primary text-white disabled:opacity-60"
-              }`}
-            >
-              {watchingBusy === selected.id ? (
-                <Loader2 size={17} className="animate-spin" />
-              ) : watching ? (
-                <Check size={17} />
-              ) : (
-                <Binoculars size={17} />
-              )}
-              {watching ? "Watching in this garden" : "Watch in this garden"}
-            </button>
-          )}
-          {!canWatch && watching && (
-            <span className="flex-1 sm:flex-none sm:min-w-[220px] py-3 px-4 rounded-control font-black text-sm flex items-center justify-center gap-2 bg-status-success-fill text-status-success-ink border border-status-success-line">
-              <Check size={17} /> Watching in this garden
-            </span>
-          )}
-          <button
-            onClick={() => toggleFavourite(selected)}
-            disabled={favBusy === selected.id}
-            data-testid="ailment-detail-favourite"
-            aria-pressed={!!favRowId}
-            aria-label={favRowId ? `Remove ${selected.name} from favourites` : `Save ${selected.name} to favourites`}
-            className={`w-12 h-12 shrink-0 rounded-control flex items-center justify-center border transition active:scale-[0.94] touch-manipulation ${
-              favRowId
-                ? "bg-status-watch-fill border-status-watch-line text-status-watch-ink"
-                : "bg-rhozly-surface-lowest border-rhozly-outline/15 text-rhozly-on-surface-variant can-hover:hover:text-status-watch-ink"
-            }`}
-          >
-            {favBusy === selected.id ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
-              <Heart size={18} fill={favRowId ? "currentColor" : "none"} />
-            )}
-          </button>
-          {aiEnabled && (
-            <button
-              onClick={() => askAi(selected)}
-              data-testid="ailment-detail-ask-ai"
-              aria-label={`Ask Rhozly AI about ${selected.name}`}
-              className="w-12 h-12 shrink-0 rounded-control flex items-center justify-center border border-status-ai-line bg-status-ai-fill text-status-ai-ink transition active:scale-[0.94] touch-manipulation"
-            >
-              <Sparkles size={18} />
-            </button>
-          )}
-        </div>
-
-        {/* Could affect your garden */}
-        {affects.length > 0 && (
-          <div
-            data-testid="ailment-could-affect"
-            className="mb-5 px-4 py-3 rounded-card bg-status-caution-fill border border-status-caution-line"
-          >
-            {isNewGardener ? (
-              <p className="text-sm text-status-caution-ink">
-                <span className="font-black">Worth a look:</span> you grow{" "}
-                {affects.length === 1 ? "a plant" : `${affects.length} plants`} this{" "}
-                {kindMeta.label.toLowerCase()} loves — <span className="font-bold">{affects.join(", ")}</span>.
-                A quick check now beats a rescue later.
-              </p>
-            ) : (
-              <p className="text-sm font-bold text-status-caution-ink flex items-center gap-1.5 flex-wrap">
-                <Leaf size={13} /> In your garden: {affects.join(" · ")}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Editorial sections — un-boxed, divide-y */}
-        <div className="divide-y divide-rhozly-outline/10">
-          {selected.description && (
-            <DetailSection title="About">
-              <p>{selected.description}</p>
-            </DetailSection>
-          )}
-          {selected.symptoms.length > 0 && (
-            <DetailSection title="Symptoms">
-              <ul className="list-disc pl-5 space-y-1">
-                {selected.symptoms.map((s, i) => <li key={i}>{s}</li>)}
-              </ul>
-            </DetailSection>
-          )}
-          {selected.causes && (
-            <DetailSection title="Causes"><p>{selected.causes}</p></DetailSection>
-          )}
-          {selected.treatment && (
-            <DetailSection title="Treatment"><p>{selected.treatment}</p></DetailSection>
-          )}
-          {selected.prevention && (
-            <DetailSection title="Prevention"><p>{selected.prevention}</p></DetailSection>
-          )}
-          {selected.affected_plant_types.length > 0 && (
-            <DetailSection title="Affected plants">
-              <p>{selected.affected_plant_types.join(", ")}</p>
-            </DetailSection>
-          )}
-          {selected.affected_families.length > 0 && (
-            <DetailSection title="Affected families">
-              <p>{selected.affected_families.join(", ")}</p>
-            </DetailSection>
-          )}
-        </div>
+        <AilmentDetailBody
+          ailment={selected}
+          watching={isWatching(selected)}
+          watchingBusy={watchingBusy === selected.id}
+          canWatch={canWatch}
+          onWatch={() => watchAilment(selected)}
+          favRowId={favByLibraryId.get(selected.id) ?? null}
+          favBusy={favBusy === selected.id}
+          onToggleFavourite={() => toggleFavourite(selected)}
+          aiEnabled={aiEnabled}
+          onAskAi={() => askAi(selected)}
+          isNewGardener={isNewGardener}
+          plantNames={plantNames}
+        />
       </div>
     );
   }
@@ -557,14 +403,5 @@ function FilterChip({
     >
       {children}
     </button>
-  );
-}
-
-function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="py-4 first:pt-0">
-      <p className="text-3xs font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-1.5">{title}</p>
-      <div className="text-sm text-rhozly-on-surface/80 leading-relaxed">{children}</div>
-    </div>
   );
 }

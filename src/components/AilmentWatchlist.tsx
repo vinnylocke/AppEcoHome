@@ -5,7 +5,7 @@ import {
   Plus, Search, Loader2, Biohazard, X,
   Edit3, Trash2, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle,
   CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles, Library, Heart, FileText,
-  Binoculars,
+  Binoculars, ArrowLeft,
 } from "lucide-react";
 import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -29,6 +29,10 @@ import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import EmptyState from "./shared/EmptyState";
 import FavouriteAilmentsGrid from "./favourites/FavouriteAilmentsGrid";
 import BulkAddAilmentsModal from "./BulkAddAilmentsModal";
+// Aliased — this file has its own local AilmentDetailModal (the WATCHLIST
+// row detail); this one is the field-guide detail for search results.
+import LibraryAilmentDetailModal from "./ailments/AilmentDetailModal";
+import { AILMENT_SEVERITY_CLASSES } from "../lib/ailmentPresentation";
 import {
   isAilmentSourceLockedForTier,
   lockedAilmentSourceMessage,
@@ -835,8 +839,16 @@ function AddAilmentModal({
     }
   };
 
+  // In-flight guard (review catch): the async insert has no unique constraint
+  // behind it — a fast double-tap on Watch/Add would insert twice. Busy state
+  // disables the CTAs synchronously; the ref backs the re-entry check
+  // (state reads inside the handler are stale during the await).
+  const [libraryAddBusy, setLibraryAddBusy] = useState<number | null>(null);
+  const addingLibraryIdsRef = useRef<Set<number>>(new Set());
   const addFromLibrary = async (lib: LibraryAilment) => {
-    if (addedLibraryIds.has(lib.id)) return;
+    if (addedLibraryIds.has(lib.id) || addingLibraryIdsRef.current.has(lib.id)) return;
+    addingLibraryIdsRef.current.add(lib.id);
+    setLibraryAddBusy(lib.id);
     try {
       const data = await addLibraryAilmentToWatchlist(lib, homeId);
       setAddedLibraryIds((prev) => new Set(prev).add(lib.id));
@@ -845,6 +857,9 @@ function AddAilmentModal({
       toast.success(`"${lib.name}" added to watchlist.`);
     } catch (err: any) {
       Logger.error("Failed to add library ailment", err, { homeId }, err.message || "Add failed.");
+    } finally {
+      addingLibraryIdsRef.current.delete(lib.id);
+      setLibraryAddBusy((prev) => (prev === lib.id ? null : prev));
     }
   };
 
@@ -855,19 +870,30 @@ function AddAilmentModal({
   const showSteps = mode === "manual";
   const totalSelected = checkedPerenualIds.size + checkedAiIds.size;
 
-  // Escape (Stage 5 takeover): review → back to tabs; a deeper search tier →
-  // back to library search; library search → close. Never on the Manual form
-  // (it would discard typed work — the form has its own Cancel).
+  // Row tap → the shared field-guide detail (plants-parity, Stage 2). The
+  // modal stacks at z-[100] over this z-[60] overlay.
+  const [detailAilment, setDetailAilment] = useState<LibraryAilment | null>(null);
+
+  // Escape ladder (Stage 2 overlay): field-guide detail owns its own Escape →
+  // review steps back to tabs → a deeper search tier returns to library
+  // search → a typed query clears → the overlay closes. Never on the Manual
+  // form (it would discard typed work — the form has its own Cancel).
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const stepRef = useRef(step);
   stepRef.current = step;
+  const queryEscRef = useRef(query);
+  queryEscRef.current = query;
+  const detailOpenRef = useRef(false);
+  detailOpenRef.current = detailAilment !== null;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (detailOpenRef.current) return;
       if (modeRef.current === "manual") return;
       if (stepRef.current === "review") setStep("tabs");
       else if (modeRef.current !== "search") setMode("search");
+      else if (queryEscRef.current.trim()) setQuery("");
       else onClose();
     };
     document.addEventListener("keydown", onKey);
@@ -875,75 +901,140 @@ function AddAilmentModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    // Full-page takeover (overhaul Stage 5, 2026-07-21) — mirrors the Shed's
-    // PlantSearchTakeover: search is the page, not a max-w-3xl h-[85vh]
-    // porthole. AilmentWatchlist early-returns this while open; every internal
-    // testid (ailment-tab-*, ailment-search-*, ailment-library-*) is unchanged.
-    <div className="max-w-3xl mx-auto w-full pb-8 animate-in fade-in" data-testid="ailment-add-takeover">
-        {/* Header */}
-        <button
-          onClick={onClose}
-          data-testid="ailment-add-back"
-          aria-label="Back to watchlist"
-          className="inline-flex items-center gap-1.5 text-xs font-black text-rhozly-on-surface-variant can-hover:hover:text-rhozly-on-surface mb-3 min-h-[44px] active:scale-[0.97] transition"
-        >
-          <ChevronLeft size={15} /> Watchlist
-        </button>
-        <div className="pb-4 flex justify-between items-start">
-          <div>
-            <h3 className="text-2xl sm:text-3xl font-black font-display tracking-tight flex items-center gap-3">
-              <Biohazard className="text-rhozly-primary" /> Add to Watchlist
-            </h3>
-            <p className="text-2xs font-black text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-              Search and add pests, diseases &amp; weeds
-            </p>
-          </div>
-        </div>
-
-        {/* Tab bar — Search / Manual, mirroring BulkSearchModal. "Search"
-            covers the tiered library → databases → AI flow; deeper tiers keep
-            their own "Back to Search" control inside the search panel. */}
-        {step === "tabs" && (
-          <div>
-            <div role="tablist" className="flex bg-rhozly-surface-low p-1 rounded-2xl gap-1">
-              <button
-                role="tab"
-                data-testid="ailment-tab-search"
-                aria-selected={mode !== "manual"}
-                onClick={() => setMode("search")}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${mode !== "manual" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-              >
-                <Search size={14} /> Search
-              </button>
-              <button
-                role="tab"
-                data-testid="ailment-tab-manual"
-                aria-selected={mode === "manual"}
-                onClick={() => setMode("manual")}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${mode === "manual" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-              >
-                <Edit3 size={14} /> Manual
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Back-to-search control for the deeper tiers (Perenual / AI). Manual
-            is reached via the tab bar, so it doesn't need this. */}
-        {step === "tabs" && mode !== "search" && mode !== "manual" && (
-          <div className="mt-3 mb-1">
+  return createPortal(
+    // Full-screen search overlay (hub search-first overhaul Stage 2,
+    // 2026-07-21) — the same shell as the Shed's PlantSearchTakeover:
+    // `fixed inset-0 z-[60]` covers the app header (z-50) / weather bar / hub
+    // tabs, the input is PINNED in the top bar (keyboard-safe — it sat at
+    // y=523 under 5 chrome blocks before), and the watchlist grid stays
+    // MOUNTED underneath. PORTALED to body — PullToRefresh's scroller keeps a
+    // residual transform after a pull, which would trap `fixed` inside the
+    // content area (caught live). Every internal testid (ailment-tab-*,
+    // ailment-search-*, ailment-library-*) is unchanged. NOT role="dialog"
+    // (WL-TKO-001 asserts no aria-modal overlay).
+    <div className="fixed inset-0 z-[60] bg-rhozly-bg flex flex-col animate-in fade-in duration-200" data-testid="ailment-add-takeover">
+      {/* ── Top bar — the only pinned chrome ─────────────────────────────── */}
+      <header
+        className="shrink-0 bg-rhozly-bg border-b border-rhozly-outline/10"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <div className="max-w-3xl mx-auto w-full px-3 pt-2 pb-2">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setMode("search")}
-              data-testid="ailment-back-to-search"
-              className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-rhozly-on-surface/50 hover:text-rhozly-primary transition-colors"
+              // Step-aware (review catch): "back" goes back ONE level — review
+              // returns to the tabs (preserving the cart; closing here would
+              // silently discard checked Perenual/AI picks), a deeper search
+              // tier returns to library search, and only the base search
+              // state closes the overlay (WL-TKO-001's path).
+              onClick={() => {
+                if (step === "review") setStep("tabs");
+                else if (mode !== "search") setMode("search");
+                else onClose();
+              }}
+              data-testid="ailment-add-back"
+              aria-label={
+                step === "review"
+                  ? "Back to search"
+                  : mode !== "search"
+                    ? "Back to search"
+                    : "Back to watchlist"
+              }
+              className="shrink-0 w-11 h-11 flex items-center justify-center rounded-control text-rhozly-on-surface/70 can-hover:hover:bg-rhozly-surface-low can-hover:hover:text-rhozly-on-surface active:scale-[0.95] transition"
             >
-              <ChevronLeft size={14} /> Back to Search
+              <ArrowLeft size={20} />
             </button>
-          </div>
-        )}
 
-        <div className="py-5 space-y-5">
+            {step === "review" ? (
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-black text-rhozly-on-surface leading-tight truncate">Review your picks</p>
+                <p className="text-3xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                  {totalSelected} ailment{totalSelected !== 1 ? "s" : ""} ready to add
+                </p>
+              </div>
+            ) : mode === "manual" ? (
+              <p className="flex-1 min-w-0 text-base font-black text-rhozly-on-surface px-1 truncate">
+                Add an ailment manually
+              </p>
+            ) : mode === "perenual" ? (
+              <p className="flex-1 min-w-0 text-base font-black text-rhozly-on-surface px-1 truncate">
+                Plant database search
+              </p>
+            ) : mode === "ai" ? (
+              <p className="flex-1 min-w-0 text-base font-black text-rhozly-on-surface px-1 truncate">
+                Rhozly AI search
+              </p>
+            ) : (
+              <div className="relative flex-1 min-w-0">
+                <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-rhozly-on-surface/40 pointer-events-none" />
+                <input
+                  type="search"
+                  data-testid="ailment-search-input"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  enterKeyHint="search"
+                  aria-label="Search pests and diseases"
+                  placeholder="Search pests & diseases…"
+                  className="w-full h-[52px] pl-10 pr-10 rounded-control bg-white border border-rhozly-outline/20 text-base font-bold text-rhozly-on-surface placeholder:text-rhozly-on-surface/40 outline-none focus:border-rhozly-primary/50 [&::-webkit-search-cancel-button]:hidden"
+                />
+                {libraryLoading ? (
+                  <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-rhozly-on-surface/40" />
+                ) : query ? (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    data-testid="ailment-search-clear"
+                    onClick={() => setQuery("")}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full text-rhozly-on-surface/40 can-hover:hover:text-rhozly-on-surface can-hover:hover:bg-rhozly-surface-low transition"
+                  >
+                    <X size={16} />
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          {/* Utility row — mode tabs + the deep-tier back control */}
+          {step === "tabs" && (
+            <div className="flex items-center justify-between gap-2 mt-2">
+              <div role="tablist" className="flex bg-rhozly-surface-low p-1 rounded-control gap-1">
+                <button
+                  role="tab"
+                  data-testid="ailment-tab-search"
+                  aria-selected={mode !== "manual"}
+                  onClick={() => setMode("search")}
+                  className={`flex items-center justify-center gap-1.5 px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-[calc(var(--radius-control)-4px)] text-xs font-black transition-all ${mode !== "manual" ? "bg-rhozly-surface-lowest text-rhozly-primary shadow-card" : "text-rhozly-on-surface/40 can-hover:hover:text-rhozly-on-surface"}`}
+                >
+                  <Search size={14} /> Search
+                </button>
+                <button
+                  role="tab"
+                  data-testid="ailment-tab-manual"
+                  aria-selected={mode === "manual"}
+                  onClick={() => setMode("manual")}
+                  className={`flex items-center justify-center gap-1.5 px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-[calc(var(--radius-control)-4px)] text-xs font-black transition-all ${mode === "manual" ? "bg-rhozly-surface-lowest text-rhozly-primary shadow-card" : "text-rhozly-on-surface/40 can-hover:hover:text-rhozly-on-surface"}`}
+                >
+                  <Edit3 size={14} /> Manual
+                </button>
+              </div>
+              {mode !== "search" && mode !== "manual" && (
+                <button
+                  onClick={() => setMode("search")}
+                  data-testid="ailment-back-to-search"
+                  className="flex items-center gap-1.5 text-xs font-black px-3 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full text-rhozly-on-surface/55 can-hover:hover:text-rhozly-primary can-hover:hover:bg-rhozly-primary/5 transition-colors"
+                >
+                  <ChevronLeft size={14} /> Back to Search
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* ── Body — everything scrolls under the pinned bar ────────────────── */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar overscroll-contain">
+        <div className="max-w-3xl mx-auto w-full px-4 pt-3 pb-10 space-y-5">
 
           {/* ── Review step: combined cart ── */}
           {step === "review" && (
@@ -1035,26 +1126,28 @@ function AddAilmentModal({
                   the user has typed. */}
               {mode === "search" && (
                 <div className="space-y-3">
-                  <div className="relative">
-                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-rhozly-on-surface/40 pointer-events-none" />
-                    <input
-                      data-testid="ailment-search-input"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      autoFocus
-                      placeholder="Search any pest, disease or weed by name…"
-                      className="w-full pl-10 pr-9 py-3 min-h-[48px] rounded-2xl bg-white border border-rhozly-outline/20 text-sm font-bold text-rhozly-on-surface placeholder:text-rhozly-on-surface/40 outline-none focus:border-rhozly-primary/50"
-                    />
-                    {libraryLoading && (
-                      <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-rhozly-on-surface/40" />
-                    )}
-                  </div>
-
-                  {/* Calm empty prompt — mirrors PlantSearch's empty state. */}
+                  {/* Idle state — the input lives in the pinned top bar now.
+                      Never blank: a gentle prompt + the field-guide entry row. */}
                   {!query.trim() && (
-                    <p data-testid="ailment-search-prompt" className="text-[12px] font-bold text-rhozly-on-surface/45 px-1 leading-snug">
-                      Start typing a pest or disease — e.g. <span className="text-rhozly-primary">"aphids"</span> or <span className="text-rhozly-primary">"blight"</span>.
-                    </p>
+                    <>
+                      <p data-testid="ailment-search-prompt" className="text-[12px] font-bold text-rhozly-on-surface/45 px-1 leading-snug">
+                        Start typing a pest or disease — e.g. <span className="text-rhozly-primary">"aphids"</span> or <span className="text-rhozly-primary">"blight"</span>.
+                      </p>
+                      <button
+                        type="button"
+                        data-testid="ailment-search-browse-library"
+                        onClick={() => navigate("/ailment-library")}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-2xl border border-rhozly-outline/15 bg-white text-left can-hover:hover:border-rhozly-primary/30 transition-colors"
+                      >
+                        <span className="w-9 h-9 shrink-0 rounded-xl bg-rhozly-surface-low flex items-center justify-center text-rhozly-on-surface/50">
+                          <Binoculars size={16} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-black text-rhozly-on-surface">Browse the field guide</span>
+                          <span className="block text-[11px] font-bold text-rhozly-on-surface/45">Every pest, disease and invasive we know about</span>
+                        </span>
+                      </button>
+                    </>
                   )}
 
                   {query.trim() && (
@@ -1071,25 +1164,36 @@ function AddAilmentModal({
                           const added =
                             addedLibraryIds.has(lib.id) ||
                             (existingKeys?.has(ailmentIdentityKey(lib.name)) ?? false);
+                          const sevLabel = lib.severity ? AILMENT_SEVERITY_CLASSES[lib.severity]?.label : null;
                           return (
-                            <div key={lib.id} data-testid={`ailment-library-result-${lib.id}`} className="border border-rhozly-outline/10 rounded-2xl bg-white flex items-center gap-3 p-3">
-                              <div className="w-12 h-12 rounded-xl bg-rhozly-surface-low overflow-hidden shrink-0 flex items-center justify-center text-rhozly-on-surface/20">
-                                {lib.thumbnail_url ? <img src={lib.thumbnail_url} alt={lib.name} className="w-full h-full object-cover" /> : meta.icon}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-black text-sm text-rhozly-on-surface truncate">{lib.name}</p>
-                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                  <span className={`inline-flex items-center gap-0.5 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full ${meta.colour}`}>{meta.icon} {meta.label}</span>
-                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary"><Library size={10} /> Library</span>
+                            // Plants-parity row (Stage 2): 72px, 56px thumb, row
+                            // BODY opens the field-guide detail; the trailing
+                            // button adds/watches. Same split as plant results.
+                            <div key={lib.id} data-testid={`ailment-library-result-${lib.id}`} className="border border-rhozly-outline/10 rounded-2xl bg-white flex items-center gap-2 pl-3 pr-2 py-2.5 min-h-[72px]">
+                              <button
+                                type="button"
+                                data-testid={`ailment-library-open-${lib.id}`}
+                                onClick={() => setDetailAilment(lib)}
+                                className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
+                              >
+                                <div className="w-14 h-14 rounded-2xl bg-rhozly-surface-low overflow-hidden shrink-0 flex items-center justify-center text-rhozly-on-surface/20">
+                                  {lib.thumbnail_url ? <img src={lib.thumbnail_url} alt={lib.name} className="w-full h-full object-cover" /> : meta.icon}
                                 </div>
-                              </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-black text-base text-rhozly-on-surface leading-tight truncate">{lib.name}</p>
+                                  <p className="text-xs font-bold text-rhozly-on-surface/45 truncate">
+                                    {meta.label}{sevLabel ? ` · ${sevLabel} severity` : ""} · Library
+                                  </p>
+                                </div>
+                              </button>
                               <button
                                 onClick={() => addFromLibrary(lib)}
-                                disabled={added}
+                                disabled={added || libraryAddBusy === lib.id}
                                 data-testid={`ailment-library-add-${lib.id}`}
-                                className="shrink-0 px-3 py-2 rounded-xl bg-rhozly-primary text-white text-xs font-black flex items-center gap-1 disabled:opacity-60 disabled:bg-rhozly-on-surface/20"
+                                aria-label={added ? `Watching ${lib.name}` : `Watch ${lib.name} in this garden`}
+                                className="shrink-0 px-3 py-2 min-h-11 rounded-xl bg-rhozly-primary text-white text-xs font-black flex items-center gap-1 active:scale-[0.95] transition disabled:opacity-60 disabled:bg-rhozly-on-surface/20"
                               >
-                                {added ? <><CheckCircle2 size={13} /> Watching</> : <><Plus size={13} /> Add</>}
+                                {libraryAddBusy === lib.id ? <Loader2 size={13} className="animate-spin" /> : added ? <><CheckCircle2 size={13} /> Watching</> : <><Plus size={13} /> Add</>}
                               </button>
                             </div>
                           );
@@ -1098,31 +1202,43 @@ function AddAilmentModal({
                     </div>
                   )}
 
-                  {/* Escalation CTAs — only once the user has typed, mirroring
-                      PlantSearch. Subtle bordered buttons (not a loud fill) so
-                      the modal reads the same as "Find a plant". */}
+                  {/* Escalation ladder (Stage 2) — quiet, left-aligned,
+                      result-styled rows matching the plant search: never a
+                      stack of centered CTAs. Testids unchanged. */}
                   {query.trim() && (
                     <div className="space-y-2 pt-1">
                       <button
                         onClick={goToDatabases}
                         data-testid="ailment-search-databases"
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-rhozly-outline/20 text-xs font-black text-rhozly-on-surface/70 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-2xl border border-rhozly-outline/15 bg-white text-left can-hover:hover:border-rhozly-primary/30 transition-colors"
                       >
-                        <IconPlantDB size={14} /> Search more databases
+                        <span className="w-9 h-9 shrink-0 rounded-xl bg-rhozly-surface-low flex items-center justify-center text-rhozly-on-surface/50">
+                          <IconPlantDB size={16} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-black text-rhozly-on-surface">Search wider</span>
+                          <span className="block text-[11px] font-bold text-rhozly-on-surface/45">Perenual pest &amp; disease database</span>
+                        </span>
                       </button>
                       <button
                         onClick={goToAi}
                         data-testid="ailment-search-ai"
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-amber-300 text-xs font-black text-amber-600 hover:bg-amber-50 transition-colors"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-2xl border border-amber-200 bg-amber-50/40 text-left can-hover:hover:bg-amber-50 transition-colors"
                       >
-                        <IconAI size={14} /> Search with Rhozly AI
+                        <span className="w-9 h-9 shrink-0 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
+                          <IconAI size={16} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-black text-amber-700">Search with Rhozly AI</span>
+                          <span className="block text-[11px] font-bold text-amber-600/70">For unusual or hard-to-spell problems</span>
+                        </span>
                       </button>
                       <button
                         onClick={() => setMode("manual")}
                         data-testid="ailment-add-manually"
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-xs font-black text-rhozly-on-surface/55 hover:text-rhozly-on-surface hover:bg-rhozly-surface transition-colors"
+                        className="w-full flex items-center gap-2 px-3 py-2.5 min-h-[48px] rounded-2xl text-left text-xs font-black text-rhozly-on-surface/55 can-hover:hover:text-rhozly-on-surface can-hover:hover:bg-rhozly-surface transition-colors"
                       >
-                        <Edit3 size={13} /> Add "{query.trim()}" manually
+                        <Edit3 size={13} /> Enter "{query.trim()}" manually
                       </button>
                     </div>
                   )}
@@ -1535,7 +1651,6 @@ function AddAilmentModal({
               )}
             </>
           )}
-        </div>
 
         {/* Footer — shared selection bar (Perenual + AI tabs) */}
         {step === "tabs" && totalSelected > 0 && mode !== "manual" && (
@@ -1600,7 +1715,28 @@ function AddAilmentModal({
             </button>
           </div>
         )}
-    </div>
+        </div>
+      </div>
+
+      {/* Field-guide detail — plants-parity (row tap), z-[100] over this
+          overlay. Watch state + add flow are the row's own (shared). */}
+      {detailAilment && (
+        <LibraryAilmentDetailModal
+          ailment={detailAilment}
+          homeId={homeId}
+          aiEnabled={aiEnabled}
+          watching={
+            addedLibraryIds.has(detailAilment.id) ||
+            (existingKeys?.has(ailmentIdentityKey(detailAilment.name)) ?? false)
+          }
+          watchingBusy={libraryAddBusy === detailAilment.id}
+          canWatch
+          onWatch={() => addFromLibrary(detailAilment)}
+          onClose={() => setDetailAilment(null)}
+        />
+      )}
+    </div>,
+    document.body,
   );
 }
 
@@ -2032,25 +2168,10 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   };
   const cm = confirmMeta[confirmState.type];
 
-  // Full-page "Find an ailment" takeover (overhaul Stage 5) — while open it IS
-  // the tab body (the watchlist header/grid come back on close). All hooks are
-  // above; the ?open=add-ailment deep link + onSaved contract are unchanged.
-  if (showAdd) {
-    return (
-      <div className="animate-in fade-in duration-300">
-        <AddAilmentModal
-          homeId={homeId}
-          aiEnabled={aiEnabled}
-          onSaved={(a) => { setAilments((prev) => [a, ...prev]); requestFeedback("ailment_add"); }}
-          onClose={() => setShowAdd(false)}
-          existingKeys={new Set(
-            ailments.filter((a) => !a.is_archived).map((a) => ailmentIdentityKey(a.name)).filter(Boolean),
-          )}
-        />
-      </div>
-    );
-  }
-
+  // The "Search pests & diseases" overlay renders as a SIBLING near the other
+  // modals below (Stage 2) — the watchlist grid stays mounted underneath, so
+  // closing lands exactly where you left off. The ?open=add-ailment deep link
+  // + onSaved contract are unchanged.
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Page header */}
@@ -2287,8 +2408,19 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
       )}
 
       {/* Modals — rendered via portal so they escape any parent overflow/z-index */}
-      {/* The Find-an-ailment flow is no longer a portal modal — `showAdd`
-          early-returns the full-page takeover above (overhaul Stage 5). */}
+      {/* The Find-an-ailment flow — a fixed z-[60] overlay (Stage 2): covers
+          the app chrome while the watchlist grid stays mounted underneath. */}
+      {showAdd && (
+        <AddAilmentModal
+          homeId={homeId}
+          aiEnabled={aiEnabled}
+          onSaved={(a) => { setAilments((prev) => [a, ...prev]); requestFeedback("ailment_add"); }}
+          onClose={() => setShowAdd(false)}
+          existingKeys={new Set(
+            ailments.filter((a) => !a.is_archived).map((a) => ailmentIdentityKey(a.name)).filter(Boolean),
+          )}
+        />
+      )}
       {showBulkAdd && (
         <BulkAddAilmentsModal
           homeId={homeId}

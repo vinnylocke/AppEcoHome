@@ -180,4 +180,5 @@ It's the field guide you'd keep in the potting shed: every pest, disease, invasi
 - `src/lib/ailmentPresentation.ts` — kind/severity status-token maps + `matchAffectedPlants` (unit tests `tests/unit/lib/ailmentPresentation.test.ts`)
 - `src/services/favouritesService.ts` — `favouriteAilment` (now takes an optional pre-resolved library id), `listFavouriteAilments`, `unfavouriteAilment`
 - `supabase/seeds/16_ailment_library.sql` — e2e catalogue rows (global table — per-worker idempotent rules documented in-file)
+- `src/components/ailments/AilmentDetailBody.tsx` — the extracted detail BODY (hero + action bar + could-affect + editorial sections; Stage 2 of the hub search-first overhaul). Rendered by BOTH this page's `?ailment=` detail AND `src/components/ailments/AilmentDetailModal.tsx` (the z-[100] modal the watchlist's search overlay opens on result-row tap — plants parity)
 - `tests/e2e/specs/ailment-library.spec.ts` — AILIB-001..003, 010..013

@@ -736,4 +736,43 @@ test.describe("Watchlist — ailment-add takeover (Stage 5)", () => {
     await expect(authenticatedPage.getByTestId("ailment-add-takeover")).toBeVisible({ timeout: 15000 });
     await expect(authenticatedPage.locator('[data-testid="ailment-search-input"]')).toBeVisible();
   });
+
+  test("WL-TKO-003: overlay pins the input keyboard-safe; result row tap opens the field-guide detail (plants parity)", async ({ authenticatedPage }) => {
+    // Stage 2 regression guard: the input must sit in the top band (it was at
+    // y=523 under 5 chrome blocks), the overlay must paint over the app
+    // header, and tapping a result's BODY must open the shared field-guide
+    // detail (viewing ≠ adding) while the trailing button adds.
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+    await wl.addButton.click();
+
+    const input = authenticatedPage.locator('[data-testid="ailment-search-input"]');
+    await expect(input).toBeVisible({ timeout: 10000 });
+    const box = await input.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y).toBeLessThan(130);
+
+    // Seed-16 library row (Tomato Hornworm 900001) — row body opens detail.
+    await input.fill("hornworm");
+    const openBtn = authenticatedPage.getByTestId("ailment-library-open-900001");
+    await expect(openBtn).toBeVisible({ timeout: 8000 });
+    await openBtn.click();
+    const detail = authenticatedPage.getByTestId("ailment-detail-modal");
+    await expect(detail).toBeVisible({ timeout: 8000 });
+    // The shared field-guide surface: Watch CTA + favourite heart present.
+    await expect(authenticatedPage.getByTestId("ailment-add-watchlist")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("ailment-detail-favourite")).toBeVisible();
+
+    // Escape closes ONLY the detail; the search overlay stays open.
+    await authenticatedPage.keyboard.press("Escape");
+    await expect(detail).toHaveCount(0);
+    await expect(authenticatedPage.getByTestId("ailment-add-takeover")).toBeVisible();
+
+    // Escape ladder: typed query clears first, then the overlay closes.
+    await authenticatedPage.keyboard.press("Escape");
+    await expect(input).toHaveValue("");
+    await authenticatedPage.keyboard.press("Escape");
+    await expect(authenticatedPage.getByTestId("ailment-add-takeover")).toHaveCount(0);
+  });
 });

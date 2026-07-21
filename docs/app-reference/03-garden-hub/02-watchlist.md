@@ -78,29 +78,41 @@ search box with progressive tiers (the old AI / Perenual tabs were removed). Sou
 `AilmentWatchlist.tsx` (the flow) + `src/services/ailmentLibraryService.ts` (`filterAilmentLibrary`,
 `persistAiAilmentToLibrary`).
 
-> **Stage 5 of the ailment-library-shed-search overhaul (2026-07-21): the flow is a FULL-PAGE
-> TAKEOVER, not a modal** — mirroring the Shed's `PlantSearchTakeover`. `AilmentWatchlist`
-> early-returns it while `showAdd` is true (`data-testid="ailment-add-takeover"`; the watchlist
-> header/grid come back on close via the `ailment-add-back` "Watchlist" button). The old
-> `fixed inset-0` portal shell, `max-w-3xl h-[85vh]` cap and `backdrop-blur-xl` are gone; every
-> internal testid (`ailment-tab-search/manual`, `ailment-search-*`, `ailment-library-*`,
-> `ailment-back-to-search`) and the `?open=add-ailment` deep link + `ailment_source` preference
-> are unchanged. Escape steps back through the flow (review → tabs → library search → close),
-> never on the Manual form.
+> **Hub search-first overhaul Stage 2 (2026-07-21): the flow is a FULL-SCREEN OVERLAY** —
+> the same shell as the Shed's `PlantSearchTakeover`. `AilmentWatchlist` renders it as a
+> sibling while `showAdd` is true (`data-testid="ailment-add-takeover"`), **portaled to
+> `document.body`** (`fixed inset-0 z-[60]`, opaque — it covers the app header, weather bar
+> and hub tabs; PullToRefresh's scroller keeps a residual `transform` after a pull which
+> would otherwise trap `fixed` inside the content area). The watchlist grid stays MOUNTED
+> underneath. The search input is PINNED in the top bar (~y=8, keyboard-safe — it sat at
+> y=523 under five chrome blocks before) with a clear-× (`ailment-search-clear`); the back
+> chevron carries `ailment-add-back`. Every internal testid (`ailment-tab-search/manual`,
+> `ailment-search-*`, `ailment-library-*`, `ailment-back-to-search`) and the
+> `?open=add-ailment` deep link + `ailment_source` preference are unchanged. Escape ladder:
+> field-guide detail (owns its own) → review → tabs → deeper tier → **clears a typed
+> query** → close; never on the Manual form. NOT `role="dialog"` (WL-TKO-001).
 
-**Visual parity with the Shed's "Find a plant".** The flow is deliberately aligned to the Shed's
-add flow so the two read as one family (both are now full-page takeovers):
-- **Frame:** a `max-w-3xl` page column (was `max-w-3xl h-[85vh]` pre-Stage-5).
-- **Header:** `p-8`, `Biohazard` icon + `text-3xl` title + muted uppercase subtitle.
-- **Tabs:** a **Search / Manual** tab bar (`data-testid="ailment-tab-search"` / `ailment-tab-manual`).
-- **Search body (mirrors `PlantSearch`):** a magnifier field (`bg-white border` + leading `Search`
-  icon), a **calm empty state** — just the field + a subtle prompt (`ailment-search-prompt`), no
-  banner — and the **escalation CTAs hidden until the user types**. Once there's a query, the
-  library results render, then subtle *bordered* "Search more databases" + amber-bordered "Search
-  with Rhozly AI" + a "Add … manually" fallback (not the old amber-banner + loud-fill buttons).
-- Only the *search engine* differs — ailments use the library / Perenual-pest-disease / AI-generation
-  tiers, not the plant `<PlantSearch>` component (the deeper Perenual/AI tiers keep their own "Back
-  to Search" control; **Manual** is the tab).
+**Full parity with the Shed's plant search.** The two overlays read as one family:
+- **Top bar:** back chevron (44px) + the pinned 52px input ("Search pests & diseases…") —
+  swapped for a static title in the Manual / Databases / AI modes and the review step.
+- **Utility row:** the **Search / Manual** tabs (`ailment-tab-search` / `ailment-tab-manual`)
+  + the deep-tier "Back to Search" control (`ailment-back-to-search`) on the right.
+- **Result rows (plants parity):** 72px rows, 56px thumbnail, `text-base` name,
+  "Kind · Severity · Library" second line. The row **body** (`ailment-library-open-<id>`)
+  opens the shared **field-guide detail** as a z-[100] modal
+  (`src/components/ailments/AilmentDetailModal.tsx` → `AilmentDetailBody`, the same surface
+  as the Ailment Library's `?ailment=` page — Watch / ♥ Favourite / ✦ Ask AI + could-affect
+  strip + editorial sections); the trailing button (`ailment-library-add-<id>`) adds/watches
+  ("Watching ✓" disabled state via `existingKeys` unchanged).
+- **Idle state:** the calm prompt (`ailment-search-prompt`) + a **"Browse the field guide"**
+  row (`ailment-search-browse-library` → `/ailment-library`).
+- **Escalation ladder:** quiet left-aligned result-styled rows — **"Search wider"**
+  (`ailment-search-databases`, sub-line "Perenual pest & disease database") and **"Search
+  with Rhozly AI"** (`ailment-search-ai`, sub-line "For unusual or hard-to-spell problems";
+  kept search-verbed — the ailment AI tier *searches*, unlike the plant side's create) +
+  "Enter … manually" (`ailment-add-manually`).
+- Only the *search engine* differs — ailments use the library / Perenual-pest-disease /
+  AI-generation tiers, not the plant `<PlantSearch>` component.
 
 | Tier | Behaviour |
 |------|-----------|

@@ -73,7 +73,9 @@ export class WatchlistPage {
     this.filterPests = page.getByRole("button", { name: /^Pests/ });
     this.filterDiseases = page.getByRole("button", { name: /^Diseases/ });
 
-    this.addModalHeading = page.getByText("Add to Watchlist").first();
+    // Stage 2 overlay: the takeover is input-first (no "Add to Watchlist"
+    // title) — the pinned search input IS the takeover's identity.
+    this.addModalHeading = page.locator('[data-testid="ailment-search-input"]');
     this.manualModeTab = page.getByRole("button", { name: /^Manual$/i });
     this.aiModeTab = page.getByRole("button", { name: /^AI$/i });
     this.aiSearchInput = page.getByPlaceholder(/rose pests|black spot|aphids/i);

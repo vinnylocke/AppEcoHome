@@ -73,3 +73,4 @@ The "Find an ailment" flow is a **full-page takeover** (`ailment-add-takeover`),
 |---|---|---|---|---|
 | WL-TKO-001 | ✅ | "Find an ailment" opens the full-page takeover (no `aria-modal` dialog); the `ailment-add-back` "Watchlist" control returns to the grid | — | ✅ Passing |
 | WL-TKO-002 | ✅ | `?open=add-ailment` deep-links straight into the takeover with the search input ready | — | ✅ Passing |
+| WL-TKO-003 | ✅ | Overlay pins `ailment-search-input` in the top band (y<130); result-row body tap opens the shared field-guide detail (`ailment-detail-modal` with Watch + ♥); Escape ladder (detail → clear query → close) | Seed 16 (Tomato Hornworm 900001) | ✅ Passing |
