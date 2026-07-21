@@ -33,6 +33,18 @@ test.describe("Stage 4 — discoverability", () => {
     await expect(authenticatedPage.getByTestId("user-profile-help")).toBeVisible();
   });
 
+  test("DISC-B16: Garden Reports is routed and reachable from the Tools hub", async ({ authenticatedPage }) => {
+    // Stage 5 — the fully-built reports view was orphaned (no route); now wired
+    // to /reports with a Measure & Track tile (locked decision: surface it).
+    await authenticatedPage.goto("/tools");
+    const tile = authenticatedPage.getByTestId("tools-hub-garden-reports");
+    await expect(tile).toBeVisible({ timeout: 10000 });
+    await tile.click();
+    await expect(authenticatedPage).toHaveURL(/\/reports/, { timeout: 8000 });
+    // The reports view renders (its Monthly / Year-in-Review toggle is the stable anchor).
+    await expect(authenticatedPage.getByTestId("reports-view-toggle")).toBeVisible({ timeout: 15000 });
+  });
+
   test("DISC-B15: the Schedule header shows a live task summary, not 'Operational Hub'", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/dashboard?view=calendar");
     await expect(authenticatedPage.getByTestId("calendar-view-toggle")).toBeVisible({ timeout: 15000 });

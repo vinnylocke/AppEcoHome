@@ -25,6 +25,7 @@ ToolsHub
 ├── Tool groups
 │   ├── Plan & Design (Garden Layout, Plant Visualiser)
 │   ├── Measure & Track (Light Sensor, Sun Tracker)
+│   ├── Measure & Track also carries Garden Reports (B16, Stage 5 — /reports)
 │   └── Diagnose & Learn (Plant Doctor, Guides, Ailment Library)
 ├── Connect Hardware card → /integrations
 └── Workflows (3 multi-step recipes)

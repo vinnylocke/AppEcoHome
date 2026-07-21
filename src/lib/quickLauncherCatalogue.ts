@@ -15,6 +15,7 @@ import {
   GraduationCap,
   NotebookText,
   Bug,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 
@@ -172,6 +173,15 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
     icon: Bug,
     accent: "amber",
     route: "/ailment-library",
+  },
+  {
+    // B16 — pin Garden Reports (surfaced in Stage 5).
+    id: "garden-reports",
+    label: "Reports",
+    description: "Your month and year in review.",
+    icon: BarChart3,
+    accent: "purple",
+    route: "/reports",
   },
   {
     id: "garden-layout",

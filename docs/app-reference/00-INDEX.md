@@ -106,6 +106,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Community Guide Reader](./05-tools/08-community-guide-reader.md) — single-guide view
 - [x] [Community Guide Editor](./05-tools/09-community-guide-editor.md) — user authoring
 - [x] [Garden Profile / Habit Quiz](./05-tools/10-garden-profile.md) — preferences editor
+- [x] [Garden Reports](./05-tools/11-garden-reports.md) — month + year in review (tasks, plants, harvests, weather, highlights); surfaced at `/reports` in the dashboard-nav-tasks-tray Stage 5 (was orphaned)
 
 ## 06 — Account & Settings
 

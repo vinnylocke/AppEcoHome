@@ -54,6 +54,7 @@ BrowserRouter
     ├── /gardener          ← GardenerProfile (Account Settings; ?tab=account|notifications|achievements|stats, ?section=quick-launcher|plans)
     ├── /journal           ← JournalNotesHub (Journal + Notes tabs; ?tab=notes deep-links Notes — Phase 5 IA merge)
     ├── /weekly            ← WeeklyOverviewPage
+    ├── /reports           ← GardenReports (month/year in review — surfaced Stage 5, B16)
     ├── /notes             ← redirect → /journal?tab=notes (Phase 5 IA — Notes folded into the Journal hub as a tab)
     ├── /credits           ← CreditsPage (image attribution)
     ├── /share/garden-layout/:token ← shared read-only garden layout (outside AppShell)

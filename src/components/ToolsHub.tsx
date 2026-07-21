@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, ArrowRight, Cpu, Bug } from "lucide-react";
+import { ChevronRight, ArrowRight, Cpu, Bug, BarChart3 } from "lucide-react";
 import { IconDoctor, IconLayout, IconScan, IconLight, IconSunTracker, IconGuides } from "../constants/icons";
 
 interface Tool {
@@ -65,6 +65,16 @@ const GROUPS: ToolGroup[] = [
         description: "Live AR sun overlay · year-round day length · per-bed sun hours.",
         path: "/sun-trajectory",
         color: "bg-orange-100 text-orange-700 border-orange-200",
+      },
+      {
+        // B16 (dashboard-nav-tasks-tray Stage 5) — the monthly/yearly review
+        // view, finally surfaced (was fully built but never routed).
+        id: "garden-reports",
+        icon: <BarChart3 size={22} />,
+        label: "Garden Reports",
+        description: "Your month and year in review — tasks done, harvests, plantings, trends.",
+        path: "/reports",
+        color: "bg-violet-100 text-violet-700 border-violet-200",
       },
     ],
   },

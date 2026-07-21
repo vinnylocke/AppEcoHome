@@ -104,6 +104,7 @@ const CreditsPage           = lazyWithRetry(() => import("./components/CreditsPa
 const GardenWalk            = lazyWithRetry(() => import("./components/walk/GardenWalk"));
 const MobileNavDrawer       = lazyWithRetry(() => import("./components/MobileNavDrawer"));
 const TodayTasksTray        = lazyWithRetry(() => import("./components/TodayTasksTray"));
+const GardenReports         = lazyWithRetry(() => import("./components/GardenReports"));
 const QuickAccessMenuButton = lazyWithRetry(() => import("./components/QuickAccessMenuButton"));
 const LightSensor         = lazyWithRetry(() => import("./components/LightSensor"));
 const SunTrajectoryAR     = lazyWithRetry(() => import("./components/SunTrajectoryAR"));
@@ -1387,7 +1388,7 @@ function AppShell() {
     // resolves an active item when you're on it; Notes folded into Journal.
     { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping", "/schedule"], group: "plan" },
     { id: "journal",   icon: <BookOpen />, label: "Journal",    matchPaths: ["/journal", "/notes"], group: "plan" },
-    { id: "tools",        icon: <IconTools />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory", "/weekly"], group: "ai" },
+    { id: "tools",        icon: <IconTools />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory", "/weekly", "/reports", "/ailment-library"], group: "ai" },
     { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"], group: "ai" },
     // Head Gardener is Evergreen-only (FeatureGate feature="head_gardener").
     // Hide the nav entry for tiers that can't use it — the /manager route
@@ -1983,6 +1984,18 @@ function AppShell() {
 
                       {/* Phase 5 IA — Notes folded into the Journal hub as a tab. */}
                       <Route path="/notes" element={<Navigate to="/journal?tab=notes" replace />} />
+
+                      {/* B16 (dashboard-nav-tasks-tray Stage 5, 2026-07-21): Garden
+                          Reports — the fully-built monthly/yearly review view, finally
+                          wired to a route (was orphaned dead code; locked decision:
+                          surface it). Doors: Tools hub tile + launcher pin. */}
+                      <Route path="/reports" element={
+                        profile?.home_id ? (
+                          <div className="h-full overflow-auto animate-in fade-in duration-500">
+                            <GardenReports homeId={profile.home_id} />
+                          </div>
+                        ) : null
+                      } />
 
                       {/* Wave 22.0002 — image credits umbrella attribution page. */}
                       <Route path="/credits" element={
