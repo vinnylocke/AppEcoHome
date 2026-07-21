@@ -1,6 +1,8 @@
 # Localized Task Calendar
 
-> The mobile planting-helper screen for "what's happening in my garden today?" Three cards stacked top-to-bottom: a frost-aware planting helper, a rain-vs-watering advice tile, and today's pending tasks. Mounted at `/quick/calendar` and reachable from the **"Today" launcher tile on the dashboard** (`home-quick-tile-today`; since the `/quick` launcher home was retired 2026-07-20, the Today tile lives in the dashboard's `QuickActionsRow`). Still a focus-mode tool on mobile; its back button returns to `/dashboard`. Desktop users keep getting the full Dashboard.
+> The mobile planting-helper screen for "what's happening in my garden today?" Three cards stacked top-to-bottom: a frost-aware planting helper, a rain-vs-watering advice tile, and today's pending tasks. Mounted at `/quick/calendar`. Still a focus-mode tool on mobile; its back button returns to `/dashboard`. Desktop users keep getting the full Dashboard.
+>
+> **⚠ Entry point removed (dashboard-nav-tasks-tray redesign Stage 1, 2026-07-21).** This screen used to be reached from the **"Today" launcher tile** (`home-quick-tile-today`) in the dashboard's `QuickActionsRow`. That whole launcher grid was cut from the home in Stage 1 (every tile but the Garden Walk duplicated the nav bar), so the planting helper currently has **no in-app entry — it is URL-only** (`/quick/calendar`). Re-surfacing it (e.g. from the Calendar sub-tab or the new Today's-Tasks tray) is flagged as a follow-up in `docs/plans/dashboard-nav-tasks-tray-2026-07.md`.
 
 **Route:** `/quick/calendar`
 **Source files (entry points):**
@@ -221,7 +223,7 @@ No difference.
 
 ### Recommended workflows
 
-- **"Should I plant this today?"**: open the dashboard → Today launcher tile → type the plant → read the verdict. Two taps total.
+- **"Should I plant this today?"**: open `/quick/calendar` (URL-only since Stage 1 — see the entry-point note at the top) → type the plant → read the verdict.
 - **"Do I water today?"**: open Today, scan the middle tile, done.
 - **"Customise my rain advice"**: go to Account → Home Management → Climate Settings tab → Rain advice thresholds section. Save once; the calendar uses your numbers from then on.
 
@@ -234,7 +236,7 @@ No difference.
 
 ## Related reference files
 
-- [Home (Main Dashboard)](./17-home-main.md) — the Today launcher tile that opens this screen now lives in the dashboard's `QuickActionsRow`
+- [Home (Main Dashboard)](./17-home-main.md) — used to host the "Today" launcher tile that opened this screen; the launcher grid was removed in Stage 1 (2026-07-21), so there is no dashboard entry now
 - [Quick Access Home](./09-quick-access-home.md) — **RETIRED (2026-07-20)**; the old parent screen that used to host the Today tile
 - [Quick Add Task Modal](../08-modals-and-overlays/35-quick-add-task-modal.md) — the slim modal the + Add button mounts
 - [Add Task / Edit Schedule Modal](../08-modals-and-overlays/01-add-task-modal.md) — the full sibling for recurring schedules + area/plant binding
@@ -259,4 +261,4 @@ No difference.
 - `tests/unit/components/RainWaterAdvice.test.ts` — pure helper + render tests
 - `tests/unit/components/PlantingCalendarCard.test.ts` — loading + error + submit flows
 - `tests/unit/components/LocalizedTaskCalendar.test.ts` — composition + back navigation
-- `tests/e2e/specs/quick-calendar.spec.ts` — routing + AI lookup happy path (QUICK-CAL-001 enters via the dashboard Today tile; QUICK-CAL-005 back button now expects `/dashboard`)
+- `tests/e2e/specs/quick-calendar.spec.ts` — routing + AI lookup happy path (QUICK-CAL-001 retired in Stage 1, 2026-07-21 with the Today tile; QUICK-CAL-002 now enters by direct URL; QUICK-CAL-005 back button expects `/dashboard`)

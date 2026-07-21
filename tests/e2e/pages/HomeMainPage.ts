@@ -12,7 +12,7 @@ export class HomeMainPage {
   readonly root: Locator;
   readonly statusStrip: Locator;
   readonly overviewGrid: Locator;
-  readonly quickActions: Locator;
+  readonly gardenWalk: Locator;
   readonly todaysTasks: Locator;
   readonly tasksSeeAll: Locator;
   readonly densitySimple: Locator;
@@ -25,7 +25,7 @@ export class HomeMainPage {
     this.root = page.getByTestId("home-main");
     this.statusStrip = page.getByTestId("home-status-strip");
     this.overviewGrid = page.getByTestId("home-overview-grid");
-    this.quickActions = page.getByTestId("home-quick-actions");
+    this.gardenWalk = page.getByTestId("dash-garden-walk");
     this.todaysTasks = page.getByTestId("home-todays-tasks");
     this.tasksSeeAll = page.getByTestId("home-tasks-see-all");
     this.densitySimple = page.getByTestId("home-density-simple");
@@ -42,10 +42,6 @@ export class HomeMainPage {
     return this.page.getByTestId(
       `home-area-row-${areaName.toLowerCase().replace(/\s+/g, "-")}`,
     );
-  }
-
-  quickTile(id: string): Locator {
-    return this.page.getByTestId(`home-quick-tile-${id}`);
   }
 
   async goto() {

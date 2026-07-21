@@ -7,8 +7,8 @@ type Persona = UserProfile["persona"];
  * (experienced). See docs/plans/home-redesign-two-postures.md.
  *
  * The persona decides WHAT the homepage contains, not just its copy density:
- * each preset is a declarative recipe (ordered visible sections + per-section
- * variants) rendered by HomeMain's single section loop. This mirrors the
+ * each preset is a declarative recipe (an ordered list of visible sections)
+ * rendered by HomeMain's single section loop. This mirrors the
  * quickLauncherCatalogue/resolvePins pattern — one registry, one renderer,
  * user override always wins.
  *
@@ -50,55 +50,43 @@ export type HomeSectionId =
 export interface HomePreset {
   /** Ordered list of VISIBLE sections — omission hides a section. */
   sectionOrder: HomeSectionId[];
-  /** Per-section presentation variant (consumed by each section's renderer). */
-  variants: Partial<Record<HomeSectionId, string>>;
 }
 
 export const HOME_PRESETS: Record<HomePosture, HomePreset> = {
   // 🪴 The Porch — a warm guided welcome. Sentence hero, one Next Best
-  // Action, plants as photos, gentle today list, learning strip. Almost no
-  // numbers.
+  // Action, then today's tasks FIRST (dashboard-nav-tasks-tray redesign
+  // Stage 1, 2026-07-21 — tasks are the most-used thing, promoted above the
+  // garden), the Garden Walk tile, the garden grid, a learning strip, the
+  // Brief. Almost no numbers.
   porch: {
     sectionOrder: [
       "hero",
       "nextBestAction",
       "promo",
-      "garden",
       "today",
       "quickActions",
+      "garden",
       "learn",
       "brief",
     ],
-    variants: {
-      hero: "sentence",
-      promo: "card",
-      garden: "photos",
-      today: "gentle",
-      brief: "gentle",
-    },
   },
   // 🛠️ The Workbench — an operations console. Console-line hero, attention
-  // inbox, telemetry grid, compact tasks + "Open board", the merged Brief,
-  // week ahead. Almost no hand-holding. (The Garden Snapshot stat wall was
-  // deleted outright in the stats+locations redesign Stage 2 — 2026-07-20.)
+  // inbox, today's tasks (promoted above the garden — Stage 1), the Garden
+  // Walk tile, telemetry grid, the merged Brief, week ahead. Almost no
+  // hand-holding. (The Garden Snapshot stat wall was deleted outright in the
+  // stats+locations redesign Stage 2 — 2026-07-20; the quick-actions launcher
+  // grid was cut in Stage 1 — 2026-07-21, leaving only the Walk tile.)
   workbench: {
     sectionOrder: [
       "hero",
       "attention",
-      "garden",
       "today",
+      "quickActions",
+      "garden",
       "brief",
       "week",
-      "quickActions",
       "promo",
     ],
-    variants: {
-      hero: "console",
-      promo: "line",
-      garden: "telemetry",
-      today: "throughput",
-      brief: "full",
-    },
   },
 };
 

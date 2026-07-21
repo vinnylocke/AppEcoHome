@@ -33,7 +33,7 @@ Key selectors: `home-main`, `dashboard-view-switcher`, `home-status-strip`, `hom
 | HOME-002 | ✅ | Garden overview grid renders both seeded locations with their area rows (Raised Bed A, South Border) | — | ✅ Passing |
 | HOME-003 | ✅ | Legacy `?view=dashboard` deep link lands on the new Home view | — | ✅ Passing |
 | HOME-004 | ✅ | Legacy `?view=overview` deep link **falls through to the merged Home view** (`home-main` visible) — the unknown view param resolves to home exactly like `?view=dashboard` | — | 🔲 Pending (re-verify post-merge) |
-| HOME-005 | ✅ | Quick actions render the default (non-experienced) launcher tiles: doctor / today / capture / shed | — | ✅ Passing |
+| HOME-005 | ✅ | Launcher grid removed (Stage 1, 2026-07-21): `home-quick-actions` / `home-quick-actions-customise` / `home-quick-tile-*` are all absent; only the Garden Walk tile (`dash-garden-walk`, seeded 6 plants ≥ 5) remains | — | ✅ Passing |
 | HOME-006 | ✅ | Density toggle persists the choice to localStorage `rhozly:home:density` (`"detailed"`) | — | ✅ Passing |
 | HOME-007 | ✅ | Today's tasks section is visible and "See all →" navigates to `?view=calendar` | — | ✅ Passing |
 | HOME-008 | ✅ | Phase 2 telemetry on the **Workbench**: sensor chip, valve chip ("Watering" running state) and `soil_dry` attention card render from a mocked `home-overview` payload. Stage 4: seeds `rhozly:home:preset = "workbench"` first (the attention inbox is Workbench-only; sensor/valve chips render on the grid in both postures) | Mock: `home-overview` (via `mockEdgeFunction`); seed: `rhozly:home:preset=workbench` | ✅ Passing (re-verified 2026-07-20) |

@@ -13,8 +13,8 @@
 |---|---|---|---|---|
 | QUICK-001 | ✅ | Phone (375×812) `/` redirects to the responsive `/dashboard` (was `/quick`) | — | 🔲 Pending (re-verify) |
 | QUICK-002 | ✅ | Phone legacy `/quick` redirects to `/dashboard` | — | 🔲 Pending (re-verify) |
-| QUICK-003 | ✅ | The customisable launcher lives on the dashboard: `home-quick-actions` visible, default pins render as `home-quick-tile-doctor` / `home-quick-tile-shed`, and `home-quick-actions-customise` is present | — | 🔲 Pending (re-verify) |
-| QUICK-004 | ✅ | The dashboard "Today" tile (`home-quick-tile-today`) opens the planting helper at `/quick/calendar` | — | 🔲 Pending (re-verify) |
+| QUICK-003 | ✅ | Launcher grid removed from the dashboard (Stage 1, 2026-07-21): `home-quick-actions` / `home-quick-actions-customise` absent; only `dash-garden-walk` remains (seeded 6 plants ≥ 5) | — | 🔲 Pending (re-verify) |
+| QUICK-004 | — | **RETIRED (Stage 1, 2026-07-21):** the "Today" launcher tile was removed with the grid; `/quick/calendar` is now URL-only (covered by QUICK-016 / QUICK-CAL-002) | — | ⛔ Retired |
 | QUICK-016 | ✅ | `/quick/calendar` stays a focus-mode tool — no header (`banner` count 0), floating `quick-access-menu-button` visible | — | 🔲 Pending (re-verify) |
 | QUICK-009 | ✅ | Desktop (1280×800) `/` redirects to `/dashboard` | — | 🔲 Pending (re-verify) |
 | QUICK-010 | ✅ | Desktop `/quick` also redirects to `/dashboard` | — | 🔲 Pending (re-verify) |
@@ -25,7 +25,7 @@ Mobile viewport (375×812). Mocks the `plant-doctor` edge fn (frost dates / plan
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| QUICK-CAL-001 | ✅ | The **dashboard** Today tile (`home-quick-tile-today`) navigates to `/quick/calendar` and `localized-task-calendar` renders (repointed 2026-07-20 — the launcher lives on the dashboard now, not on the retired `/quick` home) | `plant-doctor`→frost dates | 🔲 Pending (re-verify) |
+| QUICK-CAL-001 | — | **RETIRED (Stage 1, 2026-07-21):** the dashboard Today tile that opened `/quick/calendar` was removed with the launcher grid; the helper is now URL-only (QUICK-CAL-002 enters by direct URL) | `plant-doctor`→frost dates | ⛔ Retired |
 | QUICK-CAL-002 | ✅ | `/quick/calendar` renders all three sub-cards (`planting-calendar-card`, `rain-water-advice`, `quick-calendar-tasks`) | `plant-doctor`→frost dates | 🔲 Pending (re-verify) |
 | QUICK-CAL-003 | ✅ | Planting card renders the frost dates after lookup (`planting-calendar-last-frost` / `-first-frost`) | `plant-doctor`→frost dates | 🔲 Pending (re-verify) |
 | QUICK-CAL-004 | ✅ | Submitting a plant name renders the guidance result (`planting-calendar-result` / `-verdict`) | `plant-doctor`→frost dates then planting guidance (queued) | 🔲 Pending (re-verify) |
@@ -39,6 +39,6 @@ Mobile viewport (375×812). Mocks the `plant-doctor` edge fn (frost dates / plan
 
 ## Related sections
 
-- [30-home-main.md](./30-home-main.md) — the responsive dashboard both platforms now land on; HOME-005 asserts the default launcher tiles (`home-quick-tile-*`)
+- [30-home-main.md](./30-home-main.md) — the responsive dashboard both platforms now land on; HOME-005 asserts the launcher grid is gone and only the Garden Walk tile (`dash-garden-walk`) remains (Stage 1, 2026-07-21)
 - [29-garden-walk.md](./29-garden-walk.md) — the other focus-mode surface; WALK-001/002 already assert the walk returns to `/dashboard`, not `/quick`
 - [05-dashboard.md](./05-dashboard.md) — the classic dashboard content behind the Detailed density

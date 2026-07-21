@@ -39,11 +39,12 @@ export default function GardenOverviewGrid({
   if (locations.length === 0) return null;
   return (
     <section data-testid="home-overview-grid">
-      <div className="flex items-center justify-between px-1 mb-2">
-        <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
-          Your garden
-        </h2>
-        {can("locations.create") && (
+      {/* The "Your garden" caption was dropped (dashboard-nav-tasks-tray
+          redesign Stage 1, B11) — the grid of location cards below is
+          self-evident, and stripping it breaks the monotone eyebrow ladder
+          down the page. The Add-location affordance stays, right-aligned. */}
+      {can("locations.create") && (
+        <div className="flex items-center justify-end px-1 mb-2">
           <button
             type="button"
             data-testid="home-add-location-btn"
@@ -52,8 +53,8 @@ export default function GardenOverviewGrid({
           >
             <Plus size={12} /> Add location
           </button>
-        )}
-      </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {locations.map((loc) => (
           <LocationOverviewCard

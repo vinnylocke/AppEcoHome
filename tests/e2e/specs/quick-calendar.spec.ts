@@ -43,17 +43,11 @@ const MOCK_PLANTING_GUIDANCE = {
 test.describe("Quick Calendar — mobile routing", () => {
   test.use({ viewport: MOBILE_VIEWPORT });
 
-  test("QUICK-CAL-001: the dashboard Today tile navigates to /quick/calendar", async ({ authenticatedPage }) => {
-    // Mock the edge fn call so the calendar screen renders fully.
-    await mockEdgeFunction(authenticatedPage, "plant-doctor", MOCK_FROST_DATES);
-
-    // The launcher lives on the responsive dashboard now (the /quick home was
-    // retired 2026-07-20); the "Today" tile opens the planting helper.
-    await authenticatedPage.goto("/dashboard");
-    await authenticatedPage.getByTestId("home-quick-tile-today").click();
-    await expect(authenticatedPage).toHaveURL(/\/quick\/calendar$/);
-    await expect(authenticatedPage.getByTestId("localized-task-calendar")).toBeVisible();
-  });
+  // QUICK-CAL-001 retired (dashboard-nav-tasks-tray redesign Stage 1,
+  // 2026-07-21): the dashboard "Today" launcher tile that opened
+  // /quick/calendar was removed with the customisable launcher grid. The
+  // planting helper is still reachable by direct URL — QUICK-CAL-002/003 below
+  // cover it. (Entry-point loss flagged in docs/plans/dashboard-nav-tasks-tray-2026-07.md.)
 
   test("QUICK-CAL-002: /quick/calendar renders all three sub-cards", async ({ authenticatedPage }) => {
     await mockEdgeFunction(authenticatedPage, "plant-doctor", MOCK_FROST_DATES);

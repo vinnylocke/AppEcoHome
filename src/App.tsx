@@ -1880,12 +1880,6 @@ function AppShell() {
                                           hardinessZone={hardinessZone}
                                           aiEnabled={!!profile?.ai_enabled}
                                           isPremium={!!profile?.enable_perenual}
-                                          availabilityCtx={{
-                                            subscriptionTier: profile?.subscription_tier ?? null,
-                                            aiEnabled: !!profile?.ai_enabled,
-                                            isBeta: !!profile?.is_beta,
-                                            homeId: profile?.home_id ?? null,
-                                          }}
                                           promoSlot={promoSlot}
                                           onLocationsChanged={handleHomeDataRealtime}
                                         />

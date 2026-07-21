@@ -57,17 +57,21 @@ test.describe("Home dashboard (Section 30)", () => {
     await expect(authenticatedPage.getByTestId("home-main")).toBeVisible({ timeout: 20000 });
   });
 
-  test("HOME-005: quick actions render the default launcher tiles", async ({ authenticatedPage }) => {
+  test("HOME-005: the quick-actions launcher grid is gone; only the Garden Walk tile remains (Stage 1)", async ({ authenticatedPage }) => {
+    // dashboard-nav-tasks-tray redesign Stage 1 (2026-07-21): the customisable
+    // launcher grid was removed from the home — every tile but Garden Walk
+    // duplicated a nav destination. The pin picker still lives at
+    // /gardener?section=quick-launcher, just not on the dashboard.
     const home = new HomeMainPage(authenticatedPage);
     await home.goto();
     await home.waitForLoad();
 
-    await expect(home.quickActions).toBeVisible();
-    // Default (non-experienced) pin set: doctor, today, capture, shed.
-    await expect(home.quickTile("doctor")).toBeVisible();
-    await expect(home.quickTile("today")).toBeVisible();
-    await expect(home.quickTile("capture")).toBeVisible();
-    await expect(home.quickTile("shed")).toBeVisible();
+    // The grid, its tiles, and the Customise link are all gone.
+    await expect(authenticatedPage.getByTestId("home-quick-actions")).toHaveCount(0);
+    await expect(authenticatedPage.getByTestId("home-quick-actions-customise")).toHaveCount(0);
+    await expect(authenticatedPage.getByTestId("home-quick-tile-doctor")).toHaveCount(0);
+    // The seeded home has 6 plants (>= 5) → the Garden Walk tile survives.
+    await expect(home.gardenWalk).toBeVisible({ timeout: 15000 });
   });
 
   test("HOME-006: density toggle persists the user's choice", async ({ authenticatedPage }) => {

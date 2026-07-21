@@ -28,7 +28,6 @@ import {
 } from "../../lib/personaPresets";
 import { staggerStyle, STAGGER_ENTRANCE } from "../../lib/stagger";
 import type { OverviewLocation } from "./LocationOverviewCard";
-import type { QuickLauncherAvailabilityCtx } from "../../lib/quickLauncherCatalogue";
 
 /**
  * THE dashboard (?view=home — the old sibling "Overview" tab was merged in
@@ -36,13 +35,13 @@ import type { QuickLauncherAvailabilityCtx } from "../../lib/quickLauncherCatalo
  * redesign Stage 4 — docs/plans/home-redesign-two-postures.md §3):
  *
  * - 🪴 "porch" (default for new/null persona — guidance-first): sentence
- *   hero, ONE Next Best Action, garden grid, gentle compact today list,
- *   quick actions, Seasonal Picks, The Brief. One centered editorial column
+ *   hero, ONE Next Best Action, today's tasks FIRST, the Garden Walk tile,
+ *   the garden grid, Seasonal Picks, The Brief. One centered editorial column
  *   (max-w-[1100px]) at every width. Almost no numbers.
  * - 🛠️ "workbench" (default for persona === "experienced" — the operations
- *   console): console-line hero, Attention inbox, garden grid w/ telemetry,
- *   compact tasks behind "Open board", The Brief, Week Ahead, collapsed
- *   Snapshot. Two-column studio on xl+; single stack in preset order below.
+ *   console): console-line hero, Attention inbox, today's tasks, the Garden
+ *   Walk tile, garden grid w/ telemetry, The Brief, Week Ahead. Two-column
+ *   studio on xl+; single stack in preset order below.
  *
  * Composition is declarative: HOME_PRESETS[posture].sectionOrder drives one
  * section loop — no forked block trees. The old Simple/Detailed density
@@ -81,7 +80,6 @@ interface Props {
   hardinessZone: number | null;
   aiEnabled: boolean;
   isPremium: boolean;
-  availabilityCtx: QuickLauncherAvailabilityCtx;
   /** The single-slot onboarding/promo card (App owns the cascade). Rendered
    *  BELOW the hero so the greeting always leads (redesign Stage 1). */
   promoSlot?: React.ReactNode;
@@ -105,7 +103,6 @@ export default function HomeMain({
   hardinessZone,
   aiEnabled,
   isPremium,
-  availabilityCtx,
   promoSlot,
   onLocationsChanged,
 }: Props) {
@@ -236,10 +233,10 @@ export default function HomeMain({
   // Redesign Stage 2 — ONE hero for both postures (DailyBriefCard retired;
   // its facts migrated: sun line → hero micro-line, ask-AI → the console
   // hero's chip, Plan-day → hero-plan-day, zone/microclimate live at their
-  // destinations). Voice comes from the preset: porch = sentence, workbench =
+  // destinations). Voice comes from the posture: porch = sentence, workbench =
   // console (locked decision).
   const heroVariant: "sentence" | "console" =
-    preset.variants.hero === "console" ? "console" : "sentence";
+    posture === "workbench" ? "console" : "sentence";
   const heroBlock = (
     <div className="flex items-start justify-between gap-3">
       <HomeStatusStrip
@@ -261,10 +258,8 @@ export default function HomeMain({
 
   const gardenSection = (
     // Stable wrapper: the dashboard_tour anchors here so the step works in
-    // both the populated-grid and empty-garden states. (Preset variant
-    // "photos"/"telemetry" is currently a no-op — both postures render the
-    // existing grid; the density prop keeps the telemetry chips on the
-    // workbench side. Photo-bento lands in a later slice.)
+    // both the populated-grid and empty-garden states. The density prop keeps
+    // the telemetry chips on the workbench side.
     <div data-testid="home-garden-section">
       {hasGarden ? (
         <GardenOverviewGrid
@@ -312,18 +307,12 @@ export default function HomeMain({
     </div>
   );
 
-  // Redesign Stage 2 — the standalone Garden Walk banner folded into the
-  // actions section as its featured first tile (same dash-garden-walk testid
-  // + state.from contract; still gated on totalPlants >= 5).
-  const quickActions = (
-    <QuickActionsRow
-      userId={userId}
-      homeId={homeId}
-      persona={persona}
-      availabilityCtx={availabilityCtx}
-      walkPlantCount={totalPlants}
-    />
-  );
+  // Stage 1 (dashboard-nav-tasks-tray redesign, 2026-07-21): the customisable
+  // quick-actions launcher grid was removed from the home — every tile but one
+  // duplicated the nav bar. What remains is the single non-nav destination, the
+  // Garden Walk tile (same dash-garden-walk testid + state.from contract; still
+  // gated on totalPlants >= 5).
+  const quickActions = <QuickActionsRow walkPlantCount={totalPlants} />;
 
   // Stage 4 (locked decision): the full embedded tabbed TaskList is gone; BOTH
   // postures render the compact list (which itself carries inline complete /
@@ -345,7 +334,7 @@ export default function HomeMain({
     posture === "porch" ? (
       <section data-testid="home-todays-tasks">
         <div className="flex items-center justify-between px-1 mb-2">
-          <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
+          <h2 className="text-sm font-black text-rhozly-on-surface">
             Today's tasks
           </h2>
           {taskBoardLink("home-tasks-see-all", "See all")}
@@ -355,7 +344,7 @@ export default function HomeMain({
     ) : (
       <section data-testid="dashboard-task-list">
         <div className="flex items-center justify-between px-1 mb-2">
-          <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
+          <h2 className="text-sm font-black text-rhozly-on-surface">
             Today's tasks
           </h2>
           {taskBoardLink("home-tasks-open-board", "Open board")}

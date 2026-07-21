@@ -2,10 +2,11 @@ import { expect } from "@playwright/test";
 import { test } from "../fixtures/auth";
 
 // One responsive home (2026-07-20): the phone-only /quick launcher home was
-// retired. Phone + desktop both land on the responsive /dashboard, whose
-// QuickActionsRow reuses the SAME customisable launcher pins. Bare /quick now
-// redirects to /dashboard. The /quick/calendar planting helper stays as a
-// focus-mode tool, reached via the dashboard's "Today" launcher tile.
+// retired. Phone + desktop both land on the responsive /dashboard. Bare /quick
+// redirects to /dashboard. Since the dashboard-nav-tasks-tray redesign Stage 1
+// (2026-07-21) the customisable launcher grid was REMOVED from the dashboard
+// (every tile but Garden Walk duplicated the nav bar); the /quick/calendar
+// planting helper stays a focus-mode tool, now reached by direct URL (QUICK-016).
 
 const MOBILE_VIEWPORT = { width: 375, height: 812 };
 const DESKTOP_VIEWPORT = { width: 1280, height: 800 };
@@ -24,20 +25,18 @@ test.describe("One responsive home — routing", () => {
       await expect(authenticatedPage).toHaveURL(/\/dashboard$/, { timeout: 10000 });
     });
 
-    test("QUICK-003: the customisable launcher now lives on the dashboard", async ({ authenticatedPage }) => {
+    test("QUICK-003: the launcher grid was removed from the dashboard; only the Garden Walk tile remains", async ({ authenticatedPage }) => {
       await authenticatedPage.goto("/dashboard");
-      await expect(authenticatedPage.getByTestId("home-quick-actions")).toBeVisible({ timeout: 10000 });
-      // Default pins (quickLauncherCatalogue) render as home-quick-tile-*.
-      await expect(authenticatedPage.getByTestId("home-quick-tile-doctor")).toBeVisible();
-      await expect(authenticatedPage.getByTestId("home-quick-tile-shed")).toBeVisible();
-      await expect(authenticatedPage.getByTestId("home-quick-actions-customise")).toBeVisible();
+      await expect(authenticatedPage.getByTestId("home-main")).toBeVisible({ timeout: 10000 });
+      // 6 seeded plants (>= 5) → the Garden Walk tile shows; the grid does not.
+      await expect(authenticatedPage.getByTestId("dash-garden-walk")).toBeVisible({ timeout: 10000 });
+      await expect(authenticatedPage.getByTestId("home-quick-actions")).toHaveCount(0);
+      await expect(authenticatedPage.getByTestId("home-quick-actions-customise")).toHaveCount(0);
     });
 
-    test("QUICK-004: the Today tile opens the planting helper (/quick/calendar)", async ({ authenticatedPage }) => {
-      await authenticatedPage.goto("/dashboard");
-      await authenticatedPage.getByTestId("home-quick-tile-today").click();
-      await expect(authenticatedPage).toHaveURL(/\/quick\/calendar$/, { timeout: 8000 });
-    });
+    // QUICK-004 retired (Stage 1, 2026-07-21): the "Today" launcher tile that
+    // opened /quick/calendar was removed with the launcher grid. The planting
+    // helper is still reachable by direct URL — covered by QUICK-016 below.
 
     test("QUICK-016: /quick/calendar stays a focus-mode tool (no header, floating menu)", async ({ authenticatedPage }) => {
       await authenticatedPage.goto("/quick/calendar");

@@ -7,7 +7,6 @@ import {
   HOME_PRESETS,
   PRESET_KEY,
   LEGACY_DENSITY_KEY,
-  type HomeSectionId,
 } from "../../../src/lib/personaPresets";
 
 describe("effectivePersona — the canonical null⇒new collapse", () => {
@@ -113,12 +112,17 @@ describe("HOME_PRESETS — structural invariants the section loop depends on", (
       expect(new Set(order).size).toBe(order.length);
     }
   });
-  test("variants only reference sections present in the preset's order", () => {
+  test("today's tasks come before the garden in both postures (tasks-first — Stage 1)", () => {
     for (const p of postures) {
-      const order = new Set(HOME_PRESETS[p].sectionOrder);
-      for (const key of Object.keys(HOME_PRESETS[p].variants) as HomeSectionId[]) {
-        expect(order.has(key)).toBe(true);
-      }
+      const order = HOME_PRESETS[p].sectionOrder;
+      expect(order).toContain("today");
+      expect(order.indexOf("today")).toBeLessThan(order.indexOf("garden"));
+    }
+  });
+  test("the Garden Walk tile (quickActions) sits directly after today in both postures", () => {
+    for (const p of postures) {
+      const order = HOME_PRESETS[p].sectionOrder;
+      expect(order.indexOf("quickActions")).toBe(order.indexOf("today") + 1);
     }
   });
   test("posture identity: porch has nextBestAction+learn and no attention/week; workbench the inverse", () => {
@@ -132,13 +136,5 @@ describe("HOME_PRESETS — structural invariants the section loop depends on", (
     expect(bench.has("week")).toBe(true);
     expect(bench.has("nextBestAction")).toBe(false);
     expect(bench.has("learn")).toBe(false);
-  });
-  test("hero voices: porch=sentence, workbench=console (locked decision)", () => {
-    expect(HOME_PRESETS.porch.variants.hero).toBe("sentence");
-    expect(HOME_PRESETS.workbench.variants.hero).toBe("console");
-  });
-  test("promo: porch renders the card in-flow; workbench demotes to a line", () => {
-    expect(HOME_PRESETS.porch.variants.promo).toBe("card");
-    expect(HOME_PRESETS.workbench.variants.promo).toBe("line");
   });
 });

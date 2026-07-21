@@ -94,7 +94,7 @@ export const flowRegistry: FlowDef[] = [
     trigger: "automatic",
     route: "/dashboard",
     title: "The Home Dashboard",
-    description: "Your status strip, garden overview, quick actions, and daily task list.",
+    description: "Your status strip, garden overview, and daily task list.",
     category: "Getting Started",
     estimated_minutes: 2,
     // Anchors target the merged home (Phase 4.2) in its default Simple
@@ -112,6 +112,11 @@ export const flowRegistry: FlowDef[] = [
         attachTo: { element: "[data-testid='home-status-strip']", on: "bottom" },
       },
       {
+        title: "Your daily tasks",
+        body: "Rhozly generates smart care tasks for every plant in your garden — watering, pruning, harvesting, and more. Tick them off here as you go. They're based on your plant data and today's weather.",
+        attachTo: { element: "[data-testid='home-todays-tasks']", on: "top" },
+      },
+      {
         title: "Your garden overview",
         body: "One card per location, with growth-state dots for every area. Tap a card to drill into that location. Flip the little toggle above to Detailed for sensor readings, stats, and the full week's numbers.",
         // Wrapper testid exists in BOTH the populated-grid and empty-garden
@@ -119,19 +124,9 @@ export const flowRegistry: FlowDef[] = [
         attachTo: { element: "[data-testid='home-garden-section']", on: "top" },
       },
       {
-        title: "Quick actions",
-        body: "Your most-used tools, one tap away — identify a plant, capture a photo, start a Garden Walk. Customise which tiles appear from Gardener Profile.",
-        attachTo: { element: "[data-testid='home-quick-actions']", on: "top" },
-      },
-      {
         title: "Seasonal Picks — what to grow right now",
         body: "AI-curated suggestions for plants suited to your hemisphere, climate, and quiz answers. Especially useful when your Shed is still empty. Tap any pick to see growing notes.",
         attachTo: { element: "[data-testid='seasonal-picks-card']", on: "top" },
-      },
-      {
-        title: "Your daily tasks",
-        body: "Rhozly generates smart care tasks for every plant in your garden — watering, pruning, harvesting, and more. Tick them off here as you go. They're based on your plant data and today's weather.",
-        attachTo: { element: "[data-testid='home-todays-tasks']", on: "top" },
       },
     ],
   },
