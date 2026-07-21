@@ -36,6 +36,7 @@ import { enqueue as enqueueWrite, getQueue, remove as removeQueued } from "../li
 import TaskModal from "./TaskModal";
 import { TaskEngine, lateCompletionDueDate, completedLocalDate } from "../lib/taskEngine";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
+import { taskDueLabel } from "../lib/taskDueLabel";
 import { AutomationEngine } from "../lib/automationEngine";
 import { buildGhostPayload, hasBlockingDependencies } from "../lib/taskMutations";
 import { materialiseGhost, postponeTask } from "../lib/taskActions";
@@ -1195,6 +1196,20 @@ export default function TaskList({
             const isBlocked = blockedTaskIds.has(task.id);
             const isSelected = selectedTaskIds.has(task.id);
 
+            // B2 (dashboard-nav-tasks-tray Stage 2): a plain-language due label
+            // so overdue is never colour-only (an a11y gap) and every row states
+            // when it's due — the compact home/tray list has no calendar column.
+            // Logic is the pure, unit-tested `taskDueLabel` helper.
+            const dueLabel = taskDueLabel({
+              dueDate: task.due_date,
+              windowEndDate: task.window_end_date,
+              todayStr,
+              isCompleted,
+              isOverdue,
+              isInHarvestWindow,
+              hasOverdueChip: !!task.overdueCarryoverSince,
+            });
+
             let cardStyle =
               "bg-white border-rhozly-outline/10 hover:border-rhozly-primary/30";
             if (isCompleted) {
@@ -1286,6 +1301,19 @@ export default function TaskList({
                     <h4 className={`font-black text-sm leading-snug line-clamp-2 ${isCompleted ? "line-through text-gray-500" : ""}`}>
                       {task.title}
                     </h4>
+
+                    {/* B2 — relative due label (overdue gets HC-aware danger ink;
+                        everything else a muted line). Compact-only: the full
+                        calendar/agenda is date-grouped, so the label would be
+                        redundant there — it earns its place on the home + tray. */}
+                    {compact && dueLabel && (
+                      <p
+                        data-testid="task-due-label"
+                        className={`text-[11px] mt-1 ${isOverdue ? "font-black text-status-danger-ink" : "font-bold text-rhozly-on-surface-variant"}`}
+                      >
+                        {dueLabel}
+                      </p>
+                    )}
 
                     {/* Chips */}
                     {(plantName || task.areas?.name || planName || task.auto_completed_reason || task.overdueCarryoverSince || lateDue || windowDoneOn || task.weather_event_key) && (

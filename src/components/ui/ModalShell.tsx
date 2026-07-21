@@ -25,6 +25,8 @@ export interface ModalShellProps {
   size?: ModalShellSize;
   /** Bottom-sheet presentation on small screens (centered dialog from `sm:` up). */
   sheet?: boolean;
+  /** Right-anchored, full-height side drawer (a tray). Overrides `sheet`/`size`. */
+  drawer?: boolean;
   /** Stacking level — pass a `Z` constant from ./zIndex. */
   z?: number;
   /** Close when the dimmed backdrop itself is clicked. */
@@ -68,6 +70,7 @@ export const ModalShell: React.FC<ModalShellProps> = ({
   "aria-label": ariaLabel,
   size = "md",
   sheet = false,
+  drawer = false,
   z = Z.modal,
   closeOnOverlay = true,
   autoFocus = true,
@@ -126,10 +129,20 @@ export const ModalShell: React.FC<ModalShellProps> = ({
         aria-label={ariaLabel}
         data-testid={dataTestId}
         className={cn(
-          "bg-rhozly-surface-lowest border border-rhozly-outline/20 shadow-overlay w-full max-h-[85dvh] overflow-y-auto animate-in zoom-in-95 duration-200 rounded-card",
-          SIZE_CLASSES[size],
-          sheet &&
-            "self-end sm:self-center rounded-b-none rounded-t-card sm:rounded-card sm:rounded-b-card slide-in-from-bottom-4",
+          "bg-rhozly-surface-lowest border border-rhozly-outline/20 shadow-overlay w-full overflow-y-auto animate-in duration-200",
+          // Drawer: a right-anchored, full-height tray. The negative margins
+          // cancel the overlay's p-4 so it touches the top/bottom/right edges;
+          // `self-stretch` overrides the container's items-center; it slides in
+          // from the right instead of zooming. Keeps the load-bearing overlay
+          // classes (justify-center items-center) intact for the scroll-lock.
+          drawer
+            ? "self-stretch ml-auto -my-4 -mr-4 min-h-full max-h-none max-w-md rounded-l-card rounded-r-none slide-in-from-right"
+            : cn(
+                "max-h-[85dvh] rounded-card zoom-in-95",
+                SIZE_CLASSES[size],
+                sheet &&
+                  "self-end sm:self-center rounded-b-none rounded-t-card sm:rounded-card sm:rounded-b-card slide-in-from-bottom-4",
+              ),
           className,
         )}
       >

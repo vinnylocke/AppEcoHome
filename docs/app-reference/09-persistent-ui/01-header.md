@@ -1,6 +1,6 @@
 # Header / Top Bar
 
-> The sticky branded header at the top of every authenticated screen. Contains the logo, home dropdown, global search, user profile dropdown, offline/queue badges, and — **on desktop only (Phase 6b)** — the sidebar-collapse hamburger and the quick-add "+" menu. The beta feedback banner sits immediately below for beta users.
+> The sticky branded header at the top of every authenticated screen. Contains the logo, home dropdown, global search, the Today's-Tasks tray trigger, user profile dropdown, offline/queue badges, and — **on desktop only (Phase 6b)** — the sidebar-collapse hamburger and the quick-add "+" menu. The beta feedback banner sits immediately below for beta users.
 
 **Source file:** `src/App.tsx` (inline in the root layout, header block ~lines 1449-1506)
 
@@ -25,6 +25,7 @@ header (sticky)
 ├── OfflineBadge
 ├── QueuedActionsBadge
 ├── GlobalSearch (Cmd+K trigger)
+├── Today's-Tasks tray trigger           (ListChecks + overdue badge — BOTH platforms, Stage 2)
 ├── GlobalQuickAdd (+ menu)              (wrapped in hidden md:block — DESKTOP ONLY)
 └── UserProfileDropdown (avatar)
 
@@ -43,9 +44,13 @@ The leading `Menu` button is now `hidden md:flex` — **it only exists on deskto
 
 Phase 6a made the hamburger dual-purpose (desktop = collapse rail, mobile = open the Shelf). **Phase 6b removed the mobile branch entirely**: on phones the [Deck](../09-persistent-ui/11-bottom-tab-bar.md)'s **More** slot opens the **Shelf** (`MobileNavDrawer`) and its centre **Capture** FAB opens the [Capture sheet](../08-modals-and-overlays/41-capture-sheet.md), so the header sheds both the hamburger and the "+" and stays calm. In focus mode the header is hidden entirely; the floating `QuickAccessMenuButton` opens the same Shelf drawer.
 
+### Today's-Tasks tray trigger — both platforms (Stage 2, 2026-07-21)
+
+A `ListChecks` icon button (`data-testid="today-tasks-tray-trigger"`) sits between GlobalSearch and the desktop "+"; unlike the "+" it renders on **both** phone and desktop (any non-focus screen). It carries a red overdue-count badge (`today-tasks-tray-trigger-badge`, "9+" cap) fed by App's `overdueTaskCount`, and opens the global [Today's Tasks Tray](./12-today-tasks-tray.md) — a right-anchored drawer of today's + overdue tasks. Gated on `profile?.home_id`. Hidden in focus mode with the rest of the header.
+
 ### GlobalQuickAdd — desktop-only "+" (Phase 6b)
 
-The GlobalQuickAdd "+" menu is wrapped in a `hidden md:block` span, so it appears **only on desktop**. On phones its role is folded into the Deck's Capture FAB → Capture sheet, which offers the same create verbs (add plant / add task / journal note / add task / garden walk) plus a Diagnose hero. The mobile header therefore carries only: logo, HomeDropdown, QueuedActionsBadge, GlobalSearch (icon), and the account avatar.
+The GlobalQuickAdd "+" menu is wrapped in a `hidden md:block` span, so it appears **only on desktop**. On phones its role is folded into the Deck's Capture FAB → Capture sheet, which offers the same create verbs (add plant / add task / journal note / add task / garden walk) plus a Diagnose hero. The mobile header therefore carries only: logo, HomeDropdown, QueuedActionsBadge, GlobalSearch (icon), the Today's-Tasks tray trigger, and the account avatar.
 
 ### Data flow — read paths
 

@@ -99,7 +99,7 @@ Both postures render the **compact** `TaskList` (`compact` + `targetDate`) for t
 `src/components/home/NextBestAction.tsx` (`next-best-action` / `next-best-action-cta`). Porch-only (Workbench omits `nextBestAction` from `sectionOrder`). One tap navigates; deliberately shows **no counts**. Priority ladder (first rung with content wins):
 
 1. **`attentionItems[0]`** — the top item of HomeMain's already-`excludeKinds`-filtered attention list (the SAME memoised list the Workbench's AttentionRow renders). → navigates to `attention.route`.
-2. **`firstTaskTitle`** — the first pending task today. **Intentionally unwired** at this level (task titles aren't cheaply available — TaskList owns that fetch); the ladder falls through it today. → `/dashboard?view=calendar`.
+2. **`firstTaskTitle`** — the first pending task today. **Wired since the dashboard-nav-tasks-tray Stage 2 (2026-07-21, B6):** HomeMain reads it synchronously from `TaskEngine.peekCache` using the SAME today cache key the compact TaskList warms, and passes the first pending task's title. `null` on a cold first paint (falls through to seasonal, fills on the next render). → `/dashboard?view=calendar`.
 3. **Seasonal fallback** — "Browse what to plant right now": scrolls to the on-page learn section (`document.querySelector('[data-section="learn"]')`, honouring `motionTier()`), or deep-links `/shed?open=add-plant` when the section isn't mounted.
 
 See [Next Best Action](./18-next-best-action.md) for the full breakdown.
@@ -442,6 +442,7 @@ No differences (the BetaFeedbackBanner renders app-wide above the page as usual)
 - [Head Gardener](./16-head-gardener.md) — the estate row's parent surface (`/manager`)
 - [Weekly Overview Page](./15-weekly-overview.md) — WeekAheadPreview's target
 - [Calendar Tab](./03-calendar-tab.md), [Weather Tab](./04-weather-tab.md) — the two other live sub-tabs (the Calendar now owns the full task board)
+- [Today's Tasks Tray](../09-persistent-ui/12-today-tasks-tray.md) — the global header-triggered drawer that renders this same compact TaskList on every non-home screen (Stage 2)
 - [Locations Tab — RETIRED](./02-locations-tab.md) — the standalone `?view=locations` grid, retired into this page's garden grid in Stage 4a (2026-07-20); its stub maps where each piece went
 - [Location Page (Drill-In)](./07-location-page.md) — where card headers and area rows land
 - [Quick Access Home](./09-quick-access-home.md) — **RETIRED (2026-07-20)**; its launcher catalogue + pins still exist in code but no longer render on the home — the `QuickActionsRow` grid was cut in Stage 1 (2026-07-21), leaving only the Garden Walk tile
@@ -461,7 +462,7 @@ No differences (the BetaFeedbackBanner renders app-wide above the page as usual)
 
 - `src/components/home/HomeMain.tsx` — page entry; posture resolution (`resolveHomePosture`), the `SECTIONS` map + `renderSection` loop, both layouts (Porch centred column; Workbench 12-col studio with the `contents`/`order` phone-flatten), the posture toggle (same testids, legacy-key mirror), the `density` compat shim, the shared `attentionItems` memo, the one-shot entrance stagger, the single `useHomeDashboardStats` mount, `telemetryByArea` threading, empty-garden card, `walkPlantCount` pass to QuickActionsRow
 - `src/lib/personaPresets.ts` — `effectivePersona` (null⇒new), `HOME_PRESETS` (per-posture `sectionOrder`; the `variants` map was deleted in Stage 1), `readStoredPosture`/`storePosture` (`rhozly:home:preset` + legacy `rhozly:home:density` alias), `resolveHomePosture` (unit tests `tests/unit/lib/personaPresets.test.ts`)
-- `src/components/home/NextBestAction.tsx` — the Porch's one card: attention → first task (unwired) → seasonal fallback ladder, DOM-scroll to `[data-section="learn"]` / `/shed?open=add-plant` deep-link (unit tests `tests/unit/components/NextBestAction.test.ts`)
+- `src/components/home/NextBestAction.tsx` — the Porch's one card: attention → first task (wired in Stage 2 via HomeMain's `TaskEngine.peekCache` read) → seasonal fallback ladder, DOM-scroll to `[data-section="learn"]` / `/shed?open=add-plant` deep-link (unit tests `tests/unit/components/NextBestAction.test.ts`)
 - `src/lib/stagger.ts` — `STAGGER_ENTRANCE` classes + `staggerStyle(i)` (cap 6 × 40 ms, fill-mode backwards, `motionTier()`-aware) (unit tests `tests/unit/lib/stagger.test.ts`)
 - `src/components/home/HomeStatusStrip.tsx` — the hero: `sentence` + `console` variants, 60s visibility-paused minute tick, SunCalc sun line, "Plan my day" / weather chips (sentence), `hero-console-line` / `hero-seg-{id}` segments + the migrated `daily-brief-ask-ai` chip (console)
 - `src/lib/heroSentence.ts` — `composeHeroSentence` (clause ladder), `composeConsoleSegments`, `extractFrostMin` (≤ 3 °C) / `extractRainToday` (≥ 1 mm), `formatSunMicroLine`, `timeOfDayGreeting` (unit tests `tests/unit/lib/heroSentence.test.ts`)

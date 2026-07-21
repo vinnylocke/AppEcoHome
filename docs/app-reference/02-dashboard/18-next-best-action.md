@@ -27,7 +27,7 @@ Next Best Action is the Porch's answer to "too much on the page": instead of an 
 | Prop | Type | Source | Purpose |
 |------|------|--------|---------|
 | `attentionItems` | `AttentionItem[]` | HomeMain's memoised, `ATTENTION_EXCLUDE_KINDS`-filtered attention list (from `useHomeOverview`) | Rung 1 of the ladder — `attentionItems[0]` is the top priority |
-| `firstTaskTitle` | `string \| null` (optional) | **Currently unwired** — HomeMain passes nothing (task titles aren't cheaply available at that level; `TaskList` owns that fetch) | Rung 2 of the ladder when a caller has a title handy |
+| `firstTaskTitle` | `string \| null` (optional) | **Wired since dashboard-nav-tasks-tray Stage 2 (2026-07-21, B6)** — HomeMain reads it synchronously from `TaskEngine.peekCache` (the same today cache key the compact TaskList warms), taking the first pending task's title; `null` on a cold first paint | Rung 2 of the ladder |
 
 `AttentionItem` (from `src/hooks/useHomeOverview.ts`): `{ kind: string; title: string; body: string; route: string }`.
 
@@ -44,7 +44,7 @@ None. The card derives a single `Resolved` object (`{ icon, headline, body, go }
 None. The only action is navigation:
 
 - **Rung 1 — first attention item** (`attentionItems[0]`): headline = `item.title`, body = `item.body`, icon = `AlertCircle`; tap → `navigate(item.route)`.
-- **Rung 2 — first pending task** (`firstTaskTitle`, when provided): headline = the title, body = a fixed encouragement line, icon = `ListChecks`; tap → `navigate("/dashboard?view=calendar")`. *(Unwired today — the ladder falls through this rung.)*
+- **Rung 2 — first pending task** (`firstTaskTitle`): headline = the title, body = a fixed encouragement line, icon = `ListChecks`; tap → `navigate("/dashboard?view=calendar")`. *(Wired in Stage 2 (B6) from `TaskEngine.peekCache` — the Porch now points at your actual next task when nothing is flagged. `null` on a cold first paint, so the ladder falls through to seasonal on a first-ever visit and fills from the next render once TaskList has fetched.)*
 - **Rung 3 — seasonal fallback** ("Browse what to plant right now"), icon = `Sprout`; tap →
   - scrolls to the on-page learn section if present: `document.querySelector('[data-section="learn"]')?.scrollIntoView({ behavior: motionTier() === "off" ? "auto" : "smooth", block: "start" })` — the learn section is HomeMain's `SeasonalPicksCard` wrapper (`data-section="learn"`);
   - otherwise deep-links `navigate("/shed?open=add-plant")`.

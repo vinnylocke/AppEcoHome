@@ -13,6 +13,7 @@ import {
   HelpCircle,
   BookOpen,
   Leaf,
+  ListChecks,
 } from "lucide-react";
 import { IconPlants, IconPlanner, IconAI, IconIntegrations, IconTools } from "./constants/icons";
 
@@ -102,6 +103,7 @@ const HeadGardenerPage      = lazyWithRetry(() => import("./components/manager/H
 const CreditsPage           = lazyWithRetry(() => import("./components/CreditsPage"));
 const GardenWalk            = lazyWithRetry(() => import("./components/walk/GardenWalk"));
 const MobileNavDrawer       = lazyWithRetry(() => import("./components/MobileNavDrawer"));
+const TodayTasksTray        = lazyWithRetry(() => import("./components/TodayTasksTray"));
 const QuickAccessMenuButton = lazyWithRetry(() => import("./components/QuickAccessMenuButton"));
 const LightSensor         = lazyWithRetry(() => import("./components/LightSensor"));
 const SunTrajectoryAR     = lazyWithRetry(() => import("./components/SunTrajectoryAR"));
@@ -263,6 +265,9 @@ function AppShell() {
   const [quickDrawerOpen, setQuickDrawerOpen] = useState(false);
   // Phase 6b — the phone Deck's raised centre FAB opens the Capture sheet.
   const [captureSheetOpen, setCaptureSheetOpen] = useState(false);
+  // The global "Today's Tasks" tray — a right-anchored drawer reachable from
+  // the header on every non-focus screen (dashboard-nav-tasks-tray Stage 2).
+  const [trayOpen, setTrayOpen] = useState(false);
   // Phase 6d — the desktop sidebar's active accent is ONE marker that slides
   // to the active NavItem (mirrors the Deck), measured from the live DOM.
   const navScrollRef = useRef<HTMLDivElement>(null);
@@ -1516,6 +1521,27 @@ function AppShell() {
                   />
                   <QueuedActionsBadge />
                   <GlobalSearch homeId={profile?.home_id ?? null} />
+                  {/* Global Today's-Tasks tray trigger (Stage 2) — on every
+                      non-focus screen, both platforms; carries the overdue badge. */}
+                  {profile?.home_id && (
+                    <button
+                      type="button"
+                      data-testid="today-tasks-tray-trigger"
+                      onClick={() => setTrayOpen(true)}
+                      aria-label="Today's tasks"
+                      className="relative flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl text-white/90 hover:bg-white/20 transition-colors"
+                    >
+                      <ListChecks className="w-5 h-5" />
+                      {overdueTaskCount > 0 && (
+                        <span
+                          data-testid="today-tasks-tray-trigger-badge"
+                          className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-rhozly-error text-white text-[10px] font-black leading-4 text-center"
+                        >
+                          {overdueTaskCount > 9 ? "9+" : overdueTaskCount}
+                        </span>
+                      )}
+                    </button>
+                  )}
                   {/* Phase 6b — desktop-only: the phone's create/capture entry
                       is the Deck's centre Capture FAB, so the header "+" hides. */}
                   <span className="hidden md:block">
@@ -2296,6 +2322,19 @@ function AppShell() {
                 open={captureSheetOpen}
                 onClose={() => setCaptureSheetOpen(false)}
                 onNavigate={(url) => navigate(url)}
+              />
+            </Suspense>
+          )}
+
+          {/* Global "Today's Tasks" tray (Stage 2) — one app-level instance,
+              opened by the header trigger on every non-focus screen. */}
+          {profile?.home_id && (
+            <Suspense fallback={null}>
+              <TodayTasksTray
+                open={trayOpen}
+                onClose={() => setTrayOpen(false)}
+                homeId={profile.home_id}
+                overdueCount={overdueTaskCount}
               />
             </Suspense>
           )}

@@ -17,6 +17,8 @@ import { usePermissions } from "../../context/HomePermissionsContext";
 import { useHomeOverview, type OverviewArea } from "../../hooks/useHomeOverview";
 import { useHomeDashboardStats } from "../../hooks/useHomeDashboardStats";
 import { buildTodaySummary } from "../../lib/todaySummary";
+import { TaskEngine, getLocalDateString } from "../../lib/taskEngine";
+import { isTaskVisibleOnDate } from "../../lib/taskFilters";
 import {
   HOME_PRESETS,
   LEGACY_DENSITY_KEY,
@@ -198,6 +200,33 @@ export default function HomeMain({
 
   const totalPlants = dashStats?.garden.totalPlants ?? 0;
 
+  // B6 (dashboard-nav-tasks-tray Stage 2): feed the Porch's Next Best Action a
+  // real task when nothing else is flagged. Peek the SAME cache key the compact
+  // today TaskList below warms (startDateStr = endDateStr = today,
+  // includeOverdue: true) — a zero-cost synchronous Map read that shares the
+  // engine cache. Null on a cold first paint (the rung then falls through to
+  // seasonal; it fills on the next render once TaskList has fetched). Computed
+  // inline (peekCache isn't reactive) so any re-render re-reads a warm cache.
+  const firstTaskTitle = (() => {
+    const todayStr = getLocalDateString(new Date());
+    const peeked = TaskEngine.peekCache({
+      homeId,
+      startDateStr: todayStr,
+      endDateStr: todayStr,
+      includeOverdue: true,
+      todayStr,
+    });
+    // Use the SAME visibility filter the list applies (isTaskVisibleOnDate drops
+    // Skipped + snoozed/harvest-hidden rows), so the Porch never names a task
+    // the list below isn't actually showing.
+    const pending = (peeked?.tasks ?? []).find(
+      (t: any) =>
+        t.status !== "Completed" &&
+        isTaskVisibleOnDate(t, todayStr, { includeOverdue: true }),
+    );
+    return pending?.title ?? null;
+  })();
+
   const postureToggle = (
     <div
       data-testid="home-density-toggle"
@@ -377,10 +406,13 @@ export default function HomeMain({
   const attention =
     attentionItems.length > 0 ? <AttentionRow items={attentionItems} /> : null;
 
-  // Porch-only by preset. `firstTaskTitle` rung intentionally unwired — task
-  // titles aren't cheaply available at this level (TaskList owns that fetch);
-  // the ladder falls through attention → seasonal.
-  const nextBestAction = <NextBestAction attentionItems={attentionItems} />;
+  // Porch-only by preset. B6 (Stage 2): the `firstTaskTitle` rung is now wired
+  // from the shared TaskEngine cache (see firstTaskTitle above) — when nothing
+  // is flagged, the Porch points at your actual first pending task instead of
+  // the generic seasonal fallback. Null on a cold first paint (falls through).
+  const nextBestAction = (
+    <NextBestAction attentionItems={attentionItems} firstTaskTitle={firstTaskTitle} />
+  );
 
   // ── The section loop (Stage 4): HOME_PRESETS[posture].sectionOrder is the
   // single source of composition truth — ids map to the block elements above.

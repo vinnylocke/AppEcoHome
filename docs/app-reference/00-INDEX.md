@@ -188,6 +188,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Maintenance Screen](./09-persistent-ui/09-maintenance-screen.md)
 - [x] [Toast / Toaster](./09-persistent-ui/10-toaster.md)
 - [x] [Bottom Tab Bar — "The Deck" (Mobile)](./09-persistent-ui/11-bottom-tab-bar.md) — thumb-reach nav: Home / Plants / [Capture FAB] / Planner / More (Phase 6b); Doctor via the Capture sheet, Tools + long tail via More → Shelf; mobile-only, hidden in focus mode
+- [x] [Today's Tasks Tray](./09-persistent-ui/12-today-tasks-tray.md) — global right-anchored drawer of today's + overdue tasks, opened from a header trigger on every non-focus screen (Stage 2, 2026-07-21)
 
 ## 99 — Cross-Cutting Concerns
 
