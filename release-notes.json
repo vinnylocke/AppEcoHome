@@ -2,8 +2,7 @@
   {
     "label": "Improved",
     "items": [
-      "The Nursery is now its own tab in the Garden hub — no more hunting for it behind a toggle (and no more wrong \"Plants\" heading above your seed packets).",
-      "The Nursery got the same clean treatment: a proper search box that filters your packets as you type, and one \"Add seeds\" button for scanning, pasting a list, or typing one in."
+      "Multiple weather alerts now fold into one slim line at the top of the screen — tap it to see them all. That's ~150px of your screen back, everywhere in the app."
     ]
   }
 ]

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { ThermometerSun, Snowflake, Wind, X, Clock, CloudRain } from "lucide-react";
+import { ThermometerSun, Snowflake, Wind, X, Clock, CloudRain, ChevronDown, TriangleAlert } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { useNavigate } from "react-router-dom";
@@ -48,6 +48,9 @@ export const WeatherAlertBanner = ({
   // Recomputed each render so it stays fresh if the app is left open past midnight.
   const today = todayLocal();
   const [dismissed, setDismissed] = useState<DismissalMap>({});
+  // Stage 5: the compact bar's N≥2 collapse state (collapsed by default;
+  // expands in place — not persisted, a fresh screen starts calm again).
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => { setDismissed(loadDismissed()); }, []);
 
@@ -168,10 +171,61 @@ export const WeatherAlertBanner = ({
       : type === "wind" ? <Wind className={size} />
       : <CloudRain className={size} />;
 
-  // ── Compact app-wide bar — one slim row per active alert type ──
+  // ── Compact app-wide bar ──
+  // Stage 5 of the garden-hub search-first overhaul (2026-07-21): with 2+
+  // active alerts the old bar stacked ~150px of pills on EVERY padded screen.
+  // Now N≥2 collapses into ONE 44px strip ("⚠ 3 weather alerts · FROST
+  // Tomorrow…") that expands IN PLACE to the per-type rows (per-type
+  // dismissal logic untouched). A single alert renders as today's single row.
+  if (compact && visibleAlerts.length >= 2 && !expanded) {
+    // Headline = the worst alert (critical beats warning; ties → first).
+    const headline =
+      visibleAlerts.find((a) => a.severity === "critical") ?? visibleAlerts[0];
+    const styles = styleMap[headline.severity] ?? styleMap.info;
+    return (
+      <div data-testid="weather-alert-bar">
+        <button
+          type="button"
+          data-testid="weather-alert-strip"
+          aria-expanded={false}
+          onClick={() => setExpanded(true)}
+          className={`w-full flex items-center gap-2 rounded-2xl border px-3 min-h-[44px] text-left animate-in fade-in duration-300 ${styles.container}`}
+        >
+          <span className={`shrink-0 p-1 rounded-lg ${styles.iconBg}`}>
+            <TriangleAlert className="w-3.5 h-3.5" />
+          </span>
+          <span className="flex-1 min-w-0 flex items-baseline gap-1.5">
+            <span className="text-[12px] font-black shrink-0">
+              {visibleAlerts.length} weather alerts
+            </span>
+            <span className="text-[12px] font-extrabold text-rhozly-primary uppercase tracking-wide shrink-0">
+              {headline.type} {formatWhen(headline)}
+            </span>
+            <span className="hidden sm:block text-[12px] font-medium opacity-70 truncate">
+              {headline.message}
+            </span>
+          </span>
+          <ChevronDown className="w-4 h-4 shrink-0 opacity-50" />
+        </button>
+      </div>
+    );
+  }
+
   if (compact) {
     return (
       <div data-testid="weather-alert-bar" className="space-y-1.5">
+        {visibleAlerts.length >= 2 && (
+          <button
+            type="button"
+            data-testid="weather-alert-strip-collapse"
+            aria-expanded
+            onClick={() => setExpanded(false)}
+            className="w-full flex items-center justify-between gap-2 px-3 min-h-[36px] pointer-coarse:min-h-11 rounded-xl text-[11px] font-black uppercase tracking-widest text-rhozly-on-surface/45 can-hover:hover:text-rhozly-on-surface can-hover:hover:bg-rhozly-surface-low transition-colors"
+          >
+            {visibleAlerts.length} weather alerts
+            <ChevronDown className="w-4 h-4 rotate-180 opacity-60" />
+          </button>
+        )}
         {visibleAlerts.map((alert) => {
           const styles = styleMap[alert.severity] ?? styleMap.info;
           return (

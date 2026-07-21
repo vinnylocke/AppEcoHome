@@ -95,6 +95,21 @@ ON CONFLICT (id) DO UPDATE SET
 -- Favourite 1 — live reference to the seeded manual Tomato.
 -- Arbiter is the (user_id, plant_id) unique so a UI-created favourite of
 -- the same plant can never break the re-run.
+-- Idempotency hardening (2026-07-21, hub overhaul Stage 5 seed-run catch):
+-- test suites toggle favourites live, so a re-run can find the same
+-- (user_id, plant_id) pair under a DIFFERENT id (heart re-added after the
+-- seeded row was removed) — the fixed-id insert then violates the PK while
+-- the (user_id, plant_id) conflict target doesn't arbitrate. Clear both
+-- identities first (same pre-delete pattern as seeds 16/17).
+DELETE FROM public.user_favourite_plants
+WHERE id IN (
+  '00000000-0000-0000-0017-000000000001',
+  '00000000-0000-0000-0017-000000000002',
+  '00000001-0000-0000-0017-000000000003'
+)
+OR (user_id = '00000000-0000-0000-0000-000000000001' AND plant_id = 1000001)
+OR (user_id = '00000001-0000-0000-0000-000000000001' AND plant_id = 9900101);
+
 INSERT INTO public.user_favourite_plants (
   id, user_id, plant_id, source, common_name, scientific_name,
   image_url, snapshot, favourited_from_home_id

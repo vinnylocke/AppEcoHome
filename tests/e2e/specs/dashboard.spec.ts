@@ -47,6 +47,29 @@ test.describe("Dashboard — view switcher (Section 02)", () => {
     await expect(authenticatedPage).toHaveURL(/view=weather/, { timeout: 8000 });
   });
 
+  test("DASH-009b: 2+ weather alerts collapse into one strip; tapping expands the per-type rows in place", async ({ authenticatedPage }) => {
+    // Stage 5 of the garden-hub search-first overhaul: the ~150px pill stack
+    // becomes one 44px strip on every padded screen. Seed 04 provides 3 alerts.
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
+    await dashboard.waitForLoad();
+
+    const strip = authenticatedPage.getByTestId("weather-alert-strip");
+    await expect(strip).toBeVisible({ timeout: 10000 });
+    await expect(strip).toContainText(/3 weather alerts/i);
+    // Collapsed: no per-type rows in the DOM.
+    await expect(authenticatedPage.getByTestId("weather-alert-bar-heat")).toHaveCount(0);
+
+    await strip.click();
+    // Expanded in place: the classic rows + per-type dismiss render.
+    await expect(authenticatedPage.getByTestId("weather-alert-bar-heat")).toBeVisible({ timeout: 5000 });
+    await expect(authenticatedPage.getByTestId("weather-alert-bar-frost")).toBeVisible();
+    // And it collapses again.
+    await authenticatedPage.getByTestId("weather-alert-strip-collapse").click();
+    await expect(authenticatedPage.getByTestId("weather-alert-bar-heat")).toHaveCount(0);
+    await expect(strip).toBeVisible();
+  });
+
   test("DASH-010: Heat alert banner is visible on the dashboard", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.goto();
@@ -55,6 +78,12 @@ test.describe("Dashboard — view switcher (Section 02)", () => {
     // Seed 04's heat alert message is "Heatwave ahead — up to 36°C…". Scoped
     // to the compact bar's own testid: the same text also renders in the
     // AttentionRow weather card, so a bare getByText goes strict-ambiguous.
+    // Stage 5: seed 04 guarantees 3 actionable alerts, so the collapse strip
+    // is always present — wait for it properly (isVisible() doesn't auto-wait;
+    // review catch: the racy guard would skip the click under CI load).
+    const strip = authenticatedPage.getByTestId("weather-alert-strip");
+    await expect(strip).toBeVisible({ timeout: 10000 });
+    await strip.click();
     const heatBar = authenticatedPage.getByTestId("weather-alert-bar-heat");
     await expect(heatBar).toBeVisible({ timeout: 10000 });
     await expect(heatBar).toContainText(/Heatwave ahead/i);
@@ -69,6 +98,12 @@ test.describe("Dashboard — view switcher (Section 02)", () => {
     // Scoped to the banner's testid — the same text also surfaces as a row in
     // The Brief (garden-brain-brief) on the workbench, so a bare getByText goes
     // strict-ambiguous (redesign Stage 3).
+    // Stage 5: seed 04 guarantees 3 actionable alerts, so the collapse strip
+    // is always present — wait for it properly (isVisible() doesn't auto-wait;
+    // review catch: the racy guard would skip the click under CI load).
+    const strip = authenticatedPage.getByTestId("weather-alert-strip");
+    await expect(strip).toBeVisible({ timeout: 10000 });
+    await strip.click();
     const frostBar = authenticatedPage.getByTestId("weather-alert-bar-frost");
     await expect(frostBar).toBeVisible({ timeout: 10000 });
     await expect(frostBar).toContainText(/Frost risk tomorrow/i);
@@ -82,6 +117,12 @@ test.describe("Dashboard — view switcher (Section 02)", () => {
     // Seed 04 adds a wind alert: "High winds forecast (65 kph)". Scoped to the
     // bar's testid — the same text also renders in the AttentionRow weather
     // card, so a bare getByText goes strict-ambiguous.
+    // Stage 5: seed 04 guarantees 3 actionable alerts, so the collapse strip
+    // is always present — wait for it properly (isVisible() doesn't auto-wait;
+    // review catch: the racy guard would skip the click under CI load).
+    const strip = authenticatedPage.getByTestId("weather-alert-strip");
+    await expect(strip).toBeVisible({ timeout: 10000 });
+    await strip.click();
     const windBar = authenticatedPage.getByTestId("weather-alert-bar-wind");
     await expect(windBar).toBeVisible({ timeout: 10000 });
     await expect(windBar).toContainText(/High winds forecast/i);
