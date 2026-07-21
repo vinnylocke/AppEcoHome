@@ -5,6 +5,7 @@ import {
   Plus, Search, Loader2, Biohazard, X,
   Edit3, Trash2, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle,
   CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles, Library, Heart, FileText,
+  Binoculars,
 } from "lucide-react";
 import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -442,11 +443,17 @@ function AddAilmentModal({
   aiEnabled,
   onSaved,
   onClose,
+  existingKeys,
 }: {
   homeId: string;
   aiEnabled: boolean;
   onSaved: (ailment: Ailment) => void;
   onClose: () => void;
+  /** Normalized names of the home's non-archived watchlist rows (A3, Stage 1
+   *  of the ailment-library overhaul) — library results already being watched
+   *  render a "Watching ✓" state instead of an Add button, closing the
+   *  duplicate-add pitfall the docs used to warn about. */
+  existingKeys?: Set<string>;
 }) {
   const navigate = useNavigate();
   const [mode, setMode] = useState<CreationMode>("search");
@@ -1035,7 +1042,9 @@ function AddAilmentModal({
                       ) : (
                         libraryMatches.slice(0, 12).map((lib) => {
                           const meta = TYPE_META[kindToWatchlistType(lib.kind)];
-                          const added = addedLibraryIds.has(lib.id);
+                          const added =
+                            addedLibraryIds.has(lib.id) ||
+                            (existingKeys?.has(ailmentIdentityKey(lib.name)) ?? false);
                           return (
                             <div key={lib.id} data-testid={`ailment-library-result-${lib.id}`} className="border border-rhozly-outline/10 rounded-2xl bg-white flex items-center gap-3 p-3">
                               <div className="w-12 h-12 rounded-xl bg-rhozly-surface-low overflow-hidden shrink-0 flex items-center justify-center text-rhozly-on-surface/20">
@@ -1054,7 +1063,7 @@ function AddAilmentModal({
                                 data-testid={`ailment-library-add-${lib.id}`}
                                 className="shrink-0 px-3 py-2 rounded-xl bg-rhozly-primary text-white text-xs font-black flex items-center gap-1 disabled:opacity-60 disabled:bg-rhozly-on-surface/20"
                               >
-                                {added ? <><CheckCircle2 size={13} /> Added</> : <><Plus size={13} /> Add</>}
+                                {added ? <><CheckCircle2 size={13} /> Watching</> : <><Plus size={13} /> Add</>}
                               </button>
                             </div>
                           );
@@ -2131,14 +2140,15 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
         />
       </div>
 
-      {/* Browse the global ailment library (Phase 2) */}
+      {/* Browse the global ailment library (Phase 2; Binoculars = the watch
+          metaphor — Stage 1 of the ailment-library overhaul) */}
       <button
         type="button"
         data-testid="browse-ailment-library"
         onClick={() => navigate("/ailment-library")}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-rhozly-outline/30 text-sm font-black text-rhozly-on-surface/60 hover:border-rhozly-primary/40 hover:text-rhozly-primary transition-colors"
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-rhozly-outline/30 text-sm font-black text-rhozly-on-surface/60 can-hover:hover:border-rhozly-primary/40 can-hover:hover:text-rhozly-primary active:scale-[0.99] transition-colors"
       >
-        <Library size={16} /> Browse the ailment library
+        <Binoculars size={16} /> Browse the ailment library
       </button>
 
       {/* Grid */}
@@ -2239,6 +2249,9 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           aiEnabled={aiEnabled}
           onSaved={(a) => { setAilments((prev) => [a, ...prev]); requestFeedback("ailment_add"); }}
           onClose={() => setShowAdd(false)}
+          existingKeys={new Set(
+            ailments.filter((a) => !a.is_archived).map((a) => ailmentIdentityKey(a.name)).filter(Boolean),
+          )}
         />,
         document.body,
       )}

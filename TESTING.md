@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,573 tests across 148 files
+### Unit tests — 1,584 tests across 149 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
@@ -784,7 +784,8 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `payloadTemplate.test.ts` | 6 | Custom valve control preview — `{{var}}` render (+ unknown-var throw, parity with Deno), `buildControlPreview` ok / template-error / non-JSON-body cases |
 | `areaInsight.test.ts` | 6 | AI Area Coach presentation helpers — `metricLabel`, `statusMeta` (good/low/high/unknown styling), `compatibilityMeta` (well/minor/poor verdict label + tone), `formatAnalysedLabel` (just-now/m/h/d/date windows) |
 | `pickerFilter.test.ts` | 13 | Automation builder task/sensor picker filter — `shouldShowPickerSearch` (>6 threshold + custom), `filterPickerItems` (empty query, case-insensitive title/name match, **always keeps a selected item**, no-match empty) |
-| `ailmentMapping.test.ts` | 4 | Ailment library → watchlist mapping — `kindToWatchlistType` (disorder→disease), `severityToWatchlist` (4→3 levels), `mapLibraryToWatchlistPayload` (scalars/symptoms/steps, omits absent steps, image fallback) |
+| `ailmentMapping.test.ts` | 11 | Ailment library → watchlist mapping — `kindToWatchlistType` (disorder→disease), `severityToWatchlist` (4→3 levels), `mapLibraryToWatchlistPayload` (scalars/symptoms/steps, omits absent steps, image fallback), `filterAilmentLibrary`, + Stage 1 `libraryRowToFavouriteInput` (source always 'library', kind→type, thumbnail/image fallback, empty steps) |
+| `ailmentPresentation.test.ts` | 9 | Ailment-library overhaul Stage 1 — kind/severity status-token maps (every kind/severity covered, HC-aware classes) + `matchAffectedPlants` (case-insensitive, plural bridging both ways, token-in-name, cap+dedupe, sub-3-char noise guard) |
 | `stripMarkdownImages.test.ts` | 5 | Chat image sanitiser — strips `![alt](url)` + reference images, keeps normal links/text, collapses whitespace |
 | `automationTemplates.test.ts` | 3 | Builder templates — unique ids, each builds a named tree + actions; Smart watering = (moisture<30 AND not rain) OR moisture<18; scheduled-skip-rain shape |
 | `conditionTree.test.ts` | 10 | Unified automation builder — `newLeaf`/`newGroup` defaults, `summariseNode`/`summariseTree` (sensor count, negate "not", time weekdays/every-day, AND join, empty AND/OR, null) |
@@ -870,11 +871,11 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `scanJournalPhotos.test.ts` | 17 | Garden Brain Phase 3 photo scan (`_shared/scanJournalPhotos.ts`, SJP-001..031) — `selectPhotos` predicate (plant-linked, has image, never observed, 14-day window, oldest-first, 10-cap), `validateObservation` closed-vocabulary contract (unknown kinds dropped, ≤2 actions, due_in_days clamp 0–14, create_task requires task_type+title, check_for_ailment requires suspected, text caps 160/200/80, status always `proposed`, unusable core → null), `shouldApplyStage` (≥0.8 + differs), responseSchema enum pinning, prompt content |
 | `homeOverview.test.ts` | 16 | `home-overview` pure helpers (`_shared/homeOverview.ts`, HOME-OV-001..016) — `deriveValveState` (running inside the turn_on countdown, never past `duration_seconds`, newer turn_off wins, failed-queue-newer-than-last-event → failed, `nextRunAt` = earliest pending turn_on), `soilBand` (<30 dry / >70 wet), `rankAttention` (overdue > alert > failed automation > battery/soil > harvest; max 4; empty when calm), `summariseSoilReading` (null-safe, `readingAgeMin`, battery falls back to the reading payload), RHO-17 Phase 2 `shapeWalkDevices` (unassigned/location/area assignments + name-sorted, multi-sensor areas, valve state + control metadata with duration fallback, stale reading ages, unknown device types dropped) |
 
-### E2E tests — 548 tests across 38 files (+ 13 isolation tests)
+### E2E tests — 552 tests across 38 files (+ 13 isolation tests)
 
 > **Onboarding tours are seeded dismissed.** `00_bootstrap.sql` writes a full `onboarding_state` baseline (every `flowRegistry` Shepherd flow + `welcome_modal` = `dismissed`) for the worker accounts. Without it, the `global_welcome` tour (route `global`, `important: true` — bypasses the daily throttle; its per-session guard is sessionStorage, fresh in every test context) renders a centred pointer-intercepting card ~800ms after every navigation on any account with an empty state. Specs that need un-dismissed flows mock their own profile fetch (see `tests/e2e/fixtures/welcome-modal-ready.ts`).
 
-> `ailment-library.spec.ts` (Section 24) covers the browse shell (heading, search, kind filter chips) + the "Browse the ailment library" navigation from the Watchlist. Shell-only (the seeded e2e DB has no `ailment_library` rows → grid empty state).
+> `ailment-library.spec.ts` (Section 36) covers the field-guide library: browse with seeded catalogue rows (`16_ailment_library.sql` — a GLOBAL table seeded per-worker-idempotently via explicit ids + `ON CONFLICT (id)`), kind/severity/Watching filters, the full-page detail takeover (`?ailment=` deep link), the 🔭 Watch → watchlist round trip, and the ♥ favourite toggle (ailment-library overhaul Stage 1, 2026-07-21 — previously shell-only against an unseeded table).
 
 > `automations.spec.ts` (Section 23) + `pages/AutomationsPage.ts` cover the unified condition builder: opening it, applying the Smart watering template (name + summary), the template chips, the **default run-window card** (AUTO-004: visible, pre-filled 08:00–20:00, save persists across reload — restores the default for idempotency), and the **task-due leaf picker** (AUTO-005: renders a picker; when >6 recurring tasks the search narrows the chips). Builder tests are non-persisting (cancel, no save); AUTO-004 writes to `homes` but restores the default.
 

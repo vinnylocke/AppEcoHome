@@ -4,6 +4,7 @@
 
 import { supabase } from "../lib/supabase";
 import type { AilmentType, AilmentSymptom, AilmentStep } from "../components/AilmentWatchlist";
+import { favouriteAilment, type AilmentFavouriteInput } from "./favouritesService";
 
 export type AilmentKind = "pest" | "disease" | "invasive" | "disorder";
 export type AilmentSeverity = "low" | "moderate" | "high" | "critical";
@@ -129,4 +130,37 @@ export async function addLibraryAilmentToWatchlist(a: LibraryAilment, homeId: st
   const { data, error } = await supabase.from("ailments").insert(payload).select().single();
   if (error) throw error;
   return data;
+}
+
+// ── library → favourite (Stage 1, ailment-library overhaul) ──────────────────
+
+/**
+ * Pure: shape a catalogue row into the `AilmentFavouriteInput` favouriteAilment
+ * expects (which was built for home watchlist rows). Source is always
+ * `'library'` — tier-open on every plan, matching the watchlist's library adds.
+ */
+export function libraryRowToFavouriteInput(a: LibraryAilment): AilmentFavouriteInput {
+  return {
+    id: String(a.id),
+    name: a.name,
+    type: kindToWatchlistType(a.kind),
+    source: "library",
+    thumbnail_url: a.thumbnail_url ?? a.image_url ?? null,
+    scientific_name: a.scientific_name ?? null,
+    description: a.description ?? null,
+    symptoms: a.symptoms ?? [],
+    affected_plants: a.affected_plant_types ?? [],
+    prevention_steps: a.prevention ? [{ title: "Prevention", description: a.prevention }] : [],
+    remedy_steps: a.treatment ? [{ title: "Treatment", description: a.treatment }] : [],
+    perenual_id: null,
+  };
+}
+
+/**
+ * Favourite a catalogue entry directly from the library page. Passes the row's
+ * own id as the pre-resolved canonical reference — no name-ilike round trip,
+ * and the favourite is "always live" (renders the library row, not a tombstone).
+ */
+export async function favouriteLibraryAilment(a: LibraryAilment, homeId: string | null) {
+  return favouriteAilment(libraryRowToFavouriteInput(a), homeId, a.id);
 }

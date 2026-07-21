@@ -80,6 +80,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Senescence](./03-garden-hub/12-senescence.md) — the history of ended plant instances; filter by natural / other; reversible Restore that re-fires task generation
 - [x] [Sketch to Layout](./03-garden-hub/13-sketch-to-layout.md) — hand-drawn sketch → AI shape detection → confirmation wizard → 2D layout
 - [x] [Add-Area Wizard](./03-garden-hub/15-add-area-wizard.md) — create an area with its bed conditions + plants (Shed or search) in one flow; AI-tier suitability review with score + plant/task/automation recommendations
+- [x] [Ailment Library](./03-garden-hub/16-ailment-library.md) — the field guide: full-page browse of the global catalogue + full-page detail with 🔭 Watch (→ home watchlist) / ♥ Favourite (→ cross-home) / Ask-AI + a "could affect your garden" strip (overhaul Stage 1, 2026-07-21)
 
 ## 04 — Planner & Shopping
 

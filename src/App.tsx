@@ -2124,7 +2124,7 @@ function AppShell() {
                       <Route path="/ailment-library" element={
                         <div className="h-full animate-in fade-in duration-500">
                           {profile?.home_id ? (
-                            <AilmentLibrary homeId={profile.home_id} />
+                            <AilmentLibrary homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} />
                           ) : null}
                         </div>
                       } />

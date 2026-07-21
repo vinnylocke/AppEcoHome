@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   kindToWatchlistType, severityToWatchlist, mapLibraryToWatchlistPayload, filterAilmentLibrary,
+  libraryRowToFavouriteInput,
   type LibraryAilment,
 } from "../../../src/services/ailmentLibraryService";
 
@@ -78,5 +79,31 @@ describe("filterAilmentLibrary", () => {
   });
   it("returns [] when nothing matches", () => {
     expect(filterAilmentLibrary(rows, "zzz")).toEqual([]);
+  });
+});
+
+describe("libraryRowToFavouriteInput (Stage 1 — favourite from the library)", () => {
+  it("shapes a library row into the favouriteAilment input, source always 'library'", () => {
+    const input = libraryRowToFavouriteInput(base);
+    expect(input.id).toBe("1");
+    expect(input.name).toBe("Late Blight");
+    expect(input.type).toBe("disease"); // via kindToWatchlistType
+    expect(input.source).toBe("library"); // tier-open on every plan
+    expect(input.thumbnail_url).toBe("http://x/y.jpg");
+    expect(input.scientific_name).toBe("Phytophthora infestans");
+    expect(input.affected_plants).toEqual(["tomato", "potato"]);
+    expect(input.prevention_steps).toEqual([{ title: "Prevention", description: "Space plants; water at base." }]);
+    expect(input.remedy_steps).toEqual([{ title: "Treatment", description: "Remove infected foliage; copper fungicide." }]);
+    expect(input.perenual_id).toBeNull();
+  });
+
+  it("falls back to image_url for the thumbnail and empty steps when treatment/prevention are null", () => {
+    const input = libraryRowToFavouriteInput({
+      ...base, thumbnail_url: null, image_url: "http://x/full.jpg", treatment: null, prevention: null, kind: "invasive",
+    });
+    expect(input.thumbnail_url).toBe("http://x/full.jpg");
+    expect(input.type).toBe("invasive_plant");
+    expect(input.prevention_steps).toEqual([]);
+    expect(input.remedy_steps).toEqual([]);
   });
 });

@@ -366,16 +366,25 @@ export async function resolveAilmentLibraryId(
  * Favourite an ailment (idempotent). Resolves the canonical library reference,
  * builds the tombstone snapshot, and upserts — on (user_id, ailment_library_id)
  * for library-backed favourites, else on (user_id, identity_key) for tombstones.
+ *
+ * `preResolvedLibraryId` (Stage 1, ailment-library overhaul): callers that
+ * already HOLD the library row (the Ailment Library page) pass its id directly,
+ * skipping the redundant name-ilike resolution round trip. `undefined` keeps
+ * the resolve-by-name behaviour; passing `null` explicitly forces a tombstone.
  */
 export async function favouriteAilment(
   ailment: AilmentFavouriteInput,
   homeId: string | null,
+  preResolvedLibraryId?: number | null,
 ): Promise<FavouriteAilment> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
   if (!userId) throw new Error("Not signed in");
 
-  const libraryId = await resolveAilmentLibraryId(ailment.name);
+  const libraryId =
+    preResolvedLibraryId !== undefined
+      ? preResolvedLibraryId
+      : await resolveAilmentLibraryId(ailment.name);
   const identityKey = ailmentIdentityKey(ailment.name);
   const row = {
     user_id: userId,

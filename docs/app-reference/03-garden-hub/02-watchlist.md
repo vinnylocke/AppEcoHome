@@ -94,7 +94,7 @@ search box with progressive tiers (the old AI / Perenual tabs were removed). Sou
 
 | Tier | Behaviour |
 |------|-----------|
-| **1 · Library** (free, all tiers) | Filters the seeded `ailment_library` client-side (`filterAilmentLibrary`) → results carry a **Library** chip → tap **Add** → `addLibraryAilmentToWatchlist` (**`source='library'`** since `20260824000000`; was `'ai'`). |
+| **1 · Library** (free, all tiers) | Filters the seeded `ailment_library` client-side (`filterAilmentLibrary`) → results carry a **Library** chip → tap **Add** → `addLibraryAilmentToWatchlist` (**`source='library'`** since `20260824000000`; was `'ai'`). **Since the ailment-library overhaul Stage 1 (2026-07-21)** the modal receives an `existingKeys` set (normalized non-archived home-ailment names) and library rows already on the watchlist render a disabled **"Watching ✓"** instead of Add — closing the duplicate-add pitfall. |
 | **2 · Databases** | "Search more databases" button → escalates with the query → `perenual-proxy` (`searchPestDisease`) → cart-select → insert (`source='perenual'`). |
 | **3 · Rhozly AI ✦** (AI tier) | "Search with Rhozly AI" → `generate-ailment-suggestions` → on add, also **persists the result to the shared `ailment_library`** via `add-ailment-to-library` (so future users find it in Tier 1) + inserts to the watchlist (`source='ai'`). |
 | **Manual** | "or add manually" → the free-form `StepBuilder` form (name, type, description, symptoms, prevention/remedy steps). |
@@ -320,6 +320,7 @@ No difference.
 
 ## Related reference files
 
+- [Ailment Library](./16-ailment-library.md) — the field-guide browse/detail this surface's dashed button (now Binoculars-iconed) opens; its 🔭 Watch writes the same home `ailments` rows and its ♥ uses the same favourites service
 - [The Shed](./01-the-shed.md) — cross-home favourites Phase 1 (plants); mirrors this surface's scope pill + heart + add-to-home
 - [Link Ailment Modal](../08-modals-and-overlays/14-link-ailment-modal.md)
 - [Plant Doctor](../05-tools/02-plant-doctor.md)
