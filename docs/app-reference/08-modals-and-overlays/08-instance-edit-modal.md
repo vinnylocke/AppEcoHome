@@ -54,8 +54,14 @@ InstanceEditModal (Portal, focus-trapped)
 ```
 
 The Senescence tab reads `plant_journals` rows for the instance whose `subject`
-matches `Lifecycle complete%` / `Restored from Senescence%` (the closing photo is
-the newest `Lifecycle complete%` row with an `image_url`). Restore mirrors
+matches `Lifecycle complete%` / `Lifecycle details updated%` / `Lifecycle analysis%` /
+`Restored from Senescence%` (the closing photo is the newest `Lifecycle complete%`
+row with an `image_url`). The `Lifecycle analysis` row — the JSON body persisted by
+`analyse-plant-end-of-life` (`{ likely_causes, prevention_next_time, affirmation }`) —
+is parsed and rendered as a formatted "What likely happened / What to try next time"
+card (`senescence-analysis`, the same shape LifecycleAnalysisModal shows at
+end-of-life), NOT dumped as raw JSON; that entry is then excluded from the plain
+timeline (kept in the timeline only if its body fails to parse). Restore mirrors
 PlantInstancesTab semantics verbatim: null `ended_at`/`was_natural_end`/`end_summary`,
 status → Planted, journal the round trip, re-fire `generate-tasks`; the host then
 flips back to the Details tab and propagates via `onUpdate` + `onTasksUpdated`.

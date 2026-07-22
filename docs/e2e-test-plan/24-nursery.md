@@ -84,5 +84,6 @@
 | NURSERY-060 | ✅ | `/shed?tab=nursery` redirects into the Seed box sheet; "Add seeds" (`nursery-add-seeds-btn`) opens the action sheet; "Type one in" (`nursery-add-packets` on the sheet row) opens AddSeedPacketModal | — | ✅ Passing |
 | GARDEN-B1 | ✅ | Hub v3 Stage B: History timeline shows an ended record; Restore returns it to the active list (self-cleaning fixture) | — | ✅ Passing |
 | GARDEN-B2 | ✅ | Hub v3 Stage B: a live sowing surfaces in the plant modal's "In the nursery" section | — | ✅ Passing |
+| GARDEN-B4 | ✅ | The Senescence tab renders the AI lifecycle analysis (2026-07-22) — a seeded "Lifecycle analysis" journal entry shows as a formatted "What likely happened / What to try next time" card (`senescence-analysis`), not raw JSON | — | ✅ Passing |
 | GARDEN-B3 | ✅ | Tapping a History row opens the ended record in InstanceEditModal; the glance chip counts PLANTED only ("1 planted", 2026-07-22 regression); the **Senescence tab** (`instance-modal-tab-senescence`) shows the end badge, summary, and Restore | — | ✅ Passing |
 | NURSERY-061 | ✅ | Inline search (`nursery-search-input`) filters packet rows live (variety match, no-match → 0 rows, clear → all) | — | ✅ Passing |

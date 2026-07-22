@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Improved",
+    "items": [
+      "The end-of-life AI analysis (what likely happened and what to try next time) now appears in the plant's Senescence tab as a clear card, instead of only living in the journal as raw text."
+    ]
+  }
+]

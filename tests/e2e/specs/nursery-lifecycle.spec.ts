@@ -989,6 +989,69 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
     }
   });
 
+  test("GARDEN-B4: the Senescence tab surfaces the AI lifecycle analysis (not raw JSON)", async ({ authenticatedPage }) => {
+    // 2026-07-22 — analyse-plant-end-of-life persists its analysis as a
+    // "Lifecycle analysis" journal entry (JSON body). The Senescence tab now
+    // renders it as a formatted card instead of leaving it only in the journal.
+    const { data: endedRow, error } = await supabase
+      .from("inventory_items")
+      .insert({
+        home_id: HOME_ID,
+        plant_id: String(PLANT_BASIL),
+        plant_name: "Basil",
+        status: "Archived",
+        identifier: "Basil (e2e analysis)",
+        ended_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+        was_natural_end: false,
+        end_summary: "Wilted suddenly after the heatwave.",
+      })
+      .select("id")
+      .single();
+    expect(error).toBeNull();
+    const endedId = endedRow!.id as string;
+
+    const { error: jErr } = await supabase.from("plant_journals").insert({
+      home_id: HOME_ID,
+      inventory_item_id: endedId,
+      subject: "Lifecycle analysis",
+      description: JSON.stringify({
+        likely_causes: ["Prolonged heat stress with insufficient watering"],
+        prevention_next_time: ["Add mulch and water at dawn during hot spells"],
+        affirmation: "You gave this basil a good run — the signs were subtle.",
+      }),
+    });
+    expect(jErr).toBeNull();
+
+    try {
+      await authenticatedPage.goto("/shed");
+      await authenticatedPage
+        .locator(".animate-spin, .animate-pulse").first()
+        .waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
+      await authenticatedPage.getByTestId(`plant-card-${PLANT_BASIL}`).click();
+      await authenticatedPage.getByTestId("plant-modal-tab-instances").click();
+      await authenticatedPage.getByTestId(`plant-history-open-${endedId}`).click();
+
+      const instanceModal = authenticatedPage.getByRole("dialog", { name: "Edit plant instance" });
+      await expect(instanceModal).toBeVisible({ timeout: 10000 });
+      await instanceModal.getByTestId("instance-modal-tab-senescence").click();
+
+      const analysis = instanceModal.getByTestId("senescence-analysis");
+      await expect(analysis).toBeVisible({ timeout: 10000 });
+      await expect(analysis).toContainText("What likely happened");
+      await expect(analysis).toContainText("Prolonged heat stress");
+      await expect(analysis).toContainText("What to try next time");
+      await expect(analysis).toContainText("Add mulch");
+      // Rendered as a card, not dumped as raw JSON into the timeline.
+      await expect(instanceModal.getByTestId("instance-senescence-tab")).not.toContainText("likely_causes");
+
+      await instanceModal.getByLabel("Close").click();
+      await expect(instanceModal).toHaveCount(0, { timeout: 5000 });
+    } finally {
+      await supabase.from("plant_journals").delete().eq("inventory_item_id", endedId);
+      await supabase.from("inventory_items").delete().eq("id", endedId);
+    }
+  });
+
   test("GARDEN-B2: a live sowing surfaces in the plant modal's 'In the nursery' section", async ({ authenticatedPage }) => {
     const packetId = await createPacket(supabase, { plant_id: PLANT_BASIL, variety: "Sweet Genovese" });
     const { data: sowing, error } = await supabase

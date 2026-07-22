@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Leaf, Calendar, ArchiveRestore, Loader2, AlertCircle } from "lucide-react";
+import { Leaf, Calendar, ArchiveRestore, Loader2, AlertCircle, Sparkles, Lightbulb } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
+import type { LifecycleAnalysis } from "../types";
 
 interface LifecycleEntry {
   id: string;
@@ -11,6 +12,25 @@ interface LifecycleEntry {
   description: string | null;
   image_url: string | null;
   created_at: string;
+}
+
+/** Parse the JSON body of a "Lifecycle analysis" journal entry, tolerating a
+ *  malformed row (returns null so the caller falls back to the plain timeline). */
+function parseAnalysis(description: string | null): LifecycleAnalysis | null {
+  if (!description) return null;
+  try {
+    const p = JSON.parse(description);
+    if (p && (Array.isArray(p.likely_causes) || Array.isArray(p.prevention_next_time) || typeof p.affirmation === "string")) {
+      return {
+        likely_causes: Array.isArray(p.likely_causes) ? p.likely_causes : [],
+        prevention_next_time: Array.isArray(p.prevention_next_time) ? p.prevention_next_time : [],
+        affirmation: typeof p.affirmation === "string" ? p.affirmation : "",
+      };
+    }
+  } catch {
+    /* not JSON — fall through */
+  }
+  return null;
 }
 
 interface Props {
@@ -51,7 +71,7 @@ export default function InstanceSenescenceTab({ homeId, instance, onRestored }: 
         .from("plant_journals")
         .select("id, subject, description, image_url, created_at")
         .eq("inventory_item_id", instance.id)
-        .or("subject.like.Lifecycle complete%,subject.like.Restored from Senescence%")
+        .or("subject.like.Lifecycle complete%,subject.like.Lifecycle details updated%,subject.like.Lifecycle analysis%,subject.like.Restored from Senescence%")
         .order("created_at", { ascending: false });
       if (queryErr) throw queryErr;
       setEntries((data ?? []) as LifecycleEntry[]);
@@ -69,6 +89,16 @@ export default function InstanceSenescenceTab({ homeId, instance, onRestored }: 
 
   const closingPhotoUrl =
     entries.find((e) => e.subject.startsWith("Lifecycle complete") && e.image_url)?.image_url ?? null;
+
+  // The AI end-of-life analysis is persisted as its own "Lifecycle analysis"
+  // journal entry (JSON body). Surface the newest one as a formatted card
+  // instead of dumping JSON into the timeline. `entries` is newest-first, so
+  // the first analysis row is the latest (e.g. after an amend re-run).
+  const analysisEntry = entries.find((e) => e.subject.startsWith("Lifecycle analysis"));
+  const analysis = analysisEntry ? parseAnalysis(analysisEntry.description) : null;
+  // Timeline rows exclude the analysis entry (shown as its own card above) —
+  // unless its body failed to parse, in which case keep it so nothing is lost.
+  const timelineEntries = entries.filter((e) => !(e === analysisEntry && analysis));
 
   const handleRestore = async () => {
     setRestoring(true);
@@ -150,6 +180,51 @@ export default function InstanceSenescenceTab({ homeId, instance, onRestored }: 
         />
       )}
 
+      {/* AI lifecycle analysis — the "what likely happened / what to try next
+          time" insight, surfaced here instead of only as raw JSON in the
+          journal. Same shape LifecycleAnalysisModal renders at end-of-life. */}
+      {analysis && (analysis.likely_causes.length > 0 || analysis.prevention_next_time.length > 0 || analysis.affirmation) && (
+        <div
+          data-testid="senescence-analysis"
+          className="rounded-2xl bg-rhozly-primary/[0.05] border border-rhozly-primary/20 p-4 space-y-4"
+        >
+          <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-primary flex items-center gap-1.5">
+            <Sparkles size={11} /> Looking back on {name}'s journey
+          </p>
+          {analysis.affirmation && (
+            <p className="text-sm font-bold text-rhozly-on-surface/80 leading-relaxed italic">{analysis.affirmation}</p>
+          )}
+          {analysis.likely_causes.length > 0 && (
+            <div>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2 flex items-center gap-1.5">
+                <Sparkles size={11} /> What likely happened
+              </h4>
+              <ul className="space-y-1.5">
+                {analysis.likely_causes.map((c, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm font-bold text-rhozly-on-surface leading-snug">
+                    <span className="text-rhozly-primary mt-0.5 shrink-0">•</span><span>{c}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {analysis.prevention_next_time.length > 0 && (
+            <div>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2 flex items-center gap-1.5">
+                <Lightbulb size={11} /> What to try next time
+              </h4>
+              <ul className="space-y-1.5">
+                {analysis.prevention_next_time.map((t, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm font-bold text-rhozly-on-surface leading-snug">
+                    <span className="text-rhozly-primary mt-0.5 shrink-0">•</span><span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Lifecycle timeline — the same journal rows, pre-filtered */}
       {loading ? (
         <div className="flex items-center justify-center py-10">
@@ -159,13 +234,13 @@ export default function InstanceSenescenceTab({ homeId, instance, onRestored }: 
         <p className="text-sm font-bold text-rhozly-error flex items-center gap-1.5">
           <AlertCircle size={14} /> {error}
         </p>
-      ) : entries.length > 0 ? (
+      ) : timelineEntries.length > 0 ? (
         <div className="space-y-2">
           <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
             Lifecycle history
           </p>
           <ul className="space-y-2" data-testid="senescence-timeline">
-            {entries.map((e) => (
+            {timelineEntries.map((e) => (
               <li
                 key={e.id}
                 className="rounded-2xl bg-rhozly-surface-low border border-rhozly-outline/10 px-3 py-2.5"
