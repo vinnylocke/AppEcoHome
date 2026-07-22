@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Loader2,
   MapPin,
@@ -11,12 +10,14 @@ import {
   Inbox,
   Leaf,
   Trash2,
-  ArrowRight,
+  ArchiveRestore,
+  Package,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
 import InstanceEditModal from "../InstanceEditModal";
+import NurseryPacketsForPlant from "../nursery/NurseryPacketsForPlant";
 import LifecycleCompleteModal from "../LifecycleCompleteModal";
 import LifecycleAnalysisModal from "../LifecycleAnalysisModal";
 import { ConfirmModal } from "../ConfirmModal";
@@ -93,16 +94,19 @@ export default function PlantInstancesTab({
   /** Per-row "Delete" target. Opens `ConfirmModal` in destructive mode. */
   const [deletingRow, setDeletingRow] = useState<InventoryItemRow | null>(null);
   const [deleteInFlight, setDeleteInFlight] = useState(false);
-  /** Count of ended instances for THIS species — surfaces a banner that
-   *  routes users to the Senescence tab pre-filtered to this plant. */
-  const [endedCount, setEndedCount] = useState(0);
-  const navigate = useNavigate();
+  /** Hub v3 Stage B — the tab IS "In your garden": ended records render
+   *  inline as a HISTORY timeline (with restore) and live sowings surface
+   *  in an IN THE NURSERY section. */
+  const [endedRows, setEndedRows] = useState<Array<InventoryItemRow & { ended_at: string; was_natural_end: boolean | null; end_summary: string | null }>>([]);
+  const [sowings, setSowings] = useState<Array<{ id: string; status: string; sown_on: string | null; sown_count: number | null; germinated_count: number | null; variety: string | null; vendor: string | null }>>([]);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<(InventoryItemRow & { ended_at: string }) | null>(null);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [{ data, error: queryErr }, endedRes] = await Promise.all([
+      const [{ data, error: queryErr }, endedRes, sowingRes] = await Promise.all([
         supabase
           .from("inventory_items")
           .select(
@@ -113,18 +117,42 @@ export default function PlantInstancesTab({
           .is("ended_at", null)
           .order("planted_at", { ascending: false, nullsFirst: false })
           .order("identifier", { ascending: true }),
-        // Count of this species' instances that have a closed lifecycle —
-        // surfaces the Senescence banner.
+        // HISTORY — this species' closed lifecycles, newest first.
         supabase
           .from("inventory_items")
-          .select("id", { count: "exact", head: true })
+          .select(
+            "id, plant_id, plant_name, nickname, identifier, status, area_id, area_name, location_id, location_name, planted_at, is_established, growth_state, environment, ended_at, was_natural_end, end_summary",
+          )
           .eq("home_id", homeId)
           .eq("plant_id", String(plantId))
-          .not("ended_at", "is", null),
+          .not("ended_at", "is", null)
+          .order("ended_at", { ascending: false })
+          .limit(50),
+        // IN THE NURSERY — live sowings whose packet is this plant.
+        supabase
+          .from("seed_sowings")
+          .select("id, status, sown_on, sown_count, germinated_count, observed_on, seed_packets!inner(plant_id, variety, vendor)")
+          .eq("home_id", homeId)
+          .eq("seed_packets.plant_id", plantId)
+          .in("status", ["sown", "germinated"]),
       ]);
       if (queryErr) throw queryErr;
+      // Enhancement sections fail soft but never silently (repo .error rule).
+      if (endedRes.error) Logger.warn("PlantInstancesTab ended-rows query failed", { err: endedRes.error, plantId });
+      if (sowingRes.error) Logger.warn("PlantInstancesTab sowings query failed", { err: sowingRes.error, plantId });
       setItems((data ?? []) as InventoryItemRow[]);
-      setEndedCount(endedRes.count ?? 0);
+      setEndedRows(((endedRes.data ?? []) as any[]).map((r) => r) as any);
+      setSowings(
+        ((sowingRes.data ?? []) as any[]).map((r) => ({
+          id: r.id,
+          status: r.status,
+          sown_on: r.sown_on,
+          sown_count: r.sown_count,
+          germinated_count: r.germinated_count,
+          variety: r.seed_packets?.variety ?? null,
+          vendor: r.seed_packets?.vendor ?? null,
+        })),
+      );
     } catch (err: any) {
       Logger.error("PlantInstancesTab fetch failed", err, { plantId });
       setError(err?.message ?? "Couldn't load instances.");
@@ -202,6 +230,37 @@ export default function PlantInstancesTab({
     }
   };
 
+  /** Restore an ended record to active care — Senescence semantics verbatim:
+   *  null the EoL triple, status→Planted, journal the round trip, re-fire
+   *  generate-tasks (routines resume; none are re-created). */
+  const handleRestore = async (row: InventoryItemRow & { ended_at: string }) => {
+    setRestoringId(row.id);
+    const name = row.identifier || row.nickname || row.plant_name || plantName;
+    try {
+      const { error: updateErr } = await supabase
+        .from("inventory_items")
+        .update({ ended_at: null, was_natural_end: null, end_summary: null, status: "Planted" })
+        .eq("id", row.id);
+      if (updateErr) throw updateErr;
+      await supabase.from("plant_journals").insert({
+        home_id: homeId,
+        inventory_item_id: row.id,
+        subject: "Restored from Senescence",
+        description: `${name} is back in active care.`,
+      });
+      supabase.functions
+        .invoke("generate-tasks", { body: { home_id: homeId } })
+        .catch((err) => Logger.error("PlantInstancesTab restore generate-tasks failed", err, { rowId: row.id }));
+      toast.success(`Restored ${name} to active plants.`);
+      fetchItems();
+    } catch (err: any) {
+      Logger.error("PlantInstancesTab restore failed", err, { rowId: row.id });
+      toast.error("Couldn't restore — try again.");
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
   const summary = useMemo(() => {
     const planted = items.filter((i) => i.status === "Planted").length;
     const unplanted = items.filter((i) => i.status === "Unplanted").length;
@@ -213,25 +272,6 @@ export default function PlantInstancesTab({
 
   return (
     <div data-testid="plant-instances-tab" className="space-y-3">
-      {/* Senescence cross-link — surfaces ended instances of this species
-          so users don't lose track of them after End of Life. */}
-      {endedCount > 0 && (
-        <button
-          type="button"
-          onClick={() => navigate(`/shed?tab=senescence&plant=${plantId}`)}
-          data-testid="plant-instances-senescence-link"
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-emerald-50 border border-emerald-100 text-xs font-bold text-emerald-900 hover:bg-emerald-100 transition-colors"
-        >
-          <Leaf size={13} className="shrink-0" />
-          <span className="flex-1 text-left">
-            {endedCount === 1
-              ? "1 ended instance"
-              : `${endedCount} ended instances`} — view in Senescence
-          </span>
-          <ArrowRight size={13} />
-        </button>
-      )}
-
       {/* Header — quick summary + add button */}
       <div className="flex items-center justify-between gap-3 mb-1">
         <p className="text-xs text-rhozly-on-surface/60">
@@ -272,7 +312,7 @@ export default function PlantInstancesTab({
         </div>
       )}
 
-      {!loading && !error && items.length === 0 && (
+      {!loading && !error && items.length === 0 && endedRows.length === 0 && sowings.length === 0 && (
         <div
           data-testid="plant-instances-empty"
           className="rounded-2xl bg-white border border-rhozly-outline/15 p-5 text-center"
@@ -395,6 +435,93 @@ export default function PlantInstancesTab({
         </ul>
       )}
 
+      {/* ── IN THE NURSERY — live sowings of this plant (Hub v3 Stage B).
+          Packet management lives just below in the packets strip. */}
+      {(sowings.length > 0) && (
+        <div data-testid="plant-garden-nursery" className="pt-2">
+          <p className="text-2xs font-black uppercase tracking-widest text-rhozly-on-surface/40 px-1 mb-1.5">
+            In the nursery
+          </p>
+          <ul className="flex flex-col gap-2">
+            {sowings.map((sw) => (
+              <li
+                key={sw.id}
+                data-testid={`plant-sowing-row-${sw.id}`}
+                className="rounded-2xl bg-white border border-rhozly-outline/15 p-3 flex items-center gap-3"
+              >
+                <div className="shrink-0 w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <Package size={16} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-display font-black text-rhozly-on-surface text-sm leading-tight truncate">
+                    {sw.variety || plantName}
+                  </p>
+                  <p className="text-[11px] font-bold text-rhozly-on-surface/55 truncate">
+                    {sw.status === "germinated"
+                      ? `Germinated${sw.germinated_count != null && sw.sown_count ? ` · ${sw.germinated_count}/${sw.sown_count}` : ""}`
+                      : `Sown${sw.sown_count ? ` · ${sw.sown_count} seeds` : ""}`}
+                    {sw.sown_on ? ` · ${shortDate(sw.sown_on)}` : ""}
+                    {sw.vendor ? ` · ${sw.vendor}` : ""}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Seed packets for this plant — moved here from the Care tab (the
+          nursery lives WITH the plant now). */}
+      <NurseryPacketsForPlant homeId={homeId} plantId={plantId} />
+
+      {/* ── HISTORY — ended records, inline with restore (absorbs the old
+          Senescence link-out; same restore semantics verbatim). */}
+      {endedRows.length > 0 && (
+        <div data-testid="plant-garden-history" className="pt-2">
+          <p className="text-2xs font-black uppercase tracking-widest text-rhozly-on-surface/40 px-1 mb-1.5">
+            History
+          </p>
+          <ul className="flex flex-col gap-2">
+            {endedRows.map((row) => {
+              const label = row.nickname?.trim() || row.identifier || `${plantName} instance`;
+              return (
+                <li
+                  key={row.id}
+                  data-testid={`plant-history-row-${row.id}`}
+                  className="rounded-2xl bg-rhozly-surface-lowest border border-rhozly-outline/10 p-3 flex items-start gap-3"
+                >
+                  <div className="shrink-0 w-10 h-10 rounded-xl bg-rhozly-surface-low text-rhozly-on-surface/40 flex items-center justify-center">
+                    <Leaf size={16} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-display font-black text-rhozly-on-surface/80 text-sm leading-tight truncate">{label}</p>
+                    <p className="text-[11px] font-bold text-rhozly-on-surface/50">
+                      Ended {shortDate(row.ended_at)}
+                      {row.was_natural_end === true ? " · Natural end" : row.was_natural_end === false ? " · Other" : ""}
+                      {row.area_name ? ` · ${row.area_name}` : ""}
+                    </p>
+                    {row.end_summary && (
+                      <p className="text-[11px] text-rhozly-on-surface/55 leading-snug mt-1 line-clamp-2">{row.end_summary}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPendingRestore(row)}
+                    disabled={restoringId === row.id}
+                    aria-label={`Restore ${label} to active care`}
+                    title="Restore to active care"
+                    data-testid={`plant-history-restore-${row.id}`}
+                    className="shrink-0 w-11 h-11 self-center flex items-center justify-center rounded-xl text-rhozly-on-surface/40 can-hover:hover:text-emerald-700 can-hover:hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                  >
+                    {restoringId === row.id ? <Loader2 size={16} className="animate-spin" /> : <ArchiveRestore size={16} />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {editing && (
         <InstanceEditModal
           homeId={homeId}
@@ -441,6 +568,9 @@ export default function PlantInstancesTab({
               wasNaturalEnd,
               analysis,
             });
+            // Hub v3 Stage B (review catch): the ended row must MOVE to the
+            // History section, not vanish — refetch so it appears there.
+            fetchItems();
           }}
         />
       )}
@@ -475,6 +605,25 @@ export default function PlantInstancesTab({
         title={`Delete ${deletingRow?.identifier || deletingRow?.nickname || plantName}?`}
         description="This permanently removes the instance and all of its journal entries, tasks and photos. Can't be undone. If you want to retire a plant whose life cycle has ended, use the leaf icon for End of Life instead."
         confirmText="Delete"
+      />
+
+      {/* Restore — confirm first (SenescenceTab parity; an accidental tap
+          would also re-fire generate-tasks for the home). */}
+      <ConfirmModal
+        isOpen={!!pendingRestore}
+        onClose={() => {
+          if (!restoringId) setPendingRestore(null);
+        }}
+        onConfirm={() => {
+          if (pendingRestore) {
+            handleRestore(pendingRestore);
+            setPendingRestore(null);
+          }
+        }}
+        isLoading={!!restoringId}
+        title={`Restore ${pendingRestore?.identifier || pendingRestore?.nickname || plantName}?`}
+        description="This moves the record back to active care and resumes any routines linked to it."
+        confirmText="Restore"
       />
     </div>
   );

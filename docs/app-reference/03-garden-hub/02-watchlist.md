@@ -373,3 +373,7 @@ No difference.
 - `supabase/migrations/20260429000000_ailments_watchlist.sql` — base schema
 - `supabase/migrations/20260901000000_user_favourite_ailments.sql` — favourites table + RLS + grants + tier-gate trigger
 - `supabase/migrations/20260601000000_photo_surfaces.sql` — photo_url + notes columns
+
+## Detail modal — "In your garden" receipts (Hub v3 Stage B, 2026-07-22)
+
+The watchlist detail modal's Info tab now opens with `AilmentGardenSection` (`src/components/ailments/AilmentGardenSection.tsx`) — the receipts behind the presence pill: **Affected now** (active links on live instances, by area, with the linking member — `plant_instance_ailments.linked_by` rendered for the first time; `ailment-garden-affected` / `ailment-garden-link-{id}`) and **History** (resolved links, links on ended plants, area-scan sightings as evidence rows; `ailment-garden-history`). Fail-soft: the modal works without it. Full modal unification (shared `AilmentDetailBody` everywhere) lands with v3 Stage F.

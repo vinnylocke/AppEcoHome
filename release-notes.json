@@ -2,8 +2,8 @@
   {
     "label": "Improved",
     "items": [
-      "Search results now show your real relationship with each plant and ailment — Active (growing or affecting your garden now), Inactive (history only), or Saved/Watching — worked out automatically from what's actually in your beds and trays.",
-      "Saving a plant from the library to your favourites now works on every plan (it was wrongly blocked for some tiers)."
+      "A plant's page now tells its whole story in one place — the new \"In your garden\" tab shows what's growing, what's in the nursery (sowings and seed packets), and a history of past plants with one-tap restore.",
+      "Opening a watched ailment now shows exactly which of your plants it's affecting right now (and who spotted it), plus its history in your garden — including past area-scan sightings."
     ]
   }
 ]

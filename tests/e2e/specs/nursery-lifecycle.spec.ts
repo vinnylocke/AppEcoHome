@@ -772,7 +772,10 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
     expect(value.length).toBeGreaterThan(0);
   });
 
-  test("NURSERY-042: Care Guide tab pill shows packets for the plant", async ({ authenticatedPage }) => {
+  test("NURSERY-042: the 'In your garden' tab shows this plant's seed packets", async ({ authenticatedPage }) => {
+    // Hub v3 Stage B: NurseryPacketsForPlant moved from the Care tab to the
+    // relabeled "In your garden" tab (id `instances`) — the nursery lives
+    // WITH the plant's instances now.
     await createPacket(supabase, {
       plant_id: PLANT_BASIL,
       variety: "Sweet Genovese",
@@ -787,9 +790,7 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
       .catch(() => {});
 
     await authenticatedPage.getByTestId(`plant-card-${PLANT_BASIL}`).click();
-    // Care Guide tab — id "care" — is the default initial tab, so the
-    // NurseryPacketsForPlant pill should already render once the modal
-    // finishes loading.
+    await authenticatedPage.getByTestId("plant-modal-tab-instances").click();
     const nursery = new NurseryPage(authenticatedPage);
     await expect(nursery.careGuideNurseryPackets).toBeVisible({ timeout: 15000 });
   });
@@ -866,6 +867,74 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
     await authenticatedPage.getByTestId("nursery-add-packets").click();
     await expect(nursery.addPacketModal).toBeVisible({ timeout: 8000 });
     await authenticatedPage.keyboard.press("Escape");
+  });
+
+  // ── Hub v3 Stage B — the plant modal's "In your garden" tab ──────────────
+
+  test("GARDEN-B1: the History timeline shows ended records and Restore returns them to active care", async ({ authenticatedPage }) => {
+    // Self-contained ended fixture on Basil (table wiped rows are packets —
+    // inventory rows need explicit cleanup, done at the end).
+    const { data: endedRow, error } = await supabase
+      .from("inventory_items")
+      .insert({
+        home_id: HOME_ID,
+        plant_id: String(PLANT_BASIL),
+        plant_name: "Basil",
+        status: "Archived",
+        identifier: "Basil (e2e ended)",
+        ended_at: new Date(Date.now() - 7 * 86_400_000).toISOString(),
+        was_natural_end: true,
+        end_summary: "e2e history fixture",
+      })
+      .select("id")
+      .single();
+    expect(error).toBeNull();
+    const endedId = endedRow!.id as string;
+
+    try {
+      await authenticatedPage.goto("/shed");
+      await authenticatedPage
+        .locator(".animate-spin, .animate-pulse").first()
+        .waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
+      await authenticatedPage.getByTestId(`plant-card-${PLANT_BASIL}`).click();
+      await authenticatedPage.getByTestId("plant-modal-tab-instances").click();
+
+      const historyRow = authenticatedPage.getByTestId(`plant-history-row-${endedId}`);
+      await expect(historyRow).toBeVisible({ timeout: 10000 });
+      await expect(historyRow).toContainText(/Natural end/i);
+
+      // Restore — SenescenceTab semantics: confirm, then back to the active list.
+      await authenticatedPage.getByTestId(`plant-history-restore-${endedId}`).click();
+      await authenticatedPage.getByRole("button", { name: /^Restore$/ }).click();
+      await expect(historyRow).toHaveCount(0, { timeout: 10000 });
+      await expect(authenticatedPage.getByTestId(`plant-instance-row-${endedId}`)).toBeVisible({ timeout: 10000 });
+    } finally {
+      await supabase.from("inventory_items").delete().eq("id", endedId);
+    }
+  });
+
+  test("GARDEN-B2: a live sowing surfaces in the plant modal's 'In the nursery' section", async ({ authenticatedPage }) => {
+    const packetId = await createPacket(supabase, { plant_id: PLANT_BASIL, variety: "Sweet Genovese" });
+    const { data: sowing, error } = await supabase
+      .from("seed_sowings")
+      .insert({ home_id: HOME_ID, seed_packet_id: packetId, status: "sown", sown_on: new Date().toISOString().slice(0, 10), sown_count: 12 })
+      .select("id")
+      .single();
+    expect(error).toBeNull();
+
+    try {
+    await authenticatedPage.goto("/shed");
+    await authenticatedPage
+      .locator(".animate-spin, .animate-pulse").first()
+      .waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
+    await authenticatedPage.getByTestId(`plant-card-${PLANT_BASIL}`).click();
+    await authenticatedPage.getByTestId("plant-modal-tab-instances").click();
+
+    await expect(authenticatedPage.getByTestId("plant-garden-nursery")).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId(`plant-sowing-row-${sowing!.id}`)).toContainText(/Sown · 12 seeds/i);
+    } finally {
+      await supabase.from("seed_sowings").delete().eq("id", sowing!.id);
+    }
   });
 
   test("NURSERY-061: the inline search filters packets as you type", async ({ authenticatedPage }) => {

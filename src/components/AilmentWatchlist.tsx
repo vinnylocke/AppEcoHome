@@ -32,6 +32,7 @@ import BulkAddAilmentsModal from "./BulkAddAilmentsModal";
 // Aliased — this file has its own local AilmentDetailModal (the WATCHLIST
 // row detail); this one is the field-guide detail for search results.
 import LibraryAilmentDetailModal from "./ailments/AilmentDetailModal";
+import AilmentGardenSection from "./ailments/AilmentGardenSection";
 import HubHeader from "./garden/HubHeader";
 import { AILMENT_SEVERITY_CLASSES } from "../lib/ailmentPresentation";
 import { useGardenPresence } from "../hooks/useGardenPresence";
@@ -341,6 +342,10 @@ function AilmentDetailModal({
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {tab === "info" && (
             <>
+              {/* Hub v3 Stage B — the receipts behind the presence pill:
+                  affected instances now + history (resolved / ended / scans). */}
+              <AilmentGardenSection ailmentId={ailment.id} homeId={ailment.home_id} />
+
               <p className="text-sm font-bold text-rhozly-on-surface/70 leading-relaxed">{ailment.description}</p>
 
               {ailment.affected_plants.length > 0 && (

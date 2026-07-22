@@ -249,3 +249,10 @@ Helpers:
 - `src/components/LightTab.tsx`
 - `src/components/CompanionPlantsTab.tsx`
 - `src/lib/plantProvider.ts`
+
+## "In your garden" tab (Hub v3 Stage B, 2026-07-22)
+
+The Instances tab (id `instances`, testid `plant-modal-tab-instances` — both kept) is relabeled **"In your garden"** and absorbs three scattered surfaces (`src/components/plant/PlantInstancesTab.tsx`):
+- **Growing** — the live instance list (unchanged rows/actions: open → InstanceEditModal, End of Life, Delete).
+- **In the nursery** — this plant's live sowings (`plant-garden-nursery` / `plant-sowing-row-{id}`; sown/germinated with counts) + the `NurseryPacketsForPlant` strip, **moved here from the Care tab**.
+- **History** — ended records inline (`plant-garden-history` / `plant-history-row-{id}`) with per-row **Restore** (`plant-history-restore-{id}`) — SenescenceTab semantics verbatim (null the EoL triple, status→Planted, journal the round trip, re-fire `generate-tasks`). The old "view in Senescence" link-out banner is gone.

@@ -8,7 +8,6 @@ import PlantGuidesTab from "./PlantGuidesTab";
 import LightTab from "./LightTab";
 import CompanionPlantsTab from "./CompanionPlantsTab";
 import GrowGuideTab from "./GrowGuideTab";
-import NurseryPacketsForPlant from "./nursery/NurseryPacketsForPlant";
 import PlantInstancesTab from "./plant/PlantInstancesTab";
 import SensorRequirementsTab from "./SensorRequirementsTab";
 import { getProviderPlantDetails } from "../lib/plantProvider";
@@ -436,7 +435,7 @@ export default function PlantEditModal({
     { id: "grow_guide", label: "Grow Guide", icon: BookOpenCheck },
     { id: "guides", label: "Community", icon: BookOpen },
     { id: "companions", label: "Companions", icon: Sprout },
-    { id: "instances", label: "Instances", icon: Boxes },
+    { id: "instances", label: "In your garden", icon: Boxes },
   ];
 
   // 🧠 LIVE AI SYNC: Update the AI on the Master Plant Template being viewed/edited
@@ -694,7 +693,6 @@ export default function PlantEditModal({
               {/* Tiny informational pill — surfaces matching Nursery packets
                   (hides itself when there are none). Sits above the existing
                   source/refresh strip so power users see it on every visit. */}
-              <NurseryPacketsForPlant homeId={homeId} plantId={Number(plant.id)} />
               {sourceLocked ? (
                 <div
                   data-testid="plant-edit-tier-locked"

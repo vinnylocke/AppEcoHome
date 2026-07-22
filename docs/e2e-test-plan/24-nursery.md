@@ -82,4 +82,6 @@
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
 | NURSERY-060 | ✅ | `/shed?tab=nursery` hub tab active; "Add seeds" (`nursery-add-seeds-btn`) opens the action sheet; "Type one in" (`nursery-add-packets` on the sheet row) opens AddSeedPacketModal | — | ✅ Passing |
+| GARDEN-B1 | ✅ | Hub v3 Stage B: History timeline shows an ended record; Restore returns it to the active list (self-cleaning fixture) | — | ✅ Passing |
+| GARDEN-B2 | ✅ | Hub v3 Stage B: a live sowing surfaces in the plant modal's "In the nursery" section | — | ✅ Passing |
 | NURSERY-061 | ✅ | Inline search (`nursery-search-input`) filters packet rows live (variety match, no-match → 0 rows, clear → all) | — | ✅ Passing |
