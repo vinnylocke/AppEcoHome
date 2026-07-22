@@ -11,7 +11,7 @@
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DISC-B5 | ✅ | The Ailment Library is a Tools-hub tile (`tools-hub-ailment-library`) that opens `/ailment-library` | — | ✅ Passing |
+| DISC-B5 | ✅ | The Ailments tile (`tools-hub-ailment-library`) opens `/shed?tab=watchlist` (Stage F retarget — the library page died) | — | ✅ Passing |
 | DISC-B12 | ✅ | The Planner has a "Routines" tab (`planner-hub-tab-routines`); opening it sets `?tab=routines` and renders BlueprintManager (seeded "Weekly Garden Watering" shows) | — | ✅ Passing |
 | DISC-B8 | ✅ | The no-op "Getting Started" account-menu item is gone (`user-profile-getting-started` count 0) while `user-profile-help` remains | — | ✅ Passing |
 | DISC-B15 | ✅ | The Schedule header no longer reads "Operational Hub" (a live task summary replaced it) | — | ✅ Passing |

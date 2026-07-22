@@ -1,5 +1,7 @@
 # 36. Ailment Library (the field guide)
 
+> **Stage F (2026-07-22): the page died — this spec is now 2 redirect tests.** AL-R1 (/ailment-library → /shed?tab=watchlist, watchlist renders) and AL-R2 (?ailment=900001 → &detail=900001, field-guide modal opens on Tomato Hornworm). The old AILIB-* browse/detail rows below are RETIRED — their behaviours are covered by watchlist.spec.ts WL-E1/E1b/E2 and the takeover specs. Library seeds (900001–900003) remain load-bearing.
+
 **Spec file:** `tests/e2e/specs/ailment-library.spec.ts`
 **Page Object:** — (drives raw `data-testid`s via `authenticatedPage`)
 **Seed dependencies:** `00_bootstrap.sql` (user, home), `06_ailments_watchlist.sql` (home watchlist rows), **`16_ailment_library.sql`** (3 global catalogue rows — Tomato Hornworm `900001` / Late Blight `900002` / Japanese Knotweed `900003`; global table → per-worker idempotent via explicit ids + `ON CONFLICT (id)`, names chosen to avoid `15_favourites`' tombstone names)

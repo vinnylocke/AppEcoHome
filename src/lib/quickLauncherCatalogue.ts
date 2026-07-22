@@ -166,13 +166,14 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
     route: "/guides",
   },
   {
-    // B5 — pin the Ailment Library (was only reachable from the Watchlist).
+    // B5 — the Ailment Library page died (Hub v3 Stage F): the Ailments tab's
+    // search IS the field guide now.
     id: "ailment-library",
     label: "Ailments",
-    description: "Browse common pests, diseases and invasives.",
+    description: "Search pests, diseases and invasives — and your watchlist.",
     icon: Bug,
     accent: "amber",
-    route: "/ailment-library",
+    route: "/shed?tab=watchlist",
   },
   {
     // B16 — pin Garden Reports (surfaced in Stage 5).

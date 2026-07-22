@@ -274,27 +274,27 @@ test.describe("Watchlist — Add modal", () => {
   });
 });
 
-test.describe("Watchlist — Detail modal", () => {
-  test("WL-014: Clicking an ailment card opens the detail modal", async ({ authenticatedPage }) => {
+test.describe("Watchlist — Detail modal (Stage F unified shell)", () => {
+  test("WL-014: Clicking an ailment card opens the unified detail (no tabs)", async ({ authenticatedPage }) => {
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
     await wl.waitForLoad();
 
     await wl.ailmentCard("Aphid").click();
 
-    // Info tab is present only when the detail modal is open
-    await expect(wl.detailModalInfoTab).toBeVisible({ timeout: 10000 });
+    await expect(wl.detailModal).toBeVisible({ timeout: 10000 });
+    // Stage F: the tabbed local modal died — the shared field-guide body
+    // renders everything in one scroll (hero + garden section + sections).
+    await expect(wl.detailModal.getByRole("heading", { name: "Aphid" })).toBeVisible({ timeout: 5000 });
   });
 
-  test("WL-015: Info tab shows description and affected plants", async ({ authenticatedPage }) => {
+  test("WL-015: the unified detail shows description and affected plants", async ({ authenticatedPage }) => {
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
     await wl.waitForLoad();
 
     await wl.ailmentCard("Aphid").click();
-    await expect(wl.detailModalInfoTab).toBeVisible({ timeout: 10000 });
-
-    await wl.detailModalInfoTab.click();
+    await expect(wl.detailModal).toBeVisible({ timeout: 10000 });
 
     // Aphid description text from seed — scoped to modal to avoid matching card preview
     await expect(
@@ -302,36 +302,47 @@ test.describe("Watchlist — Detail modal", () => {
     ).toBeVisible({ timeout: 5000 });
   });
 
-  test("WL-016: Prevention tab shows prevention steps", async ({ authenticatedPage }) => {
+  test("WL-016: the unified detail shows scheduled prevention steps", async ({ authenticatedPage }) => {
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
     await wl.waitForLoad();
 
     await wl.ailmentCard("Aphid").click();
-    await expect(wl.detailModalInfoTab).toBeVisible({ timeout: 10000 });
+    await expect(wl.detailModal).toBeVisible({ timeout: 10000 });
 
-    await wl.detailModalPreventionTab.click();
-
-    // Prevention steps — multiple step titles/descriptions match; scope to modal
+    // Prevention steps render in the Prevention section (no tab to click)
     await expect(
       wl.detailModal.getByText(/predators|ladybird|marigold/i).first(),
     ).toBeVisible({ timeout: 5000 });
   });
 
-  test("WL-017: Remedy tab shows remedy steps", async ({ authenticatedPage }) => {
+  test("WL-017: the unified detail shows scheduled remedy steps under Treatment", async ({ authenticatedPage }) => {
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
     await wl.waitForLoad();
 
     await wl.ailmentCard("Aphid").click();
-    await expect(wl.detailModalInfoTab).toBeVisible({ timeout: 10000 });
+    await expect(wl.detailModal).toBeVisible({ timeout: 10000 });
 
-    await wl.detailModalRemedyTab.click();
-
-    // Remedy steps — multiple step titles/descriptions match; scope to modal
     await expect(
       wl.detailModal.getByText(/water|neem|insecticidal/i).first(),
     ).toBeVisible({ timeout: 5000 });
+  });
+
+  test("WL-017b: the unified detail carries the garden section + Link to a plant", async ({ authenticatedPage }) => {
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    await wl.ailmentCard("Aphid").click();
+    await expect(wl.detailModal).toBeVisible({ timeout: 10000 });
+
+    // Stage E's verb is now on home-authored details too (Stage F unification)
+    await expect(wl.detailModal.getByTestId("ailment-detail-link-plant")).toBeVisible({ timeout: 5000 });
+    await wl.detailModal.getByTestId("ailment-detail-link-plant").click();
+    await expect(authenticatedPage.getByTestId("link-ailment-to-plant-modal")).toBeVisible({ timeout: 8000 });
+    await authenticatedPage.getByTestId("link-ailment-to-plant-close").click();
+    await expect(authenticatedPage.getByTestId("link-ailment-to-plant-modal")).toHaveCount(0);
   });
 
   test("WL-018: Closing the detail modal returns to the list", async ({ authenticatedPage }) => {
@@ -340,7 +351,7 @@ test.describe("Watchlist — Detail modal", () => {
     await wl.waitForLoad();
 
     await wl.ailmentCard("Aphid").click();
-    await expect(wl.detailModalInfoTab).toBeVisible({ timeout: 10000 });
+    await expect(wl.detailModal).toBeVisible({ timeout: 10000 });
 
     await wl.detailModalCloseButton.click();
 
@@ -480,7 +491,7 @@ test.describe("Watchlist — write actions (Section 10)", () => {
 
     // Open Japanese Knotweed detail
     await wl.ailmentCard("Japanese Knotweed").click();
-    await expect(wl.detailModalInfoTab).toBeVisible({ timeout: 10000 });
+    await expect(wl.detailModal).toBeVisible({ timeout: 10000 });
 
     // Click delete in the detail modal
     await wl.detailModalDeleteButton.click();
@@ -523,7 +534,7 @@ test.describe("Watchlist — write actions (Section 10)", () => {
 
     // Open its detail modal and delete via the modal delete button
     await wl.ailmentCard(ailmentName).click();
-    await expect(wl.detailModalInfoTab).toBeVisible({ timeout: 10000 });
+    await expect(wl.detailModal).toBeVisible({ timeout: 10000 });
     await wl.detailModalDeleteButton.click();
     await authenticatedPage.waitForTimeout(300);
 

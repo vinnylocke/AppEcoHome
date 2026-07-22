@@ -39,7 +39,7 @@ ToolsHub
 [
   { id: "plan",     label: "Plan & Design",   tools: [{ id: "garden-layout", path: "/garden-layout" }, { id: "plant-visualiser", path: "/visualiser" }] },
   { id: "measure",  label: "Measure & Track", tools: [{ id: "light-sensor",  path: "/lightsensor"  }, { id: "sun-tracker",      path: "/sun-trajectory" }] },
-  { id: "diagnose", label: "Diagnose & Learn", tools: [{ id: "garden-ai",     path: "/doctor"       }, { id: "guides",            path: "/guides" }, { id: "ailment-library", path: "/ailment-library" /* B5, Stage 4 — was Watchlist-only */ }] },
+  { id: "diagnose", label: "Diagnose & Learn", tools: [{ id: "garden-ai",     path: "/doctor"       }, { id: "guides",            path: "/guides" }, { id: "ailment-library", path: "/shed?tab=watchlist" /* B5; Stage F retarget — library page died */ }] },
 ]
 ```
 
@@ -168,3 +168,6 @@ When you don't know what tool you need yet but have a problem to solve, this is 
 
 - `src/components/ToolsHub.tsx` — entire screen (single file)
 - `src/constants/icons.tsx` — icon components
+
+
+> **Stage F retarget (2026-07-22):** the "Ailment Library" tile is now labelled **"Ailments"** and opens `/shed?tab=watchlist` — the standalone library page died (Hub v3 Stage F); the Ailments tab's search is the field guide.

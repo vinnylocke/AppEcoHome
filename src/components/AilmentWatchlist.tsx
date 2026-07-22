@@ -5,7 +5,7 @@ import {
   Plus, Search, Loader2, Biohazard, X,
   Edit3, Trash2, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle,
   CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles, Library, Heart, FileText,
-  Binoculars, ArrowLeft,
+  ArrowLeft,
 } from "lucide-react";
 import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -34,6 +34,8 @@ import BulkAddAilmentsModal from "./BulkAddAilmentsModal";
 import LibraryAilmentDetailModal from "./ailments/AilmentDetailModal";
 import LinkAilmentToPlantModal from "./ailments/LinkAilmentToPlantModal";
 import AilmentGardenSection from "./ailments/AilmentGardenSection";
+import AilmentDetailBody from "./ailments/AilmentDetailBody";
+import { usePersona } from "../hooks/usePersona";
 import HubHeader from "./garden/HubHeader";
 import { AILMENT_SEVERITY_CLASSES } from "../lib/ailmentPresentation";
 import { useGardenPresence } from "../hooks/useGardenPresence";
@@ -98,12 +100,6 @@ const TYPE_META: Record<AilmentType, { label: string; icon: React.ReactNode; col
   invasive_plant: { label: "Invasive Plant", icon: <IconPlant size={14} />, colour: "bg-orange-100 text-orange-700" },
   pest:           { label: "Pest",           icon: <IconPest size={14} />,       colour: "bg-red-100 text-red-700" },
   disease:        { label: "Disease",        icon: <Biohazard size={14} />, colour: "bg-purple-100 text-purple-700" },
-};
-
-const SEVERITY_COLOUR: Record<string, string> = {
-  mild:     "bg-yellow-100 text-yellow-700",
-  moderate: "bg-orange-100 text-orange-700",
-  severe:   "bg-red-100 text-red-700",
 };
 
 const TASK_TYPE_LABELS: Record<string, string> = {
@@ -247,15 +243,29 @@ function AilmentDetailModal({
   ailment,
   onClose,
   onDelete,
+  aiEnabled = false,
+  favourited = false,
+  favBusy = false,
+  onToggleFavourite,
 }: {
   ailment: Ailment;
   onClose: () => void;
   onDelete: (id: string) => void;
+  aiEnabled?: boolean;
+  favourited?: boolean;
+  favBusy?: boolean;
+  onToggleFavourite?: () => void;
 }) {
-  const [tab, setTab] = useState<"info" | "prevention" | "remedy">("info");
+  // Stage F — the tabbed local modal died: this is now a thin shell around
+  // the SHARED AilmentDetailBody (one detail surface for library AND
+  // home-authored rows). Home rows are richer, so the shell feeds the
+  // structured extras (severity-chipped symptoms, scheduled steps, garden
+  // section, photo gallery) the plan mandated must survive unification.
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const meta = TYPE_META[ailment.type];
+  const [linkOpen, setLinkOpen] = useState(false);
+  const { setPageContext, setIsOpen: setChatOpen } = usePlantDoctor();
+  const persona = usePersona();
 
   const executeDelete = async () => {
     setShowDeleteConfirm(false);
@@ -272,156 +282,121 @@ function AilmentDetailModal({
     }
   };
 
+  // Home type → library kind (invasive_plant is the only rename).
+  const kind = ailment.type === "invasive_plant" ? "invasive" : ailment.type;
+  const asLibraryShape: LibraryAilment = {
+    id: -1, // never used for lookups in this shell
+    name: ailment.name,
+    kind: kind as LibraryAilment["kind"],
+    scientific_name: ailment.scientific_name ?? null,
+    aliases: [],
+    description: ailment.description ?? null,
+    symptoms: [], // rich symptoms supplied separately
+    causes: null,
+    treatment: null,
+    prevention: null,
+    severity: null,
+    affected_plant_types: [],
+    affected_families: [],
+    season: [],
+    organic_friendly: null,
+    image_url: ailment.thumbnail_url ?? null,
+    thumbnail_url: ailment.thumbnail_url ?? null,
+  };
+
+  const askAi = () => {
+    setPageContext({
+      action: "Asking about an ailment on the watchlist",
+      ailment: {
+        name: ailment.name,
+        scientific_name: ailment.scientific_name,
+        type: ailment.type,
+        description: ailment.description,
+        symptoms: ailment.symptoms.map((sy) => sy.title),
+      },
+    });
+    setChatOpen(true);
+  };
+
+  // Escape closes THIS layer only — never while a child layer (link picker,
+  // delete confirm) is stacked on top (review catch: ConfirmModal's own
+  // Escape doesn't stopPropagation, so an unguarded listener would cancel
+  // the confirm AND dump the user out of the detail in one keypress).
+  const childOpenRef = useRef(false);
+  childOpenRef.current = linkOpen || showDeleteConfirm;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || childOpenRef.current) return;
+      e.preventDefault();
+      onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div data-testid="detail-modal" className="bg-rhozly-surface-lowest rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl border border-rhozly-outline/20">
-        {/* Header */}
-        <div className="flex items-start justify-between p-6 pb-4">
-          <div className="flex items-start gap-4">
-            <div className="relative shrink-0">
-              {ailment.thumbnail_url ? (
-                <SmartImage
-                  src={ailment.thumbnail_url}
-                  alt={ailment.name}
-                  className="w-16 h-16 rounded-2xl object-cover bg-rhozly-surface-low"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-2xl bg-rhozly-surface-low flex items-center justify-center">
-                  {meta.icon}
-                </div>
-              )}
-              <MultiImageGallery
-                query={`${ailment.name}${ailment.scientific_name ? ` ${ailment.scientific_name}` : ""} ${ailment.type}`}
-                label={ailment.name}
-                existingImageUrl={ailment.thumbnail_url}
-                triggerClassName="absolute -bottom-1 -right-1"
-              />
-            </div>
-            <div>
-              <h3 className="font-black text-2xl text-rhozly-on-surface leading-tight">{ailment.name}</h3>
-              {ailment.scientific_name && (
-                <p className="text-sm font-bold text-rhozly-primary uppercase tracking-widest mt-1">{ailment.scientific_name}</p>
-              )}
-              <span className={`inline-flex items-center gap-1 mt-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${meta.colour}`}>
-                {meta.icon} {meta.label}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              disabled={deleting}
-              className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-rhozly-surface-low rounded-2xl hover:bg-red-50 hover:text-red-500 transition-colors"
-              aria-label="Delete ailment"
-            >
-              {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-            </button>
-            <button
-              onClick={onClose}
-              className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
-              aria-label="Close"
-            >
-              <X size={20} />
-            </button>
-          </div>
+    <div
+      className="fixed inset-0 z-[100] bg-rhozly-bg overflow-y-auto custom-scrollbar overscroll-contain animate-in fade-in duration-200"
+      data-testid="detail-modal"
+    >
+      <div
+        className="max-w-3xl mx-auto w-full px-4 pb-10"
+        style={{ paddingTop: "calc(env(safe-area-inset-top) + 8px)" }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="inline-flex items-center gap-1.5 text-xs font-black text-rhozly-on-surface-variant can-hover:hover:text-rhozly-on-surface min-h-[44px] active:scale-[0.97] transition"
+          >
+            <ArrowLeft size={15} /> Back to watchlist
+          </button>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={deleting}
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-rhozly-surface-low rounded-2xl hover:bg-red-50 hover:text-red-500 transition-colors"
+            aria-label="Delete ailment"
+          >
+            {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+          </button>
         </div>
-
-        {/* Tabs */}
-        <div className="flex bg-rhozly-surface-low p-1 rounded-2xl mx-6 mt-3 mb-0 flex-wrap gap-1">
-          {(["info", "prevention", "remedy"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 min-w-[80px] py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center ${tab === t ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-            >
-              {t === "info" ? "Info" : t === "prevention" ? `Prevention (${ailment.prevention_steps.length})` : `Remedy (${ailment.remedy_steps.length})`}
-            </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {tab === "info" && (
-            <>
-              {/* Hub v3 Stage B — the receipts behind the presence pill:
-                  affected instances now + history (resolved / ended / scans). */}
-              <AilmentGardenSection ailmentId={ailment.id} homeId={ailment.home_id} />
-
-              <p className="text-sm font-bold text-rhozly-on-surface/70 leading-relaxed">{ailment.description}</p>
-
-              {ailment.affected_plants.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2">Affected Plants</h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ailment.affected_plants.map((p) => (
-                      <span key={p} className="px-2.5 py-1 rounded-full text-xs font-black bg-rhozly-surface-low text-rhozly-on-surface/70">{p}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {ailment.symptoms.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2">Symptoms</h3>
-                  <div className="space-y-2">
-                    {ailment.symptoms.map((s) => (
-                      <div key={s.id} className="bg-rhozly-surface-lowest rounded-2xl p-3 border border-rhozly-outline/10">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-black text-sm text-rhozly-on-surface">{s.title}</span>
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${SEVERITY_COLOUR[s.severity]}`}>{s.severity}</span>
-                            <span className="text-[10px] font-bold text-rhozly-on-surface/40">{s.location}</span>
-                          </div>
-                        </div>
-                        <p className="text-xs text-rhozly-on-surface/60 leading-relaxed">{s.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {(tab === "prevention" || tab === "remedy") && (
-            <div className="space-y-3">
-              {(tab === "prevention" ? ailment.prevention_steps : ailment.remedy_steps).map((step) => (
-                <div key={step.id} className="bg-rhozly-surface-lowest rounded-2xl p-4 border border-rhozly-outline/10">
-                  <div className="flex items-start justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-rhozly-primary/10 text-rhozly-primary text-[10px] font-black flex items-center justify-center shrink-0">
-                        {step.step_order}
-                      </span>
-                      <span className="font-black text-sm text-rhozly-on-surface">{step.title}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                      <span className="text-[10px] font-black bg-rhozly-surface-low px-2 py-0.5 rounded-full text-rhozly-on-surface/60">
-                        {TASK_TYPE_LABELS[step.task_type]}
-                      </span>
-                      <span className="text-[10px] font-black bg-rhozly-surface-low px-2 py-0.5 rounded-full text-rhozly-on-surface/60">
-                        {step.frequency_type === "every_n_days"
-                          ? `Every ${step.frequency_every_n_days ?? "?"} days`
-                          : FREQ_LABEL[step.frequency_type]}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-rhozly-on-surface/60 leading-relaxed ml-8">{step.description}</p>
-                  {step.product && (
-                    <p className="text-[10px] font-black text-rhozly-primary mt-1 ml-8">Product: {step.product}</p>
-                  )}
-                  {step.duration_minutes && (
-                    <p className="text-[10px] font-bold text-rhozly-on-surface/40 mt-0.5 ml-8">~{step.duration_minutes} min</p>
-                  )}
-                </div>
-              ))}
-              {(tab === "prevention" ? ailment.prevention_steps : ailment.remedy_steps).length === 0 && (
-                <div className="py-12 text-center text-sm font-bold text-rhozly-on-surface/30">
-                  No {tab} steps recorded.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <AilmentDetailBody
+          ailment={asLibraryShape}
+          watching
+          watchingBusy={false}
+          canWatch={false}
+          onWatch={() => {}}
+          favRowId={favourited ? "home" : null}
+          favBusy={favBusy}
+          onToggleFavourite={onToggleFavourite ?? (() => {})}
+          aiEnabled={aiEnabled}
+          onAskAi={askAi}
+          isNewGardener={persona !== "experienced"}
+          plantNames={[]}
+          onLinkToPlant={() => setLinkOpen(true)}
+          symptomsRich={ailment.symptoms}
+          preventionSteps={ailment.prevention_steps}
+          remedySteps={ailment.remedy_steps}
+          affectedPlants={ailment.affected_plants}
+          gardenSlot={<AilmentGardenSection ailmentId={ailment.id} homeId={ailment.home_id} />}
+          heroExtra={
+            <MultiImageGallery
+              query={`${ailment.name}${ailment.scientific_name ? ` ${ailment.scientific_name}` : ""} ${ailment.type}`}
+              label={ailment.name}
+              existingImageUrl={ailment.thumbnail_url}
+              triggerClassName="absolute -bottom-1 -right-1"
+            />
+          }
+        />
       </div>
+      {linkOpen && (
+        <LinkAilmentToPlantModal
+          homeId={ailment.home_id}
+          ailment={ailment}
+          onClose={() => setLinkOpen(false)}
+        />
+      )}
       <ConfirmModal
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
@@ -1168,20 +1143,6 @@ function AddAilmentModal({
                       <p data-testid="ailment-search-prompt" className="text-[12px] font-bold text-rhozly-on-surface/45 px-1 leading-snug">
                         Start typing a pest or disease — e.g. <span className="text-rhozly-primary">"aphids"</span> or <span className="text-rhozly-primary">"blight"</span>.
                       </p>
-                      <button
-                        type="button"
-                        data-testid="ailment-search-browse-library"
-                        onClick={() => navigate("/ailment-library")}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-2xl border border-rhozly-outline/15 bg-white text-left can-hover:hover:border-rhozly-primary/30 transition-colors"
-                      >
-                        <span className="w-9 h-9 shrink-0 rounded-xl bg-rhozly-surface-low flex items-center justify-center text-rhozly-on-surface/50">
-                          <Binoculars size={16} />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-sm font-black text-rhozly-on-surface">Browse the field guide</span>
-                          <span className="block text-[11px] font-bold text-rhozly-on-surface/45">Every pest, disease and invasive we know about</span>
-                        </span>
-                      </button>
                     </>
                   )}
 
@@ -2415,13 +2376,6 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
                   onSelect: () => setShowBulkAdd(true),
                 }]
               : []),
-            {
-              key: "library",
-              label: "Browse the field guide",
-              icon: <Binoculars size={16} />,
-              testId: "browse-ailment-library",
-              onSelect: () => navigate("/ailment-library"),
-            },
           ]}
           searchPlaceholder="Search pests & diseases…"
           searchTestId="watchlist-add-btn"
@@ -2649,6 +2603,10 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           ailment={selectedAilment}
           onClose={() => setSelectedAilment(null)}
           onDelete={(id) => setAilments((prev) => prev.filter((a) => a.id !== id))}
+          aiEnabled={aiEnabled}
+          favourited={favouriteKeys.has(ailmentIdentityKey(selectedAilment.name))}
+          favBusy={togglingFavouriteKey === ailmentIdentityKey(selectedAilment.name)}
+          onToggleFavourite={() => handleToggleFavourite(selectedAilment)}
         />,
         document.body,
       )}

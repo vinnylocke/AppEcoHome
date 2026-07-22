@@ -104,9 +104,9 @@ const GROUPS: ToolGroup[] = [
         // whole reference library reachable ONLY from one Watchlist button.
         id: "ailment-library",
         icon: <Bug size={22} />,
-        label: "Ailment Library",
-        description: "Browse common pests, diseases and invasive plants — and how to tackle them.",
-        path: "/ailment-library",
+        label: "Ailments",
+        description: "Search common pests, diseases and invasive plants — and how to tackle them.",
+        path: "/shed?tab=watchlist",
         color: "bg-amber-100 text-amber-700 border-amber-200",
       },
     ],

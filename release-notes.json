@@ -1,17 +1,10 @@
 [
   {
-    "label": "New",
-    "items": [
-      "Plant search results now end in real actions: open any plant's details and choose Plant it, Sow seeds, or Save for later -- Rhozly does the adding and drops you exactly where you'd go next.",
-      "Spotted a pest or disease on a plant? Every ailment page now has \"Link to a plant\" -- pick the affected plants and Rhozly schedules the prevention and remedy tasks.",
-      "Ailment pages are shareable: send a link and it opens straight to that entry on your Ailments tab."
-    ]
-  },
-  {
     "label": "Improved",
     "items": [
-      "Searching now shows everything you own under \"In your garden\" -- including plants and ailments you'd removed, marked \"Previously\" so nothing is ever lost.",
-      "Library search results show a little heart when they're already in your favourites."
+      "One ailment page everywhere: whether you tap a watchlist card, a search result, or a shared link, you get the same rich field-guide view — photos, symptoms, your garden's affected plants, and step-by-step prevention and treatment.",
+      "\"Link to a plant\" now works from your own watchlist entries too — spotted it on a plant? Two taps and the care tasks are scheduled.",
+      "The separate Ailment Library page is gone — the Ailments tab's search covers the whole field guide. Old bookmarks and shared links land in the right place automatically."
     ]
   }
 ]

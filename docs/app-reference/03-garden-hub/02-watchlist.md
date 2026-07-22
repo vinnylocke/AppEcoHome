@@ -27,7 +27,7 @@ AilmentWatchlist
 │   ├── Title row — "Watchlist" text-xl + muted count + persona guidance line
 │   │     + ⋯ overflow (watchlist-overflow-menu) holding: Add several at once
 │   │     (watchlist-bulk-add-btn → BulkAddAilmentsModal, perm ailments.add) ·
-│   │     Browse the field guide (browse-ailment-library → /ailment-library)
+│   │     (Stage F: the Browse-the-field-guide menu entry was deleted)
 │   └── Sticky search row — LAUNCHER "Search pests & diseases…"
 │         (watchlist-add-btn, aria "Find an ailment") → the search overlay
 ├── Presence chip row (watchlist-scope-toggle, role=tablist) — Hub v3 Stage C
@@ -115,7 +115,7 @@ search box with progressive tiers (the old AI / Perenual tabs were removed). Sou
   strip + editorial sections); the trailing button (`ailment-library-add-<id>`) adds/watches
   ("Watching ✓" disabled state via `existingKeys` unchanged).
 - **Idle state:** the calm prompt (`ailment-search-prompt`) + a **"Browse the field guide"**
-  row (`ailment-search-browse-library` → `/ailment-library`).
+  row — DELETED in Stage F (the search IS the browse).
 - **Escalation ladder:** quiet left-aligned result-styled rows — **"Search wider"**
   (`ailment-search-databases`, sub-line "Perenual pest & disease database") and **"Search
   with Rhozly AI"** (`ailment-search-ai`, sub-line "For unusual or hard-to-spell problems";
@@ -387,3 +387,9 @@ The watchlist detail modal's Info tab now opens with `AilmentGardenSection` (`sr
 - **Owned section** in the takeover is **"In your garden"** (was "On your watchlist") and includes curated-out rows, badge-sorted Active > Inactive > Watching > **Previously** (`data-presence="previously"`).
 - **Shareable field-guide deep link:** `/shed?tab=watchlist&detail=<ailment_library.id>` -- the SAME numeric identity the old `/ailment-library?ailment=` carried (Stage F's redirect is a pure param rename). Handled at page level in `AilmentWatchlist`: reactive derivation (open PUSHes, close REPLACE-deletes so Back closes), page-level `fetchAilmentLibrary()` load, unknown id fail-softs by silently dropping the param. Renders the shared `AilmentDetailModal` (z-[100]) with name-key-derived watch state. The AI search result "In library" chip now navigates here instead of `/ailment-library`.
 - **Second verb -- "Link to a plant"** (`ailment-detail-link-plant` on `AilmentDetailBody`, hosts opt in via `onLinkToPlant`): opens `LinkAilmentToPlantModal` (`src/components/ailments/LinkAilmentToPlantModal.tsx`, z-[120]) -- the INVERSE of `LinkAilmentModal`: a live-instance picker (`link-ailment-instance-{id}`, search, already-linked rows disabled) for a fixed ailment. Insert/automation/event payloads mirror `LinkAilmentModal.handleLink` verbatim (status active, `generate-pest-risk` fire-and-forget, `AutomationEngine.applyAilmentAutomations`, `EVENT.AILMENT_LINKED`; `ailments.add` permission gate). If the ailment isn't watched yet, the verb watches first (the sighting is the reason it belongs on the watchlist) then opens the picker. `addFromLibrary` now returns the created row to support this.
+
+
+## Stage F — one detail surface + the library page dies (Hub v3, 2026-07-22)
+
+- **The watchlist-local tabbed modal (Info/Prevention/Remedy) was DELETED.** Card taps open a thin shell around the shared `AilmentDetailBody` (`data-testid="detail-modal"` kept; full-screen z-[100] page style matching the library detail; back arrow aria-label "Close", Delete keeps aria-label "Delete ailment" + confirm). Home rows are RICHER than library strings, so the body gained optional structured props: `symptomsRich` (severity-chipped cards), `preventionSteps`/`remedySteps` (numbered scheduled-step cards with task-type/frequency/product/duration), `affectedPlants` (chips), `gardenSlot` (AilmentGardenSection), `heroExtra` (MultiImageGallery). Watch renders as the static "Watching in this garden" (canWatch=false — the row IS the watch); ♥ wires to the page's identity-key favourite flow; Ask AI + Escape-close match the library host; **"Link to a plant" now works from home-authored details too**.
+- **`/ailment-library` deleted → redirect** (`AilmentLibraryRedirect`, `src/App.tsx`): `?ailment=X` carries over to `&detail=X`. Tools-hub tile and quick-launcher entry retarget to `/shed?tab=watchlist`; the takeover's idle "Browse the field guide" row and the header-menu entry were deleted (the search IS the browse).

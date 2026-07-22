@@ -30,9 +30,6 @@ export class WatchlistPage {
 
   // Detail modal — scoped to the panel so locators don't leak into the card grid
   readonly detailModal: Locator;
-  readonly detailModalInfoTab: Locator;
-  readonly detailModalPreventionTab: Locator;
-  readonly detailModalRemedyTab: Locator;
   readonly detailModalCloseButton: Locator;
   readonly detailModalDeleteButton: Locator;
 
@@ -97,9 +94,8 @@ export class WatchlistPage {
 
     // Scope detail modal locators to the panel so they don't resolve against card buttons
     this.detailModal = page.locator('[data-testid="detail-modal"]');
-    this.detailModalInfoTab = this.detailModal.getByRole("button", { name: /^Info$/i });
-    this.detailModalPreventionTab = this.detailModal.getByRole("button", { name: /Prevention/i });
-    this.detailModalRemedyTab = this.detailModal.getByRole("button", { name: /Remedy/i });
+    // Stage F unified shell: the back arrow carries aria-label "Close";
+    // Delete keeps aria-label "Delete ailment". Both live in the shell chrome.
     this.detailModalCloseButton = this.detailModal.getByLabel("Close");
     this.detailModalDeleteButton = this.detailModal.getByLabel("Delete ailment");
 

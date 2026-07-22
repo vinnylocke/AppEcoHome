@@ -83,3 +83,11 @@ The "Find an ailment" flow is a **full-page takeover** (`ailment-add-takeover`),
 | WL-E1 | YES | `/shed?tab=watchlist&detail=900001` opens the shared field-guide modal; close REPLACE-deletes the param; unknown id fail-softs | ailment_library seed (900001-900003) | Passing |
 | WL-E2 | YES | `ailment-detail-link-plant` (via detail=900003 Japanese Knotweed -- already watched, no auto-watch side effect) opens `link-ailment-to-plant-modal` with live-instance rows; close only | 06_ailments_watchlist.sql + library seed | Passing |
 | WL-A1 | YES | (updated) presence pill closed set now includes **previously** | -- | Passing |
+
+### Stage F — unified detail shell (2026-07-22)
+
+| ID | Automated | What it verifies | Seeds | Status |
+|---|---|---|---|---|
+| WL-014..017 | YES | (rewritten) card tap opens the UNIFIED shell — no tabs; description, prevention + remedy step cards all render in one scroll | 06_ailments_watchlist.sql | Passing |
+| WL-017b | YES | home-authored detail carries `ailment-detail-link-plant`; opens + closes the live-instance picker | 06 + 02 seeds | Passing |
+| WL-018/019 | YES | close returns to list; delete from the shell confirms + removes | 06 | Passing |

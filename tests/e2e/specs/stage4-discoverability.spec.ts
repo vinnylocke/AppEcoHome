@@ -7,12 +7,14 @@ import { test } from "../fixtures/auth";
 // small typechecked branch covered by manual/visual review, not a spec.
 
 test.describe("Stage 4 — discoverability", () => {
-  test("DISC-B5: the Ailment Library is surfaced as a Tools-hub tile and opens", async ({ authenticatedPage }) => {
+  test("DISC-B5: the Ailments tile on the Tools hub opens the Ailments tab (Stage F retarget)", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/tools");
     const tile = authenticatedPage.getByTestId("tools-hub-ailment-library");
     await expect(tile).toBeVisible({ timeout: 10000 });
     await tile.click();
-    await expect(authenticatedPage).toHaveURL(/\/ailment-library/, { timeout: 8000 });
+    // Hub v3 Stage F: the standalone library page died — the tile lands on
+    // the Ailments tab, whose search IS the field guide.
+    await expect(authenticatedPage).toHaveURL(/\/shed\?tab=watchlist/, { timeout: 8000 });
   });
 
   test("DISC-B12: the Planner has a Routines tab that opens the routine manager", async ({ authenticatedPage }) => {

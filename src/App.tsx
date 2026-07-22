@@ -109,7 +109,6 @@ const QuickAccessMenuButton = lazyWithRetry(() => import("./components/QuickAcce
 const LightSensor         = lazyWithRetry(() => import("./components/LightSensor"));
 const SunTrajectoryAR     = lazyWithRetry(() => import("./components/SunTrajectoryAR"));
 const GuideList           = lazyWithRetry(() => import("./components/GuideList"));
-const AilmentLibrary      = lazyWithRetry(() => import("./components/AilmentLibrary"));
 const BlueprintManager    = lazyWithRetry(() => import("./components/BlueprintManager"));
 const PlantVisualiser     = lazyWithRetry(() => import("./components/PlantVisualiser"));
 const GardenLayoutList    = lazyWithRetry(() => import("./components/GardenLayoutList"));
@@ -117,6 +116,14 @@ const GardenLayoutEditor  = lazyWithRetry(() => import("./components/GardenLayou
 const SharedGardenLayout  = lazyWithRetry(() => import("./components/garden/SharedGardenLayout"));
 const JoinHomeViaToken    = lazyWithRetry(() => import("./components/JoinHomeViaToken"));
 const HomeManagement      = lazyWithRetry(() => import("./components/HomeManagement"));
+// Hub v3 Stage F — /ailment-library died; carry ?ailment= over to the
+// shareable ?detail= contract on the Ailments tab (same numeric id).
+function AilmentLibraryRedirect() {
+  const [params] = useSearchParams();
+  const ailment = params.get("ailment");
+  return <Navigate to={`/shed?tab=watchlist${ailment ? `&detail=${ailment}` : ""}`} replace />;
+}
+
 const GardenHub           = lazyWithRetry(() => import("./components/GardenHub"));
 const PlannerHub          = lazyWithRetry(() => import("./components/PlannerHub"));
 const ToolsHub            = lazyWithRetry(() => import("./components/ToolsHub"));
@@ -1388,7 +1395,7 @@ function AppShell() {
     // resolves an active item when you're on it; Notes folded into Journal.
     { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping", "/schedule"], group: "plan" },
     { id: "journal",   icon: <BookOpen />, label: "Journal",    matchPaths: ["/journal", "/notes"], group: "plan" },
-    { id: "tools",        icon: <IconTools />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory", "/weekly", "/reports", "/ailment-library"], group: "ai" },
+    { id: "tools",        icon: <IconTools />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory", "/weekly", "/reports"], group: "ai" },
     { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"], group: "ai" },
     // Head Gardener is Evergreen-only (FeatureGate feature="head_gardener").
     // Hide the nav entry for tiers that can't use it — the /manager route
@@ -2121,13 +2128,10 @@ function AppShell() {
                         </div>
                       } />
 
-                      <Route path="/ailment-library" element={
-                        <div className="h-full animate-in fade-in duration-500">
-                          {profile?.home_id ? (
-                            <AilmentLibrary homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} />
-                          ) : null}
-                        </div>
-                      } />
+                      {/* Hub v3 Stage F — the Ailment Library page died; its
+                          detail contract lives on as ?detail= on the Ailments
+                          tab. URLs never die: ?ailment=X → &detail=X. */}
+                      <Route path="/ailment-library" element={<AilmentLibraryRedirect />} />
 
                       {/* UX review 2026-06-15 item 6.8 — first-class
                           /help URL that lands the user on the App Help

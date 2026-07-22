@@ -1,5 +1,7 @@
 # Ailment Library
 
+> **ARCHIVED (Hub v3 Stage F, 2026-07-22):** the /ailment-library page was DELETED. `/ailment-library[?ailment=X]` now redirects to `/shed?tab=watchlist[&detail=X]` (`AilmentLibraryRedirect` in `src/App.tsx`; same numeric `ailment_library.id`). The field guide lives in the Ailments tab: tier-1 library search in the takeover, the shared `AilmentDetailModal` for detail (`?detail=` shareable), and the Stage-F unified shell for home-authored rows. `AilmentDetailBody` + the `ailment_library` service survive; only the browse page died. This file is retained as a historical record.
+
 > **Stage E note (2026-07-22):** the shareable detail contract moved to `/shed?tab=watchlist&detail=<id>` (same numeric `ailment_library.id`). This page still works but no longer receives in-app links (the AI "In library" chip retargeted); Stage F will replace it with a redirect.
 
 > The field guide — a full-page browse of the global catalogue of pests, diseases, invasives and disorders, with a full-page detail per entry and two save actions: **🔭 Watch** (adds it to this home's watchlist) and **♥ Favourite** (saves it to your personal cross-home list). Rebuilt as the "field guide" in the ailment-library-shed-search overhaul Stage 1 (2026-07-21); previously an icon-only card wall with a small detail modal.
