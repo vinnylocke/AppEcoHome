@@ -178,6 +178,30 @@
   display: none;
 }
 
+/* Hide the scrollbar on TOUCH devices only; mouse users get a thin one —
+   an overflowing strip with no scrollbar is unreachable by mouse
+   (v3 feedback #5: the plant modal's 8 tabs need ~1200px in a 768px modal). */
+.scrollbar-touch-none {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-rhozly-on-surface) 25%, transparent) transparent;
+}
+.scrollbar-touch-none::-webkit-scrollbar {
+  height: 6px;
+}
+.scrollbar-touch-none::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-rhozly-on-surface) 25%, transparent);
+  border-radius: 3px;
+}
+@media (hover: none) {
+  .scrollbar-touch-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-touch-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* =========================================
    ♿ FOCUS-VISIBLE BASELINE
    Every interactive element gets a primary-coloured focus ring when reached

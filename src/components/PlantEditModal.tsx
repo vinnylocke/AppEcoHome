@@ -632,14 +632,24 @@ export default function PlantEditModal({
           {loadSuccess ? "Care guide loaded successfully." : ""}
         </span>
 
-        {/* Tab Navigation — scroll-snap on mobile for clean horizontal
-            scrolling. The right-edge fade gradient overlay signals
-            that more tabs scroll into view on mobile (where ≥3 of
-            the 7 tabs sit off-screen at typical widths). The fade
-            is `pointer-events-none` so it doesn't block taps on the
-            last visible tab. */}
+        {/* Tab Navigation — the 8 tabs need ~1200px, so the strip
+            overflows at EVERY viewport (the modal caps at 768px).
+            Touch scrolls by drag (scroll-snap, hidden scrollbar);
+            mouse users get a thin scrollbar + vertical-wheel→
+            horizontal mapping (v3 feedback #5 — before this, tabs
+            past the fold were unreachable by mouse). Both edge fades
+            are `pointer-events-none` so they never block taps. */}
         <div className="relative shrink-0 bg-rhozly-surface-low/50 border-b-2 border-rhozly-outline/20 shadow-sm">
-          <div className="flex gap-1 sm:gap-2 overflow-x-auto px-2 sm:px-8 scrollbar-none snap-x snap-mandatory">
+          <div
+            className="flex gap-1 sm:gap-2 overflow-x-auto px-2 sm:px-8 scrollbar-touch-none snap-x snap-mandatory"
+            onWheel={(e) => {
+              const el = e.currentTarget;
+              if (el.scrollWidth <= el.clientWidth) return;
+              if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                el.scrollLeft += e.deltaY;
+              }
+            }}
+          >
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -656,9 +666,11 @@ export default function PlantEditModal({
               </button>
             ))}
           </div>
-          {/* Right-edge fade — only shows on mobile-ish viewports.
-              On desktop the strip rarely overflows so the fade is
-              barely visible. */}
+          {/* Edge fades — more-tabs-this-way signal in both directions. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute top-0 left-0 h-full w-8 sm:w-6 bg-gradient-to-r from-rhozly-surface-low/95 to-transparent"
+          />
           <div
             aria-hidden="true"
             className="pointer-events-none absolute top-0 right-0 h-full w-8 sm:w-6 bg-gradient-to-l from-rhozly-surface-low/95 to-transparent"

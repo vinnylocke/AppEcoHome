@@ -68,7 +68,7 @@ export function useCachedShed(homeId: string) {
       try {
         const { data: shedData, error: shedError } = await supabase
           .from("plants")
-          .select(`*, inventory_items(id)`)
+          .select(`*, inventory_items(id, ended_at, status)`)
           .eq("home_id", homeId)
           .order("created_at", { ascending: false });
 
@@ -83,10 +83,24 @@ export function useCachedShed(homeId: string) {
 
         if (isStale()) return;
 
-        const enrichedPlants = (shedData || []).map((p) => ({
-          ...p,
-          instance_count: p.inventory_items?.length || 0,
-        }));
+        // "N planted" counts LIVE instances only — the presence view's exact
+        // predicate (ended_at IS NULL AND status <> 'Archived'). Counting all
+        // rows kept a dead plant's "1 planted" chip forever (v3 feedback #3);
+        // ended rows surface separately as past_instance_count.
+        const enrichedPlants = (shedData || []).map((p) => {
+          const rows = (p.inventory_items ?? []) as Array<{
+            ended_at: string | null;
+            status: string | null;
+          }>;
+          const live = rows.filter(
+            (r) => r.ended_at == null && r.status !== "Archived",
+          ).length;
+          return {
+            ...p,
+            instance_count: live,
+            past_instance_count: rows.length - live,
+          };
+        });
 
         // 3. Update React State
         setPlants(enrichedPlants);

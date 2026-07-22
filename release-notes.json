@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "label": "New",
+    "items": [
+      "Your lists now show what matters: plants that are growing (or have history) plus the ones you've hearted — everything else stays tucked away in search. Adding something new hearts it automatically so it never disappears on you.",
+      "Ailments work the same way with the watchlist: binoculars everywhere (no more hearts), one Watchlist chip, and adding an ailment watches it automatically.",
+      "Plant tiles now show a \"past\" count for instances that reached end of life — and tapping a history entry reopens its full record: amend the outcome, read the AI's thoughts on why it might have died early, and add details to help it learn."
+    ]
+  },
+  {
+    "label": "Improved",
+    "items": [
+      "The Plants and Ailments tabs finally match: same card layout, same actions menu, same grid.",
+      "Planted counts no longer include plants that reached end of life.",
+      "On desktop you can now scroll the plant window's tabs with your mouse wheel — no more unreachable tabs."
+    ]
+  }
+]

@@ -10,7 +10,7 @@ import {
   Biohazard,
   Upload,
   Download,
-  Heart,
+  Binoculars,
   AlertTriangle,
   ChevronDown,
 } from "lucide-react";
@@ -138,7 +138,7 @@ function candidateFromCsvRow(row: ParsedRow): Candidate {
  * regex fallback otherwise) and "Upload CSV" (strict parse against
  * AILMENT_TEMPLATE, deterministic + tier-free). Both feed the SAME review step,
  * which has per-row/per-field error display, an editable name + type per row, a
- * per-row favourite checkbox, and a "Mark all as favourites" toggle. On import
+ * per-row favourite checkbox, and a "Mark all as watched" toggle. On import
  * each valid row inserts as `source: "manual"`; rows whose favourite flag is set
  * then call `favouriteAilment()` on the new row.
  */
@@ -303,7 +303,7 @@ export default function BulkAddAilmentsModal({
     });
     onCreated?.(created);
     if (failed.length === 0) {
-      const favNote = favourited > 0 ? ` (${favourited} favourited)` : "";
+      const favNote = favourited > 0 ? ` (${favourited} watched)` : "";
       toast.success(`Added ${created.length} ailment${created.length === 1 ? "" : "s"} to your Watchlist${favNote}`);
       onClose();
     } else {
@@ -340,7 +340,7 @@ export default function BulkAddAilmentsModal({
                   ? mode === "paste"
                     ? "One pest / disease / weed per line — name + optional symptoms."
                     : "Upload a CSV filled from the template — every field, exact format."
-                  : `${validCount} of ${candidates.length} ready to add — edit, favourite or remove before saving.`}
+                  : `${validCount} of ${candidates.length} ready to add — edit, watch or remove before saving.`}
               </p>
             </div>
           </div>
@@ -488,7 +488,7 @@ export default function BulkAddAilmentsModal({
                 </div>
               )}
 
-              {/* Mark all as favourites */}
+              {/* Mark all as watched */}
               {candidates.length > 0 && (
                 <label
                   data-testid="bulk-ailment-favourite-all"
@@ -500,7 +500,7 @@ export default function BulkAddAilmentsModal({
                     onChange={toggleAllFavourites}
                     className="w-4 h-4 accent-rhozly-primary"
                   />
-                  <Heart size={13} className="text-rose-500" /> Mark all as favourites
+                  <Binoculars size={13} className="text-status-watch-ink" /> Mark all as watched
                 </label>
               )}
 
@@ -542,7 +542,7 @@ export default function BulkAddAilmentsModal({
                       </select>
                       <label
                         className="sm:col-span-2 flex items-center justify-center gap-1 px-2 min-h-[40px] bg-rhozly-surface-low rounded-xl cursor-pointer"
-                        title="Add to favourites"
+                        title="Add to watchlist"
                       >
                         <input
                           data-testid={`bulk-ailment-candidate-favourite-${idx}`}
@@ -550,9 +550,9 @@ export default function BulkAddAilmentsModal({
                           checked={c.favourite}
                           onChange={(e) => updateCandidate(idx, { favourite: e.target.checked })}
                           className="w-4 h-4 accent-rose-500"
-                          aria-label={`Favourite ${c.name || "this ailment"}`}
+                          aria-label={`Watch ${c.name || "this ailment"}`}
                         />
-                        <Heart size={13} className={c.favourite ? "text-rose-500 fill-rose-500" : "text-rhozly-on-surface/40"} />
+                        <Binoculars size={13} className={c.favourite ? "text-rose-500 fill-rose-500" : "text-rhozly-on-surface/40"} />
                       </label>
                     </div>
                     <button

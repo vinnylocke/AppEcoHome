@@ -38,6 +38,8 @@ export interface OwnedPlantMatch {
   scientific_name?: string[] | null;
   image_url?: string | null;
   instance_count?: number | null;
+  /** Ended instances — surfaced as "· N past" in the meta line. */
+  past_instance_count?: number | null;
   /** Stage E — curated-out rows surface here too ("Previously in your garden"). */
   is_archived?: boolean | null;
 }
@@ -860,6 +862,7 @@ export default function PlantSearchTakeover({
                               <span className="truncate">
                                 {p.scientific_name?.[0] ? <span className="italic">{p.scientific_name[0]}</span> : "In your garden"}
                                 {(p.instance_count ?? 0) > 0 ? ` · ${p.instance_count} planted` : ""}
+                                {(p.past_instance_count ?? 0) > 0 ? ` · ${p.past_instance_count} past` : ""}
                               </span>
                             </p>
                           </div>

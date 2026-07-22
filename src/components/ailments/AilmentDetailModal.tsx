@@ -99,10 +99,10 @@ export default function AilmentDetailModal({
       } else {
         const row = await favouriteLibraryAilment(ailment, homeId);
         setFavRowId((row as { id: string }).id);
-        toast.success(`"${ailment.name}" saved to your favourites.`);
+        toast.success(`"${ailment.name}" added to your watchlist.`);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't update favourites.");
+      toast.error(e instanceof Error ? e.message : "Couldn't update your watchlist.");
     } finally {
       setFavBusy(false);
     }
@@ -148,9 +148,6 @@ export default function AilmentDetailModal({
           watchingBusy={watchingBusy}
           canWatch={canWatch}
           onWatch={onWatch}
-          favRowId={favRowId}
-          favBusy={favBusy}
-          onToggleFavourite={toggleFavourite}
           aiEnabled={aiEnabled}
           onAskAi={askAi}
           isNewGardener={isNewGardener}

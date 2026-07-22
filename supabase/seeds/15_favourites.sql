@@ -221,6 +221,21 @@ ON CONFLICT (id) DO UPDATE SET
   name   = EXCLUDED.name,
   source = EXCLUDED.source;
 
+-- v3 feedback polish (2026-07-22): a zero-presence, un-watched ailment is now
+-- hidden from the default Watchlist grid — and this one can NEVER be watched
+-- by a Sprout viewer (source-locked), so without a real presence link it
+-- would vanish from FAV-WL-005's own fixture. Link it to the seeded Rose
+-- instance so it keeps derived "active" presence regardless of tier.
+INSERT INTO public.plant_instance_ailments (id, plant_instance_id, ailment_id, home_id, status)
+VALUES (
+  '00000000-0000-0000-000e-000000000004',
+  '00000000-0000-0000-0004-000000000003',
+  '00000000-0000-0000-0007-000000000018',
+  '00000000-0000-0000-0000-000000000002',
+  'active'
+)
+ON CONFLICT (plant_instance_id, ailment_id) DO NOTHING;
+
 -- Favourite ailment 1 — "Aphid", dedupes against the seeded home ailment.
 INSERT INTO public.user_favourite_ailments (
   id, user_id, ailment_library_id, identity_key, source, name, ailment_type,

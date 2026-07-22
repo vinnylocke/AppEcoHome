@@ -2,14 +2,14 @@
 
 **Spec file:** `tests/e2e/specs/watchlist.spec.ts`
 **Page Object:** `tests/e2e/pages/WatchlistPage.ts`
-**Seed dependencies:** `06_ailments_watchlist.sql`
+**Seed dependencies:** `06_ailments_watchlist.sql`, `09_stats.sql` (Basil→Aphid, Tomato→Early Blight, Rose→Japanese Knotweed `plant_instance_ailments` links — added 2026-07-22 so all 3 keep derived presence under the v3 visibility law)
 **App-reference:** [03-garden-hub/](../app-reference/03-garden-hub/) (watchlist tab)
 
 ## Tests
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| WL-001 | ✅ | `/watchlist` → heading | — | ✅ Passing |
+| WL-001 | ✅ | `/watchlist` → heading (renamed "Watchlist" → "Ailments", v3 feedback polish 2026-07-22) | — | ✅ Passing |
 | WL-002 | ✅ | Aphid, Early Blight, Japanese Knotweed cards visible | — | ✅ Passing |
 | WL-MOBILE-001 | ✅ | Phone-portrait: launcher + ⋯ overflow (holding bulk add) reachable (Stage 3) | — | ✅ Passing |
 | WL-MOBILE-002 | ✅ | "Find an ailment" opens `AddAilmentModal` with the Search / Manual tab bar (BulkSearchModal parity) | — | ✅ Passing |
@@ -49,7 +49,7 @@
 | WL-BULK-001 | ✅ | Bulk add opens with a mode toggle (Paste a list / Upload CSV); the AI-paste textarea is visible | — | ✅ Passing |
 | WL-BULK-002 | ✅ | CSV mode → Download template emits `rhozly-watchlist-template.csv` | — | ✅ Passing |
 | WL-BULK-003 | ✅ | Upload CSV → review rows; bad-`type` row flagged + excluded; save button counts only valid rows | — | ✅ Passing |
-| WL-BULK-004 | ✅ | Import valid CSV rows creates `source='manual'` ailments (Manual badge); favourite-flagged row lands in the Favourites scope; cleanup deletes both | — | ✅ Passing |
+| WL-BULK-004 | ✅ | (rewritten, v3 feedback polish) Import valid CSV rows creates `source='manual'` ailments; **both** rows land on the Favourites scope — the visibility law's "adding is watching" auto-watch sweep favourites every created row regardless of the per-row checkbox; cleanup deletes both | — | ✅ Passing |
 | WL-BULK-005 | ✅ | Free-text paste (regex fallback) reaches the shared review step; "Mark all as favourites" visible; knotweed classified `invasive_plant` | — | ✅ Passing |
 
 ## Cross-home favourites (Phase 2 — ailments)
@@ -91,3 +91,11 @@ The "Find an ailment" flow is a **full-page takeover** (`ailment-add-takeover`),
 | WL-014..017 | YES | (rewritten) card tap opens the UNIFIED shell — no tabs; description, prevention + remedy step cards all render in one scroll | 06_ailments_watchlist.sql | Passing |
 | WL-017b | YES | home-authored detail carries `ailment-detail-link-plant`; opens + closes the live-instance picker | 06 + 02 seeds | Passing |
 | WL-018/019 | YES | close returns to list; delete from the shell confirms + removes | 06 | Passing |
+
+### v3 feedback polish (2026-07-22) — watchlist rebrand, card parity, visibility law
+
+Every ailment ♥ became a 🔭 Binoculars (never a heart on ailments): the card toggle testid renamed `favourite-ailment-{id}` → `watch-ailment-{id}` (`WatchlistPage.heartFor`, aria "Add/Remove {name} from your watchlist"). The chip row is now All / Active / Inactive / **🔭 Watchlist** — the "Watching" chip (`watchlist-chip-watching`) died; the merged chip IS `watchlist-scope-favourites`. Card Archive/Delete moved off the photo into a kebab popover (`ailment-card-{id}`, `ailment-card-kebab-{id}`) — `WatchlistPage.openCardMenu(name)` opens it before `archiveButtonFor`/`restoreButtonFor`/`deleteButtonFor` resolve (aria-labels unchanged). The detail body's separate cross-home ♥ toggle (`ailment-detail-favourite`) was deleted — `ailment-add-watchlist` ("Add to watchlist" / "On your watchlist") now sets the home row AND the 🔭 affinity in one tap. Default visibility = presence OR 🔭; a zero-presence, un-watched ailment is hidden from the grid but counted by `watchlist-hidden-collection-hint`.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| WL-P1 | ✅ | Visibility law: an ailment with no `plant_instance_ailments` link and no 🔭 (inserted directly, bypassing every auto-watch add flow) is hidden from the default list; `watchlist-hidden-collection-hint` counts it and opens the takeover where it's still findable via search | — | ✅ Passing |

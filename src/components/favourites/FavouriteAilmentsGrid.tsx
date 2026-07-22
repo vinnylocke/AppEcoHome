@@ -13,7 +13,7 @@ import React, { useMemo, useState } from "react";
 import {
   Biohazard,
   Edit3,
-  Heart,
+  Binoculars,
   Home as HomeIcon,
   Library,
   Loader2,
@@ -169,14 +169,14 @@ export default function FavouriteAilmentsGrid({
         ailment_library_id: fav.ailment_library_id,
         source: fav.source,
       });
-      toast.success("Removed from favourites.");
+      toast.success("Removed from your watchlist.");
       onFavouritesChanged();
     } catch (err: any) {
       Logger.error(
         "Remove favourite ailment failed",
         err,
         { favouriteId: fav.id },
-        "Could not remove this favourite — please try again.",
+        "Could not remove this watchlist entry — please try again.",
       );
     } finally {
       setBusyFavId(null);
@@ -191,12 +191,12 @@ export default function FavouriteAilmentsGrid({
           data-testid="watchlist-favourites-hint-banner"
           className="flex items-start gap-3 bg-rhozly-primary/5 border border-rhozly-primary/10 rounded-2xl px-4 py-3 mb-4"
         >
-          <Heart size={16} className="text-rhozly-primary shrink-0 mt-0.5" />
+          <Binoculars size={16} className="text-rhozly-primary shrink-0 mt-0.5" />
           <div className="flex-1 text-xs font-bold text-rhozly-on-surface/60 leading-snug">
             <span className="font-black text-rhozly-on-surface/80">
-              Favourites follow you, not the home.
+              Your watchlist follows you, not the home.
             </span>{" "}
-            Tap the ♡ on any watchlist entry to carry its prevention and remedy
+            Tap the 🔭 on any entry to carry its prevention and remedy
             steps to every garden you tend. Use{" "}
             <span className="font-black">Add to this home</span> to copy one into
             the garden you're in right now.
@@ -205,7 +205,7 @@ export default function FavouriteAilmentsGrid({
             data-testid="watchlist-favourites-hint-dismiss"
             onClick={dismissHint}
             className="text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors shrink-0 mt-0.5"
-            aria-label="Dismiss favourites hint"
+            aria-label="Dismiss watchlist hint"
           >
             <Plus size={14} className="rotate-45" />
           </button>
@@ -221,12 +221,12 @@ export default function FavouriteAilmentsGrid({
           <EmptyState
             size="lg"
             chrome="none"
-            icon={<Heart size={32} />}
-            title={searchQuery ? "No matching favourites" : "No favourites yet"}
+            icon={<Binoculars size={32} />}
+            title={searchQuery ? "Nothing matching on your watchlist" : "Nothing on your watchlist yet"}
             body={
               searchQuery
                 ? "Try a different search term."
-                : "Heart an ailment to carry its prevention and remedy steps to every garden you tend."
+                : "Watch an ailment to carry its prevention and remedy steps to every garden you tend."
             }
           />
         </div>
@@ -348,11 +348,11 @@ export default function FavouriteAilmentsGrid({
                       data-testid={`favourite-ailment-remove-${fav.id}`}
                       onClick={() => handleRemove(fav)}
                       disabled={busy}
-                      aria-label={`Remove ${name} from favourites`}
-                      title="Remove from favourites"
+                      aria-label={`Remove ${name} from your watchlist`}
+                      title="Remove from your watchlist"
                       className="w-10 h-10 rounded-2xl text-rhozly-on-surface/45 hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center transition-colors"
                     >
-                      <Heart size={16} className="fill-current" />
+                      <Binoculars size={16} />
                     </button>
                   </div>
                 </div>

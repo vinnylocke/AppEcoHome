@@ -161,3 +161,13 @@ Instance detail → Photos tab (`PhotoTimelineTab.tsx`). Observations come from 
 |---|---|---|---|---|
 | SHED-E1 | YES | Takeover owned section heading "In your garden"; library-row detail shows `plant-detail-actions` with Plant it / Sow seeds / Save for later | 17_plant_library.sql | Passing |
 | SHED-A1 | YES | (updated) presence pill closed set now active/inactive/saved/**previously** | -- | Passing |
+
+### v3 feedback polish (2026-07-22) — visibility law, "N past" chip, History tap-through
+
+The **"Saved" chip died** — the chip row is now All / Active / Inactive / **♥ Favourites** (`shed-scope-favourites`, merged with the old cross-home "Mine" scope). Default (All) visibility = presence OR ♥; a zero-presence, un-hearted plant is hidden from the grid but counted by a new `shed-hidden-collection-hint` button ("N more in your collection — search to find them") that opens the search takeover. `instance_count` now excludes ended rows; a new muted `plant-past-count-{id}` chip ("N past") surfaces history at a glance. `PlantInstancesTab`'s History rows are tappable again (`plant-history-open-{id}`) and reopen `InstanceEditModal` on the ended row (Item 4 restoration — Amend / AI re-run / journal all return with no new components).
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| SHED-P1 | ✅ | The muted "N past" chip (`plant-past-count-{id}`) renders on Mint's card ("1 past") — `instance_count` no longer counts its ended instance | — | ✅ Passing |
+| SHED-P2 | ✅ | Visibility law: a plant with no instances/sowings and no ♥ (inserted directly, bypassing every auto-♥ add flow) is hidden from the default grid; `shed-hidden-collection-hint` counts it and opens the takeover where it's still findable via search | — | ✅ Passing |
+| GARDEN-B3 | ✅ (`nursery-lifecycle.spec.ts`) | Tapping a History row (`plant-history-open-{id}`) reopens `InstanceEditModal` on the ended instance ("Lifecycle complete" card + `instance-amend-lifecycle` visible); closes without amending or restoring | — | ✅ Passing |

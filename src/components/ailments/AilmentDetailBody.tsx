@@ -10,7 +10,7 @@
 import React from "react";
 import {
   Bug, Biohazard, Sprout, AlertTriangle, Loader2, Leaf,
-  Binoculars, Heart, Sparkles, Check, CalendarRange, Link2,
+  Binoculars, Sparkles, Check, CalendarRange, Link2,
 } from "lucide-react";
 import type { LibraryAilment, AilmentKind } from "../../services/ailmentLibraryService";
 import { AILMENT_KIND_CLASSES, AILMENT_SEVERITY_CLASSES, matchAffectedPlants } from "../../lib/ailmentPresentation";
@@ -51,10 +51,12 @@ export interface AilmentDetailBodyProps {
   watchingBusy: boolean;
   canWatch: boolean;
   onWatch: () => void;
-  /** Cross-home favourite state for the ♥ button (null = not favourited). */
-  favRowId: string | null;
-  favBusy: boolean;
-  onToggleFavourite: () => void;
+  /** Legacy fav props — the ♥ toggle DIED (owner rule: no hearts on
+   *  ailments; "Add to watchlist" sets home row + 🔭 in one tap). Kept
+   *  optional so older hosts compile; the body ignores them. */
+  favRowId?: string | null;
+  favBusy?: boolean;
+  onToggleFavourite?: () => void;
   /** ✦ Ask Rhozly AI (hidden when AI is off for the home). */
   aiEnabled: boolean;
   onAskAi: () => void;
@@ -181,32 +183,14 @@ export default function AilmentDetailBody({
             ) : (
               <Binoculars size={17} />
             )}
-            {watching ? "Watching in this garden" : "Watch in this garden"}
+            {watching ? "On your watchlist" : "Add to watchlist"}
           </button>
         )}
         {!canWatch && watching && (
           <span className="flex-1 sm:flex-none sm:min-w-[220px] py-3 px-4 rounded-control font-black text-sm flex items-center justify-center gap-2 bg-status-success-fill text-status-success-ink border border-status-success-line">
-            <Check size={17} /> Watching in this garden
+            <Check size={17} /> On your watchlist
           </span>
         )}
-        <button
-          onClick={onToggleFavourite}
-          disabled={favBusy}
-          data-testid="ailment-detail-favourite"
-          aria-pressed={!!favRowId}
-          aria-label={favRowId ? `Remove ${ailment.name} from favourites` : `Save ${ailment.name} to favourites`}
-          className={`w-12 h-12 shrink-0 rounded-control flex items-center justify-center border transition active:scale-[0.94] touch-manipulation ${
-            favRowId
-              ? "bg-status-watch-fill border-status-watch-line text-status-watch-ink"
-              : "bg-rhozly-surface-lowest border-rhozly-outline/15 text-rhozly-on-surface-variant can-hover:hover:text-status-watch-ink"
-          }`}
-        >
-          {favBusy ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <Heart size={18} fill={favRowId ? "currentColor" : "none"} />
-          )}
-        </button>
         {aiEnabled && (
           <button
             onClick={onAskAi}

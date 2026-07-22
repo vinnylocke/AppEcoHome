@@ -97,7 +97,7 @@ export default function PlantInstancesTab({
   /** Hub v3 Stage B — the tab IS "In your garden": ended records render
    *  inline as a HISTORY timeline (with restore) and live sowings surface
    *  in an IN THE NURSERY section. */
-  const [endedRows, setEndedRows] = useState<Array<InventoryItemRow & { ended_at: string; was_natural_end: boolean | null; end_summary: string | null }>>([]);
+  const [endedRows, setEndedRows] = useState<Array<InventoryItemRow & { ended_at: string; was_natural_end: boolean | null; end_summary: string | null; closing_photo_url?: string | null }>>([]);
   const [sowings, setSowings] = useState<Array<{ id: string; status: string; sown_on: string | null; sown_count: number | null; germinated_count: number | null; variety: string | null; vendor: string | null }>>([]);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [pendingRestore, setPendingRestore] = useState<(InventoryItemRow & { ended_at: string }) | null>(null);
@@ -141,7 +141,27 @@ export default function PlantInstancesTab({
       if (endedRes.error) Logger.warn("PlantInstancesTab ended-rows query failed", { err: endedRes.error, plantId });
       if (sowingRes.error) Logger.warn("PlantInstancesTab sowings query failed", { err: sowingRes.error, plantId });
       setItems((data ?? []) as InventoryItemRow[]);
-      setEndedRows(((endedRes.data ?? []) as any[]).map((r) => r) as any);
+      // Closing photos — one query for every ended row's "Lifecycle
+      // complete*" journal entry (ported from the retired SenescenceTab).
+      const ended = ((endedRes.data ?? []) as any[]).map((r) => r) as any[];
+      if (ended.length > 0) {
+        const { data: photoRows, error: photoErr } = await supabase
+          .from("plant_journals")
+          .select("inventory_item_id, image_url")
+          .in("inventory_item_id", ended.map((r) => r.id))
+          .not("image_url", "is", null)
+          .like("subject", "Lifecycle complete%")
+          .order("created_at", { ascending: false });
+        if (photoErr) Logger.warn("PlantInstancesTab closing-photo query failed", { err: photoErr, plantId });
+        const byInstance = new Map<string, string>();
+        for (const row of (photoRows ?? []) as Array<{ inventory_item_id: string; image_url: string | null }>) {
+          if (!byInstance.has(row.inventory_item_id) && row.image_url) {
+            byInstance.set(row.inventory_item_id, row.image_url);
+          }
+        }
+        for (const r of ended) r.closing_photo_url = byInstance.get(r.id) ?? null;
+      }
+      setEndedRows(ended as any);
       setSowings(
         ((sowingRes.data ?? []) as any[]).map((r) => ({
           id: r.id,
@@ -488,22 +508,37 @@ export default function PlantInstancesTab({
                 <li
                   key={row.id}
                   data-testid={`plant-history-row-${row.id}`}
-                  className="rounded-2xl bg-rhozly-surface-lowest border border-rhozly-outline/10 p-3 flex items-start gap-3"
+                  className="rounded-2xl bg-rhozly-surface-lowest border border-rhozly-outline/10 p-3 flex items-start gap-3 can-hover:hover:border-rhozly-primary/30 transition-colors"
                 >
-                  <div className="shrink-0 w-10 h-10 rounded-xl bg-rhozly-surface-low text-rhozly-on-surface/40 flex items-center justify-center">
-                    <Leaf size={16} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-display font-black text-rhozly-on-surface/80 text-sm leading-tight truncate">{label}</p>
-                    <p className="text-[11px] font-bold text-rhozly-on-surface/50">
-                      Ended {shortDate(row.ended_at)}
-                      {row.was_natural_end === true ? " · Natural end" : row.was_natural_end === false ? " · Other" : ""}
-                      {row.area_name ? ` · ${row.area_name}` : ""}
-                    </p>
-                    {row.end_summary && (
-                      <p className="text-[11px] text-rhozly-on-surface/55 leading-snug mt-1 line-clamp-2">{row.end_summary}</p>
-                    )}
-                  </div>
+                  {/* v3 feedback #4 — the row opens the full end-of-life
+                      record again (InstanceEditModal: amend natural/other,
+                      edit the summary, the AI lifecycle analysis, journal). */}
+                  <button
+                    type="button"
+                    data-testid={`plant-history-open-${row.id}`}
+                    aria-label={`Open the end-of-life record for ${label}`}
+                    onClick={() => setEditing(row as unknown as InventoryItemRow)}
+                    className="flex-1 min-w-0 flex items-start gap-3 text-left active:scale-[0.995] transition-transform"
+                  >
+                    <div className="shrink-0 w-10 h-10 rounded-xl bg-rhozly-surface-low text-rhozly-on-surface/40 flex items-center justify-center overflow-hidden">
+                      {row.closing_photo_url ? (
+                        <img src={row.closing_photo_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <Leaf size={16} />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-display font-black text-rhozly-on-surface/80 text-sm leading-tight truncate">{label}</p>
+                      <p className="text-[11px] font-bold text-rhozly-on-surface/50">
+                        Ended {shortDate(row.ended_at)}
+                        {row.was_natural_end === true ? " · Natural end" : row.was_natural_end === false ? " · Other" : ""}
+                        {row.area_name ? ` · ${row.area_name}` : ""}
+                      </p>
+                      {row.end_summary && (
+                        <p className="text-[11px] text-rhozly-on-surface/55 leading-snug mt-1 line-clamp-2">{row.end_summary}</p>
+                      )}
+                    </div>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setPendingRestore(row)}

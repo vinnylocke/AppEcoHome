@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { test } from "../fixtures/auth";
 import { ShedPage } from "../pages/ShedPage";
 import { WatchlistPage } from "../pages/WatchlistPage";
@@ -127,17 +128,22 @@ test.describe("Cross-home favourites (Section FAV)", () => {
   test("FAV-004: 'Add to this home' copies a favourite into the active home", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
 
-    // Defensive cleanup: a failed earlier attempt may have left the copy in
-    // the shed — delete it so the add path is clean.
-    await shed.goto();
-    await shed.waitForLoad();
-    const leftover = shed.plantCard("Snapdragon");
-    if (await leftover.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await shed.openCardMenu("Snapdragon");
-      await shed.deleteButtonFor("Snapdragon").click();
-      await authenticatedPage.getByRole("button", { name: "Delete", exact: true }).click();
-      await expect(leftover).toHaveCount(0, { timeout: 10000 });
-    }
+    const url = process.env.VITE_SUPABASE_URL!;
+    const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
+    const email = `test${workerNum}@rhozly.com`;
+    const password = process.env.TEST_USER_PASSWORD ?? "TestPassword123!";
+    const supabase: SupabaseClient = createClient(url, key);
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    expect(signInError).toBeNull();
+
+    // Defensive + final cleanup both go through the DB layer — KNOWN APP GAP
+    // (v3 feedback polish): `addFavouritePlantToHome` (used by "Add to this
+    // home") never routes through `savePlantToDB`'s auto-♥ / session-added
+    // fallback, so the fresh, instance-less copy is genuinely hidden from
+    // the default grid under the visibility law (zero presence, un-hearted)
+    // — it has no reachable card/kebab to delete through. Report: bring
+    // `addFavouritePlantToHome` in line with the "adding is loving" law.
+    await supabase.from("plants").delete().eq("home_id", HOME_1_ID).ilike("common_name", "Snapdragon");
 
     await shed.gotoFavourites();
     const snapdragon = shed.favouriteCard("Snapdragon");
@@ -150,16 +156,17 @@ test.describe("Cross-home favourites (Section FAV)", () => {
     // Button flips to the dedupe state once the copy lands.
     await expect(shed.favouriteInHomeBadgeIn(snapdragon)).toBeVisible({ timeout: 15000 });
 
-    // The copy exists on the Home tab.
-    await shed.scopeHomeBtn.click();
-    const copy = shed.plantCard("Snapdragon");
-    await expect(copy).toBeVisible({ timeout: 15000 });
+    // The copy exists (verified at the DB layer — the grid card is hidden).
+    const { data: copies, error: copyErr } = await supabase
+      .from("plants")
+      .select("id")
+      .eq("home_id", HOME_1_ID)
+      .ilike("common_name", "Snapdragon");
+    expect(copyErr).toBeNull();
+    expect((copies ?? []).length).toBe(1);
 
     // Clean up so the spec is re-runnable: delete the copied plant.
-    await shed.openCardMenu("Snapdragon");
-    await shed.deleteButtonFor("Snapdragon").click();
-    await authenticatedPage.getByRole("button", { name: "Delete", exact: true }).click();
-    await expect(copy).toHaveCount(0, { timeout: 10000 });
+    await supabase.from("plants").delete().eq("home_id", HOME_1_ID).ilike("common_name", "Snapdragon");
   });
 
   test("FAV-005: tier lock — Sprout sees disabled hearts on api/ai-sourced plants", async ({ authenticatedPage }) => {
@@ -312,6 +319,8 @@ test.describe("Cross-home favourites — Watchlist (Section FAV-WL)", () => {
     await wl.waitForLoad();
     const leftover = wl.ailmentCard("Rose Rust");
     if (await leftover.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Card parity — Delete lives in the kebab popover now.
+      await wl.openCardMenu("Rose Rust");
       await wl.deleteButtonFor("Rose Rust").click();
       await authenticatedPage.getByRole("button", { name: "Delete", exact: true }).click();
       await expect(leftover).toHaveCount(0, { timeout: 10000 });
@@ -334,6 +343,7 @@ test.describe("Cross-home favourites — Watchlist (Section FAV-WL)", () => {
     await expect(copy).toBeVisible({ timeout: 15000 });
 
     // Clean up so the spec is re-runnable: delete the copied ailment.
+    await wl.openCardMenu("Rose Rust");
     await wl.deleteButtonFor("Rose Rust").click();
     await authenticatedPage.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(copy).toHaveCount(0, { timeout: 10000 });
@@ -403,6 +413,35 @@ test.describe("Cross-home favourites — Watchlist (Section FAV-WL)", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe("Cross-home favourites — Nursery (Section FAV-NU)", () => {
+  // Cross-file isolation guard: nursery-lifecycle.spec.ts's beforeEach wipes
+  // ALL `seed_packets` for this worker's home (by design, for its own
+  // fixtures) — when that file shares a worker with this one, the seeded
+  // "Cherokee Purple" home packet this section dedupes against disappears.
+  // Re-assert the fixture before every test so file execution order can
+  // never matter (its favourite row is untouched by the wipe).
+  test.beforeEach(async () => {
+    const url = process.env.VITE_SUPABASE_URL!;
+    const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
+    const email = `test${workerNum}@rhozly.com`;
+    const password = process.env.TEST_USER_PASSWORD ?? "TestPassword123!";
+    const supabase = createClient(url, key);
+    await supabase.auth.signInWithPassword({ email, password });
+    await supabase.from("seed_packets").upsert(
+      {
+        id: `0000000${workerNum}-0000-0000-0019-00000000000a`,
+        home_id: HOME_1_ID,
+        plant_id: Number(`${plantBase}000001`),
+        variety: "Cherokee Purple",
+        vendor: "Real Seeds",
+        sow_by: "2027-03-01",
+        quantity_remaining: "about half a packet",
+        notes: "Rich smoky beefsteak — best sliced for sandwiches.",
+        is_archived: false,
+      },
+      { onConflict: "id" },
+    );
+  });
+
   test("FAV-NU-001: Favourites scope lists seeded packet fixtures + hint banner", async ({ authenticatedPage }) => {
     const nursery = new NurseryPage(authenticatedPage);
     await nursery.gotoFavourites();

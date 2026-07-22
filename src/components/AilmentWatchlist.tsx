@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchPreference } from "../lib/searchPreference";
+import { staggerStyle, STAGGER_ENTRANCE } from "../lib/stagger";
 import { createPortal } from "react-dom";
 import {
   Plus, Search, Loader2, Biohazard, X,
   Edit3, Trash2, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle,
-  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles, Library, Heart, FileText,
-  ArrowLeft,
+  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles, Library, FileText,
+  ArrowLeft, Binoculars, MoreVertical,
 } from "lucide-react";
 import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -244,17 +245,11 @@ function AilmentDetailModal({
   onClose,
   onDelete,
   aiEnabled = false,
-  favourited = false,
-  favBusy = false,
-  onToggleFavourite,
 }: {
   ailment: Ailment;
   onClose: () => void;
   onDelete: (id: string) => void;
   aiEnabled?: boolean;
-  favourited?: boolean;
-  favBusy?: boolean;
-  onToggleFavourite?: () => void;
 }) {
   // Stage F — the tabbed local modal died: this is now a thin shell around
   // the SHARED AilmentDetailBody (one detail surface for library AND
@@ -367,9 +362,6 @@ function AilmentDetailModal({
           watchingBusy={false}
           canWatch={false}
           onWatch={() => {}}
-          favRowId={favourited ? "home" : null}
-          favBusy={favBusy}
-          onToggleFavourite={onToggleFavourite ?? (() => {})}
           aiEnabled={aiEnabled}
           onAskAi={askAi}
           isNewGardener={persona !== "experienced"}
@@ -1257,11 +1249,11 @@ function AddAilmentModal({
                                   <p className="font-black text-base text-rhozly-on-surface leading-tight truncate">{lib.name}</p>
                                   <p className="text-xs font-bold text-rhozly-on-surface/45 truncate flex items-center gap-1">
                                     {favouriteLibraryIds?.has(lib.id) && (
-                                      <Heart
+                                      <Binoculars
                                         size={12}
-                                        aria-label="In your favourites"
-                                        data-testid={`ailment-library-fav-glyph-${lib.id}`}
-                                        className="shrink-0 fill-current text-status-watch-ink"
+                                        aria-label="On your watchlist"
+                                        data-testid={`ailment-library-watch-glyph-${lib.id}`}
+                                        className="shrink-0 text-status-watch-ink"
                                       />
                                     )}
                                     <span className="truncate">{meta.label}{sevLabel ? ` · ${sevLabel} severity` : ""} · Library</span>
@@ -1865,6 +1857,7 @@ const TYPE_ICON_COLOUR: Record<AilmentType, string> = {
 function AilmentCard({
   ailment,
   affectedCount,
+  index = 0,
   onClick,
   onArchiveToggle,
   onDelete,
@@ -1878,6 +1871,7 @@ function AilmentCard({
 }: {
   ailment: Ailment;
   affectedCount: number;
+  index?: number;
   onClick: () => void;
   onArchiveToggle: () => void;
   onDelete: () => void;
@@ -1891,17 +1885,22 @@ function AilmentCard({
 }) {
   const meta = TYPE_META[ailment.type];
   const srcMeta = SOURCE_META[ailment.source] ?? SOURCE_META.manual;
+  // Card parity (v3 feedback #2): actions live in the body row + kebab —
+  // the plants pattern (Wave 22.0009) — never floating on the photo.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div
       onClick={onClick}
       role="button"
       tabIndex={0}
+      data-testid={`ailment-card-${ailment.id}`}
+      style={staggerStyle(index)}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onClick()}
-      className="bg-rhozly-surface-lowest rounded-3xl overflow-hidden border border-rhozly-outline/20 shadow-sm group flex flex-col cursor-pointer hover:border-rhozly-primary/30 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 transition-all"
+      className={`bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/20 shadow-sm group flex flex-col cursor-pointer hover:border-rhozly-primary/30 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 transition-all ${STAGGER_ENTRANCE}`}
     >
       {/* Image header */}
-      <div className="h-44 relative overflow-hidden">
+      <div className="h-44 relative overflow-hidden rounded-t-3xl">
         {ailment.thumbnail_url ? (
           <SmartImage
             src={ailment.thumbnail_url}
@@ -1917,88 +1916,112 @@ function AilmentCard({
           </div>
         )}
 
-        {/* Source badge — top left */}
-        <div className="absolute top-4 left-4">
+        {/* Source badge — bottom left (plants-card parity). */}
+        <div className="absolute bottom-3 left-3">
           <span className={`bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 shadow-sm border border-white/20 ${srcMeta.colour}`}>
             {srcMeta.icon} {srcMeta.label}
           </span>
         </div>
 
-        {/* Photos button — bottom left */}
+        {/* Photos button — bottom right */}
         <MultiImageGallery
           query={`${ailment.name}${ailment.scientific_name ? ` ${ailment.scientific_name}` : ""} ${ailment.type}`}
           label={ailment.name}
           existingImageUrl={ailment.thumbnail_url}
-          triggerClassName="absolute bottom-3 left-3"
+          triggerClassName="absolute bottom-3 right-3"
         />
 
-        {/* Archive + Delete + Favourite buttons — top right */}
-        <div className="absolute top-4 right-4 flex gap-2">
-          {/* Cross-home favourite heart. Strict source × tier gating: above-tier
-              sources are view-only, so the heart is disabled with an upsell
-              tooltip. Favouriting is personal — never permission-gated. */}
-          <button
-            data-testid={`favourite-ailment-${ailment.id}`}
-            onClick={(e) => { e.stopPropagation(); if (!favouriteLocked) onToggleFavourite(); }}
-            disabled={favouriteLocked || favouriteBusy}
-            aria-pressed={isFavourited}
-            aria-label={
-              favouriteLocked
-                ? `Favouriting ${ailment.name} is locked on your plan`
-                : isFavourited
-                  ? `Remove ${ailment.name} from favourites`
-                  : `Save ${ailment.name} to favourites`
-            }
-            title={
-              favouriteLocked
-                ? lockedAilmentSourceMessage(ailment.source)
-                : isFavourited
-                  ? "Remove from favourites"
-                  : "Save to favourites — follows you across homes"
-            }
-            className={`w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl flex items-center justify-center shadow-md transition-all active:scale-90 ${
-              favouriteLocked
-                ? "text-rhozly-on-surface/20 cursor-not-allowed"
-                : isFavourited
-                  ? "text-rose-500 hover:bg-rose-50"
-                  : "text-rhozly-on-surface/60 hover:text-rose-500"
-            }`}
-          >
-            {favouriteBusy ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : favouriteLocked ? (
-              <Lock size={16} />
-            ) : (
-              <Heart size={16} className={isFavourited ? "fill-current" : ""} />
-            )}
-          </button>
-          {canDelete && (
-            <>
-              <button
-                onClick={(e) => { e.stopPropagation(); onArchiveToggle(); }}
-                aria-label={ailment.is_archived ? "Restore ailment" : "Archive ailment"}
-                className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-              >
-                {ailment.is_archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                aria-label="Delete ailment"
-                className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-              >
-                <Trash2 size={16} />
-              </button>
-            </>
-          )}
-        </div>
       </div>
 
       {/* Body */}
       <div className="p-6">
-        <h3 className="text-xl font-black text-rhozly-on-surface leading-tight mb-1">{ailment.name}</h3>
-        {ailment.scientific_name && (
-          <p className="text-xs font-bold italic text-rhozly-on-surface/40 truncate">{ailment.scientific_name}</p>
-        )}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="text-xl font-black text-rhozly-on-surface leading-tight mb-1">{ailment.name}</h3>
+            {ailment.scientific_name && (
+              <p className="text-xs font-bold italic text-rhozly-on-surface/40 truncate">{ailment.scientific_name}</p>
+            )}
+          </div>
+          <div className="shrink-0 flex items-center gap-1">
+            {/* Watchlist toggle (binoculars — never a heart on ailments).
+                Strict source × tier gating: above-tier sources are view-only. */}
+            <button
+              data-testid={`watch-ailment-${ailment.id}`}
+              onClick={(e) => { e.stopPropagation(); if (!favouriteLocked) onToggleFavourite(); }}
+              disabled={favouriteLocked || favouriteBusy}
+              aria-pressed={isFavourited}
+              aria-label={
+                favouriteLocked
+                  ? `Adding ${ailment.name} to your watchlist is locked on your plan`
+                  : isFavourited
+                    ? `Remove ${ailment.name} from your watchlist`
+                    : `Add ${ailment.name} to your watchlist`
+              }
+              title={
+                favouriteLocked
+                  ? lockedAilmentSourceMessage(ailment.source)
+                  : isFavourited
+                    ? "Remove from your watchlist"
+                    : "Add to your watchlist — follows you across homes"
+              }
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
+                favouriteLocked
+                  ? "text-rhozly-on-surface/20 cursor-not-allowed"
+                  : isFavourited
+                    ? "bg-status-watch-fill text-status-watch-ink"
+                    : "text-rhozly-on-surface/40 can-hover:hover:text-status-watch-ink can-hover:hover:bg-status-watch-fill"
+              }`}
+            >
+              {favouriteBusy ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : favouriteLocked ? (
+                <Lock size={16} />
+              ) : (
+                <Binoculars size={16} />
+              )}
+            </button>
+            {canDelete && (
+              <div className="relative">
+                <button
+                  data-testid={`ailment-card-kebab-${ailment.id}`}
+                  onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+                  aria-label="More actions"
+                  aria-expanded={menuOpen}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-rhozly-on-surface/40 can-hover:hover:text-rhozly-on-surface can-hover:hover:bg-rhozly-surface-low transition-colors"
+                >
+                  <MoreVertical size={16} />
+                </button>
+                {menuOpen && (
+                  <>
+                    <button
+                      aria-hidden="true"
+                      tabIndex={-1}
+                      className="fixed inset-0 z-10 cursor-default"
+                      onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }}
+                    />
+                    <div className="absolute right-0 top-11 z-20 w-44 p-1.5 rounded-2xl bg-rhozly-surface-lowest border border-rhozly-outline/15 shadow-overlay">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchiveToggle(); }}
+                        aria-label={ailment.is_archived ? "Restore ailment" : "Archive ailment"}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface/75 hover:bg-rhozly-surface-low transition-colors text-left"
+                      >
+                        {ailment.is_archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+                        {ailment.is_archived ? "Restore" : "Archive"}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(); }}
+                        aria-label="Delete ailment"
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-status-danger-ink hover:bg-status-danger-fill transition-colors text-left"
+                      >
+                        <Trash2 size={15} /> Delete
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
         <p className="text-xs text-rhozly-on-surface/60 line-clamp-2 leading-relaxed mt-2">{ailment.description}</p>
         {affectedCount > 0 && (
           <div className="mt-3">
@@ -2061,7 +2084,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   const legacyFilters =
     typeof localStorage !== "undefined" &&
     localStorage.getItem("rhozly_legacy_shed_filters") === "on";
-  const [presenceChip, setPresenceChip] = useState<"all" | "active" | "inactive" | "watching">("all");
+  const [presenceChip, setPresenceChip] = useState<"all" | "active" | "inactive">("all");
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState<Ailment | null>(null);
 
@@ -2098,6 +2121,25 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
 
   useEffect(() => { loadFavourites(); }, [loadFavourites]);
 
+  // v3 visibility law: ADDING IS WATCHING. A brand-new home row has no
+  // presence, so without the 🔭 it would vanish from the list the moment
+  // it's created. Best-effort per row; tier-locked sources just skip.
+  // Session-added ids stay visible under All even if the auto-🔭 is skipped
+  // (offline / tier-locked) or hasn't refreshed yet (review catch).
+  const sessionAddedAilmentIdsRef = useRef<Set<string>>(new Set());
+  const autoWatch = async (rows: Ailment[]) => {
+    rows.forEach((a) => sessionAddedAilmentIdsRef.current.add(a.id));
+    for (const a of rows) {
+      if (favouriteKeys.has(ailmentIdentityKey(a.name))) continue;
+      try {
+        await favouriteAilment(a as any, homeId);
+      } catch (err) {
+        Logger.warn("Auto-watch on add skipped", { err });
+      }
+    }
+    loadFavourites();
+  };
+
   useEffect(() => {
     if (!homeId) return;
     supabase
@@ -2125,12 +2167,12 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
         const existing = favourites.find((f) => (f.identity_key || ailmentIdentityKey(f.name)) === key);
         if (existing) await unfavouriteAilment(existing.id);
         logEvent(EVENT.AILMENT_UNFAVOURITED, { ailment_library_id: existing?.ailment_library_id ?? null, source: ailment.source });
-        toast.success("Removed from favourites.");
+        toast.success("Removed from your watchlist.");
       } else {
         const row = await favouriteAilment(ailment as any, homeId);
         setFavourites((prev) => [row, ...prev.filter((f) => f.id !== row.id)]);
         logEvent(EVENT.AILMENT_FAVOURITED, { ailment_library_id: row.ailment_library_id, source: ailment.source });
-        toast.success("Saved to your favourites — it follows you across homes.");
+        toast.success("Added to your watchlist — it follows you across homes.");
       }
       loadFavourites();
     } catch (err: any) {
@@ -2138,7 +2180,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
       if (String(err?.message ?? "").includes("tier_locked_source")) {
         toast.error(lockedAilmentSourceMessage(ailment.source));
       } else {
-        Logger.error("Favourite ailment toggle failed", err, { ailmentId: ailment.id }, "Could not update favourites — please try again.");
+        Logger.error("Favourite ailment toggle failed", err, { ailmentId: ailment.id }, "Could not update your watchlist — please try again.");
       }
     } finally {
       setTogglingFavouriteKey(null);
@@ -2196,6 +2238,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
     try {
       const data = await addLibraryAilmentToWatchlist(detailLibraryAilment, homeId);
       setAilments((prev) => [data as Ailment, ...prev]);
+      autoWatch([data as Ailment]);
       logEvent(EVENT.AILMENT_ADDED, {
         ailment_id: (data as Ailment).id,
         name: detailLibraryAilment.name,
@@ -2312,29 +2355,36 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   // Counts and display scoped to current view tab
   const tabAilments = ailments.filter((a) => viewTab === "active" ? !a.is_archived : a.is_archived);
 
-  // Landing text-filter retired (Stage 3); Stage C: the presence axis is
-  // derived (ailment_presence view) — legacy flag falls back to viewTab.
+  // v3 feedback polish — the owner's visibility law, ailments flavour: a row
+  // earns its place by being IN USE (derived presence) or WATCHED (🔭 on the
+  // personal watchlist). Zero-presence un-watched rows are search-only (the
+  // "Watching" chip died; the merged 🔭 Watchlist chip is the affinity view).
+  const isWatched = (a: Ailment) =>
+    favouriteKeys.has(ailmentIdentityKey(a.name));
   const displayed = (legacyFilters
     ? tabAilments
     : ailments.filter((a) => {
         const pres = gardenPresence.ailmentPresence.get(a.id);
         if (presenceChip === "active") return pres === "active";
         if (presenceChip === "inactive") return pres === "inactive";
-        if (presenceChip === "watching") return !a.is_archived && pres == null;
-        // All: curated-out rows with zero presence are search-only.
-        return !(a.is_archived && pres == null);
+        // All: visible = presence OR 🔭 OR added-this-session.
+        return (
+          pres != null ||
+          (!a.is_archived && (isWatched(a) || sessionAddedAilmentIdsRef.current.has(a.id)))
+        );
       })
   ).filter((a) => filter === "all" || a.type === filter);
 
   const presenceCounts = (() => {
-    let active = 0, inactive = 0, watching = 0;
+    let active = 0, inactive = 0, watched = 0, hidden = 0;
     for (const a of ailments) {
       const pres = gardenPresence.ailmentPresence.get(a.id);
       if (pres === "active") active++;
       else if (pres === "inactive") inactive++;
-      else if (!a.is_archived) watching++;
+      else if (!a.is_archived && (isWatched(a) || sessionAddedAilmentIdsRef.current.has(a.id))) watched++;
+      else if (!a.is_archived) hidden++;
     }
-    return { active, inactive, watching, all: active + inactive + watching };
+    return { active, inactive, hidden, all: active + inactive + watched };
   })();
 
   const counts = {
@@ -2362,7 +2412,8 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           takeover ("On your watchlist" section). */}
       <div className="flex flex-col gap-3">
         <HubHeader
-          title="Watchlist"
+          bleed
+          title="Ailments"
           count={counts.all}
           guidance="Pests and diseases you're keeping an eye on — search to look one up or add it."
           menuTestId="watchlist-overflow-menu"
@@ -2402,7 +2453,9 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
                 { key: "all", label: `All${presenceCounts.all > 0 ? ` · ${presenceCounts.all}` : ""}`, testId: "watchlist-scope-home", active: scope === "home" && presenceChip === "all", onClick: () => { switchScope("home"); setPresenceChip("all"); } },
                 { key: "active", label: `Active${presenceCounts.active > 0 ? ` · ${presenceCounts.active}` : ""}`, testId: "watchlist-chip-active", active: scope === "home" && presenceChip === "active", onClick: () => { switchScope("home"); setPresenceChip("active"); } },
                 { key: "inactive", label: `Inactive${presenceCounts.inactive > 0 ? ` · ${presenceCounts.inactive}` : ""}`, testId: "watchlist-chip-inactive", active: scope === "home" && presenceChip === "inactive", onClick: () => { switchScope("home"); setPresenceChip("inactive"); } },
-                { key: "watching", label: `Watching${presenceCounts.watching > 0 ? ` · ${presenceCounts.watching}` : ""}`, testId: "watchlist-chip-watching", active: scope === "home" && presenceChip === "watching", onClick: () => { switchScope("home"); setPresenceChip("watching"); } },
+                // v3 feedback polish — the "Watching" chip died: visibility is
+                // presence OR 🔭, and the merged Watchlist chip (below) IS the
+                // affinity view.
               ]
           ).map((chip) => (
             <button
@@ -2420,6 +2473,8 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
               {chip.label}
             </button>
           ))}
+          {/* v3 feedback polish — ONE watchlist concept, binoculars only (the
+              owner's rule: no hearts on ailments; the stray Heart died). */}
           <button
             role="tab"
             aria-selected={scope === "favourites"}
@@ -2431,8 +2486,8 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
                 : "bg-rhozly-surface-lowest border border-rhozly-outline/15 text-rhozly-on-surface/60 can-hover:hover:text-status-watch-ink can-hover:hover:border-status-watch-line"
             }`}
           >
-            <Heart size={13} className={scope === "favourites" ? "fill-current" : ""} />
-            {legacyFilters ? "Favourites" : "🔭 Mine"}{favourites.length > 0 ? ` · ${favourites.length}` : ""}
+            <Binoculars size={13} />
+            Watchlist{favourites.length > 0 ? ` · ${favourites.length}` : ""}
           </button>
         </div>
 
@@ -2507,11 +2562,12 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           ))}
         </div>
       ) : displayed.length > 0 ? (
-        <div data-testid="watchlist-card-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {displayed.map((a) => (
+        <div data-testid="watchlist-card-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {displayed.map((a, index) => (
             <AilmentCard
               key={a.id}
               ailment={a}
+              index={index}
               affectedCount={affectedCounts[a.id] ?? 0}
               onClick={() => setSelectedAilment(a)}
               onArchiveToggle={() => setConfirmState({ isOpen: true, type: a.is_archived ? "unarchive" : "archive", ailment: a })}
@@ -2561,6 +2617,19 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           }
         />
       )}
+
+      {/* Where-did-it-go safety net (visibility law): rows with no presence
+          and no 🔭 are search-only — say so quietly instead of vanishing. */}
+      {!legacyFilters && presenceChip === "all" && filter === "all" && presenceCounts.hidden > 0 && (
+        <button
+          type="button"
+          data-testid="watchlist-hidden-collection-hint"
+          onClick={() => setShowAdd(true)}
+          className="mt-2 mx-auto flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold text-rhozly-on-surface/45 can-hover:hover:text-rhozly-primary transition-colors"
+        >
+          {presenceCounts.hidden} more in your collection — search to find them
+        </button>
+      )}
       </>
       )}
 
@@ -2571,7 +2640,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
         <AddAilmentModal
           homeId={homeId}
           aiEnabled={aiEnabled}
-          onSaved={(a) => { setAilments((prev) => [a, ...prev]); requestFeedback("ailment_add"); }}
+          onSaved={(a) => { setAilments((prev) => [a, ...prev]); requestFeedback("ailment_add"); autoWatch([a]); }}
           onClose={() => setShowAdd(false)}
           existingKeys={new Set(
             ailments.filter((a) => !a.is_archived).map((a) => ailmentIdentityKey(a.name)).filter(Boolean),
@@ -2592,8 +2661,8 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           onCreated={(created) => {
             if (created.length > 0) {
               setAilments((prev) => [...created, ...prev]);
-              loadFavourites();
               requestFeedback("ailment_add");
+              autoWatch(created);
             }
           }}
         />
@@ -2604,9 +2673,6 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           onClose={() => setSelectedAilment(null)}
           onDelete={(id) => setAilments((prev) => prev.filter((a) => a.id !== id))}
           aiEnabled={aiEnabled}
-          favourited={favouriteKeys.has(ailmentIdentityKey(selectedAilment.name))}
-          favBusy={togglingFavouriteKey === ailmentIdentityKey(selectedAilment.name)}
-          onToggleFavourite={() => handleToggleFavourite(selectedAilment)}
         />,
         document.body,
       )}

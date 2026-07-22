@@ -1,17 +1,18 @@
 import { expect } from "@playwright/test";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { test } from "../fixtures/auth";
 import { WatchlistPage } from "../pages/WatchlistPage";
 import { mockEdgeFunction, MOCK_WATCHLIST_AI_RESULT } from "../fixtures/api-mocks";
 
 // All tests require an authenticated session.
 // Seeded ailments (06_ailments_watchlist.sql):
-//   Aphid          — pest,           active
-//   Early Blight   — disease,        active
-//   Japanese Knotweed — invasive_plant, active
+//   Aphid          — pest,           active (linked to Basil, 09_stats.sql)
+//   Early Blight   — disease,        active (linked to Tomato, 09_stats.sql)
+//   Japanese Knotweed — invasive_plant, active (linked to Rose, 09_stats.sql)
 //   Powdery Mildew — disease,        archived
 
 test.describe("Watchlist — basic render", () => {
-  test("WL-001: /watchlist renders the Watchlist heading", async ({ authenticatedPage }) => {
+  test("WL-001: /watchlist renders the Ailments heading", async ({ authenticatedPage }) => {
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
 
@@ -112,14 +113,17 @@ test.describe("Watchlist — basic render", () => {
 });
 
 test.describe("Watchlist — tabs", () => {
-  test("WL-tab-active: the presence chips (Active / Inactive / Watching) are visible", async ({ authenticatedPage }) => {
+  test("WL-tab-active: the presence chips (Active / Inactive / Watchlist) are visible", async ({ authenticatedPage }) => {
     // Hub v3 Stage C — the derived presence axis replaced Active/Archived.
+    // v3 feedback polish: the "Watching" chip died — the merged 🔭 Watchlist
+    // chip (watchlist-scope-favourites) is the affinity view now.
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
 
     await expect(authenticatedPage.getByTestId("watchlist-chip-active")).toBeVisible({ timeout: 10000 });
     await expect(authenticatedPage.getByTestId("watchlist-chip-inactive")).toBeVisible();
-    await expect(authenticatedPage.getByTestId("watchlist-chip-watching")).toBeVisible();
+    await expect(wl.scopeFavouritesBtn).toBeVisible();
+    await expect(wl.scopeFavouritesBtn).toContainText("Watchlist");
   });
 
   test("WL-tab-archived: the legacy Archived axis still works under the fallback flag", async ({ authenticatedPage }) => {
@@ -135,6 +139,58 @@ test.describe("Watchlist — tabs", () => {
 
     await expect(wl.ailmentCard("Powdery Mildew")).toBeVisible({ timeout: 10000 });
     await expect(wl.ailmentCard("Aphid")).not.toBeVisible();
+  });
+
+  test("WL-P1: visibility law — a zero-presence, un-watched ailment is hidden from the default list but counted in the hidden hint", async ({ authenticatedPage }) => {
+    // v3 feedback polish, owner decision #4: default visibility = presence OR
+    // 🔭. A curated-only ailment with no plant_instance_ailments link and no
+    // watch is search-only — the "N more in your collection" hint replaces it.
+    const workerNum = parseInt(process.env.PLAYWRIGHT_WORKER_INDEX ?? "0", 10) + 1;
+    const homeId = `0000000${workerNum}-0000-0000-0000-000000000002`;
+    const ailmentName = `E2E Hidden Ailment ${Date.now()}`;
+
+    const url = process.env.VITE_SUPABASE_URL!;
+    const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
+    const email = `test${workerNum}@rhozly.com`;
+    const password = process.env.TEST_USER_PASSWORD ?? "TestPassword123!";
+    const supabase: SupabaseClient = createClient(url, key);
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    expect(signInError).toBeNull();
+
+    // Inserted directly (bypassing the add flow) so it carries NO auto-watch
+    // — the app's every add-flow auto-watches, which would defeat this test.
+    const { error: insertError } = await supabase.from("ailments").insert({
+      home_id: homeId,
+      name: ailmentName,
+      type: "pest",
+      source: "manual",
+      description: "e2e hidden-row fixture",
+      is_archived: false,
+    });
+    expect(insertError).toBeNull();
+
+    try {
+      const wl = new WatchlistPage(authenticatedPage);
+      await wl.goto();
+      await wl.waitForLoad();
+
+      // Hidden from the default (All) grid — no presence, not watched.
+      await expect(wl.ailmentCard(ailmentName)).not.toBeVisible();
+
+      // Counted in the "N more in your collection" safety-net hint.
+      await expect(wl.hiddenCollectionHint).toBeVisible({ timeout: 10000 });
+      await expect(wl.hiddenCollectionHint).toContainText("more in your collection");
+
+      // Clicking the hint opens the takeover, where the row is still
+      // findable via search ("In your garden").
+      await wl.hiddenCollectionHint.click();
+      await authenticatedPage.locator('[data-testid="ailment-search-input"]').fill(ailmentName);
+      await expect(
+        authenticatedPage.getByTestId("ailment-owned-section").getByText(ailmentName),
+      ).toBeVisible({ timeout: 10000 });
+    } finally {
+      await supabase.from("ailments").delete().eq("home_id", homeId).eq("name", ailmentName);
+    }
   });
 });
 
@@ -264,7 +320,9 @@ test.describe("Watchlist — Add modal", () => {
 
     await expect(wl.ailmentCard(ailmentName)).toBeVisible({ timeout: 10000 });
 
-    // --- Cleanup: delete the test ailment ---
+    // --- Cleanup: delete the test ailment (card parity — Delete lives in
+    //     the kebab popover now) ---
+    await wl.openCardMenu(ailmentName);
     await wl.deleteButtonFor(ailmentName).click();
     const deleteConfirm = authenticatedPage.getByRole("button", { name: /^Delete$/i });
     if (await deleteConfirm.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -555,9 +613,11 @@ test.describe("Watchlist — write actions (Section 10)", () => {
     await wl.goto();
     await wl.waitForLoad();
 
-    // Use "Early Blight" — archive it from the card
+    // Use "Early Blight" — archive it from the card (card parity — the
+    // action lives in the kebab popover now)
     await expect(wl.ailmentCard("Early Blight")).toBeVisible({ timeout: 10000 });
 
+    await wl.openCardMenu("Early Blight");
     await wl.archiveButtonFor("Early Blight").click();
     await authenticatedPage.waitForTimeout(300);
 
@@ -577,6 +637,7 @@ test.describe("Watchlist — write actions (Section 10)", () => {
     await expect(wl.ailmentCard("Early Blight")).toBeVisible({ timeout: 8000 });
 
     // In the archived tab the button aria-label is "Restore ailment" not "Archive ailment"
+    await wl.openCardMenu("Early Blight");
     await wl.restoreButtonFor("Early Blight").click();
     await authenticatedPage.waitForTimeout(300);
     const restoreBtn = authenticatedPage.getByRole("alertdialog").getByRole("button", { name: "Restore" });
@@ -665,7 +726,7 @@ test.describe("Watchlist — Bulk add (RHO-4 Phase 2)", () => {
     await expect(wl.bulkAddSave).toContainText(/Add 1 ailment/i, { timeout: 5000 });
   });
 
-  test("WL-BULK-004: Import valid CSV rows creates manual ailments + a favourite", async ({ authenticatedPage }) => {
+  test("WL-BULK-004: Import valid CSV rows creates manual ailments; both land on the watchlist (visibility law)", async ({ authenticatedPage }) => {
     test.setTimeout(90_000);
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
@@ -694,28 +755,41 @@ test.describe("Watchlist — Bulk add (RHO-4 Phase 2)", () => {
     await authenticatedPage.getByText(/added .* to your watchlist/i)
       .waitFor({ state: "visible", timeout: 15000 });
     await wl.bulkAddModal.waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
+    // v3 feedback polish — "ADDING IS WATCHING": every imported row is
+    // auto-watched (the fire-and-forget `autoWatch` follow-up), regardless of
+    // the per-row favourite checkbox. Give it a beat to land before the full
+    // navigation below, or the in-flight requests get cut short.
+    await authenticatedPage.waitForTimeout(1500);
 
     await authenticatedPage.goto("/watchlist");
     await wl.waitForLoad();
-    // Both new ailments appear with the Manual source badge.
+    // Both new ailments are auto-watched → both appear with the Manual badge.
     await expect(wl.ailmentCard(plainName)).toBeVisible({ timeout: 10000 });
     await expect(wl.ailmentCard(favName)).toBeVisible({ timeout: 10000 });
     await expect(wl.ailmentCard(plainName).getByText("Manual", { exact: true })).toBeVisible();
 
-    // The favourited row shows in the Favourites scope.
+    // Both rows show in the Favourites scope — the per-row checkbox only
+    // affects the BulkAddAilmentsModal's own favourite call; the watchlist's
+    // auto-watch-on-add sweep favourites every created row regardless.
     await wl.gotoFavourites();
     await wl.waitForLoad();
     await expect(wl.favouriteCard(favName)).toBeVisible({ timeout: 10000 });
-    await expect(wl.favouriteCard(plainName)).toHaveCount(0);
+    await expect(wl.favouriteCard(plainName)).toBeVisible({ timeout: 10000 });
 
     // ── Cleanup: unfavourite + delete both test ailments ──
-    const favRemove = wl.favouriteRemoveIn(wl.favouriteCard(favName));
-    if (await favRemove.isVisible({ timeout: 4000 }).catch(() => false)) {
-      await favRemove.click();
+    for (const name of [plainName, favName]) {
+      const remove = wl.favouriteRemoveIn(wl.favouriteCard(name));
+      if (await remove.isVisible({ timeout: 4000 }).catch(() => false)) {
+        await remove.click();
+        await expect(wl.favouriteCard(name)).toHaveCount(0, { timeout: 8000 }).catch(() => {});
+      }
     }
     for (const name of [plainName, favName]) {
       await authenticatedPage.goto("/watchlist");
       await wl.waitForLoad();
+      const card = wl.ailmentCard(name);
+      if (!(await card.isVisible({ timeout: 4000 }).catch(() => false))) continue;
+      await wl.openCardMenu(name);
       const delBtn = wl.deleteButtonFor(name);
       if (!(await delBtn.isVisible({ timeout: 4000 }).catch(() => false))) continue;
       await delBtn.click();
@@ -798,9 +872,9 @@ test.describe("Watchlist — ailment-add takeover (Stage 5)", () => {
     await openBtn.click();
     const detail = authenticatedPage.getByTestId("ailment-detail-modal");
     await expect(detail).toBeVisible({ timeout: 8000 });
-    // The shared field-guide surface: Watch CTA + favourite heart present.
+    // The shared field-guide surface: ONE watch verb now (v3 feedback polish
+    // deleted the separate cross-home ♥ toggle — Add to watchlist does both).
     await expect(authenticatedPage.getByTestId("ailment-add-watchlist")).toBeVisible();
-    await expect(authenticatedPage.getByTestId("ailment-detail-favourite")).toBeVisible();
 
     // Escape closes ONLY the detail; the search overlay stays open.
     await authenticatedPage.keyboard.press("Escape");

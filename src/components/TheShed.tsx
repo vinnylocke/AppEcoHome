@@ -109,6 +109,8 @@ interface Plant {
   thumbnail_url?: string;
   is_archived: boolean;
   instance_count?: number;
+  /** Ended (End-of-Life) instances — the "N past" chip (v3 feedback #3). */
+  past_instance_count?: number;
   plant_metadata?: Record<string, any> | null;
 }
 
@@ -191,7 +193,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const legacyFilters =
     typeof localStorage !== "undefined" &&
     localStorage.getItem("rhozly_legacy_shed_filters") === "on";
-  const [presenceChip, setPresenceChip] = useState<"all" | "active" | "inactive" | "saved">("all");
+  const [presenceChip, setPresenceChip] = useState<"all" | "active" | "inactive">("all");
   // Hub v3 Stage D — the Seed box: packets are SUPPLIES, hosted in a
   // full-height sheet (the whole NurseryTab surface, unchanged).
   const [seedBoxOpen, setSeedBoxOpen] = useState(false);
@@ -409,9 +411,24 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   // between the search result and the saved row, so a name match alone can
   // silently miss — review catch).
   const importedPlantIdsRef = useRef<number[]>([]);
+  // Session-added ids stay visible under All even if the auto-♥ is skipped
+  // (offline / tier-locked) or hasn't refreshed yet — a just-added plant must
+  // NEVER vanish (review catch on the visibility law).
+  const sessionAddedPlantIdsRef = useRef<Set<number>>(new Set());
   const savePlantToDB = async (skeleton: any, fullCareData?: any) => {
     const { row } = await saveToShedLib(skeleton, fullCareData, homeId);
     if ((row as any)?.id != null) importedPlantIdsRef.current.push((row as any).id as number);
+    if ((row as any)?.id != null) sessionAddedPlantIdsRef.current.add((row as any).id as number);
+    // v3 visibility law: ADDING IS LOVING. A brand-new row has no presence,
+    // so without the ♥ it would vanish from the list the moment it's created.
+    // Best-effort: offline or tier-locked sources just skip the heart.
+    if (row && !isOffline()) {
+      try {
+        await favouritePlant(row as any, homeId);
+      } catch (err) {
+        Logger.warn("Auto-favourite on add skipped", { err });
+      }
+    }
     return row;
   };
 
@@ -739,6 +756,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       logEvent(EVENT.PLANT_ADDED, { plant_name: q.name, source: q.source }),
     );
     refreshShed(); // 🚀 BACKGROUND SYNC
+    loadFavourites(); // adds auto-♥ — refresh so the new rows stay visible
     toast.success("Import complete");
   };
 
@@ -1500,6 +1518,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       } else {
         toast.success(`${plantData.common_name} added to shed!`);
         refreshShed(); // 🚀 BACKGROUND SYNC
+        loadFavourites(); // adds auto-♥ — keep the new row visible
       }
     } catch (err: any) {
       Logger.error("Failed to save plant to shed", err, {}, "Could not save plant — please check your connection and try again.");
@@ -1511,7 +1530,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const handleUpdatePlant = async (updatedData: any) => {
     setActionLoading(true);
     try {
-      const { instance_count, inventory_items, ...cleanPayload } = updatedData;
+      const { instance_count, past_instance_count, inventory_items, ...cleanPayload } = updatedData;
       const { error } = await supabase
         .from("plants")
         .update(cleanPayload)
@@ -1647,17 +1666,31 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     }
   };
 
-  // Chip counts on the derived axis (Stage C).
+  // v3 feedback polish — the owner's visibility law: a plant earns a place
+  // in the list by being IN USE (derived presence) or LOVED (♥ favourite).
+  // Zero-presence un-hearted rows are search-only (the "Saved" chip died).
+  // Fork-aware (review + test-writer catch): "Add to this home" clones a
+  // favourite into a NEW row whose canonical id is itself for non-AI sources
+  // — the back-reference (forked_from_plant_id) is what ties it to the ♥.
+  const isHearted = useCallback(
+    (p: any) =>
+      favouriteRefIds.has(canonicalPlantRefId(p)) ||
+      (p.forked_from_plant_id != null && favouriteRefIds.has(p.forked_from_plant_id)),
+    [favouriteRefIds],
+  );
   const presenceCounts = useMemo(() => {
-    let active = 0, inactive = 0, saved = 0;
+    let active = 0, inactive = 0, hidden = 0;
     for (const p of plants) {
       const pres = gardenPresence.plantPresence.get(p.id as number);
       if (pres === "active") active++;
       else if (pres === "inactive") inactive++;
-      else if (!p.is_archived) saved++;
+      else if (!p.is_archived && !isHearted(p) && !sessionAddedPlantIdsRef.current.has(p.id as number)) hidden++;
     }
-    return { active, inactive, saved, all: active + inactive + saved };
-  }, [plants, gardenPresence.plantPresence]);
+    const visibleLoved = plants.filter(
+      (p) => !p.is_archived && gardenPresence.plantPresence.get(p.id as number) == null && isHearted(p),
+    ).length;
+    return { active, inactive, hidden, all: active + inactive + visibleLoved };
+  }, [plants, gardenPresence.plantPresence, isHearted]);
 
   const filteredPlants = useMemo(() => {
     const base = plants.filter((p) => {
@@ -1669,9 +1702,14 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         const pres = gardenPresence.plantPresence.get(p.id as number);
         if (presenceChip === "active" && pres !== "active") return false;
         if (presenceChip === "inactive" && pres !== "inactive") return false;
-        if (presenceChip === "saved" && (p.is_archived || pres != null)) return false;
-        // All: curated-out rows with zero presence are search-only.
-        if (presenceChip === "all" && p.is_archived && pres == null) return false;
+        // All: visible = presence OR ♥ OR added-this-session (curated-out
+        // and unloved-idle rows are search-only — the owner's visibility law).
+        if (
+          presenceChip === "all" &&
+          pres == null &&
+          (p.is_archived || (!isHearted(p) && !sessionAddedPlantIdsRef.current.has(p.id as number)))
+        ) return false;
+        if (presenceChip !== "all" && pres == null) return false;
       }
       if (filterSource !== "all" && p.source !== filterSource) return false;
       if (smartFilter === "unassigned" && !unassignedPlantIds.has(p.id as number)) return false;
@@ -1687,7 +1725,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       });
     }
     return base;
-  }, [plants, viewTab, filterSource, smartFilter, sortMode, preferences, unassignedPlantIds, planMembership, legacyFilters, presenceChip, gardenPresence.plantPresence]);
+  }, [plants, viewTab, filterSource, smartFilter, sortMode, preferences, unassignedPlantIds, planMembership, legacyFilters, presenceChip, gardenPresence.plantPresence, isHearted]);
 
   // Fetch lightweight metadata for the smart-filter chips + per-plant status
   // (unassigned = inventory items without an area · in-plan = plant_id appears
@@ -1999,16 +2037,12 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                       active: scope === "home" && presenceChip === "inactive",
                       onClick: () => { switchScope("home"); setPresenceChip("inactive"); },
                     },
-                    {
-                      key: "chip-saved",
-                      label: presenceCounts.saved > 0 ? `Saved · ${presenceCounts.saved}` : "Saved",
-                      testId: "shed-chip-saved",
-                      active: scope === "home" && presenceChip === "saved",
-                      onClick: () => { switchScope("home"); setPresenceChip("saved"); },
-                    },
+                    // v3 feedback polish — the Saved chip died (visibility =
+                    // presence OR ♥); the merged ♥ Favourites chip IS the
+                    // affinity view (the old "Mine" cross-home scope).
                     {
                       key: "favourites",
-                      label: favourites.length > 0 ? `♥ Mine · ${favourites.length}` : "♥ Mine",
+                      label: favourites.length > 0 ? `♥ Favourites · ${favourites.length}` : "♥ Favourites",
                       testId: "shed-scope-favourites",
                       active: scope === "favourites",
                       onClick: () => switchScope("favourites"),
@@ -2601,6 +2635,16 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                       <span className="inline-flex items-center justify-center min-w-[2rem] px-2.5 py-0.5 rounded-full bg-rhozly-primary/15 text-rhozly-primary text-xl font-black">
                         {plant.instance_count}
                       </span>
+                      {/* v3 feedback #3 — history at a glance; live count above
+                          now excludes ended instances. */}
+                      {(plant.past_instance_count ?? 0) > 0 && (
+                        <span
+                          data-testid={`plant-past-count-${plant.id}`}
+                          className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full bg-rhozly-surface-low text-rhozly-on-surface/45 text-2xs font-black border border-dashed border-rhozly-outline/25"
+                        >
+                          {plant.past_instance_count} past
+                        </span>
+                      )}
                     </div>
                     <button
                       onClick={(e) => {
@@ -2621,6 +2665,19 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             })
           )}
         </div>
+
+        {/* Where-did-it-go safety net (visibility law): rows with no presence
+            and no ♥ are search-only — say so quietly instead of vanishing. */}
+        {!legacyFilters && presenceChip === "all" && presenceCounts.hidden > 0 && (
+          <button
+            type="button"
+            data-testid="shed-hidden-collection-hint"
+            onClick={() => setShowBulkSearch(true)}
+            className="mt-4 mx-auto flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold text-rhozly-on-surface/45 can-hover:hover:text-rhozly-primary transition-colors"
+          >
+            {presenceCounts.hidden} more in your collection — search to find them
+          </button>
+        )}
 
         {/* Multi-select bottom action bar */}
         {selectMode && selectedPlantIds.size > 0 && (
@@ -2960,7 +3017,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 onCreated={() => {
                   setShowBulkPaste(false);
                   // The parent listens to realtime changes on `plants`;
-                  // no explicit refresh needed.
+                  // favourites need an explicit refresh (bulk paste auto-♥s
+                  // every row — visibility law).
+                  loadFavourites();
                 }}
               />
             )}

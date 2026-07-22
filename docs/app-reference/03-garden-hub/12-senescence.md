@@ -239,3 +239,5 @@ No beta-only features.
 - `supabase/functions/generate-tasks/index.ts` — re-fired after Restore
 - `inventory_items` table — `ended_at`, `was_natural_end`, `end_summary`, `status` columns
 - `plant_journals` table — "Lifecycle complete%" and "Restored from Senescence" entries
+
+**Post-v3 polish (2026-07-22):** the History rows in the plant modal are tappable again (`plant-history-open-{id}` → `InstanceEditModal`) — amend, AI end-of-life analysis and journal access restored; closing-photo thumbnails ported from this page's lazy-load.

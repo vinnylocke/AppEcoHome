@@ -68,3 +68,27 @@ VALUES (
   'active'
 )
 ON CONFLICT (plant_instance_id, ailment_id) DO NOTHING;
+
+-- v3 feedback polish (2026-07-22): ailment_presence is now derived from
+-- plant_instance_ailments (see 20261017000000_presence_views.sql) and the
+-- watchlist's default view is presence-OR-watched. Early Blight and Japanese
+-- Knotweed were only ever "active" by is_archived — give them real presence
+-- links too so they stay visible under the new derived model, matching the
+-- seed's documented intent ("3 active ailments").
+INSERT INTO public.plant_instance_ailments (id, plant_instance_id, ailment_id, home_id, status)
+VALUES
+  (
+    '00000000-0000-0000-000e-000000000002',
+    '00000000-0000-0000-0004-000000000001',
+    '00000000-0000-0000-0007-000000000002',
+    '00000000-0000-0000-0000-000000000002',
+    'active'
+  ),
+  (
+    '00000000-0000-0000-000e-000000000003',
+    '00000000-0000-0000-0004-000000000003',
+    '00000000-0000-0000-0007-000000000003',
+    '00000000-0000-0000-0000-000000000002',
+    'active'
+  )
+ON CONFLICT (plant_instance_id, ailment_id) DO NOTHING;

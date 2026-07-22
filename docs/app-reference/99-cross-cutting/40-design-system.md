@@ -134,3 +134,8 @@ Colour in Rhozly always carries meaning, so you can read a screen at arm's lengt
 - `src/onboarding/shepherdTheme.css` — tour styling on the same tokens
 - `index.html` — `theme-color`, app title
 - `docs/DESIGN.md` — the narrative ruleset (update both together)
+
+
+## scrollbar-touch-none (2026-07-22)
+
+`src/index.css` — hides the scrollbar on touch devices only; pointer-fine devices get a thin themed scrollbar. Use for horizontally overflowing strips that mice must still reach (first user: the plant modal tab strip, which also maps vertical wheel → horizontal scroll). Prefer this over `scrollbar-none` whenever the strip can overflow on desktop.

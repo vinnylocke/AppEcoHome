@@ -37,7 +37,10 @@ test.describe("Shed — discovery, sort, tabs", () => {
     await shed.openOverflowMenu();
     await authenticatedPage.getByTestId("shed-open-seed-box").click();
     await expect(authenticatedPage.getByTestId("seed-box-sheet")).toBeVisible({ timeout: 10000 });
-    await expect(authenticatedPage.getByTestId("nursery-tab")).toBeVisible();
+    // NurseryTab renders `nursery-tab` only in its loaded/favourites states —
+    // the empty-packets state (the common case for a freshly-seeded worker)
+    // has no such wrapper. `nursery-add-seeds-btn` is present in every state.
+    await expect(authenticatedPage.getByTestId("nursery-add-seeds-btn")).toBeVisible({ timeout: 10000 });
     await authenticatedPage.getByTestId("seed-box-close").click();
     await expect(authenticatedPage.getByTestId("seed-box-sheet")).toHaveCount(0);
   });

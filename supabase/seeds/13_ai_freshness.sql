@@ -106,6 +106,48 @@ ON CONFLICT (user_id, plant_id) DO UPDATE SET
   seen_freshness_version = EXCLUDED.seen_freshness_version,
   acked_at = EXCLUDED.acked_at;
 
+-- v3 feedback polish (2026-07-22): the shallow fork (1000011) had no
+-- inventory_items row — a zero-presence, un-hearted plant is now hidden from
+-- the default Shed grid (the visibility law), which silently broke every test
+-- keying off `favourite-plant-{1000011}` (e.g. FAV-005's Sprout tier-lock
+-- check). Give it a real Unplanted instance so it keeps derived "active"
+-- presence, matching the seeded Tomato/Lavender pattern.
+INSERT INTO public.inventory_items (
+  id, home_id, plant_id, plant_name, status, identifier
+)
+VALUES (
+  '00000000-0000-0000-0004-000000000010',
+  '00000000-0000-0000-0000-000000000002',
+  1000011,
+  'Cherry Tomato',
+  'Unplanted',
+  'CHT-001'
+)
+ON CONFLICT (id) DO UPDATE SET
+  home_id    = EXCLUDED.home_id,
+  plant_id   = EXCLUDED.plant_id,
+  plant_name = EXCLUDED.plant_name,
+  status     = EXCLUDED.status;
+
+-- Same fix for the Wave 6 custom fork (1000013) — ai-plant-override.spec.ts
+-- keys `plant-card-{LAVENDER_FORK_ID}` directly, which needs the card to render.
+INSERT INTO public.inventory_items (
+  id, home_id, plant_id, plant_name, status, identifier
+)
+VALUES (
+  '00000000-0000-0000-0004-000000000011',
+  '00000000-0000-0000-0000-000000000002',
+  1000013,
+  'Lavender',
+  'Unplanted',
+  'LAV-C01'
+)
+ON CONFLICT (id) DO UPDATE SET
+  home_id    = EXCLUDED.home_id,
+  plant_id   = EXCLUDED.plant_id,
+  plant_name = EXCLUDED.plant_name,
+  status     = EXCLUDED.status;
+
 -- ---- Wave 6: a pre-customised home fork for the reset E2E ----
 --
 -- "Lavender (Custom)" — home-scoped AI plant that's already been edited.

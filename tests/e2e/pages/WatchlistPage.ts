@@ -40,6 +40,7 @@ export class WatchlistPage {
   readonly favouritesGrid: Locator;
   readonly favouritesHintBanner: Locator;
   readonly favouritesHintDismiss: Locator;
+  readonly hiddenCollectionHint: Locator;
 
   // Bulk add modal (RHO-4 Phase 2 — paste + CSV upload)
   readonly bulkAddButton: Locator;
@@ -56,11 +57,10 @@ export class WatchlistPage {
 
   constructor(page: Page) {
     this.page = page;
-    // Batch-1 HubHeader diet renamed the page h1 to just "Watchlist", and
-    // the count badge renders INSIDE the heading (accessible name
-    // "Watchlist6") — anchored prefix matches both loading and loaded
-    // states without colliding with "Your watchlist is empty.".
-    this.heading = page.getByRole("heading", { name: /^Watchlist/ });
+    // v3 feedback polish (2026-07-22): the page h1 renamed "Watchlist" →
+    // "Ailments" to match the tab. Anchored prefix so it never collides
+    // with "Your watchlist is empty.".
+    this.heading = page.getByRole("heading", { name: /^Ailments/ });
     // Primary CTA — renamed "Add" → "Find an ailment" to parallel the Shed's
     // "Find a plant". Target by testid so the label can evolve.
     this.addButton = page.locator('[data-testid="watchlist-add-btn"]');
@@ -105,6 +105,8 @@ export class WatchlistPage {
     this.favouritesGrid = page.locator('[data-testid="watchlist-favourites-grid"]');
     this.favouritesHintBanner = page.locator('[data-testid="watchlist-favourites-hint-banner"]');
     this.favouritesHintDismiss = page.locator('[data-testid="watchlist-favourites-hint-dismiss"]');
+    // v3 feedback polish — the where-did-it-go safety net (visibility law).
+    this.hiddenCollectionHint = page.locator('[data-testid="watchlist-hidden-collection-hint"]');
 
     this.bulkAddButton = page.locator('[data-testid="watchlist-bulk-add-btn"]');
     this.bulkAddModal = page.locator('[data-testid="bulk-add-ailments-modal"]');
@@ -160,9 +162,11 @@ export class WatchlistPage {
     await this.page.goto("/shed?tab=watchlist&scope=favourites");
   }
 
-  /** The favourite heart on a Home-tab ailment card (matched by name). */
+  /** The watch (binoculars) toggle on a Home-tab ailment card (matched by
+   *  name). v3 feedback polish renamed the testid from favourite-ailment- to
+   *  watch-ailment- (the rebrand sweep — ailments never carry a heart). */
   heartFor(name: string): Locator {
-    return this.ailmentCard(name).locator('[data-testid^="favourite-ailment-"]');
+    return this.ailmentCard(name).locator('[data-testid^="watch-ailment-"]');
   }
 
   /** A favourite card in the Favourites scope, matched by its heading. */
@@ -203,6 +207,16 @@ export class WatchlistPage {
     return this.page
       .locator('[role="button"]')
       .filter({ has: this.page.getByRole("heading", { name, level: 3 }) });
+  }
+
+  /** Card parity (v3 feedback #2): Archive/Delete moved off the photo into a
+   *  kebab popover — open it before using archive/restore/deleteButtonFor. */
+  async openCardMenu(name: string) {
+    const kebab = this.ailmentCard(name).locator('[data-testid^="ailment-card-kebab-"]');
+    if ((await kebab.getAttribute("aria-expanded")) !== "true") {
+      await kebab.click();
+    }
+    await this.page.getByLabel(/^(Archive|Restore) ailment$/).first().waitFor({ state: "visible", timeout: 5000 });
   }
 
   archiveButtonFor(name: string): Locator {

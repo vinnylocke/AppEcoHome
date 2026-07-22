@@ -20,9 +20,10 @@ test.describe("Ailment Library — Stage F redirects", () => {
   }) => {
     await authenticatedPage.goto("/ailment-library");
     await expect(authenticatedPage).toHaveURL(/\/shed\?tab=watchlist/, { timeout: 10000 });
-    // The watchlist surface actually renders (not a blank shell).
+    // The watchlist surface actually renders (not a blank shell). v3
+    // feedback polish renamed the page h1 "Watchlist" → "Ailments".
     await expect(
-      authenticatedPage.getByRole("heading", { name: /^Watchlist/ }),
+      authenticatedPage.getByRole("heading", { name: /^Ailments/ }),
     ).toBeVisible({ timeout: 10000 });
   });
 

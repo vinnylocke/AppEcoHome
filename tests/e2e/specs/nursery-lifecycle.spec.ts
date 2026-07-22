@@ -130,7 +130,10 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
     await nursery.gotoShed();
     await expect(nursery.shedViewPlantsBtn).toBeVisible({ timeout: 10000 });
     await nursery.openNursery();
-    await expect(authenticatedPage.getByTestId("nursery-tab")).toBeVisible({ timeout: 10000 });
+    // beforeEach wipes the nursery, so this always hits NurseryTab's
+    // empty-packets branch — which has no `nursery-tab` wrapper (only the
+    // loaded/favourites states do). `nursery-add-seeds-btn` is universal.
+    await expect(authenticatedPage.getByTestId("nursery-add-seeds-btn")).toBeVisible({ timeout: 10000 });
     await authenticatedPage.getByTestId("seed-box-close").click();
   });
 
@@ -856,12 +859,17 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
   // ── Stage 4 (2026-07-21): the Nursery is a first-class hub tab with the
   //    shared HubHeader — a real inline search + one "Add seeds" sheet. ──────
 
-  test("NURSERY-060: the hub tab + Add-seeds sheet — every add path opens from one primary", async ({ authenticatedPage }) => {
+  test("NURSERY-060: the Seed box + Add-seeds sheet — every add path opens from one primary", async ({ authenticatedPage }) => {
+    // Stage D (committed pre-v3, 2026-07-21) retired the Nursery hub tab in
+    // favour of the Seed box sheet — `garden-hub-tab-nursery` no longer
+    // exists and the `?tab=nursery` deep link no longer selects anything.
+    // Open via the real current path (⋯ → Seed box) instead of the dead link.
     await createPacket(supabase, { variety: "Cherokee Purple", plant_id: PLANT_TOMATO });
     const nursery = new NurseryPage(authenticatedPage);
-    await nursery.goto(); // /shed?tab=nursery deep link
+    await nursery.gotoShed();
+    await nursery.openNursery();
 
-    await expect(authenticatedPage.getByTestId("garden-hub-tab-nursery")).toHaveAttribute("aria-selected", "true");
+    await expect(authenticatedPage.getByTestId("seed-box-sheet")).toBeVisible({ timeout: 10000 });
     await authenticatedPage.getByTestId("nursery-add-seeds-btn").click();
 
     // The sheet carries the classic testids on its rows.
@@ -910,6 +918,54 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
       await authenticatedPage.getByRole("button", { name: /^Restore$/ }).click();
       await expect(historyRow).toHaveCount(0, { timeout: 10000 });
       await expect(authenticatedPage.getByTestId(`plant-instance-row-${endedId}`)).toBeVisible({ timeout: 10000 });
+    } finally {
+      await supabase.from("inventory_items").delete().eq("id", endedId);
+    }
+  });
+
+  test("GARDEN-B3: tapping a History row opens the end-of-life record (InstanceEditModal, view-only)", async ({ authenticatedPage }) => {
+    // v3 feedback #4 — the History row body is a tap target again
+    // (plant-history-open-{id}) that reopens InstanceEditModal on the ended
+    // row, restoring the old Senescence "Eye" detail without a new surface.
+    const { data: endedRow, error } = await supabase
+      .from("inventory_items")
+      .insert({
+        home_id: HOME_ID,
+        plant_id: String(PLANT_BASIL),
+        plant_name: "Basil",
+        status: "Archived",
+        identifier: "Basil (e2e history tap)",
+        ended_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+        was_natural_end: true,
+        end_summary: "e2e history tap-through fixture",
+      })
+      .select("id")
+      .single();
+    expect(error).toBeNull();
+    const endedId = endedRow!.id as string;
+
+    try {
+      await authenticatedPage.goto("/shed");
+      await authenticatedPage
+        .locator(".animate-spin, .animate-pulse").first()
+        .waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
+      await authenticatedPage.getByTestId(`plant-card-${PLANT_BASIL}`).click();
+      await authenticatedPage.getByTestId("plant-modal-tab-instances").click();
+
+      const historyRow = authenticatedPage.getByTestId(`plant-history-row-${endedId}`);
+      await expect(historyRow).toBeVisible({ timeout: 10000 });
+
+      await authenticatedPage.getByTestId(`plant-history-open-${endedId}`).click();
+
+      const instanceModal = authenticatedPage.getByRole("dialog", { name: "Edit plant instance" });
+      await expect(instanceModal).toBeVisible({ timeout: 10000 });
+      // "Lifecycle complete" card — the amend/AI re-run surface (Item 4).
+      await expect(instanceModal.getByText("Lifecycle complete")).toBeVisible();
+      await expect(instanceModal.getByTestId("instance-amend-lifecycle")).toBeVisible();
+
+      // View-only — close without amending or restoring.
+      await instanceModal.getByLabel("Close").click();
+      await expect(instanceModal).toHaveCount(0, { timeout: 5000 });
     } finally {
       await supabase.from("inventory_items").delete().eq("id", endedId);
     }

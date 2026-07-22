@@ -264,13 +264,15 @@ export default function BulkPastePlantsModal({
           homeId,
         );
         succeeded += 1;
-        if (cand.favourite) {
-          try {
-            await favouritePlant(row as any, homeId);
-            favourited += 1;
-          } catch (favErr) {
-            Logger.warn("Bulk import favourite failed", { homeId, favErr });
-          }
+        // Visibility law (v3 feedback polish): ADDING IS LOVING — every
+        // created row gets the ♥, else zero-presence rows vanish from the
+        // default grid the moment they're imported. The explicit checkbox
+        // still drives the toast count.
+        try {
+          await favouritePlant(row as any, homeId);
+          if (cand.favourite) favourited += 1;
+        } catch (favErr) {
+          Logger.warn("Bulk import favourite failed", { homeId, favErr });
         }
       } catch (err) {
         Logger.error("Bulk import saveToShed failed", err, { homeId, common_name: cand.common_name });

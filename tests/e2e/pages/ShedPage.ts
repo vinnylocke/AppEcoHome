@@ -61,6 +61,7 @@ export class ShedPage {
   readonly favouritesHintBanner: Locator;
   readonly favouritesHintDismiss: Locator;
   readonly favouritesEmptyState: Locator;
+  readonly hiddenCollectionHint: Locator;
 
   // Bulk add modal (RHO-4 — paste + CSV upload)
   readonly bulkAddButton: Locator;
@@ -146,6 +147,8 @@ export class ShedPage {
     this.favouritesHintBanner = page.locator('[data-testid="favourites-hint-banner"]');
     this.favouritesHintDismiss = page.locator('[data-testid="favourites-hint-dismiss"]');
     this.favouritesEmptyState = page.getByText("No favourites yet");
+    // v3 feedback polish — the where-did-it-go safety net (visibility law).
+    this.hiddenCollectionHint = page.locator('[data-testid="shed-hidden-collection-hint"]');
 
     this.bulkAddButton = page.locator('[data-testid="shed-bulk-paste-btn"]');
     this.bulkAddModal = page.locator('[data-testid="bulk-paste-plants-modal"]');
@@ -189,6 +192,11 @@ export class ShedPage {
   /** The favourite heart for a specific plant id (avoids duplicate-name cards). */
   heartForId(plantId: string | number): Locator {
     return this.page.locator(`[data-testid="favourite-plant-${plantId}"]`);
+  }
+
+  /** v3 feedback #3 — the "N past" chip on a card, by plant id. */
+  pastCountFor(plantId: string | number): Locator {
+    return this.page.locator(`[data-testid="plant-past-count-${plantId}"]`);
   }
 
   /** A favourite card in the Favourites scope, matched by its heading. */
