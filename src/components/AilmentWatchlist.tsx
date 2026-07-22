@@ -2057,6 +2057,11 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   const [showAdd, setShowAdd] = useState(false);
   // Hub v3 Stage A — derived presence for search badges.
   const gardenPresence = useGardenPresence(homeId);
+  // Hub v3 Stage C — chip flip (same escape hatch as the Shed).
+  const legacyFilters =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("rhozly_legacy_shed_filters") === "on";
+  const [presenceChip, setPresenceChip] = useState<"all" | "active" | "inactive" | "watching">("all");
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState<Ailment | null>(null);
 
@@ -2239,9 +2244,30 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   // Counts and display scoped to current view tab
   const tabAilments = ailments.filter((a) => viewTab === "active" ? !a.is_archived : a.is_archived);
 
-  // Landing text-filter retired (Stage 3 — one search; the takeover's
-  // "On your watchlist" section owns name lookup now).
-  const displayed = tabAilments.filter((a) => filter === "all" || a.type === filter);
+  // Landing text-filter retired (Stage 3); Stage C: the presence axis is
+  // derived (ailment_presence view) — legacy flag falls back to viewTab.
+  const displayed = (legacyFilters
+    ? tabAilments
+    : ailments.filter((a) => {
+        const pres = gardenPresence.ailmentPresence.get(a.id);
+        if (presenceChip === "active") return pres === "active";
+        if (presenceChip === "inactive") return pres === "inactive";
+        if (presenceChip === "watching") return !a.is_archived && pres == null;
+        // All: curated-out rows with zero presence are search-only.
+        return !(a.is_archived && pres == null);
+      })
+  ).filter((a) => filter === "all" || a.type === filter);
+
+  const presenceCounts = (() => {
+    let active = 0, inactive = 0, watching = 0;
+    for (const a of ailments) {
+      const pres = gardenPresence.ailmentPresence.get(a.id);
+      if (pres === "active") active++;
+      else if (pres === "inactive") inactive++;
+      else if (!a.is_archived) watching++;
+    }
+    return { active, inactive, watching, all: active + inactive + watching };
+  })();
 
   const counts = {
     all: tabAilments.length,
@@ -2296,48 +2322,41 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           onSearchTap={() => setShowAdd(true)}
         />
 
-        {/* ONE chip row — scope + type + archived on a single axis.
+        {/* Presence chip row (Hub v3 Stage C) — Active/Inactive derived from
+            the ailment_presence view; Watching = curated with no presence.
+            The legacy flag falls back to the Stage-3 axis (viewTab/Archived).
             Deep link: /shed?tab=watchlist&scope=favourites */}
         <div
           data-testid="watchlist-scope-toggle"
           role="tablist"
-          aria-label="Watchlist scope and type"
+          aria-label="Watchlist scope"
           className="flex flex-wrap items-center gap-2"
         >
-          <button
-            role="tab"
-            aria-selected={scope === "home" && filter === "all" && viewTab === "active"}
-            data-testid="watchlist-scope-home"
-            onClick={() => { switchScope("home"); setFilter("all"); setViewTab("active"); }}
-            className={`px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full text-sm font-black transition-colors touch-manipulation ${
-              scope === "home" && filter === "all" && viewTab === "active"
-                ? "bg-rhozly-primary text-white"
-                : "bg-rhozly-surface-lowest border border-rhozly-outline/15 text-rhozly-on-surface/60 can-hover:hover:text-rhozly-primary can-hover:hover:border-rhozly-primary/30"
-            }`}
-          >
-            All{counts.all > 0 ? ` · ${counts.all}` : ""}
-          </button>
-          {/* Type chips reset viewTab to active (and Archived resets filter)
-              so the tablist stays single-select — two lit chips at once is an
-              ARIA violation (review catch). Archived shows all types. */}
-          {([
-            { id: "pest", label: "Pests", icon: <IconPest size={12} /> },
-            { id: "disease", label: "Diseases", icon: <Biohazard size={12} /> },
-            { id: "invasive_plant", label: "Invasive", icon: <IconPlant size={12} /> },
-          ] as { id: AilmentFilter; label: string; icon?: React.ReactNode }[]).map((f) => (
+          {(legacyFilters
+            ? [
+                { key: "all", label: `All${counts.all > 0 ? ` · ${counts.all}` : ""}`, testId: "watchlist-scope-home", active: scope === "home" && viewTab === "active", onClick: () => { switchScope("home"); setFilter("all"); setViewTab("active"); } },
+                { key: "archived", label: "Archived", testId: "watchlist-chip-archived", active: scope === "home" && viewTab === "archived", onClick: () => { switchScope("home"); setViewTab("archived"); setFilter("all"); } },
+              ]
+            : [
+                { key: "all", label: `All${presenceCounts.all > 0 ? ` · ${presenceCounts.all}` : ""}`, testId: "watchlist-scope-home", active: scope === "home" && presenceChip === "all", onClick: () => { switchScope("home"); setPresenceChip("all"); } },
+                { key: "active", label: `Active${presenceCounts.active > 0 ? ` · ${presenceCounts.active}` : ""}`, testId: "watchlist-chip-active", active: scope === "home" && presenceChip === "active", onClick: () => { switchScope("home"); setPresenceChip("active"); } },
+                { key: "inactive", label: `Inactive${presenceCounts.inactive > 0 ? ` · ${presenceCounts.inactive}` : ""}`, testId: "watchlist-chip-inactive", active: scope === "home" && presenceChip === "inactive", onClick: () => { switchScope("home"); setPresenceChip("inactive"); } },
+                { key: "watching", label: `Watching${presenceCounts.watching > 0 ? ` · ${presenceCounts.watching}` : ""}`, testId: "watchlist-chip-watching", active: scope === "home" && presenceChip === "watching", onClick: () => { switchScope("home"); setPresenceChip("watching"); } },
+              ]
+          ).map((chip) => (
             <button
-              key={f.id}
+              key={chip.key}
               role="tab"
-              aria-selected={scope === "home" && viewTab === "active" && filter === f.id}
-              data-testid={`watchlist-type-${f.id}`}
-              onClick={() => { switchScope("home"); setViewTab("active"); setFilter(f.id); }}
-              className={`flex items-center gap-1.5 px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full text-sm font-black transition-colors touch-manipulation ${
-                scope === "home" && viewTab === "active" && filter === f.id
+              aria-selected={chip.active}
+              data-testid={chip.testId}
+              onClick={chip.onClick}
+              className={`px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full text-sm font-black transition-colors touch-manipulation ${
+                chip.active
                   ? "bg-rhozly-primary text-white"
                   : "bg-rhozly-surface-lowest border border-rhozly-outline/15 text-rhozly-on-surface/60 can-hover:hover:text-rhozly-primary can-hover:hover:border-rhozly-primary/30"
               }`}
             >
-              {f.icon}{f.label}{counts[f.id] > 0 ? ` · ${counts[f.id]}` : ""}
+              {chip.label}
             </button>
           ))}
           <button
@@ -2352,22 +2371,37 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
             }`}
           >
             <Heart size={13} className={scope === "favourites" ? "fill-current" : ""} />
-            Favourites{favourites.length > 0 ? ` · ${favourites.length}` : ""}
-          </button>
-          <button
-            role="tab"
-            aria-selected={scope === "home" && viewTab === "archived"}
-            data-testid="watchlist-chip-archived"
-            onClick={() => { switchScope("home"); setViewTab("archived"); setFilter("all"); }}
-            className={`px-4 py-2 min-h-[40px] pointer-coarse:min-h-11 rounded-full text-sm font-black transition-colors touch-manipulation ${
-              scope === "home" && viewTab === "archived"
-                ? "bg-rhozly-primary text-white"
-                : "bg-rhozly-surface-lowest border border-rhozly-outline/15 text-rhozly-on-surface/60 can-hover:hover:text-rhozly-primary can-hover:hover:border-rhozly-primary/30"
-            }`}
-          >
-            Archived
+            {legacyFilters ? "Favourites" : "🔭 Mine"}{favourites.length > 0 ? ` · ${favourites.length}` : ""}
           </button>
         </div>
+
+        {/* Type row — the gardener's browse axis, kept as a thin second row
+            (WL-024/025 + watchlist-type-* contracts preserved). Not a
+            tablist: it combines freely with the presence chips. */}
+        {scope === "home" && (
+          <div className="flex flex-wrap items-center gap-1.5" aria-label="Ailment type filter">
+            {([
+              { id: "all", label: "All types" },
+              { id: "pest", label: "Pests", icon: <IconPest size={11} /> },
+              { id: "disease", label: "Diseases", icon: <Biohazard size={11} /> },
+              { id: "invasive_plant", label: "Invasive", icon: <IconPlant size={11} /> },
+            ] as { id: AilmentFilter; label: string; icon?: React.ReactNode }[]).map((f) => (
+              <button
+                key={f.id}
+                aria-pressed={filter === f.id}
+                data-testid={f.id === "all" ? "watchlist-type-all" : `watchlist-type-${f.id}`}
+                onClick={() => setFilter(f.id)}
+                className={`flex items-center gap-1 px-3 py-1.5 min-h-[36px] pointer-coarse:min-h-11 rounded-full text-xs font-black transition-colors touch-manipulation ${
+                  filter === f.id
+                    ? "bg-rhozly-on-surface/80 text-white"
+                    : "bg-rhozly-surface-low text-rhozly-on-surface/55 can-hover:hover:text-rhozly-on-surface"
+                }`}
+              >
+                {f.icon}{f.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Favourites scope body — the user's cross-home favourite ailments. */}

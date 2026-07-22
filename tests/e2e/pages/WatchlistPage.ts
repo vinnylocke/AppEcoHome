@@ -63,8 +63,10 @@ export class WatchlistPage {
     // Primary CTA — renamed "Add" → "Find an ailment" to parallel the Shed's
     // "Find a plant". Target by testid so the label can evolve.
     this.addButton = page.locator('[data-testid="watchlist-add-btn"]');
-    this.activeTab = page.getByRole("button", { name: "Active" });
-    this.archivedTab = page.getByRole("button", { name: "Archived" });
+    // Hub v3 Stage C: chips carry role="tab" (both the derived axis and the
+    // legacy fallback). ^-anchored so "Active" never clashes with "Inactive".
+    this.activeTab = page.getByRole("tab", { name: /^Active/ });
+    this.archivedTab = page.getByRole("tab", { name: "Archived" });
     this.emptyState = page.getByText(/Your watchlist is empty\.|No matching ailments\./);
     this.noMatchState = page.getByText("No matching ailments.");
 

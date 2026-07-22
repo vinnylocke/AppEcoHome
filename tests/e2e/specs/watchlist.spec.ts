@@ -112,15 +112,20 @@ test.describe("Watchlist — basic render", () => {
 });
 
 test.describe("Watchlist — tabs", () => {
-  test("WL-tab-active: Active and Archived tab buttons are visible", async ({ authenticatedPage }) => {
+  test("WL-tab-active: the presence chips (Active / Inactive / Watching) are visible", async ({ authenticatedPage }) => {
+    // Hub v3 Stage C — the derived presence axis replaced Active/Archived.
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
 
-    await expect(wl.activeTab).toBeVisible({ timeout: 10000 });
-    await expect(wl.archivedTab).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("watchlist-chip-active")).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("watchlist-chip-inactive")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("watchlist-chip-watching")).toBeVisible();
   });
 
-  test("WL-tab-archived: Archived tab shows Powdery Mildew", async ({ authenticatedPage }) => {
+  test("WL-tab-archived: the legacy Archived axis still works under the fallback flag", async ({ authenticatedPage }) => {
+    // Hub v3 Stage C: Powdery Mildew (curated out, no history) is search-only
+    // in the derived model; the legacy flag restores the old axis.
+    await authenticatedPage.addInitScript(() => localStorage.setItem("rhozly_legacy_shed_filters", "on"));
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
     await wl.waitForLoad();
@@ -129,7 +134,6 @@ test.describe("Watchlist — tabs", () => {
     await wl.waitForLoad();
 
     await expect(wl.ailmentCard("Powdery Mildew")).toBeVisible({ timeout: 10000 });
-    // Active ailments should not appear in archived view
     await expect(wl.ailmentCard("Aphid")).not.toBeVisible();
   });
 });
@@ -530,7 +534,10 @@ test.describe("Watchlist — write actions (Section 10)", () => {
     await expect(wl.ailmentCard(ailmentName)).not.toBeVisible({ timeout: 8000 });
   });
 
-  test("WL-021: Archive an active ailment — it moves to Archived tab", async ({ authenticatedPage }) => {
+  test("WL-021: Archive an active ailment — it moves to Archived tab (legacy filter flag)", async ({ authenticatedPage }) => {
+    // Hub v3 Stage C: under the derived model an archived link-less ailment is
+    // search-only; this round trip exercises the LEGACY fallback axis.
+    await authenticatedPage.addInitScript(() => localStorage.setItem("rhozly_legacy_shed_filters", "on"));
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
     await wl.waitForLoad();

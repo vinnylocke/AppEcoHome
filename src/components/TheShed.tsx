@@ -181,6 +181,13 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const [showBulkSearch, setShowBulkSearch] = useState(false);
   // Hub v3 Stage A — derived presence for search badges.
   const gardenPresence = useGardenPresence(homeId);
+  // Hub v3 Stage C — the chip flip: Active/Inactive/Saved on DERIVED data.
+  // Escape hatch (plan §5-C "behind a flag"): localStorage
+  // rhozly_legacy_shed_filters=on reverts to the old Active|Archived axis.
+  const legacyFilters =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("rhozly_legacy_shed_filters") === "on";
+  const [presenceChip, setPresenceChip] = useState<"all" | "active" | "inactive" | "saved">("all");
   // UX review 2026-06-15 item 4.1 — bulk paste a plant list. Different from
   // showBulkSearch (which opens the per-row library/AI search modal).
   const [showBulkPaste, setShowBulkPaste] = useState(false);
@@ -848,6 +855,32 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     }
   };
 
+  /** Q2 (Hub v3 Stage C): curating plants out silences their schedules —
+   *  archive every blueprint whose instance list is FULLY contained in the
+   *  plants' instances (cross-plant blueprints are left alone); symmetric
+   *  restore on re-save. Best-effort: a failure logs, never blocks. */
+  const setBlueprintsArchivedForPlants = async (plantIds: number[], archived: boolean) => {
+    try {
+      const { data: inst } = await supabase
+        .from("inventory_items")
+        .select("id")
+        .eq("home_id", homeId)
+        .in("plant_id", plantIds);
+      const ids = (inst ?? []).map((i: { id: string }) => i.id);
+      if (ids.length === 0) return;
+      const { error } = await supabase
+        .from("task_blueprints")
+        .update({ is_archived: archived })
+        .eq("home_id", homeId)
+        .not("inventory_item_ids", "is", null)
+        .neq("inventory_item_ids", "{}")
+        .containedBy("inventory_item_ids", ids);
+      if (error) throw error;
+    } catch (err) {
+      Logger.warn("Blueprint archive coupling failed", { err, plantIds, archived });
+    }
+  };
+
   const executeArchiveToggle = async () => {
     const plant = confirmState.plant;
     if (!plant) return;
@@ -864,7 +897,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         throw error;
       }
       setPlants((prev) => prev.map((p) => p.id === plant.id ? { ...p, is_archived: nowArchived } : p));
-      toast.success(nowArchived ? "Moved to archive" : "Restored to active");
+      await setBlueprintsArchivedForPlants([plant.id as number], nowArchived);
+      toast.success(nowArchived ? "Removed from your garden" : "Saved back to your garden");
       if (nowArchived) {
         logEvent(EVENT.PLANT_ARCHIVED, { plant_id: plant.id, plant_name: plant.common_name });
       }
@@ -917,7 +951,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         .update({ is_archived: true })
         .in("id", ids);
       if (error) throw error;
-      toast.success(`Archived ${ids.length} plant${ids.length !== 1 ? "s" : ""}`);
+      await setBlueprintsArchivedForPlants(ids as number[], true);
+      toast.success(`Removed ${ids.length} plant${ids.length !== 1 ? "s" : ""} from your garden`);
       setPlants((prev) => prev.map((p) => ids.includes(p.id as number) ? { ...p, is_archived: true } : p));
       exitSelectMode();
     } catch (err: any) {
@@ -937,7 +972,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         .update({ is_archived: false })
         .in("id", ids);
       if (error) throw error;
-      toast.success(`Restored ${ids.length} plant${ids.length !== 1 ? "s" : ""}`);
+      await setBlueprintsArchivedForPlants(ids as number[], false);
+      toast.success(`Saved ${ids.length} plant${ids.length !== 1 ? "s" : ""} back to your garden`);
       setPlants((prev) => prev.map((p) => ids.includes(p.id as number) ? { ...p, is_archived: false } : p));
       exitSelectMode();
     } catch (err: any) {
@@ -1486,10 +1522,32 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     }
   };
 
+  // Chip counts on the derived axis (Stage C).
+  const presenceCounts = useMemo(() => {
+    let active = 0, inactive = 0, saved = 0;
+    for (const p of plants) {
+      const pres = gardenPresence.plantPresence.get(p.id as number);
+      if (pres === "active") active++;
+      else if (pres === "inactive") inactive++;
+      else if (!p.is_archived) saved++;
+    }
+    return { active, inactive, saved, all: active + inactive + saved };
+  }, [plants, gardenPresence.plantPresence]);
+
   const filteredPlants = useMemo(() => {
     const base = plants.filter((p) => {
-      if (viewTab === "active" && p.is_archived) return false;
-      if (viewTab === "archived" && !p.is_archived) return false;
+      if (legacyFilters) {
+        if (viewTab === "active" && p.is_archived) return false;
+        if (viewTab === "archived" && !p.is_archived) return false;
+      } else {
+        // Hub v3 Stage C — presence axis (derived, never toggled).
+        const pres = gardenPresence.plantPresence.get(p.id as number);
+        if (presenceChip === "active" && pres !== "active") return false;
+        if (presenceChip === "inactive" && pres !== "inactive") return false;
+        if (presenceChip === "saved" && (p.is_archived || pres != null)) return false;
+        // All: curated-out rows with zero presence are search-only.
+        if (presenceChip === "all" && p.is_archived && pres == null) return false;
+      }
       if (filterSource !== "all" && p.source !== filterSource) return false;
       if (smartFilter === "unassigned" && !unassignedPlantIds.has(p.id as number)) return false;
       if (smartFilter === "in-plan" && !planMembership.has(p.id as number)) return false;
@@ -1504,7 +1562,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       });
     }
     return base;
-  }, [plants, viewTab, filterSource, smartFilter, sortMode, preferences, unassignedPlantIds, planMembership]);
+  }, [plants, viewTab, filterSource, smartFilter, sortMode, preferences, unassignedPlantIds, planMembership, legacyFilters, presenceChip, gardenPresence.plantPresence]);
 
   // Fetch lightweight metadata for the smart-filter chips + per-plant status
   // (unassigned = inventory items without an area · in-plan = plant_id appears
@@ -1760,29 +1818,71 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               role="tablist"
               aria-label="Plant scope"
             >
-              {([
-                {
-                  key: "active",
-                  label: "Active",
-                  testId: "shed-scope-home",
-                  active: scope === "home" && viewTab === "active",
-                  onClick: () => { switchScope("home"); setViewTab("active"); },
-                },
-                {
-                  key: "favourites",
-                  label: favourites.length > 0 ? `Favourites · ${favourites.length}` : "Favourites",
-                  testId: "shed-scope-favourites",
-                  active: scope === "favourites",
-                  onClick: () => switchScope("favourites"),
-                },
-                {
-                  key: "archived",
-                  label: "Archived",
-                  testId: "shed-chip-archived",
-                  active: scope === "home" && viewTab === "archived",
-                  onClick: () => { switchScope("home"); setViewTab("archived"); },
-                },
-              ] as const).map((chip) => (
+              {(legacyFilters
+                ? ([
+                    {
+                      key: "active",
+                      label: "Active",
+                      testId: "shed-scope-home",
+                      active: scope === "home" && viewTab === "active",
+                      onClick: () => { switchScope("home"); setViewTab("active"); },
+                    },
+                    {
+                      key: "favourites",
+                      label: favourites.length > 0 ? `Favourites · ${favourites.length}` : "Favourites",
+                      testId: "shed-scope-favourites",
+                      active: scope === "favourites",
+                      onClick: () => switchScope("favourites"),
+                    },
+                    {
+                      key: "archived",
+                      label: "Archived",
+                      testId: "shed-chip-archived",
+                      active: scope === "home" && viewTab === "archived",
+                      onClick: () => { switchScope("home"); setViewTab("archived"); },
+                    },
+                  ] as Array<{ key: string; label: string; testId: string; active: boolean; onClick: () => void }>)
+                : ([
+                    // Hub v3 Stage C — the presence axis, derived from real
+                    // garden data (plant_presence view). shed-scope-home stays
+                    // on "All" (the home-scope return chip for POs/specs).
+                    {
+                      key: "all",
+                      label: presenceCounts.all > 0 ? `All · ${presenceCounts.all}` : "All",
+                      testId: "shed-scope-home",
+                      active: scope === "home" && presenceChip === "all",
+                      onClick: () => { switchScope("home"); setPresenceChip("all"); },
+                    },
+                    {
+                      key: "chip-active",
+                      label: presenceCounts.active > 0 ? `Active · ${presenceCounts.active}` : "Active",
+                      testId: "shed-chip-active",
+                      active: scope === "home" && presenceChip === "active",
+                      onClick: () => { switchScope("home"); setPresenceChip("active"); },
+                    },
+                    {
+                      key: "chip-inactive",
+                      label: presenceCounts.inactive > 0 ? `Inactive · ${presenceCounts.inactive}` : "Inactive",
+                      testId: "shed-chip-inactive",
+                      active: scope === "home" && presenceChip === "inactive",
+                      onClick: () => { switchScope("home"); setPresenceChip("inactive"); },
+                    },
+                    {
+                      key: "chip-saved",
+                      label: presenceCounts.saved > 0 ? `Saved · ${presenceCounts.saved}` : "Saved",
+                      testId: "shed-chip-saved",
+                      active: scope === "home" && presenceChip === "saved",
+                      onClick: () => { switchScope("home"); setPresenceChip("saved"); },
+                    },
+                    {
+                      key: "favourites",
+                      label: favourites.length > 0 ? `♥ Mine · ${favourites.length}` : "♥ Mine",
+                      testId: "shed-scope-favourites",
+                      active: scope === "favourites",
+                      onClick: () => switchScope("favourites"),
+                    },
+                  ] as Array<{ key: string; label: string; testId: string; active: boolean; onClick: () => void }>)
+              ).map((chip) => (
                 <button
                   key={chip.key}
                   role="tab"

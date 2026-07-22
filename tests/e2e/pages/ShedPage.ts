@@ -9,6 +9,7 @@ export class ShedPage {
   readonly noMatchState: Locator;
   readonly activeTab: Locator;
   readonly archivedTab: Locator;
+  readonly inactiveChip: Locator;
   readonly addButton: Locator;
   readonly clearSearchButton: Locator;
   readonly sourceFilterSelect: Locator;
@@ -89,11 +90,15 @@ export class ShedPage {
     this.searchInput = page.getByLabel("Search your saved plants");
     this.emptyState = page.getByText("No plants here");
     this.noMatchState = page.getByText("No matches found");
-    // Stage 3: the Active/Archived toggle migrated to SegmentedTabs, whose
-    // buttons carry an explicit role="tab" (labels unchanged).
-    this.activeTab = page.getByRole("tab", { name: "Active" });
+    // Hub v3 Stage C: the presence chips ("Active · n" etc.). ^-anchored so
+    // "Active" never strict-clashes with "Inactive". archivedTab exists only
+    // under the legacy filter flag (rhozly_legacy_shed_filters=on).
+    this.activeTab = page.getByRole("tab", { name: /^Active/ });
     this.archivedTab = page.getByRole("tab", { name: "Archived" });
-    this.addButton = page.getByLabel("Find a plant");
+    this.inactiveChip = page.getByTestId("shed-chip-inactive");
+    // Hub v3: the canonical opener is the search launcher (testid is the
+    // Shepherd anchor + stable across viewports/labels).
+    this.addButton = page.getByTestId("shed-add-plant-btn");
     this.clearSearchButton = page.getByLabel("Clear search");
     this.sourceFilterSelect = page.getByLabel("Filter by source");
 

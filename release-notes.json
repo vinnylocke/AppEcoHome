@@ -2,8 +2,8 @@
   {
     "label": "Improved",
     "items": [
-      "A plant's page now tells its whole story in one place — the new \"In your garden\" tab shows what's growing, what's in the nursery (sowings and seed packets), and a history of past plants with one-tap restore.",
-      "Opening a watched ailment now shows exactly which of your plants it's affecting right now (and who spotted it), plus its history in your garden — including past area-scan sightings."
+      "Your Plants and Watchlist now sort themselves — Active (growing or affecting your garden right now), Inactive (finished, with history kept), and Saved/Watching (on your list, nothing live yet). No more manual archiving to keep lists tidy: the app works it out from what's actually in your beds.",
+      "Removing a plant from your garden now quiets its care schedules too (and saving it back restores them). Long-finished plants that were stuck invisible now show properly under Inactive."
     ]
   }
 ]

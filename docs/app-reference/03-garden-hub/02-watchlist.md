@@ -30,11 +30,14 @@ AilmentWatchlist
 │   │     Browse the field guide (browse-ailment-library → /ailment-library)
 │   └── Sticky search row — LAUNCHER "Search pests & diseases…"
 │         (watchlist-add-btn, aria "Find an ailment") → the search overlay
-├── ONE chip row (watchlist-scope-toggle, role=tablist)
-│   ├── All·N (watchlist-scope-home) · Pests · Diseases · Invasive
-│   │     (watchlist-type-{pest|disease|invasive_plant}, with counts)
-│   ├── ♥ Favourites·N (watchlist-scope-favourites — watch-family tint)
-│   └── Archived (watchlist-chip-archived)
+├── Presence chip row (watchlist-scope-toggle, role=tablist) — Hub v3 Stage C
+│   ├── All·n (watchlist-scope-home) · Active·n (watchlist-chip-active) ·
+│   │     Inactive·n (watchlist-chip-inactive) · Watching·n
+│   │     (watchlist-chip-watching) · 🔭 Mine·n (watchlist-scope-favourites).
+│   │     Derived from ailment_presence; Watching = curated, no presence.
+│   │     Legacy flag restores All/Archived (watchlist-chip-archived)
+│   └── Type row (thin, aria-pressed buttons — combines with presence):
+│         All types · Pests · Diseases · Invasive (watchlist-type-*)
 ├── AilmentCard ×N
 │   ├── Cover image (from ailment.thumbnail_url)
 │   ├── Source badge (Manual / Library / Perenual / AI — `SOURCE_META`)

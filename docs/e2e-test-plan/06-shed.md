@@ -22,9 +22,9 @@
 |---|---|---|---|---|
 | SHED-MOBILE-001 | ✅ | Phone-portrait: the search launcher + ⋯ overflow (holding Bulk add) are reachable (Stage 3 — one primary affordance) | — | ✅ Passing |
 | SHED-SOIL-001 | ✅ | Plant edit modal → "Soil Needs" tab renders the sensor-requirements list or empty state | — | ✅ Passing |
-| SHED-005 | ✅ | Active pill is the default (Active\|Archived pills sit in the single sticky toolbar) | — | ✅ Passing |
-| SHED-006 | ✅ | Archived pill (toolbar) shows Mint | — | ✅ Passing |
-| SHED-007 | ✅ | Active plants absent from Archived | — | ✅ Passing |
+| SHED-005 | ✅ | Stage C: All is the default presence chip; Active shows only live plants (Unplanted counts; Mint excluded) | — | ✅ Passing |
+| SHED-006 | ✅ | Stage C: the Inactive chip (derived) shows Mint | — | ✅ Passing |
+| SHED-007 | ✅ | Stage C: live plants absent from Inactive | — | ✅ Passing |
 | SHED-008..009 | ✅ | Filter by source (Manual / API) — the select now sits inside the Filters panel: `openFilters()` → "Filter by source" (aria-label unchanged) | — | ✅ Passing |
 | SHED-010 | ✅ | One search: typed owned-plant name surfaces the takeover's "In your Shed" section | — | ✅ Passing |
 | SHED-011 | ✅ | No-match query: no owned section + `Nothing called "…" yet.` copy | — | ✅ Passing |

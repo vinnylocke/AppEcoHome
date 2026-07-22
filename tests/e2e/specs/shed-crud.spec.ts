@@ -29,42 +29,43 @@ test.describe("Shed — Tabs and view filters", () => {
     await expect(shed.bulkAddButton).toBeVisible();
   });
 
-  test("SHED-005: Active tab is default and shows non-archived plants", async ({ authenticatedPage }) => {
+  test("SHED-005: All is the default chip; the Active chip shows only live plants", async ({ authenticatedPage }) => {
+    // Hub v3 Stage C — presence chips on derived data. Under All, Mint
+    // (curated out but WITH history) is visible as Inactive; under Active
+    // (live instance or sowing) it is not.
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await expect(shed.activeTab).toBeVisible({ timeout: 10000 });
-
-    // At least one of the active seeded plants should appear
+    await expect(shed.scopeHomeBtn).toHaveAttribute("aria-selected", "true");
     const cards = authenticatedPage.locator("[data-plant-card]");
     await expect(cards.first()).toBeVisible({ timeout: 10000 });
 
-    // Mint (archived) should not be in the active view
-    const mintCard = shed.plantCard("Mint");
-    await expect(mintCard).not.toBeVisible();
+    await shed.activeTab.click();
+    await shed.waitForLoad();
+    await expect(shed.plantCard("Tomato")).toBeVisible({ timeout: 10000 }); // Unplanted counts as Active
+    await expect(shed.plantCard("Mint")).not.toBeVisible();
   });
 
-  test("SHED-006: Archived tab shows the archived plant", async ({ authenticatedPage }) => {
+  test("SHED-006: the Inactive chip shows plants with only history (Mint)", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await shed.archivedTab.click();
+    await shed.inactiveChip.click();
     await shed.waitForLoad();
 
     await expect(shed.plantCard("Mint")).toBeVisible({ timeout: 10000 });
   });
 
-  test("SHED-007: Archived tab does not show active plants", async ({ authenticatedPage }) => {
+  test("SHED-007: the Inactive chip does not show live plants", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await shed.archivedTab.click();
+    await shed.inactiveChip.click();
     await shed.waitForLoad();
 
-    // Active plants should not appear in archived view
     await expect(shed.plantCard("Tomato")).not.toBeVisible();
     await expect(shed.plantCard("Basil")).not.toBeVisible();
   });
@@ -554,7 +555,11 @@ test.describe("Shed — Plant card actions", () => {
     await authenticatedPage.keyboard.press("Escape");
   });
 
-  test("SHED-024: Archive and restore a plant within a single test", async ({ authenticatedPage }) => {
+  test("SHED-024: Archive and restore a plant within a single test (legacy filter flag)", async ({ authenticatedPage }) => {
+    // Hub v3 Stage C: an archived plant with NO history is search-only in the
+    // derived model — this round trip exercises the LEGACY fallback axis
+    // (rhozly_legacy_shed_filters=on), which must keep working.
+    await authenticatedPage.addInitScript(() => localStorage.setItem("rhozly_legacy_shed_filters", "on"));
     const shed = new ShedPage(authenticatedPage);
     const plantName = `E2E Archive ${Date.now()}`;
 
@@ -706,17 +711,18 @@ test.describe("Shed — Plant card actions", () => {
     await expect(shed.plantCard("Boston Fern")).toBeVisible({ timeout: 5000 });
   });
 
-  test("SHED-026: Restore archived Mint plant — it returns to Active tab", async ({ authenticatedPage }) => {
+  test("SHED-026: Un-archiving Mint keeps it under Inactive — presence is derived, not curated", async ({ authenticatedPage }) => {
+    // Hub v3 Stage C: restoring the CURATION bit doesn't revive dead plants.
+    // Mint's only instance has ended, so it stays under Inactive either way.
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    // Switch to Archived tab and verify Mint is there
-    await shed.archivedTab.click();
+    await shed.inactiveChip.click();
     await shed.waitForLoad();
     await expect(shed.plantCard("Mint")).toBeVisible({ timeout: 10000 });
 
-    // Click restore on Mint
+    // Un-archive (save back to the garden).
     await shed.openCardMenu("Mint");
     await shed.restoreButtonFor("Mint").click();
     const restoreConfirm = authenticatedPage.getByRole("button", { name: /^Restore$/i });
@@ -725,9 +731,7 @@ test.describe("Shed — Plant card actions", () => {
     }
     await shed.waitForLoad();
 
-    // Switch to Active — Mint should now be there
-    await shed.activeTab.click();
-    await shed.waitForLoad();
+    // Still under Inactive — its only instance is ended.
     await expect(shed.plantCard("Mint")).toBeVisible({ timeout: 10000 });
 
     // Cleanup: re-archive Mint so subsequent tests see the seed state

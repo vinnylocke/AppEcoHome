@@ -48,10 +48,14 @@ TheShed
 │       └── Filters button (shed-filters-btn + count badge; home scope only)
 ├── Background-sync loader (the Plants|Nursery toggle died in Stage 4 — the Nursery is the hub's own garden-hub-tab-nursery tab)
 ├── Fetch-error banner ("Could not refresh — showing cached data")
-├── ONE chip row (shed-scope-toggle, role=tablist)
-│   ├── Active (shed-scope-home) · Favourites·N (shed-scope-favourites) ·
-│   │     Archived (shed-chip-archived) — role="tab", replaces the old
-│   │     Home|Favourites + Active|Archived double toggle
+├── ONE chip row (shed-scope-toggle, role=tablist) — Hub v3 Stage C: the
+│   PRESENCE axis, derived from the plant_presence view, never toggled
+│   ├── All·n (shed-scope-home) · Active·n (shed-chip-active) · Inactive·n
+│   │     (shed-chip-inactive) · Saved·n (shed-chip-saved) · ♥ Mine·n
+│   │     (shed-scope-favourites). Saved = curated (is_archived=false) with
+│   │     no presence; curated-out + zero-presence rows are search-only.
+│   │     LEGACY fallback: localStorage rhozly_legacy_shed_filters=on restores
+│   │     the old Active/Favourites/Archived axis (same testids)
 │   └── Applied-filter × chips (shed-applied-source / shed-applied-smart)
 ├── Filters bottom sheet (portal z-[70]; shed-filters-panel testid kept)
 │   ├── Source select (aria-label "Filter by source") · Sort select
@@ -456,3 +460,7 @@ The BetaFeedbackBanner sits above the page (global), not Shed-specific.
 - `supabase/functions/image-proxy/index.ts` — image stabilisation
 - `supabase/functions/companion-planting/index.ts` — companion suggestions
 - `supabase/functions/smart-plant-scheduler/index.ts` — auto-blueprint creation
+
+## Remove from garden ↔ blueprints (Hub v3 Stage C, 2026-07-22)
+
+Curating a plant out (archive, single or bulk) now also archives every blueprint whose `inventory_item_ids` is FULLY contained in that plant's instances (cross-plant blueprints untouched); saving it back restores them (`setBlueprintsArchivedForPlants`, best-effort). The DB enforces the reverse invariant: creating an instance or sowing clears `plants.is_archived` (`20261019000000_unarchive_on_presence.sql` — SECURITY DEFINER triggers on inventory_items / seed_sowings / plant_instance_ailments).

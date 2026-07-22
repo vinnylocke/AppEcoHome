@@ -200,3 +200,14 @@ ON CONFLICT (id) DO UPDATE SET
   location_name = EXCLUDED.location_name,
   area_id       = EXCLUDED.area_id,
   area_name     = EXCLUDED.area_name;
+
+-- Hub v3 (2026-07-22): the derived-presence model keys Inactive on ended_at,
+-- never bare status. Mint's archived instance is the canonical Inactive
+-- fixture — give it a real ended_at so fresh DBs derive it correctly (M3's
+-- backfill only touches rows that exist BEFORE the migration runs; seeds run
+-- after). Idempotent: only fills when still NULL.
+UPDATE public.inventory_items
+   SET ended_at = COALESCE(ended_at, now() - interval '60 days'),
+       was_natural_end = COALESCE(was_natural_end, true),
+       end_summary = COALESCE(end_summary, 'Seeded Inactive fixture — a finished mint patch.')
+ WHERE id = '00000000-0000-0000-0004-000000000005';
