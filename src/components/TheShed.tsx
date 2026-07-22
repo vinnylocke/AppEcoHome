@@ -47,6 +47,7 @@ import PlantAssignmentModal from "./PlantAssignmentModal";
 import BulkAssignModal from "./BulkAssignModal";
 import PlantSearchTakeover, { type OwnedPlantMatch } from "./shed/PlantSearchTakeover";
 import HubHeader from "./garden/HubHeader";
+import { useGardenPresence } from "../hooks/useGardenPresence";
 import BulkPastePlantsModal from "./BulkPastePlantsModal";
 import PlantSourcePicker from "./PlantSourcePicker";
 import { PerenualService } from "../lib/perenualService";
@@ -178,6 +179,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const [bulkDeleteState, setBulkDeleteState] = useState<{ open: boolean; instanceCount: number }>({ open: false, instanceCount: 0 });
   const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [showBulkSearch, setShowBulkSearch] = useState(false);
+  // Hub v3 Stage A — derived presence for search badges.
+  const gardenPresence = useGardenPresence(homeId);
   // UX review 2026-06-15 item 4.1 — bulk paste a plant list. Different from
   // showBulkSearch (which opens the per-row library/AI search modal).
   const [showBulkPaste, setShowBulkPaste] = useState(false);
@@ -2643,6 +2646,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 onProceedToBulkAdd={handleProceedToBulkAdd}
                 onManualSave={handleManualSave}
                 ownedPlants={plants.filter((p) => !p.is_archived) as unknown as OwnedPlantMatch[]}
+                plantPresence={gardenPresence.plantPresence}
                 onOpenOwnedPlant={(p) => {
                   setShowBulkSearch(false);
                   const full = plants.find((pl) => pl.id === p.id);

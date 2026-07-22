@@ -29,6 +29,7 @@
 | SHED-010 | ✅ | One search: typed owned-plant name surfaces the takeover's "In your Shed" section | — | ✅ Passing |
 | SHED-011 | ✅ | No-match query: no owned section + `Nothing called "…" yet.` copy | — | ✅ Passing |
 | SHED-012 | ✅ | Clear-× empties the query and returns to the idle state (recents/examples/chips) | — | ✅ Passing |
+| SHED-A1 | ✅ | Hub v3: owned search rows carry ONE derived presence pill (`data-presence` ∈ active/inactive/saved) from the `plant_presence` view | — | ✅ Passing |
 | SHED-013 | ✅ | Owned matching is case-insensitive | — | ✅ Passing |
 | SHED-014 | ✅ | Partial owned match works ("Bos" → Boston Fern) | — | ✅ Passing |
 

@@ -362,6 +362,22 @@ test.describe("Watchlist — Search", () => {
     await expect(owned.getByText("Aphid").first()).toBeVisible();
   });
 
+  test("WL-A1: owned watchlist rows carry ONE derived presence pill (Active > Inactive > Watching)", async ({ authenticatedPage }) => {
+    // Hub v3 Stage A — derived from the ailment_presence VIEW; contract is
+    // one pill per owned row from the closed state set.
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    await wl.addButton.click();
+    await authenticatedPage.locator('[data-testid="ailment-search-input"]').fill("Aphid");
+
+    const pill = authenticatedPage.locator('[data-testid^="ailment-owned-presence-"]').first();
+    await expect(pill).toBeVisible({ timeout: 10000 });
+    const state = await pill.getAttribute("data-presence");
+    expect(["active", "inactive", "watching"]).toContain(state);
+  });
+
   test("WL-023: A no-match query shows no owned section", async ({ authenticatedPage }) => {
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();

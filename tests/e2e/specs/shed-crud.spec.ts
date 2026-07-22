@@ -147,6 +147,23 @@ test.describe("Shed — Search", () => {
     await expect(authenticatedPage.getByTestId("search-idle-state")).toBeVisible({ timeout: 5000 });
   });
 
+  test("SHED-A1: owned rows carry ONE derived presence pill (Active > Inactive > Saved)", async ({ authenticatedPage }) => {
+    // Hub v3 Stage A — presence comes from the plant_presence VIEW, so the
+    // exact state depends on live DB truth; the contract is: exactly one pill
+    // per owned row, in the closed state set.
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await shed.addButton.click();
+    await shed.bulkSearchInput.fill("Tomato");
+
+    const pill = authenticatedPage.locator('[data-testid^="search-owned-presence-"]').first();
+    await expect(pill).toBeVisible({ timeout: 10000 });
+    const state = await pill.getAttribute("data-presence");
+    expect(["active", "inactive", "saved"]).toContain(state);
+  });
+
   test("SHED-013: Owned-plant matching is case-insensitive", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();

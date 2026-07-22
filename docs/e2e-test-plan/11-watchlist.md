@@ -34,6 +34,7 @@
 | WL-020 | ✅ | Delete from detail cancel | — | ✅ Passing |
 | WL-021 | ✅ | Archive ailment | — | ✅ Passing |
 | WL-022 | ✅ | One search: typed watched name surfaces the takeover's "On your watchlist" section | — | ✅ Passing |
+| WL-A1 | ✅ | Hub v3: owned rows carry ONE derived presence pill (active/inactive/watching) from `ailment_presence` | — | ✅ Passing |
 | WL-023 | ✅ | No-match query: no owned section; library-miss copy renders | — | ✅ Passing |
 | WL-024 | ✅ | Filter by Pest | — | ✅ Passing |
 | WL-025 | ✅ | Filter by Disease | — | ✅ Passing |

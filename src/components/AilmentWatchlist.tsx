@@ -34,6 +34,7 @@ import BulkAddAilmentsModal from "./BulkAddAilmentsModal";
 import LibraryAilmentDetailModal from "./ailments/AilmentDetailModal";
 import HubHeader from "./garden/HubHeader";
 import { AILMENT_SEVERITY_CLASSES } from "../lib/ailmentPresentation";
+import { useGardenPresence } from "../hooks/useGardenPresence";
 import {
   isAilmentSourceLockedForTier,
   lockedAilmentSourceMessage,
@@ -451,6 +452,8 @@ function AddAilmentModal({
   existingKeys,
   ownedAilments,
   onOpenOwnedAilment,
+  ailmentPresence,
+  favouriteLibraryIds,
 }: {
   homeId: string;
   aiEnabled: boolean;
@@ -466,6 +469,10 @@ function AddAilmentModal({
   ownedAilments?: Ailment[];
   /** Tap an owned row → the host closes the overlay + opens its detail. */
   onOpenOwnedAilment?: (a: Ailment) => void;
+  /** Hub v3 Stage A — derived presence per home-ailment id. */
+  ailmentPresence?: Map<string, "active" | "inactive">;
+  /** Personal ♥ layer: ailment_library ids the user has favourited. */
+  favouriteLibraryIds?: Set<number>;
 }) {
   const navigate = useNavigate();
   const [mode, setMode] = useState<CreationMode>("search");
@@ -1191,8 +1198,26 @@ function AddAilmentModal({
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <p className="font-black text-base text-rhozly-on-surface leading-tight truncate">{a.name}</p>
-                                    <p className="text-xs font-bold text-rhozly-on-surface/45 truncate">
-                                      {meta.label} · Already on your watchlist
+                                    <p className="text-xs font-bold text-rhozly-on-surface/45 truncate flex items-center gap-1.5">
+                                      {(() => {
+                                        // Hub v3 Stage A — ONE pill, Active > Inactive > Watching.
+                                        const pres = ailmentPresence?.get(a.id);
+                                        const pill = pres === "active"
+                                          ? { label: "Active", cls: "bg-status-danger-fill text-status-danger-ink border border-status-danger-line" }
+                                          : pres === "inactive"
+                                            ? { label: "Inactive", cls: "bg-rhozly-surface-low text-rhozly-on-surface/55 border border-rhozly-outline/15" }
+                                            : { label: "Watching", cls: "bg-status-watch-fill text-status-watch-ink" };
+                                        return (
+                                          <span
+                                            data-testid={`ailment-owned-presence-${a.id}`}
+                                            data-presence={pres ?? "watching"}
+                                            className={`shrink-0 px-1.5 py-0.5 rounded-chip text-2xs font-black ${pill.cls}`}
+                                          >
+                                            {pill.label}
+                                          </span>
+                                        );
+                                      })()}
+                                      <span className="truncate">{meta.label}</span>
                                     </p>
                                   </div>
                                   <ChevronRight size={16} className="shrink-0 text-rhozly-on-surface/30" />
@@ -1236,8 +1261,16 @@ function AddAilmentModal({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="font-black text-base text-rhozly-on-surface leading-tight truncate">{lib.name}</p>
-                                  <p className="text-xs font-bold text-rhozly-on-surface/45 truncate">
-                                    {meta.label}{sevLabel ? ` · ${sevLabel} severity` : ""} · Library
+                                  <p className="text-xs font-bold text-rhozly-on-surface/45 truncate flex items-center gap-1">
+                                    {favouriteLibraryIds?.has(lib.id) && (
+                                      <Heart
+                                        size={12}
+                                        aria-label="In your favourites"
+                                        data-testid={`ailment-library-fav-glyph-${lib.id}`}
+                                        className="shrink-0 fill-current text-status-watch-ink"
+                                      />
+                                    )}
+                                    <span className="truncate">{meta.label}{sevLabel ? ` · ${sevLabel} severity` : ""} · Library</span>
                                   </p>
                                 </div>
                               </button>
@@ -2017,6 +2050,8 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   const [viewTab, setViewTab] = useState<"active" | "archived">("active");
   const [filter, setFilter] = useState<AilmentFilter>("all");
   const [showAdd, setShowAdd] = useState(false);
+  // Hub v3 Stage A — derived presence for search badges.
+  const gardenPresence = useGardenPresence(homeId);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState<Ailment | null>(null);
 
@@ -2443,6 +2478,10 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           )}
           ownedAilments={ailments}
           onOpenOwnedAilment={(a) => { setShowAdd(false); setSelectedAilment(a); }}
+          ailmentPresence={gardenPresence.ailmentPresence}
+          favouriteLibraryIds={new Set(
+            favourites.map((f) => f.ailment_library_id).filter((x): x is number => x != null),
+          )}
         />
       )}
       {showBulkAdd && (

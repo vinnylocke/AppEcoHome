@@ -132,3 +132,7 @@ Ailments are reusable (one "Aphids" record per home), but each instance of an ou
 - `src/lib/favouriteIdentity.ts` — ailment identity / gating helpers
 - `src/components/BulkAddAilmentsModal.tsx` + `src/lib/uploadTemplates/registry.ts` (`AILMENT_TEMPLATE`) + `src/lib/parseAilmentList.ts` + `supabase/functions/parse-ailment-list/` — RHO-4 Phase 2 bulk manual-ailment write path
 - `src/lib/automationEngine.ts`
+
+## Derived presence — `ailment_presence` view (Hub v3 Stage A, 2026-07-22)
+
+`supabase/migrations/20261017000000_presence_views.sql`: **Active** = any `plant_instance_ailments` link `status='active'` on a live instance; **Inactive** = links exist but none live, or any `area_scan_ailments` sighting (scans are history evidence, never Active — owner-locked ruling). Security-invoker; client face `useGardenPresence` (pill: Active > Inactive > Watching).

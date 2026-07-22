@@ -2,7 +2,8 @@
   {
     "label": "Improved",
     "items": [
-      "Multiple weather alerts now fold into one slim line at the top of the screen — tap it to see them all. That's ~150px of your screen back, everywhere in the app."
+      "Search results now show your real relationship with each plant and ailment — Active (growing or affecting your garden now), Inactive (history only), or Saved/Watching — worked out automatically from what's actually in your beds and trays.",
+      "Saving a plant from the library to your favourites now works on every plan (it was wrongly blocked for some tiers)."
     ]
   }
 ]

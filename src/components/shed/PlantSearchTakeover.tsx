@@ -54,6 +54,9 @@ interface Props {
   ownedPlants?: OwnedPlantMatch[];
   /** Tap an owned row → the host closes the overlay + opens that plant. */
   onOpenOwnedPlant?: (plant: OwnedPlantMatch) => void;
+  /** Hub v3 Stage A — derived presence per plant id (plant_presence view).
+   *  Owned rows show ONE pill: Active > Inactive > Saved. */
+  plantPresence?: Map<number, "active" | "inactive">;
 }
 
 // Recent searches — a small local ring so the takeover never opens blank.
@@ -121,6 +124,7 @@ export default function PlantSearchTakeover({
   onManualSave,
   ownedPlants,
   onOpenOwnedPlant,
+  plantPresence,
 }: Props) {
   const { setPageContext } = usePlantDoctor();
   const persona = usePersona();
@@ -779,9 +783,29 @@ export default function PlantSearchTakeover({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-black text-base text-rhozly-on-surface leading-tight truncate">{p.common_name}</p>
-                            <p className="text-xs font-bold text-rhozly-on-surface/45 truncate">
-                              {p.scientific_name?.[0] ? <span className="italic">{p.scientific_name[0]} · </span> : ""}
-                              Already in your Shed{(p.instance_count ?? 0) > 0 ? ` · ${p.instance_count} planted` : ""}
+                            <p className="text-xs font-bold text-rhozly-on-surface/45 truncate flex items-center gap-1.5">
+                              {(() => {
+                                // Hub v3 Stage A — ONE pill, Active > Inactive > Saved.
+                                const pres = plantPresence?.get(Number(p.id));
+                                const pill = pres === "active"
+                                  ? { label: "Active", cls: "bg-status-success-fill text-status-success-ink border border-status-success-line" }
+                                  : pres === "inactive"
+                                    ? { label: "Inactive", cls: "bg-rhozly-surface-low text-rhozly-on-surface/55 border border-rhozly-outline/15" }
+                                    : { label: "Saved", cls: "bg-rhozly-primary/10 text-rhozly-primary" };
+                                return (
+                                  <span
+                                    data-testid={`search-owned-presence-${p.id}`}
+                                    data-presence={pres ?? "saved"}
+                                    className={`shrink-0 px-1.5 py-0.5 rounded-chip text-2xs font-black ${pill.cls}`}
+                                  >
+                                    {pill.label}
+                                  </span>
+                                );
+                              })()}
+                              <span className="truncate">
+                                {p.scientific_name?.[0] ? <span className="italic">{p.scientific_name[0]}</span> : "In your Shed"}
+                                {(p.instance_count ?? 0) > 0 ? ` · ${p.instance_count} planted` : ""}
+                              </span>
                             </p>
                           </div>
                           <ChevronLeft size={16} className="shrink-0 rotate-180 text-rhozly-on-surface/30" />

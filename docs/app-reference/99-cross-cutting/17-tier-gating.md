@@ -206,3 +206,7 @@ To match the cost of running AI to the users who actually use it. AI calls cost 
 - `src/constants/tiers.ts`
 - `src/App.tsx` — passes `aiEnabled` + `perenualEnabled` as props throughout
 - Each edge function self-verifies via profile lookup
+
+### Catalogue-referenced plant favourites gate as free (Hub v3 Stage A, 2026-07-22)
+
+`20261016000000_favourite_plant_library_tier_fix.sql` — the plants-side mirror of the ailments' `20261015000000` fix: `enforce_favourite_plant_tier` still stores the REAL derived source on the favourite row, but the GATE treats a favourite referencing a **global catalogue row** (`plants.home_id IS NULL`) as free `'library'` consumption — the catalogue is public-read for every tier, so hearting it can't smuggle above-tier content. Home-scoped references and tombstones gate exactly as before. This closes the "hearts at search" blocker noted in the ailment-library overhaul.
