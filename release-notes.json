@@ -2,8 +2,8 @@
   {
     "label": "Improved",
     "items": [
-      "Your Plants and Watchlist now sort themselves — Active (growing or affecting your garden right now), Inactive (finished, with history kept), and Saved/Watching (on your list, nothing live yet). No more manual archiving to keep lists tidy: the app works it out from what's actually in your beds.",
-      "Removing a plant from your garden now quiets its care schedules too (and saving it back restores them). Long-finished plants that were stuck invisible now show properly under Inactive."
+      "The Garden hub is now just two clean tabs — Plants and Ailments — with the same simple layout on both. Your seed packets moved into the Seed box (⋯ menu, or the green strip whenever sowings are on the go), and finished plants live under the Inactive chip.",
+      "Old links keep working: anything pointing at the Nursery or Senescence tabs lands in the right new place automatically."
     ]
   }
 ]

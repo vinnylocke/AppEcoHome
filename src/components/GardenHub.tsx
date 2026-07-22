@@ -13,24 +13,56 @@ interface Props {
   perenualEnabled?: boolean;
 }
 
-// Stage 4 (2026-07-21): the Nursery is a FIRST-CLASS tab — it used to hide
-// behind a Plants|Nursery toggle inside TheShed while the page still showed
-// the wrong "Plants" header above it. Order keeps the two Shepherd-anchored
-// tabs (shed, watchlist) in slots 1–2 so the tour never targets a tab that
-// narrow-viewport strip scrolling could push off-screen.
+// Hub v3 Stage D (2026-07-22): the hub reaches its final two-tab form —
+// Plants | Ailments, identical anatomy (Presence × Curation on both).
+// Nursery = the Seed box sheet inside Plants (supplies, not a world);
+// Senescence = the Inactive chip (a derived state, not a place). Internal
+// ids stay shed/watchlist (Shepherd anchors + URL params). The legacy flag
+// (rhozly_legacy_shed_filters=on) restores the old four tabs.
 const TABS = [
+  { id: "shed",       label: "Plants",   icon: <IconPlants size={16} /> },
+  { id: "watchlist",  label: "Ailments", icon: <IconAilment size={16} /> },
+] as const;
+
+const LEGACY_TABS = [
   { id: "shed",       label: "Plants",    icon: <IconPlants size={16} /> },
   { id: "watchlist",  label: "Watchlist", icon: <IconAilment size={16} /> },
   { id: "nursery",    label: "Nursery",   icon: <Sprout size={16} /> },
   { id: "senescence", label: "Senescence", icon: <Leaf size={16} /> },
 ] as const;
 
-type TabId = (typeof TABS)[number]["id"];
+type TabId = (typeof LEGACY_TABS)[number]["id"];
 
 export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled = false }: Props) {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const activeTab: TabId = (params.get("tab") as TabId) ?? "shed";
+  const legacyTabs =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("rhozly_legacy_shed_filters") === "on";
+  const tabs = legacyTabs ? LEGACY_TABS : TABS;
+  const rawTab: TabId = (params.get("tab") as TabId) ?? "shed";
+  // Stage D redirects (URLs never die): ?tab=nursery → Plants + Seed box;
+  // ?tab=senescence[&plant=] → Plants + the Inactive chip (+ plant modal).
+  const activeTab: TabId = legacyTabs
+    ? rawTab
+    : rawTab === "nursery" || rawTab === "senescence"
+      ? "shed"
+      : rawTab;
+  useEffect(() => {
+    if (legacyTabs) return;
+    if (rawTab === "nursery") {
+      const next = new URLSearchParams(params);
+      next.delete("tab");
+      next.set("open", "seed-box");
+      setParams(next, { replace: true });
+    } else if (rawTab === "senescence") {
+      const next = new URLSearchParams(params);
+      next.delete("tab");
+      next.set("chip", "inactive");
+      setParams(next, { replace: true }); // keeps &plant= if present
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawTab, legacyTabs]);
 
   const [visible, setVisible] = useState(true);
   const prevTab = useRef(activeTab);
@@ -67,7 +99,7 @@ export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled =
           aria-label="Garden sections"
           className="flex gap-1 overflow-x-auto scrollbar-none"
         >
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button

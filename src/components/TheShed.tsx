@@ -36,6 +36,8 @@ import {
   MoreVertical,
   ShieldAlert,
   Wheat,
+  Package,
+  ChevronRight,
 } from "lucide-react";
 import { PlantInitialTile } from "./ui/PlantInitialTile";
 import type { PlantFilters } from "../lib/unifiedPlantSearch";
@@ -47,6 +49,7 @@ import PlantAssignmentModal from "./PlantAssignmentModal";
 import BulkAssignModal from "./BulkAssignModal";
 import PlantSearchTakeover, { type OwnedPlantMatch } from "./shed/PlantSearchTakeover";
 import HubHeader from "./garden/HubHeader";
+import NurseryTab from "./nursery/NurseryTab";
 import { useGardenPresence } from "../hooks/useGardenPresence";
 import BulkPastePlantsModal from "./BulkPastePlantsModal";
 import PlantSourcePicker from "./PlantSourcePicker";
@@ -188,6 +191,41 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     typeof localStorage !== "undefined" &&
     localStorage.getItem("rhozly_legacy_shed_filters") === "on";
   const [presenceChip, setPresenceChip] = useState<"all" | "active" | "inactive" | "saved">("all");
+  // Hub v3 Stage D — the Seed box: packets are SUPPLIES, hosted in a
+  // full-height sheet (the whole NurseryTab surface, unchanged).
+  const [seedBoxOpen, setSeedBoxOpen] = useState(false);
+  const [pendingPlantOpen, setPendingPlantOpen] = useState<number | null>(null);
+  useEffect(() => {
+    if (pendingPlantOpen == null || plants.length === 0) return;
+    const target = plants.find((p) => p.id === pendingPlantOpen);
+    if (target) setEditingPlant(target);
+    setPendingPlantOpen(null);
+  }, [pendingPlantOpen, plants]);
+  const [liveSowingCount, setLiveSowingCount] = useState(0);
+  useEffect(() => {
+    if (!homeId) return;
+    supabase
+      .from("seed_sowings")
+      .select("id", { count: "exact", head: true })
+      .eq("home_id", homeId)
+      .in("status", ["sown", "germinated"])
+      .then(({ count, error }) => {
+        if (error) {
+          Logger.warn("Live sowings count failed", { error });
+          return; // keep the last known count rather than lying with 0
+        }
+        setLiveSowingCount(count ?? 0);
+      });
+  }, [homeId, seedBoxOpen]);
+  // Escape closes the Seed box (backdrop + ✕ remain the pointer paths).
+  useEffect(() => {
+    if (!seedBoxOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSeedBoxOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [seedBoxOpen]);
   // UX review 2026-06-15 item 4.1 — bulk paste a plant list. Different from
   // showBulkSearch (which opens the per-row library/AI search modal).
   const [showBulkPaste, setShowBulkPaste] = useState(false);
@@ -825,6 +863,28 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     } else if (location.pathname.includes("/shed/add/manual")) {
       handledDeepLink.current = currentUrl;
       setShowBulkSearch(true);
+    } else if (searchParams.get("open") === "seed-box") {
+      // Stage D redirect target for the retired ?tab=nursery.
+      handledDeepLink.current = currentUrl;
+      setSeedBoxOpen(true);
+      setSearchParams((p) => {
+        const n = new URLSearchParams(p);
+        n.delete("open");
+        n.delete("plant"); // stray from old ?tab=nursery&plant= links
+        return n;
+      }, { replace: true });
+    } else if (searchParams.get("chip") === "inactive") {
+      // Stage D redirect target for the retired ?tab=senescence[&plant=].
+      handledDeepLink.current = currentUrl;
+      setPresenceChip("inactive");
+      const plantId = Number(searchParams.get("plant"));
+      if (Number.isFinite(plantId) && plantId > 0) setPendingPlantOpen(plantId);
+      setSearchParams((p) => {
+        const n = new URLSearchParams(p);
+        n.delete("chip");
+        n.delete("plant");
+        return n;
+      }, { replace: true });
     } else if (searchParams.get("open") === "add-plant") {
       handledDeepLink.current = currentUrl;
       // Optional `?query=` pre-fills the BulkSearchModal — Plant Doctor's
@@ -1773,6 +1833,13 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 testId: "shed-open-layout-btn",
                 onSelect: () => navigate("/garden-layout"),
               },
+              {
+                key: "seed-box",
+                label: "Seed box",
+                icon: <Package size={16} />,
+                testId: "shed-open-seed-box",
+                onSelect: () => setSeedBoxOpen(true),
+              },
               ...(can("shed.add")
                 ? [{
                     key: "bulk",
@@ -2052,6 +2119,22 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
 
         {scope === "home" && (
         <>
+        {/* Sowings-now strip (Stage D) — visible only when the nursery has
+            live sowings; one tap into the Seed box. */}
+        {liveSowingCount > 0 && (
+          <button
+            type="button"
+            data-testid="shed-sowings-now-strip"
+            onClick={() => setSeedBoxOpen(true)}
+            className="w-full mb-4 flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-card bg-emerald-50 border border-emerald-100 text-left can-hover:hover:bg-emerald-100 active:scale-[0.995] transition"
+          >
+            <Package size={15} className="shrink-0 text-emerald-700" />
+            <span className="flex-1 text-sm font-bold text-emerald-900 truncate">
+              {liveSowingCount} sowing{liveSowingCount === 1 ? "" : "s"} on the go — open the Seed box
+            </span>
+            <ChevronRight size={15} className="shrink-0 text-emerald-700/60" />
+          </button>
+        )}
         {/* AI Assistant — surfaces insights related to the Shed (plant counts,
             care reminders, suitability flags) right where the user is browsing. */}
         <div className="mb-6">
@@ -2070,13 +2153,22 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 size="lg"
                 chrome="none"
                 icon={<Search size={32} />}
-                title="No plants here yet"
-                body="Your Shed is where every plant lives — add your first one and Rhozly starts tailoring reminders to it."
+                title={presenceChip === "active" ? "Nothing growing yet" : "No plants here yet"}
+                body={
+                  presenceChip === "active"
+                    ? "Plant something in a bed — or sow a seed and it counts too."
+                    : "Your Shed is where every plant lives — add your first one and Rhozly starts tailoring reminders to it."
+                }
                 primaryCta={{
-                  label: "Add your first plant",
+                  label: presenceChip === "active" ? "Search plants" : "Add your first plant",
                   onClick: () => setShowBulkSearch(true),
                   "data-testid": "shed-empty-add-cta",
                 }}
+                secondaryCta={
+                  presenceChip === "active"
+                    ? { label: "…or sow a seed (Seed box)", onClick: () => setSeedBoxOpen(true), "data-testid": "shed-empty-sow-seed-cta" }
+                    : undefined
+                }
               />
             </div>
           ) : (
@@ -2734,6 +2826,43 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 handleProceedToBulkAdd's first line closes it, so the import-
                 progress modal below renders as before. BulkSearchModal lives
                 on inside CompanionPlantsTab. */}
+            {/* Seed box — the whole Nursery surface in a full-height sheet
+                (Stage D; packets are supplies, not a hub world). */}
+            {seedBoxOpen && createPortal(
+              // z-[65]: above search overlays (60), below NurseryTab's own
+              // add-seeds sheet (70) so the inner sheet stacks by z, not DOM order.
+              <div className="fixed inset-0 z-[65]" role="dialog" aria-label="Seed box">
+                <button
+                  aria-label="Close seed box"
+                  onClick={() => setSeedBoxOpen(false)}
+                  className="absolute inset-0 bg-black/30 animate-in fade-in duration-150"
+                />
+                <div
+                  data-testid="seed-box-sheet"
+                  className="absolute inset-x-0 bottom-0 top-[max(env(safe-area-inset-top),24px)] bg-rhozly-bg rounded-t-3xl shadow-overlay flex flex-col animate-in slide-in-from-bottom-4 duration-200"
+                >
+                  <div className="shrink-0 flex items-center justify-between px-5 pt-3 pb-1">
+                    <div className="w-10 h-1 rounded-full bg-rhozly-outline/25 absolute left-1/2 -translate-x-1/2 top-2" />
+                    <span className="sr-only">Seed box</span>
+                    <span />
+                    <button
+                      type="button"
+                      data-testid="seed-box-close"
+                      aria-label="Close seed box"
+                      onClick={() => setSeedBoxOpen(false)}
+                      className="w-11 h-11 flex items-center justify-center rounded-control text-rhozly-on-surface/60 can-hover:hover:bg-rhozly-surface-low active:scale-[0.94] transition"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom)+16px)] md:px-8">
+                    <NurseryTab homeId={homeId} aiEnabled={aiEnabled} perenualEnabled={perenualEnabled} />
+                  </div>
+                </div>
+              </div>,
+              document.body,
+            )}
+
             {showBulkSearch && (
               <PlantSearchTakeover
                 homeId={homeId}

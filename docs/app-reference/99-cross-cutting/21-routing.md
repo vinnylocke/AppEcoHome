@@ -36,7 +36,7 @@ BrowserRouter
     │    by QuickAccessMenuButton in focus mode. The left sidebar rail is
     │    gated behind isMdBreakpoint and never renders on phones now.)
     ├── /dashboard         ← Dashboard container (Dashboard [home] / Calendar / Weather sub-tabs via ?view=; Locations tab retired Stage 4a)
-    ├── /shed              ← GardenHub (Plants / Watchlist / Nursery / Senescence sub-tabs via ?tab= — Nursery promoted from TheShed's Plants|Nursery toggle, Stage 4 2026-07-21)
+    ├── /shed              ← GardenHub (Plants | Ailments — Hub v3 Stage D; ?tab=nursery → Seed box sheet, ?tab=senescence[&plant=] → Inactive chip, both auto-redirect; legacy flag restores 4 tabs)
     ├── /schedule          ← BlueprintManager
     ├── /planner           ← PlannerHub (?tab=planner|shopping)
     ├── /doctor            ← PlantDoctor

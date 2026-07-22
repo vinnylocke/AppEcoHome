@@ -125,11 +125,13 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
 
   // ── Browse + add packets ─────────────────────────────────────────────────
 
-  test("NURSERY-001: Plants / Nursery view toggle visible on /shed", async ({ authenticatedPage }) => {
+  test("NURSERY-001: the Seed box opens from the Plants ⋯ menu (Stage D)", async ({ authenticatedPage }) => {
     const nursery = new NurseryPage(authenticatedPage);
     await nursery.gotoShed();
     await expect(nursery.shedViewPlantsBtn).toBeVisible({ timeout: 10000 });
-    await expect(nursery.shedViewNurseryBtn).toBeVisible();
+    await nursery.openNursery();
+    await expect(authenticatedPage.getByTestId("nursery-tab")).toBeVisible({ timeout: 10000 });
+    await authenticatedPage.getByTestId("seed-box-close").click();
   });
 
   test("NURSERY-002: Empty state shows add CTAs", async ({ authenticatedPage }) => {

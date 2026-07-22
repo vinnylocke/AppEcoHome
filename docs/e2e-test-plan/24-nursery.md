@@ -9,7 +9,7 @@
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| NURSERY-001 | ✅ | Plants / Nursery toggle visible on `/shed` | — | ✅ Passing |
+| NURSERY-001 | ✅ | Seed box entry visible in the Plants ⋯ menu (`shed-open-seed-box`); opens `seed-box-sheet` (Stage D) | — | ✅ Passing |
 | NURSERY-002 | ✅ | Empty state shows `nursery-empty` + `nursery-add-empty` + `nursery-paste-empty` | — | ✅ Passing |
 | NURSERY-003 | ✅ | Add Packet — Shed-pick path: search Shed → pick plant → Next → variety + vendor + sow-by → Save → row at "Sow-by …" status | — | ✅ Passing |
 | NURSERY-004 | ✅ | Add Packet — Free-text "add later" path (tick `add-seed-packet-freetext-toggle`); `plant_id=null`, Plant Out gated | — | ✅ Passing |
@@ -66,7 +66,7 @@
 
 ## Cross-home favourites — seed packets (Phase 3, FINAL)
 
-**Spec file:** `tests/e2e/specs/favourites.spec.ts` (Section FAV-NU). **Fixtures:** `15_favourites.sql` 0019 segment (see [01-seeded-fixtures.md](./01-seeded-fixtures.md)). The Nursery is a hub tab since Stage 4 — `NurseryPage.goto()` deep-links `/shed?tab=nursery`; the scope chips (All / ♥ Favourites) remain component state.
+**Spec file:** `tests/e2e/specs/favourites.spec.ts` (Section FAV-NU). **Fixtures:** `15_favourites.sql` 0019 segment (see [01-seeded-fixtures.md](./01-seeded-fixtures.md)). Stage D: the Nursery is the SEED BOX sheet — `NurseryPage.goto()` deep-links `/shed?tab=nursery` (auto-redirects into the sheet); `openNursery()` goes ⋯ menu → `shed-open-seed-box`. Scope chips remain component state.
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
@@ -81,7 +81,7 @@
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| NURSERY-060 | ✅ | `/shed?tab=nursery` hub tab active; "Add seeds" (`nursery-add-seeds-btn`) opens the action sheet; "Type one in" (`nursery-add-packets` on the sheet row) opens AddSeedPacketModal | — | ✅ Passing |
+| NURSERY-060 | ✅ | `/shed?tab=nursery` redirects into the Seed box sheet; "Add seeds" (`nursery-add-seeds-btn`) opens the action sheet; "Type one in" (`nursery-add-packets` on the sheet row) opens AddSeedPacketModal | — | ✅ Passing |
 | GARDEN-B1 | ✅ | Hub v3 Stage B: History timeline shows an ended record; Restore returns it to the active list (self-cleaning fixture) | — | ✅ Passing |
 | GARDEN-B2 | ✅ | Hub v3 Stage B: a live sowing surfaces in the plant modal's "In the nursery" section | — | ✅ Passing |
 | NURSERY-061 | ✅ | Inline search (`nursery-search-input`) filters packet rows live (variety match, no-match → 0 rows, clear → all) | — | ✅ Passing |

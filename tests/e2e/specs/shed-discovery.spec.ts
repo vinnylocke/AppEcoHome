@@ -23,19 +23,23 @@ test.describe("Shed — discovery, sort, tabs", () => {
     await expect(shed.heading).toBeHidden();
   });
 
-  test("SHED-DSC-002: the Nursery hub tab replaces the plant grid (Stage 4 — the shed-view toggle died)", async ({
+  test("SHED-DSC-002: the Seed box sheet hosts the nursery (Stage D — tabs collapsed to two)", async ({
     authenticatedPage,
   }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await expect(shed.viewPlantsBtn).toBeVisible(); // garden-hub-tab-shed
-    await shed.viewNurseryBtn.click(); // garden-hub-tab-nursery
+    // Two-tab hub: no nursery/senescence tabs.
+    await expect(authenticatedPage.getByTestId("garden-hub-tab-nursery")).toHaveCount(0);
+    await expect(authenticatedPage.getByTestId("garden-hub-tab-senescence")).toHaveCount(0);
 
-    // The Nursery tab body replaces the plants grid entirely.
-    await expect(authenticatedPage.getByTestId("nursery-tab")).toBeVisible({ timeout: 10000 });
-    await expect(shed.plantCard("Tomato")).toBeHidden();
+    await shed.openOverflowMenu();
+    await authenticatedPage.getByTestId("shed-open-seed-box").click();
+    await expect(authenticatedPage.getByTestId("seed-box-sheet")).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("nursery-tab")).toBeVisible();
+    await authenticatedPage.getByTestId("seed-box-close").click();
+    await expect(authenticatedPage.getByTestId("seed-box-sheet")).toHaveCount(0);
   });
 
   test("SHED-DSC-003: search by scientific name (Solanum) matches the owned Tomato (one-search takeover)", async ({

@@ -92,7 +92,7 @@ The "Bulk add" header button opens `BulkPastePlantsModal`, which now has a **mod
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
 | SHED-DSC-001 | ✅ | `/shed?tab=watchlist` switches GardenHub to Watchlist; plants grid hidden | — | ✅ Passing |
-| SHED-DSC-002 | ✅ | `shed-view-nursery` toggle hides plant grid + search | — | ✅ Passing |
+| SHED-DSC-002 | ✅ | Two-tab hub (no nursery/senescence tabs); ⋯ → `shed-open-seed-box` opens the Seed box sheet hosting `nursery-tab`; close removes it (Stage D) | — | ✅ Passing |
 | SHED-DSC-003 | ✅ | Scientific-name search ("Solanum") matches Tomato | — | ✅ Passing |
 | SHED-DSC-004 | ✅ | Sort A-Z is the default and renders alphabetically — sort select read inside the Filters panel (`openFilters()` first) | — | ✅ Passing |
 | SHED-DSC-005 | ✅ | Source filter "Plant Database" narrows to api-source (Lavender) — inside the Filters panel (`openFilters()` first) | — | ✅ Passing |

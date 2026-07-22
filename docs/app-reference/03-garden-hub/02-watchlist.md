@@ -2,7 +2,7 @@
 
 > The tracker for pests, plant diseases, and invasive plants you're keeping an eye on. Linked to specific plant instances so you can see "which of my plants are affected by what."
 
-**Route:** `/watchlist` (inside the Garden Hub tab strip)
+**Route:** `/watchlist` (inside the Garden Hub tab strip — the hub tab is labelled **“Ailments”** since Hub v3 Stage D; ids/anchors keep `watchlist`)
 **Source file:** `src/components/AilmentWatchlist.tsx`
 
 ---

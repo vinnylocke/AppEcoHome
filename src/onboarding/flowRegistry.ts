@@ -164,7 +164,7 @@ export const flowRegistry: FlowDef[] = [
       },
       {
         title: "Nursery + Notes + Watchlist",
-        body: "The Garden tab also holds the Nursery (your seed packets and sowings), Notes (your garden notebook), and the Watchlist (plants flagged with an active health problem after a Plant Doctor diagnosis). Flip between them using the tabs above.",
+        body: "Two tabs, one model: Plants and Ailments each sort themselves into Active (live in your garden), Inactive (finished, history kept) and Saved or Watching. Your seed packets live in the Seed box (the ⋯ menu on Plants), and finished plants sit under the Inactive chip.",
         attachTo: { element: "[data-testid='garden-hub-tab-watchlist']", on: "bottom" },
       },
     ],
@@ -836,7 +836,7 @@ export const flowRegistry: FlowDef[] = [
     steps: [
       {
         title: "From packet to plant-out",
-        body: "The Nursery tracks everything before plants make it into a bed — seed packets, active sowings, germinated seedlings, and the plant-out queue. It has its own Nursery tab in the Garden hub now — right between Watchlist and Senescence.",
+        body: "The Nursery tracks everything before plants make it into a bed — seed packets, active sowings, germinated seedlings, and the plant-out queue. It lives in the Seed box now — open it from the ⋯ menu on the Plants tab (or the sowings strip whenever something's on the go).",
         attachTo: { element: null, on: null },
       },
       {

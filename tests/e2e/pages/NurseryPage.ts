@@ -98,10 +98,10 @@ export class NurseryPage {
   constructor(page: Page) {
     this.page = page;
 
-    // Stage 4: the Nursery is a first-class hub tab — the Plants|Nursery
-    // toggle (shed-view-*) died; navigation goes through the hub tab strip.
+    // Stage D: the Nursery is the SEED BOX sheet inside Plants — opened via
+    // the ⋯ menu (shed-open-seed-box) or the /shed?tab=nursery redirect.
     this.shedViewPlantsBtn = page.getByTestId("garden-hub-tab-shed");
-    this.shedViewNurseryBtn = page.getByTestId("garden-hub-tab-nursery");
+    this.shedViewNurseryBtn = page.getByTestId("shed-open-seed-box");
 
     this.nurseryTab = page.getByTestId("nursery-tab");
     this.nurseryList = page.getByTestId("nursery-list");
@@ -239,7 +239,10 @@ export class NurseryPage {
   }
 
   async openNursery() {
+    // Stage D: the Seed box entry lives in the ⋯ overflow menu.
+    await this.page.getByTestId("shed-overflow-menu").click();
     await this.shedViewNurseryBtn.click();
+    await this.page.getByTestId("seed-box-sheet").waitFor({ state: "visible", timeout: 10000 });
   }
 
   bulkPasteRow(i: number): Locator {

@@ -1,7 +1,8 @@
 # The Nursery
 
-> **Nursery promotion (hub search-first overhaul Stage 4, 2026-07-21):** the Nursery is a
-> **first-class hub tab** (`garden-hub-tab-nursery`, deep link `/shed?tab=nursery`) — the
+> **Seed box (Hub v3 Stage D, 2026-07-22):** the Nursery now lives in the **Seed box sheet** inside the Plants tab (`seed-box-sheet`; entries: ⋯ menu `shed-open-seed-box`, the sowings-now strip, the Active-chip empty state, and the `?tab=nursery` redirect). The Stage-4 hub tab below is retained only behind the legacy flag.
+>
+> **(Historical — Stage 4, 2026-07-21):** the Nursery was briefly a first-class hub tab (`garden-hub-tab-nursery`, deep link `/shed?tab=nursery`) — the
 > Plants|Nursery toggle inside TheShed (`shed-view-toggle`) is GONE, and with it the
 > mismatched "Plants" header that used to sit above this surface. The tab now opens with the
 > shared `HubHeader` (title "Nursery" + packet count + persona guidance), a REAL inline

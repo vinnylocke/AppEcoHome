@@ -1,8 +1,10 @@
 # Senescence
 
+> **RETIRED as a page (Hub v3 Stage D, 2026-07-22):** Senescence is the derived **Inactive** state now — the chip on the Plants tab is the aggregate view, and per-plant records live in the plant modal's "In your garden" History (restore included, semantics unchanged). `?tab=senescence[&plant=]` redirects there. The component remains only behind the legacy filter flag.
+
 > The history of every plant instance whose life cycle has ended — natural harvest closes, frost kills, pests, mistakes. Reversible by design: restore brings an instance back to "Planted" and re-runs the task generator.
 
-**Route:** `/shed?tab=senescence` (third tab on the Garden Hub tab strip; reached via the Senescence button on the Plant Instances tab or the cross-surface banner)
+**Route:** `/shed?tab=senescence` (redirects to the Plants tab's Inactive chip since Stage D; the standalone tab renders only under the legacy filter flag)
 **Source files:**
 - `src/components/garden/SenescenceTab.tsx` — the tab itself
 - `src/components/GardenHub.tsx` — tab strip wiring
