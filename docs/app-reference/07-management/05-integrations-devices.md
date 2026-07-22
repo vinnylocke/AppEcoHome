@@ -10,6 +10,7 @@
 - `src/components/integrations/DeviceSettingsModal.tsx`
 - `src/components/integrations/ConnectDeviceWizard.tsx`
 - `src/components/integrations/SoilReadingsPanel.tsx`
+- `src/components/integrations/SoilBehaviourPanel.tsx` — derived soil indicators (2026-07-22)
 - `src/components/integrations/ValveControlPanel.tsx`
 - `src/components/integrations/BatteryPip.tsx` — battery health chip on cards + Detail header
 - `src/components/integrations/DeviceBatteryPanel.tsx` — sparkline + days-remaining + reset
@@ -68,6 +69,13 @@ IntegrationsPage
 │   ├── ValveControlPanel (if water_valve — provider-aware: eWeLink live control,
 │   │     custom_http control via integrations-adapter-control, or read-only state)
 │   ├── SoilReadingsPanel (if soil_sensor)
+│   ├── SoilBehaviourPanel (if soil_sensor — 2026-07-22; derived indicators from
+│   │     soil_moisture_profiles: drainage class + drydown %/day, mean day peak /
+│   │     overnight low / diurnal swing, EC stability + trend with a plain-language
+│   │     "likely why". Gated FeatureGate ai_insights (same as the area
+│   │     MoistureBehaviourCard); hides when no profile row exists. Refreshed by
+│   │     the daily compute-soil-profiles cron, so the indicators update over
+│   │     time. testids: soil-behaviour-panel/-drainage/-temp/-ec)
 │   ├── ValveTimeline (if water_valve)
 │   └── HistoryChart
 └── DeviceSettingsModal (rename, area binding, delete)

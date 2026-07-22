@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, ArrowRight, Cpu, Bug, BarChart3 } from "lucide-react";
+import { ChevronRight, ArrowRight, Cpu, BarChart3 } from "lucide-react";
 import { IconDoctor, IconLayout, IconScan, IconLight, IconSunTracker, IconGuides } from "../constants/icons";
 
 interface Tool {
@@ -99,16 +99,10 @@ const GROUPS: ToolGroup[] = [
         path: "/guides",
         color: "bg-rose-100 text-rose-700 border-rose-200",
       },
-      {
-        // B5 (dashboard-nav-tasks-tray Stage 3/4) — the Ailment Library was a
-        // whole reference library reachable ONLY from one Watchlist button.
-        id: "ailment-library",
-        icon: <Bug size={22} />,
-        label: "Ailments",
-        description: "Search common pests, diseases and invasive plants — and how to tackle them.",
-        path: "/shed?tab=watchlist",
-        color: "bg-amber-100 text-amber-700 border-amber-200",
-      },
+      // The Ailments tile (B5) was removed 2026-07-22 — since Hub v3 the Garden
+      // Hub's Ailments tab IS the field guide, so the Tools copy was a nav
+      // duplicate. The "Something looks wrong" workflow below still deep-links
+      // to the Watchlist as a guided step.
     ],
   },
 ];

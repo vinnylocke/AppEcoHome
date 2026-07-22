@@ -52,6 +52,33 @@ test.describe("Today's Tasks tray (Section 34)", () => {
     await expect(authenticatedPage).toHaveURL(/view=calendar/, { timeout: 8000 });
   });
 
+  test("TRAY-005: the Completed tab lists today's completed tasks with inline undo available", async ({ authenticatedPage }) => {
+    // Seeded: "Morning Plant Inspection" — Inspection, Completed, due today
+    // (03_tasks_blueprints.sql) — so the Completed tab is deterministic.
+    await authenticatedPage.goto("/shed");
+    await authenticatedPage.getByTestId("today-tasks-tray-trigger").click();
+    const tray = authenticatedPage.getByTestId("today-tasks-tray");
+    await expect(tray).toBeVisible({ timeout: 10000 });
+
+    // The Today view excludes completed tasks…
+    await expect(tray.getByText("Morning Plant Inspection")).toHaveCount(0);
+
+    // …the Completed tab lists them, each with the undo toggle inline.
+    await tray.getByTestId("today-tray-tab-completed").click();
+    const completedRow = tray
+      .locator('[data-testid^="task-row-"]')
+      .filter({ hasText: "Morning Plant Inspection" })
+      .first();
+    await expect(completedRow).toBeVisible({ timeout: 10000 });
+    await expect(
+      completedRow.getByRole("button", { name: /Mark task .* as incomplete/i }),
+    ).toBeVisible();
+
+    // Back to Today — the pending list returns.
+    await tray.getByTestId("today-tray-tab-pending").click();
+    await expect(tray.locator('[data-testid^="task-row-"]').first()).toBeVisible({ timeout: 10000 });
+  });
+
   test("TRAY-010: the tray trigger is hidden in focus mode (Garden Walk hides the header)", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/walk");
     await expect(authenticatedPage.getByTestId("today-tasks-tray-trigger")).toHaveCount(0, { timeout: 10000 });

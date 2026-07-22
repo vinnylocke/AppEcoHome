@@ -1,6 +1,6 @@
 # Bottom Tab Bar — "The Deck" (Mobile)
 
-> Thumb-reach navigation bar fixed to the bottom of every non-focus screen on mobile. **Since Phase 6b it is the "Deck"**: four flat destinations wrapped around a raised centre **Capture** FAB — **Home / Plants / [Capture] / Planner / More**. The old flat five-tab layout (with dedicated Doctor + Tools slots) is gone; Plant Doctor is now reached through the Capture FAB's hero action, and Tools + the long tail through the **More → Shelf** slot. **Since Phase 6a it is the SOLE primary nav on phones** — the desktop sidebar no longer co-renders on mobile, so nothing competes with it.
+> Thumb-reach navigation bar fixed to the bottom of every non-focus screen on mobile. **Since Phase 6b it is the "Deck"**: four flat destinations wrapped around a raised centre **Capture** FAB — **Home / Plants / [Capture] / Tasks / More** (Planner ceded its slot to the Today's-Tasks tray 2026-07-22 and lives in the Shelf). The old flat five-tab layout (with dedicated Doctor + Tools slots) is gone; Plant Doctor is now reached through the Capture FAB's hero action, and Tools + the long tail through the **More → Shelf** slot. **Since Phase 6a it is the SOLE primary nav on phones** — the desktop sidebar no longer co-renders on mobile, so nothing competes with it.
 
 **Source file:** `src/components/BottomTabBar.tsx`, mounted from `src/App.tsx` (guarded `!isFocusMode`).
 
@@ -8,7 +8,7 @@
 
 ## Quick Summary
 
-Mobile-only (`md:hidden`) fixed bar with five slots: **Home** (`/dashboard`), **Plants** (`/shed`), the raised **Capture** FAB (centre — opens the [Capture sheet](../08-modals-and-overlays/41-capture-sheet.md)), **Planner** (`/planner`), and **More** (opens the **Shelf** overflow drawer). Only the three destination tabs derive an active state from the route; the Capture FAB and More are **actions**, not destinations, so they never light. Home carries the overdue-task badge. Hidden entirely in focus mode (`/quick` routes own their chrome) and on desktop (the sidebar owns navigation there). On phones this is the **only** primary nav — the [sidebar](./02-sidebar.md) is gated behind `isMdBreakpoint` (Phase 6a) and never co-renders on mobile. **Plant Doctor and Tools no longer have dedicated slots**: Doctor is the Capture sheet's hero action; Tools and the long tail (Journal, Integrations, Head Gardener) live in the **Shelf** the More slot opens.
+Mobile-only (`md:hidden`) fixed bar with five slots: **Home** (`/dashboard`), **Plants** (`/shed`), the raised **Capture** FAB (centre — opens the [Capture sheet](../08-modals-and-overlays/41-capture-sheet.md)), **Tasks** (opens the [Today's-Tasks tray](./12-today-tasks-tray.md)), and **More** (opens the **Shelf** overflow drawer). Only the two destination tabs derive an active state from the route; the Capture FAB, Tasks, and More are **actions**, not destinations, so they never light. Tasks carries the overdue-task badge (moved off Home 2026-07-22). Hidden entirely in focus mode (`/quick` routes own their chrome) and on desktop (the sidebar owns navigation there). On phones this is the **only** primary nav — the [sidebar](./02-sidebar.md) is gated behind `isMdBreakpoint` (Phase 6a) and never co-renders on mobile. **Plant Doctor and Tools no longer have dedicated slots**: Doctor is the Capture sheet's hero action; Tools and the long tail (Journal, Integrations, Head Gardener) live in the **Shelf** the More slot opens.
 
 ---
 
@@ -24,9 +24,9 @@ BottomTabBar (nav, aria-label="Quick navigation", data-testid="bottom-tab-bar")
 │   surfaces. Measured via refs + a ResizeObserver on the row, mirroring
 │   SegmentedTabs — replaces the old per-tab fade-in underline.)
 └── slot × 5 (data-testid="bottom-tab-{id}")
-    ├── nav tab (variant "nav" — Home / Plants / Planner)
+    ├── nav tab (variant "nav" — Home / Plants)
     │   ├── icon (lucide, strokeWidth 1.75 / 2.2 when active)
-    │   ├── badge (Home only — overdue count, bg-rhozly-error)
+    │   ├── badge (Tasks only — overdue count, bg-rhozly-error)
     │   └── label (text-3xs)
     ├── Capture FAB (variant "fab" — id "capture")
     │   ├── raised green circle (Plus icon, w-7 h-7, strokeWidth 2.2)
@@ -56,11 +56,18 @@ The slot descriptor gained action + variant fields so a single array can express
 
 | Slot | `id` | `variant` | Action | testid |
 |---|---|---|---|---|
-| **Home** | `dashboard` | nav | → `/dashboard` (carries `overdueTaskCount` badge) | `bottom-tab-dashboard` |
+| **Home** | `dashboard` | nav | → `/dashboard` | `bottom-tab-dashboard` |
 | **Plants** | `shed` | nav | → `/shed` | `bottom-tab-shed` |
 | **Capture** | `capture` | **fab** | `onPress` → `setCaptureSheetOpen(true)` (opens the [Capture sheet](../08-modals-and-overlays/41-capture-sheet.md)) | `bottom-tab-capture` |
-| **Planner** | `planner` | nav | → `/planner` | `bottom-tab-planner` |
+| **Tasks** | `tasks` | nav (action) | `onPress` → `setTrayOpen(true)` (opens the [Today's-Tasks tray](./12-today-tasks-tray.md)); carries the `overdueTaskCount` badge | `bottom-tab-tasks` |
 | **More** | `more` | nav | `onPress` → `setQuickDrawerOpen(true)` (opens the **Shelf** / `MobileNavDrawer`) | `bottom-tab-more` |
+
+**2026-07-22 — Planner ceded its Deck slot to Tasks.** The tray is the
+higher-frequency surface, so its trigger moved from the header (now
+desktop-only) into the thumb zone; Planner joined the Shelf overflow. The
+overdue badge moved from Home to Tasks at the same time — one badge, on the
+slot that actually answers it. The Tasks slot has no `matchPaths`/`to` (an
+action like More — never lights).
 
 ### The Capture FAB
 
@@ -68,7 +75,7 @@ The slot descriptor gained action + variant fields so a single array can express
 
 ### The More slot
 
-`id: "more"`, `Menu` icon, `variant` defaults to `"nav"` but it carries **no `matchPaths`** (so `active` is always false — it never lights) and **no `to`**; its `onPress` → `setQuickDrawerOpen(true)` opens the **Shelf** — the same `MobileNavDrawer` the Phase 6a header hamburger used to open. This is where Tools, Journal, Notes, Integrations, Head Gardener, and every long-tail destination now live. **Since the dashboard-nav-tasks-tray Stage 4 (2026-07-21, B7) the Shelf is passed a FILTERED `navLinks` in normal mode** — App.tsx drops the three ids already on the Deck (`dashboard` / `shed` / `planner`) at the call site, so "More" shows only true overflow (Journal / Tools / Integrations / Head Gardener) instead of re-listing Home / Plants / Planner. **In focus mode the FULL `navLinks` is passed** (`isFocusMode ? navLinks : navLinks.filter(...)`) — there the Deck is hidden and the Shelf is the only nav surface, so Home/Plants/Planner must stay reachable. (The mobile-only **Quick** nav item was removed 2026-07-20 when the `/quick` launcher home was folded into the responsive dashboard.)
+`id: "more"`, `Menu` icon, `variant` defaults to `"nav"` but it carries **no `matchPaths`** (so `active` is always false — it never lights) and **no `to`**; its `onPress` → `setQuickDrawerOpen(true)` opens the **Shelf** — the same `MobileNavDrawer` the Phase 6a header hamburger used to open. This is where Tools, Journal, Notes, Integrations, Head Gardener, and every long-tail destination now live. **Since the dashboard-nav-tasks-tray Stage 4 (2026-07-21, B7) the Shelf is passed a FILTERED `navLinks` in normal mode** — App.tsx drops the ids already on the Deck (`dashboard` / `shed`; `planner` rejoined the Shelf 2026-07-22 when its Deck slot became Tasks) at the call site, so "More" shows only true overflow (Planner / Journal / Tools / Integrations / Head Gardener) instead of re-listing Home / Plants. **In focus mode the FULL `navLinks` is passed** (`isFocusMode ? navLinks : navLinks.filter(...)`) — there the Deck is hidden and the Shelf is the only nav surface, so Home/Plants must stay reachable. (The mobile-only **Quick** nav item was removed 2026-07-20 when the `/quick` launcher home was folded into the responsive dashboard.)
 
 ### Active-state contract
 
@@ -80,8 +87,8 @@ Same semantics as the sidebar: exact path match or `path + "/"` prefix, applied 
 |---|---|
 | **Home** (`/dashboard`) | `/dashboard`, `/management`, `/home-management` |
 | **Plants** (`/shed`) | `/shed`, `/watchlist` |
-| **Planner** (`/planner`) | `/planner`, `/shopping`, `/schedule`, `/journal`, `/notes` |
 | **Capture** (FAB) | — (action, never lit) |
+| **Tasks** (tray) | — (action, never lit; `/planner` + `/journal` etc. light no tab since 2026-07-22 — reached via the Shelf) |
 | **More** (Shelf) | — (action, never lit) |
 
 Note the mobile-specific behaviour: with no Journal tab on mobile, `/journal` and `/notes` fold under **Planner** (on desktop the sidebar has a dedicated Journal item). Likewise `/schedule` (Routines) → Planner, and `/management` + `/home-management` (Location Manager / home management) → Home. `/doctor`, `/tools`, `/visualiser`, `/lightsensor`, `/guides`, `/weekly` and the rest of the toolbox reach their surfaces through Capture or the Shelf and light no destination tab.

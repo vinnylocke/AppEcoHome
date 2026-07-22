@@ -7,14 +7,12 @@ import { test } from "../fixtures/auth";
 // small typechecked branch covered by manual/visual review, not a spec.
 
 test.describe("Stage 4 — discoverability", () => {
-  test("DISC-B5: the Ailments tile on the Tools hub opens the Ailments tab (Stage F retarget)", async ({ authenticatedPage }) => {
+  test("DISC-B5: the Ailments tile is gone from the Tools hub (Hub v3 made the hub the one ailment surface)", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/tools");
-    const tile = authenticatedPage.getByTestId("tools-hub-ailment-library");
-    await expect(tile).toBeVisible({ timeout: 10000 });
-    await tile.click();
-    // Hub v3 Stage F: the standalone library page died — the tile lands on
-    // the Ailments tab, whose search IS the field guide.
-    await expect(authenticatedPage).toHaveURL(/\/shed\?tab=watchlist/, { timeout: 8000 });
+    // Another Tools tile anchors the page having loaded before we assert absence.
+    await expect(authenticatedPage.getByTestId("tools-hub-plant-doctor")).toBeVisible({ timeout: 10000 });
+    // Removed 2026-07-22 — the tile duplicated the Garden Hub's Ailments tab.
+    await expect(authenticatedPage.getByTestId("tools-hub-ailment-library")).toHaveCount(0);
   });
 
   test("DISC-B12: the Planner has a Routines tab that opens the routine manager", async ({ authenticatedPage }) => {
@@ -57,14 +55,16 @@ test.describe("Stage 4 — discoverability", () => {
 test.describe("Stage 4 — Shelf overflow (mobile)", () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test("DISC-B7: the Shelf lists only true overflow — not the Deck's Home/Plants/Planner tabs", async ({ authenticatedPage }) => {
+  test("DISC-B7: the Shelf lists only true overflow — not the Deck's Home/Plants tabs", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/dashboard");
     await authenticatedPage.getByTestId("bottom-tab-more").click();
     const drawer = authenticatedPage.getByTestId("mobile-nav-drawer");
     await expect(drawer).toBeVisible({ timeout: 8000 });
-    // True overflow is present…
+    // True overflow is present (Planner joined it 2026-07-22 when its Deck
+    // slot became the Tasks tray)…
     await expect(drawer.getByText("Tools", { exact: true })).toBeVisible();
-    // …but the three primary Deck destinations are no longer re-listed here.
+    await expect(drawer.getByText("Planner", { exact: true })).toBeVisible();
+    // …but the Deck's nav destinations are not re-listed here.
     await expect(drawer.getByText("Plants", { exact: true })).toHaveCount(0);
   });
 });

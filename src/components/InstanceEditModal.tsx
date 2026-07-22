@@ -34,6 +34,7 @@ import LightTab from "./LightTab";
 import InstanceStatsTab from "./InstanceStatsTab";
 import CompanionPlantsTab from "./CompanionPlantsTab";
 import LifecycleCompleteModal from "./LifecycleCompleteModal";
+import InstanceSenescenceTab from "./InstanceSenescenceTab";
 import LifecycleAnalysisModal from "./LifecycleAnalysisModal";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -85,7 +86,7 @@ export default function InstanceEditModal({
   const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const [activeTab, setActiveTab] = useState<
-    "details" | "routine" | "journal" | "photos" | "care_guide" | "grow_guide" | "guides" | "yield" | "light" | "stats" | "companions"
+    "details" | "routine" | "journal" | "photos" | "care_guide" | "grow_guide" | "guides" | "yield" | "light" | "stats" | "companions" | "senescence"
   >("details");
 
   // Cover image — pinned via the Photo Timeline tab. Refetched when the user
@@ -445,6 +446,18 @@ export default function InstanceEditModal({
           >
             <Settings2 size={14} /> Details
           </button>
+
+          {/* Senescence — only for ended instances; surfaces the end-of-life
+              record that otherwise hides among general journal entries. */}
+          {(instance as any)?.ended_at && (
+            <button
+              data-testid="instance-modal-tab-senescence"
+              onClick={() => setActiveTab("senescence")}
+              className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "senescence" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+            >
+              <BookOpenCheck size={14} /> Senescence
+            </button>
+          )}
 
           <button
             data-testid="instance-modal-tab-care-guide"
@@ -867,6 +880,21 @@ export default function InstanceEditModal({
         {activeTab === "stats" && (
           <div className="animate-in slide-in-from-right-4">
             <InstanceStatsTab instance={instance} />
+          </div>
+        )}
+
+        {activeTab === "senescence" && (instance as any)?.ended_at && (
+          <div className="animate-in slide-in-from-right-4">
+            <InstanceSenescenceTab
+              homeId={homeId}
+              instance={instance}
+              onRestored={() => {
+                setEditForm((prev) => ({ ...prev, status: "Planted" }));
+                setActiveTab("details");
+                onUpdate({ ...instance, status: "Planted", ended_at: null, was_natural_end: null, end_summary: null });
+                onTasksUpdated?.();
+              }}
+            />
           </div>
         )}
 

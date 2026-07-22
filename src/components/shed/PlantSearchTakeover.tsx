@@ -212,11 +212,14 @@ export default function PlantSearchTakeover({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Stable cart key per selection — db hits keyed by provider id, everything
-  // else (library / ai / manual) keyed by common name (matches the AI branch).
+  // Stable cart key per selection — db hits keyed by provider id, library rows
+  // by library id, and only ai/manual (no stable id) fall back to common name.
+  // The library-id key matters: several library species share a common name
+  // ("Lavender" ×3), and a name key made selecting one light up all of them.
   const selectionKey = (sel: PlantSelection): string => {
     if (sel.source === "perenual") return `per:${sel.perenual_id ?? (sel.raw as any)?.id}`;
     if (sel.source === "verdantly") return `ver:${sel.verdantly_id ?? (sel.raw as any)?.id}`;
+    if (sel.source === "library" && sel.library_id != null) return `lib:${sel.library_id}`;
     return sel.common_name;
   };
 

@@ -98,6 +98,8 @@ export default function BulkSearchModal({
   const selectionKey = (sel: PlantSelection): string => {
     if (sel.source === "perenual") return `per:${sel.perenual_id ?? (sel.raw as any)?.id}`;
     if (sel.source === "verdantly") return `ver:${sel.verdantly_id ?? (sel.raw as any)?.id}`;
+    // Library id, not common name — same-named species must not co-select.
+    if (sel.source === "library" && sel.library_id != null) return `lib:${sel.library_id}`;
     return sel.common_name;
   };
 

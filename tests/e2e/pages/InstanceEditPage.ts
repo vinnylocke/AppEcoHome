@@ -20,6 +20,14 @@ export class InstanceEditPage {
   readonly tabLight: Locator;
   readonly tabStats: Locator;
   readonly tabCompanions: Locator;
+  /** Only rendered when the instance has `ended_at` (2026-07-22). */
+  readonly tabSenescence: Locator;
+
+  // Senescence tab content
+  readonly senescenceRoot: Locator;
+  readonly senescenceEndBadge: Locator;
+  readonly senescenceEndSummary: Locator;
+  readonly senescenceRestoreBtn: Locator;
 
   // Journal tab content
   readonly journalRoot: Locator;
@@ -52,6 +60,12 @@ export class InstanceEditPage {
     this.tabLight = page.locator('[data-testid="instance-modal-tab-light"]');
     this.tabStats = page.locator('[data-testid="instance-modal-tab-stats"]');
     this.tabCompanions = page.locator('[data-testid="instance-modal-tab-companions"]');
+    this.tabSenescence = page.locator('[data-testid="instance-modal-tab-senescence"]');
+
+    this.senescenceRoot = page.locator('[data-testid="instance-senescence-tab"]');
+    this.senescenceEndBadge = page.locator('[data-testid="senescence-end-badge"]');
+    this.senescenceEndSummary = page.locator('[data-testid="senescence-end-summary"]');
+    this.senescenceRestoreBtn = page.locator('[data-testid="senescence-restore"]');
 
     this.journalRoot = page.locator('[data-testid="plant-journal-tab"]');
     this.journalNewEntryBtn = page.locator('[data-testid="plant-journal-new-entry"]');

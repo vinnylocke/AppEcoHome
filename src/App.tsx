@@ -1419,10 +1419,14 @@ function AppShell() {
     // Capture FAB. Plant Doctor is reached via Capture (its hero action) and
     // Tools/Journal/Integrations/etc. via the "More" → Shelf slot, so the phone
     // never faces the full estate at once.
-    { id: "dashboard", label: "Home", icon: <Home />, to: TAB_URL.dashboard, matchPaths: ["/dashboard", "/management", "/home-management"], badge: overdueTaskCount },
+    // 2026-07-22 — Planner ceded its Deck slot to the Today's-Tasks tray (the
+    // higher-frequency surface); Planner lives in "More" → Shelf on phone.
+    // The overdue badge moved here from Home — one badge, on the surface that
+    // actually answers it.
+    { id: "dashboard", label: "Home", icon: <Home />, to: TAB_URL.dashboard, matchPaths: ["/dashboard", "/management", "/home-management"] },
     { id: "shed", label: "Plants", icon: <IconPlants />, to: TAB_URL.shed, matchPaths: ["/shed", "/watchlist"] },
     { id: "capture", label: "Capture", icon: <Plus />, variant: "fab" as const, ariaLabel: "Capture", onPress: () => setCaptureSheetOpen(true) },
-    { id: "planner", label: "Planner", icon: <IconPlanner />, to: TAB_URL.planner, matchPaths: ["/planner", "/shopping", "/schedule", "/journal", "/notes"] },
+    { id: "tasks", label: "Tasks", icon: <ListChecks />, ariaLabel: "Today's tasks", onPress: () => setTrayOpen(true), badge: overdueTaskCount },
     { id: "more", label: "More", icon: <Menu />, ariaLabel: "More menu", onPress: () => setQuickDrawerOpen(true) },
   ];
 
@@ -1529,15 +1533,16 @@ function AppShell() {
                   />
                   <QueuedActionsBadge />
                   <GlobalSearch homeId={profile?.home_id ?? null} />
-                  {/* Global Today's-Tasks tray trigger (Stage 2) — on every
-                      non-focus screen, both platforms; carries the overdue badge. */}
+                  {/* Global Today's-Tasks tray trigger (Stage 2) — desktop-only
+                      since 2026-07-22: on phone the Deck's Tasks slot opens the
+                      tray, so the header copy would be a duplicate. */}
                   {profile?.home_id && (
                     <button
                       type="button"
                       data-testid="today-tasks-tray-trigger"
                       onClick={() => setTrayOpen(true)}
                       aria-label="Today's tasks"
-                      className="relative flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl text-white/90 hover:bg-white/20 transition-colors"
+                      className="relative hidden md:flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl text-white/90 hover:bg-white/20 transition-colors"
                     >
                       <ListChecks className="w-5 h-5" />
                       {overdueTaskCount > 0 && (
@@ -2309,12 +2314,15 @@ function AppShell() {
               every phone route (opened by the Deck's "More" slot on normal
               routes and by QuickAccessMenuButton in focus mode). It renders null
               when closed and portals to body, so a single instance is safe.
-              Mounted only on phone or in focus mode — desktop uses the sidebar. */}
+              Mounted only on phone or in focus mode — desktop uses the sidebar.
+              Planner joined the Shelf when the Deck's planner slot became the
+              Tasks tray (2026-07-22) — only Deck NAV destinations (dashboard,
+              shed) are excluded from the drawer list. */}
           {(isFocusMode || !isMdBreakpoint) && (
             <Suspense fallback={null}>
               <MobileNavDrawer
                 open={quickDrawerOpen}
-                navLinks={isFocusMode ? navLinks : navLinks.filter((l) => !["dashboard", "shed", "planner"].includes(l.id))}
+                navLinks={isFocusMode ? navLinks : navLinks.filter((l) => !["dashboard", "shed"].includes(l.id))}
                 activePath={routerLocation.pathname}
                 onClose={() => setQuickDrawerOpen(false)}
                 onNavigate={(path) => {

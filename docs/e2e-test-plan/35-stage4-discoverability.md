@@ -11,9 +11,9 @@
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| DISC-B5 | ✅ | The Ailments tile (`tools-hub-ailment-library`) opens `/shed?tab=watchlist` (Stage F retarget — the library page died) | — | ✅ Passing |
+| DISC-B5 | ✅ | The Ailments tile (`tools-hub-ailment-library`) is **gone** from the Tools hub (removed 2026-07-22 — the Garden Hub's Ailments tab is the one ailment surface) | — | ✅ Passing |
 | DISC-B12 | ✅ | The Planner has a "Routines" tab (`planner-hub-tab-routines`); opening it sets `?tab=routines` and renders BlueprintManager (seeded "Weekly Garden Watering" shows) | — | ✅ Passing |
 | DISC-B8 | ✅ | The no-op "Getting Started" account-menu item is gone (`user-profile-getting-started` count 0) while `user-profile-help` remains | — | ✅ Passing |
 | DISC-B15 | ✅ | The Schedule header no longer reads "Operational Hub" (a live task summary replaced it) | — | ✅ Passing |
-| DISC-B7 | ✅ | Mobile: the Shelf (`mobile-nav-drawer`) shows true overflow ("Tools") but no longer re-lists the Deck's "Plants" tab (full list kept in focus mode, where the Shelf is the only nav) | — | ✅ Passing |
+| DISC-B7 | ✅ | Mobile: the Shelf (`mobile-nav-drawer`) shows true overflow ("Tools", and "Planner" since 2026-07-22) but no longer re-lists the Deck's "Plants" tab (full list kept in focus mode, where the Shelf is the only nav) | — | ✅ Passing |
 | DISC-B16 | ✅ | Stage 5: Garden Reports is routed — the Tools tile (`tools-hub-garden-reports`) opens `/reports` and `reports-view-toggle` renders | — | ✅ Passing |

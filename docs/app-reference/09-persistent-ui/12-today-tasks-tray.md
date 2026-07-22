@@ -1,8 +1,8 @@
 # Today's Tasks Tray
 
-> A right-anchored slide-out drawer, reachable from a header trigger on **every non-focus screen**, that shows today's + overdue tasks so you can act on them without leaving whatever you're doing. New in the dashboard-nav-tasks-tray redesign Stage 2 (2026-07-21).
+> A right-anchored slide-out drawer that shows today's + overdue tasks — and, since 2026-07-22, a **Completed** tab of what you've ticked off today — so you can act on them without leaving whatever you're doing. Reached from the desktop header trigger or the phone Deck's **Tasks** slot on every non-focus screen. New in the dashboard-nav-tasks-tray redesign Stage 2 (2026-07-21).
 
-**Trigger:** the checklist icon (`today-tasks-tray-trigger`) in the persistent header, carrying an overdue-count badge.
+**Triggers:** the checklist icon (`today-tasks-tray-trigger`) in the persistent header (**desktop-only** since 2026-07-22) and the Deck's **Tasks** slot (`bottom-tab-tasks`) on phones — both carry the overdue-count badge and open the same app-level tray.
 **Source file:** `src/components/TodayTasksTray.tsx` (mounted once at app level in `src/App.tsx`).
 
 ---
@@ -23,7 +23,8 @@ App (AppShell) — owns `trayOpen` state + the header trigger
     └── ModalShell (drawer variant; z = Z.drawer)
         └── panel
             ├── sticky header (title "Today's tasks" + overdue badge + quick-add + close)
-            ├── TaskList (compact, hideCalendarLink, targetDate = today) — key={refreshKey}
+            ├── Today / Completed segmented tabs (2026-07-22 — `today-tray-tab-pending` / `today-tray-tab-completed`; drives TaskList's `compactView`)
+            ├── TaskList (compact, compactView={view}, hideCalendarLink, targetDate = today) — key={refreshKey}
             └── sticky footer → "Open the full board" (→ /dashboard?view=calendar)
     └── QuickAddTaskModal (rendered only while open && quickAddOpen)
 ```
@@ -41,6 +42,7 @@ App (AppShell) — owns `trayOpen` state + the header trigger
 
 - `quickAddOpen` (`useState<boolean>`) — the slim add-task modal, gated on `open && quickAddOpen` so it can't outlive the tray.
 - `refreshKey` (`useState<number>`) — bumped after a successful quick-add to remount the embedded TaskList (a direct insert doesn't flow through TaskList's own state); paired with `TaskEngine.invalidateCache(homeId)`.
+- `view` (`useState<"pending" | "completed">`) — the Today / Completed tab (2026-07-22). Passed to TaskList as `compactView`: "completed" filters the SAME engine fetch to today's completed tasks (newest-completed data, inline toggle back to Pending stays live); an empty completed view renders its own quiet state (`task-list-empty-completed`).
 
 ### Data flow — read paths
 

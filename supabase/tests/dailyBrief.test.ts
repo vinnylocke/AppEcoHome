@@ -58,6 +58,22 @@ Deno.test("DB-002: items are capped at MAX_ITEMS", () => {
   assertEquals(items.length, MAX_ITEMS);
 });
 
+Deno.test("DB-002b: weather items dedupe by alert type (per-location rows collapse to one)", () => {
+  const { items } = assembleBrief(signals({
+    weatherAlerts: [
+      { type: "heat", message: "Hot days ahead — up to 29°C." },
+      { type: "heat", message: "Hot days ahead — up to 29°C." },
+      { type: "wind", message: "Strong wind tomorrow." },
+    ],
+  }));
+  const weather = items.filter((i) => i.kind === "weather");
+  assertEquals(weather.length, 2);
+  assertEquals(weather.map((w) => w.title), [
+    "Hot days ahead — up to 29°C.",
+    "Strong wind tomorrow.",
+  ]);
+});
+
 Deno.test("DB-003: every item carries a route (deep link) and a reason", () => {
   const { items } = assembleBrief(signals({
     overdueCount: 1, topTaskTitles: ["Water basil"],

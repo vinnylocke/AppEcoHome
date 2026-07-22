@@ -50,6 +50,23 @@ INSERT INTO public.plant_library (
     '["full_sun"]'::jsonb, 'Low', true, false, true,
     'Fast, tall and cheerful — a first-summer favourite that tracks the sun as it grows.',
     true, now()
+  ),
+  -- Two more lavenders SHARING the common name (2026-07-22) — the selection-key
+  -- regression fixture: distinct species named "Lavender" must select
+  -- independently, never light up together.
+  (
+    910004, 'Lavender', '["Lavandula stoechas"]'::jsonb, '["French Lavender"]'::jsonb,
+    'Herb', 'perennial', 'Minimum',
+    '["full_sun"]'::jsonb, 'Low', false, false, true,
+    'Showy bracts like butterfly wings — earlier flowering and a touch more tender than English lavender.',
+    true, now()
+  ),
+  (
+    910005, 'Lavender', '["Lavandula latifolia"]'::jsonb, '["Spike Lavender"]'::jsonb,
+    'Herb', 'perennial', 'Minimum',
+    '["full_sun"]'::jsonb, 'Low', false, false, true,
+    'Broad-leaved, camphor-scented lavender — vigorous and heat-tolerant.',
+    true, now()
   )
 ON CONFLICT (id) DO UPDATE SET
   common_name = EXCLUDED.common_name,

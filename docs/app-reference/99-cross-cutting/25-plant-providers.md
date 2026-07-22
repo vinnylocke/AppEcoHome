@@ -8,6 +8,7 @@
 
 ```
 searchAllProviders(query, filters, { isPremium, isAiEnabled, homeId })
+searchAllProvidersPaged(query, cursor | null, only?, { includeAi?, homeId? })  // 2026-07-22
 ├── Perenual (if isPremium) → 3 results
 ├── Verdantly (always)     → 3 results
 └── AI (if isAiEnabled)    → 3 results
@@ -154,3 +155,18 @@ Each has strengths:
 - `supabase/functions/perenual-proxy/index.ts`
 - `supabase/functions/verdantly-search/index.ts`
 - `supabase/functions/search-plants-ai/index.ts`
+
+## Paging (2026-07-22)
+
+Both providers page their catalogues and both client services already return
+`hasMore` / `nextPage` (`PerenualService.searchPlantsPaged`,
+`VerdantlyService.searchPlants(query, page)`). `searchAllProvidersPaged` carries
+a per-provider `ProviderCursor` (`{ perenual: { nextPage, hasMore }, verdantly:
+{ nextPage, hasMore } }`): `cursor: null` fetches page 1 of each enabled
+provider (+ the AI branch when requested — first page only); passing the
+returned cursor back fetches each provider's next page, skipping exhausted
+ones. A provider failure downgrades to `hasMore: false` for that provider —
+the call never rejects. `cursorHasMore(cursor)` drives the search UI's scroll
+sentinel. The classic `searchAllProviders` (page 1 only) remains for callers
+that don't page (CompanionPlantsTab resolve, plantInfoResolver). Unit-tested in
+`tests/unit/lib/plantProviderPaged.test.ts`.

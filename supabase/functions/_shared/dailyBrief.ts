@@ -125,7 +125,12 @@ export function assembleBrief(s: BriefSignals): BriefPayload {
     });
   }
 
+  // weather_alerts rows are stored per (location, type) — a home with several
+  // outdoor locations carries the same rule once per location. One item per type.
+  const seenWeatherTypes = new Set<string>();
   for (const w of s.weatherAlerts) {
+    if (seenWeatherTypes.has(w.type)) continue;
+    seenWeatherTypes.add(w.type);
     items.push({
       kind: "weather",
       title: w.message,

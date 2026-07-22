@@ -21,10 +21,16 @@ import {
   type MoisturePoint,
   type WeatherDay,
 } from "../_shared/soilProfile/drydown.ts";
+import {
+  computeTempBehaviour,
+  computeEcBehaviour,
+  type BehaviourPoint,
+} from "../_shared/soilProfile/behaviour.ts";
 
 const FN = "compute-soil-profiles";
 const DEVICE_CONCURRENCY = 8;
 const WINDOW_DAYS = 30;
+const BEHAVIOUR_WINDOW_DAYS = 7;
 
 interface DailyBlock {
   time?: string[];
@@ -97,17 +103,34 @@ serve(async (req) => {
             .order("recorded_at", { ascending: true })
             .limit(5000);
 
+          const behaviourSince = Date.now() - BEHAVIOUR_WINDOW_DAYS * 86_400_000;
           const points: MoisturePoint[] = [];
+          const behaviourPoints: BehaviourPoint[] = [];
           let latestReadingAt: string | null = null;
+          let ecSource: string | null = null;
           for (const r of readings ?? []) {
-            const m = (r.data as Record<string, unknown> | null)?.soil_moisture;
+            const data = r.data as Record<string, unknown> | null;
+            const t = new Date(r.recorded_at as string).getTime();
+            const m = data?.soil_moisture;
             if (typeof m === "number" && Number.isFinite(m)) {
-              points.push({ t: new Date(r.recorded_at as string).getTime(), moisture: m });
+              points.push({ t, moisture: m });
+            }
+            if (t >= behaviourSince) {
+              const temp = data?.soil_temp;
+              const ec = data?.soil_ec;
+              behaviourPoints.push({
+                t,
+                temp: typeof temp === "number" && Number.isFinite(temp) ? temp : null,
+                ec: typeof ec === "number" && Number.isFinite(ec) ? ec : null,
+              });
+              if (typeof data?.ec_source === "string") ecSource = data.ec_source;
             }
             latestReadingAt = r.recorded_at as string;
           }
 
           const profile = computeMoistureProfile(points, weatherByHome.get(dev.home_id) ?? []);
+          const tempBehaviour = computeTempBehaviour(behaviourPoints);
+          const ecBehaviour = computeEcBehaviour(behaviourPoints);
 
           const { error } = await db.from("soil_moisture_profiles").upsert({
             device_id: dev.id,
@@ -123,6 +146,8 @@ serve(async (req) => {
             },
             sample_segments: profile.sampleSegments,
             confidence: profile.confidence,
+            temp_behaviour: tempBehaviour,
+            ec_behaviour: { ...ecBehaviour, ecSource },
             based_on_reading_at: latestReadingAt,
             computed_at: new Date().toISOString(),
           }, { onConflict: "device_id" });

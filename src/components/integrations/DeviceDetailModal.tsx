@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
 import { X, Settings, Loader2 } from "lucide-react";
 import SoilReadingsPanel from "./SoilReadingsPanel";
+import SoilBehaviourPanel from "./SoilBehaviourPanel";
 import HistoryChart from "./HistoryChart";
 import ValveControlPanel from "./ValveControlPanel";
 import DeviceSettingsModal from "./DeviceSettingsModal";
@@ -123,6 +124,17 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
                   defaultDurationSeconds={(device.metadata?.default_duration_seconds as number | undefined) ?? 1800}
                 />
               </section>
+            )}
+
+            {/* Soil behaviour indicators — derived from soil_moisture_profiles,
+                refreshed by the daily compute-soil-profiles cron. */}
+            {device.device_type === "soil_sensor" && (
+              <SoilBehaviourPanel
+                deviceId={device.id}
+                tempDisplayUnit={
+                  (device.metadata?.display_temp_unit as "celsius" | "fahrenheit" | undefined) ?? "celsius"
+                }
+              />
             )}
 
             {/* History chart */}

@@ -1131,6 +1131,31 @@ test.describe("Shed — plant-search takeover (Stage 2)", () => {
     await expect(authenticatedPage.getByTestId("shed-plant-list")).toBeVisible({ timeout: 10000 });
   });
 
+  test("SHED-TKO-004: same-named library species select independently (selection-key regression)", async ({ authenticatedPage }) => {
+    // Seeded: three plant_library rows all named "Lavender" (910002 English,
+    // 910004 French, 910005 Spike). The old common-name selection key made
+    // adding one light up all three; keys are lib:{id} since 2026-07-22.
+    await authenticatedPage.goto("/shed?open=add-plant&query=lavender");
+    await expect(authenticatedPage.getByTestId("plant-search-takeover")).toBeVisible({ timeout: 15000 });
+
+    const english = authenticatedPage.getByTestId("plant-search-result-library-910002-add");
+    const french = authenticatedPage.getByTestId("plant-search-result-library-910004-add");
+    const spike = authenticatedPage.getByTestId("plant-search-result-library-910005-add");
+    await expect(english).toBeVisible({ timeout: 15000 });
+    await expect(french).toBeVisible();
+    await expect(spike).toBeVisible();
+
+    await english.click();
+    await expect(english).toHaveAttribute("aria-pressed", "true");
+    await expect(french).toHaveAttribute("aria-pressed", "false");
+    await expect(spike).toHaveAttribute("aria-pressed", "false");
+
+    // Toggling the English one off leaves the others untouched too.
+    await english.click();
+    await expect(english).toHaveAttribute("aria-pressed", "false");
+    await expect(french).toHaveAttribute("aria-pressed", "false");
+  });
+
   test("SHED-TKO-003: the overlay pins the search input keyboard-safe at the top and covers the app chrome", async ({ authenticatedPage }) => {
     // Stage 1 regression guard: the previous takeover put the input at y=601
     // on a phone — under the keyboard, zero results visible. The overlay must

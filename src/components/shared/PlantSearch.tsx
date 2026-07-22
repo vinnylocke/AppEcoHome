@@ -10,13 +10,15 @@ import {
   searchLibrary,
   didYouMean,
   aiSuggestPlantNames,
-  searchExternal,
+  searchExternalPaged,
+  cursorHasMore,
   createWithAI,
   libraryRowToSelection,
   providerResultToSelection,
   countActiveFilters,
   type PlantSelection,
   type PlantFilters,
+  type ProviderCursor,
 } from "../../lib/unifiedPlantSearch";
 import type { PlantLibraryRow } from "../../services/plantLibraryAdminService";
 import type { ProviderSearchResult, PlantDetails } from "../../lib/verdantlyUtils";
@@ -98,9 +100,12 @@ function toggleArr(arr: string[] | undefined, v: string): string[] | undefined {
   return next.length ? next : undefined;
 }
 
+// One distinct colour per source (2026-07-22) — Perenual previously wore the
+// Library colours, so "which API is this from?" was invisible at a glance.
+// Library = house green, Perenual = sky, Verdantly = emerald, AI = amber.
 const SOURCE_BADGE: Record<string, { label: string; className: string }> = {
   library:   { label: "Library",   className: "text-rhozly-primary bg-rhozly-primary/10" },
-  perenual:  { label: "Perenual",  className: "text-rhozly-primary bg-rhozly-primary/10" },
+  perenual:  { label: "Perenual",  className: "text-sky-700 bg-sky-100" },
   verdantly: { label: "Verdantly", className: "text-emerald-700 bg-emerald-100" },
   ai:        { label: "AI",        className: "text-amber-600 bg-amber-100" },
 };
@@ -143,6 +148,18 @@ export default function PlantSearch({
   const [externalRows, setExternalRows] = useState<ProviderSearchResult[]>([]);
   const [externalLoading, setExternalLoading] = useState(false);
   const [externalDone, setExternalDone] = useState(false);
+  // Scroll-to-load-more (2026-07-22): per-provider page cursors returned by
+  // searchExternalPaged. Null until the first external fetch; a sentinel at the
+  // bottom of the external section keeps fetching pages while any provider
+  // reports more.
+  const [externalCursor, setExternalCursor] = useState<ProviderCursor | null>(null);
+  const [externalLoadingMore, setExternalLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const externalCursorRef = useRef<ProviderCursor | null>(null);
+  externalCursorRef.current = externalCursor;
+  const externalRowsRef = useRef<ProviderSearchResult[]>([]);
+  externalRowsRef.current = externalRows;
   const [aiCreating, setAiCreating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [filters, setFilters] = useState<PlantFilters>(initialFilters ?? {});
@@ -183,6 +200,7 @@ export default function PlantSearch({
     // Reset the opt-in tiers whenever the query/filters change.
     setExternalRows([]);
     setExternalDone(false);
+    setExternalCursor(null);
     setAiError(null);
     setAiSuggestions([]);
     // Need either a 2+ char query OR at least one active filter (browse-by-filter).
@@ -232,9 +250,13 @@ export default function PlantSearch({
         setExternalLoading(true);
         try {
           const ext = prefSource === "ai"
-            ? await searchExternal(trimmed, { includeAi: true, only: ["ai"], homeId: homeIdRef.current })
-            : await searchExternal(trimmed, { only: [prefSource], homeId: homeIdRef.current });
-          if (seq === seqRef.current) { setExternalRows(ext); setExternalDone(true); }
+            ? await searchExternalPaged(trimmed, null, { includeAi: true, only: ["ai"], homeId: homeIdRef.current })
+            : await searchExternalPaged(trimmed, null, { only: [prefSource], homeId: homeIdRef.current });
+          if (seq === seqRef.current) {
+            setExternalRows(ext.results);
+            setExternalCursor(ext.cursor);
+            setExternalDone(true);
+          }
         } finally {
           if (seq === seqRef.current) setExternalLoading(false);
         }
@@ -304,8 +326,9 @@ export default function PlantSearch({
     if (!trimmed) return;
     setExternalLoading(true);
     try {
-      const rows = await searchExternal(trimmed, { includeAi: false, homeId });
-      setExternalRows(rows);
+      const { results, cursor } = await searchExternalPaged(trimmed, null, { includeAi: false, homeId });
+      setExternalRows(results);
+      setExternalCursor(cursor);
       setExternalDone(true);
     } catch (err) {
       Logger.error("PlantSearch external search failed", err, { q: trimmed });
@@ -314,6 +337,48 @@ export default function PlantSearch({
       setExternalLoading(false);
     }
   };
+
+  // Fetch the next provider page(s) when the sentinel scrolls into view.
+  // Appended rows dedupe by provider identity — providers can overlap page
+  // boundaries when their catalogues shift between requests.
+  const loadMoreExternal = useCallback(async () => {
+    const cursor = externalCursorRef.current;
+    if (!cursor || !cursorHasMore(cursor) || loadingMoreRef.current) return;
+    const trimmed = queryRef.current.trim();
+    if (!trimmed) return;
+    const seq = seqRef.current;
+    loadingMoreRef.current = true;
+    setExternalLoadingMore(true);
+    try {
+      const { results, cursor: nextCursor } = await searchExternalPaged(trimmed, cursor, { homeId: homeIdRef.current });
+      if (seq !== seqRef.current) return; // a new query superseded this page
+      const seen = new Set(externalRowsRef.current.map((r) => `${r._provider}:${r.id}`));
+      const fresh = results.filter((r) => !seen.has(`${r._provider}:${r.id}`));
+      setExternalRows((prev) => [...prev, ...fresh]);
+      setExternalCursor(nextCursor);
+    } catch (err) {
+      Logger.error("PlantSearch external load-more failed", err, { q: trimmed });
+      if (seq === seqRef.current) setExternalCursor(null); // retire the sentinel
+    } finally {
+      loadingMoreRef.current = false;
+      if (seq === seqRef.current) setExternalLoadingMore(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) loadMoreExternal();
+      },
+      { rootMargin: "200px" },
+    );
+    obs.observe(node);
+    return () => obs.disconnect();
+    // externalCursor in deps: the sentinel mounts/unmounts with cursorHasMore,
+    // so the observer must re-attach when the cursor changes.
+  }, [loadMoreExternal, externalCursor]);
 
   const handleCreateWithAI = async () => {
     const trimmed = query.trim();
@@ -639,6 +704,20 @@ export default function PlantSearch({
                 );
               })}
             </ul>
+            {/* Scroll sentinel (2026-07-22) — while any provider has another
+                page, scrolling here fetches it seamlessly; the sentinel
+                retires itself once both catalogues are exhausted. */}
+            {cursorHasMore(externalCursor) && (
+              <div
+                ref={sentinelRef}
+                data-testid="plant-search-external-sentinel"
+                className="flex items-center justify-center py-3"
+              >
+                {externalLoadingMore && (
+                  <Loader2 size={16} className="animate-spin text-rhozly-on-surface/30" />
+                )}
+              </div>
+            )}
           </div>
         ) : null;
 
@@ -791,15 +870,23 @@ function ResultRow({
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-black text-rhozly-on-surface text-base leading-tight truncate">{name}</p>
-              <p className="text-xs font-bold text-rhozly-on-surface/45 truncate">
-                {sub && <span className="italic">{sub} · </span>}
-                {badge.label}
+              {/* Source chip leads the meta line (2026-07-22) — a fixed,
+                  coloured slot that survives truncation, instead of a plain
+                  word trailing the scientific name. */}
+              <p className="text-xs font-bold text-rhozly-on-surface/45 flex items-center gap-1.5 min-w-0">
+                <span
+                  data-testid={`${testId}-source-badge`}
+                  className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${badge.className}`}
+                >
+                  {badge.label}
+                </span>
+                {sub && <span className="italic truncate">{sub}</span>}
                 {fav && (
                   <Heart
                     size={12}
                     data-testid={`${testId}-fav-glyph`}
                     aria-label="In your favourites"
-                    className="inline-block ml-1.5 -mt-0.5 fill-current text-rose-500"
+                    className="shrink-0 fill-current text-rose-500"
                   />
                 )}
               </p>

@@ -31,7 +31,9 @@ Tabs:
 ```
 PlantEditModal (Portal, focus-trapped)
 ├── Header (close, title, "View instances" button)
-├── At-a-glance row (instance count, areas, latest lux, open tasks)
+├── At-a-glance row (instance count, areas, latest lux, open tasks — counts
+│     `status = 'Planted'` instances only since 2026-07-22, so ended/staged
+│     instances never inflate the "N planted" chip; hidden at 0)
 ├── Tab bar
 │   ├── Care
 │   ├── Schedule → PlantScheduleTab

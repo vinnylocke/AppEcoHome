@@ -34,6 +34,9 @@ export default function TodayTasksTray({ open, onClose, homeId, overdueCount }: 
   // Bumping this remounts the embedded TaskList so it refetches after a
   // quick-add (the direct insert doesn't flow through TaskList's own state).
   const [refreshKey, setRefreshKey] = useState(0);
+  // Today / Completed (2026-07-22) — drives TaskList's compactView so ticked-off
+  // tasks stay reviewable (and undoable) without leaving the tray.
+  const [view, setView] = useState<"pending" | "completed">("pending");
 
   if (!homeId) return null;
 
@@ -97,7 +100,25 @@ export default function TodayTasksTray({ open, onClose, homeId, overdueCount }: 
           </div>
 
           <div className="flex-1 p-4">
-            <TaskList key={refreshKey} homeId={homeId} compact hideCalendarLink targetDate={new Date()} />
+            <div className="flex bg-rhozly-surface-low p-1 rounded-2xl mb-3">
+              <button
+                type="button"
+                data-testid="today-tray-tab-pending"
+                onClick={() => setView("pending")}
+                className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${view === "pending" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 can-hover:hover:text-rhozly-on-surface"}`}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                data-testid="today-tray-tab-completed"
+                onClick={() => setView("completed")}
+                className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${view === "completed" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 can-hover:hover:text-rhozly-on-surface"}`}
+              >
+                Completed
+              </button>
+            </div>
+            <TaskList key={refreshKey} homeId={homeId} compact compactView={view} hideCalendarLink targetDate={new Date()} />
           </div>
 
           <div className="sticky bottom-0 bg-rhozly-surface-lowest/95 backdrop-blur-sm border-t border-rhozly-outline/10 px-4 py-3">

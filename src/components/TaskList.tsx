@@ -71,6 +71,11 @@ interface TaskListProps {
    * "View calendar →" link at the bottom (unless `hideCalendarLink`). Default false.
    */
   compact?: boolean;
+  /** Compact-mode status view override (2026-07-22 — the tray's Today/Completed
+   *  tabs). "completed" shows today's completed tasks (undo stays inline);
+   *  omitted/"pending" keeps the classic compact behaviour. Ignored when
+   *  `compact` is false — the full board owns its own tab bar. */
+  compactView?: "pending" | "completed";
   /** Suppress the compact-mode "View calendar →" footer. The home passes this
    *  because it wraps the list with its own prominent "Open board →" / "See all"
    *  header — the footer would be a duplicate. /quick/calendar keeps the footer
@@ -96,6 +101,7 @@ export default function TaskList({
   preloadedInventoryDict,
   preloadedBlockedTaskIds,
   compact = false,
+  compactView,
   hideCalendarLink = false,
   onOpenToDoList,
 }: TaskListProps) {
@@ -116,7 +122,10 @@ export default function TaskList({
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
   const [inventoryDict, setInventoryDict] = useState<Record<string, any>>({});
   const [blockedTaskIds, setBlockedTaskIds] = useState<Set<string>>(new Set());
-  const [viewTab, setViewTab] = useState<"pending" | "completed">("pending");
+  const [viewTabState, setViewTab] = useState<"pending" | "completed">("pending");
+  // Compact hosts (the tray) drive the status view from their own tabs — the
+  // internal tab bar is hidden there, so the prop is the only switch.
+  const viewTab = compact && compactView ? compactView : viewTabState;
 
   const [isPostponing, setIsPostponing] = useState(false);
   const [postponeDate, setPostponeDate] = useState("");
@@ -1112,7 +1121,19 @@ export default function TaskList({
         // celebration, not a setup ad; a genuinely quiet day says so; and only a
         // task-less list keeps the setup CTA. In compact mode (home / tray) it
         // renders small + chrome-less so it isn't a giant dashed card mid-feed.
-        taskListEmptyVariant(pendingCount, completedCount) === "all-done" ? (
+        compact && viewTab === "completed" ? (
+          // Tray Completed tab (2026-07-22) — its own quiet empty state; the
+          // pending variants' copy ("All done" / setup CTA) reads wrong here.
+          <EmptyState
+            data-testid="task-list-empty-completed"
+            size="sm"
+            chrome="none"
+            className="animate-in fade-in"
+            icon={<CheckCircle2 size={22} />}
+            title="Nothing ticked off yet"
+            body="Tasks you complete today will collect here."
+          />
+        ) : taskListEmptyVariant(pendingCount, completedCount) === "all-done" ? (
           <EmptyState
             data-testid="task-list-empty"
             {...(compact ? { size: "sm" as const, chrome: "none" as const } : {})}

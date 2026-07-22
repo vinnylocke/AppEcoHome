@@ -24,6 +24,7 @@ Below the badge:
 | Light | Lux history for this instance's area (LightTab) |
 | Stats | Days-since-planted, total tasks completed, etc. (InstanceStatsTab) |
 | Companions | Companion plants (CompanionPlantsTab) |
+| Senescence | **Ended instances only** (2026-07-22) — the end-of-life record in one place: end date, natural-end badge, closing note + photo, lifecycle journal timeline, Restore (InstanceSenescenceTab) |
 
 Cover image is pinned from the Photos tab and refetched on every tab switch.
 
@@ -47,9 +48,20 @@ InstanceEditModal (Portal, focus-trapped)
 │   ├── Yield → YieldTab
 │   ├── Light → LightTab
 │   ├── Stats → InstanceStatsTab
-│   └── Companions → CompanionPlantsTab
+│   ├── Companions → CompanionPlantsTab
+│   └── Senescence → InstanceSenescenceTab (tab button + panel render only when `instance.ended_at` is set)
 └── Save / Cancel (Details tab only)
 ```
+
+The Senescence tab reads `plant_journals` rows for the instance whose `subject`
+matches `Lifecycle complete%` / `Restored from Senescence%` (the closing photo is
+the newest `Lifecycle complete%` row with an `image_url`). Restore mirrors
+PlantInstancesTab semantics verbatim: null `ended_at`/`was_natural_end`/`end_summary`,
+status → Planted, journal the round trip, re-fire `generate-tasks`; the host then
+flips back to the Details tab and propagates via `onUpdate` + `onTasksUpdated`.
+Testids: `instance-modal-tab-senescence`, `instance-senescence-tab`,
+`senescence-end-badge`, `senescence-end-summary`, `senescence-closing-photo`,
+`senescence-timeline`, `senescence-restore`.
 
 ### Props
 
@@ -144,6 +156,15 @@ Each tab is a separate flow with its own reference file ([Photo Timeline](./09-p
 
 > **Design decision (Wave 7 D10 — wontfix).** The Care Guide tab here is intentionally read-only. Editing care fields affects the *species* record (`plants` table), not the inventory item. Having two edit entry points (this tab AND Plant Edit Modal) would confuse users about which scope they're modifying. To edit the underlying species record, open the parent plant from The Shed — that's the single, clear entry point for plant-level edits. The Refresh + Revert flows live there exclusively (see [Plant Edit Modal](./06-plant-edit-modal.md#ai-editing-flow)).
 
+#### Senescence (ended instances only)
+
+- One tap shows how this plant's story ended — when, whether it was a natural
+  end or something went wrong, the closing note and photo, and every lifecycle
+  event (ends and restores) in order. No more scrolling the general journal to
+  find it.
+- **Restore to active care** brings the plant back: end record cleared, status
+  back to Planted, routines resume. A confirm guards against accidental taps.
+
 ### Tier-by-tier experience
 
 | Tier | Differences |
@@ -180,6 +201,7 @@ Each tab is a separate flow with its own reference file ([Photo Timeline](./09-p
 ## Code references for ongoing maintenance
 
 - `src/components/InstanceEditModal.tsx`
+- `src/components/InstanceSenescenceTab.tsx`
 - Sub-tab components per reference above
 - `src/lib/plantProvider.ts`
 - `src/lib/automationEngine.ts`

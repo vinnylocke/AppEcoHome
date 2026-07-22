@@ -42,6 +42,7 @@
 | SHED-TKO-001 | ✅ | `?open=add-plant&query=` deep-links into the full-page takeover (`plant-search-takeover`, no `aria-modal` dialog, query seeded into `plant-search-input`, params consumed) | — | ✅ Passing |
 | SHED-TKO-002 | ✅ | The takeover's back button (`shed-search-back`) returns to the Shed grid | — | ✅ Passing |
 | SHED-TKO-003 | ✅ | Overlay pins `plant-search-input` in the top band (y<130), paints over the app header (`elementFromPoint` = the input), and the Escape ladder clears a typed query before closing | — | ✅ Passing |
+| SHED-TKO-004 | ✅ | Same-named library species select independently (selection keys are `lib:{id}` since 2026-07-22): seeded Lavenders 910002/910004/910005 — adding one sets only its `aria-pressed` | Seeds: `17_plant_library.sql` | ✅ Passing |
 | SHED-S3-001 | ✅ | One search, two worlds: owned section + seed-17 library row coexist for "Tomato" | Seed 17 | ✅ Passing |
 | SHED-S3-002 | ✅ | Persona browse chips live in the takeover idle state; chip seeds browse-by-filter (panel auto-opens) | — | ✅ Passing |
 | SHED-FAV-001 | ✅ | Stage 4: "Add & assign…" (`favourite-add-assign-{id}`, seeded Fig favourite 0017-…03) copies the favourite into this home and opens the assignment modal; self-cleaning (cancels + deletes the copy via the card flow) | — | ✅ Passing |

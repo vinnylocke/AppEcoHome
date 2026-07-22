@@ -134,7 +134,8 @@ test.describe("Global layout — navigation (Section 16)", () => {
     const bar = authenticatedPage.getByTestId("bottom-tab-bar");
     await expect(bar).toBeVisible({ timeout: 10000 });
 
-    // Phase 6b — the Deck is Home / Plants / [Capture FAB] / Planner / More.
+    // Phase 6b — the Deck is Home / Plants / [Capture FAB] / Tasks / More
+    // (Planner ceded its slot to the Today's-Tasks tray, 2026-07-22).
     // Plants destination tab → /shed, with the active accent following.
     await authenticatedPage.getByTestId("bottom-tab-shed").click();
     await expect(authenticatedPage).toHaveURL(/\/shed/, { timeout: 8000 });
@@ -157,6 +158,28 @@ test.describe("Global layout — navigation (Section 16)", () => {
     await expect(authenticatedPage.getByTestId("capture-sheet")).toBeVisible({ timeout: 5000 });
     await authenticatedPage.getByTestId("capture-diagnose").click();
     await expect(authenticatedPage).toHaveURL(/\/doctor/, { timeout: 8000 });
+  });
+
+  test("NAV-012: The Deck's Tasks slot opens the tray; header trigger + Planner slot are gone on phone", async ({ authenticatedPage }) => {
+    await authenticatedPage.setViewportSize({ width: 375, height: 812 });
+    await authenticatedPage.goto("/dashboard");
+    await expect(authenticatedPage.getByTestId("bottom-tab-bar")).toBeVisible({ timeout: 10000 });
+
+    // 2026-07-22 — Planner ceded its Deck slot to the Today's-Tasks tray, and
+    // the header copy of the trigger became desktop-only (no phone duplicate).
+    await expect(authenticatedPage.getByTestId("bottom-tab-planner")).toHaveCount(0);
+    await expect(authenticatedPage.getByTestId("today-tasks-tray-trigger")).toBeHidden();
+
+    await authenticatedPage.getByTestId("bottom-tab-tasks").click();
+    await expect(authenticatedPage.getByTestId("today-tasks-tray")).toBeVisible({ timeout: 10000 });
+    await authenticatedPage.getByTestId("today-tray-close").click();
+
+    // Planner still reachable on phone via More → Shelf.
+    await authenticatedPage.getByTestId("bottom-tab-more").click();
+    const drawer = authenticatedPage.getByTestId("mobile-nav-drawer");
+    await expect(drawer).toBeVisible({ timeout: 5000 });
+    await drawer.getByRole("button", { name: "Planner" }).click();
+    await expect(authenticatedPage).toHaveURL(/\/planner/, { timeout: 8000 });
   });
 
   test("NAV-010: Bottom tab bar is hidden on desktop viewport", async ({ authenticatedPage }) => {

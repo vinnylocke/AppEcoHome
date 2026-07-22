@@ -26,7 +26,7 @@ ToolsHub
 │   ├── Plan & Design (Garden Layout, Plant Visualiser)
 │   ├── Measure & Track (Light Sensor, Sun Tracker)
 │   ├── Measure & Track also carries Garden Reports (B16, Stage 5 — /reports)
-│   └── Diagnose & Learn (Plant Doctor, Guides, Ailment Library)
+│   └── Diagnose & Learn (Plant Doctor, Guides — the Ailments tile was removed 2026-07-22)
 ├── Connect Hardware card → /integrations
 └── Workflows (3 multi-step recipes)
 ```
@@ -39,7 +39,7 @@ ToolsHub
 [
   { id: "plan",     label: "Plan & Design",   tools: [{ id: "garden-layout", path: "/garden-layout" }, { id: "plant-visualiser", path: "/visualiser" }] },
   { id: "measure",  label: "Measure & Track", tools: [{ id: "light-sensor",  path: "/lightsensor"  }, { id: "sun-tracker",      path: "/sun-trajectory" }] },
-  { id: "diagnose", label: "Diagnose & Learn", tools: [{ id: "garden-ai",     path: "/doctor"       }, { id: "guides",            path: "/guides" }, { id: "ailment-library", path: "/shed?tab=watchlist" /* B5; Stage F retarget — library page died */ }] },
+  { id: "diagnose", label: "Diagnose & Learn", tools: [{ id: "garden-ai",     path: "/doctor"       }, { id: "guides",            path: "/guides" }] }, // the ailment-library tile was removed 2026-07-22 — the Garden Hub's Ailments tab is the one ailment surface
 ]
 ```
 
@@ -170,4 +170,4 @@ When you don't know what tool you need yet but have a problem to solve, this is 
 - `src/constants/icons.tsx` — icon components
 
 
-> **Stage F retarget (2026-07-22):** the "Ailment Library" tile is now labelled **"Ailments"** and opens `/shed?tab=watchlist` — the standalone library page died (Hub v3 Stage F); the Ailments tab's search is the field guide.
+> **Removed (2026-07-22):** the "Ailments" tile is gone — since Hub v3 the Garden Hub's Ailments tab IS the field guide, so the Tools copy was a pure nav duplicate. The "Something looks wrong" workflow card still deep-links to the Watchlist as a guided step.

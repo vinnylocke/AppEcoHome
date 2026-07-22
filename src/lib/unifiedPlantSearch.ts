@@ -11,9 +11,11 @@
 // this module just performs the actions.
 
 import { supabase } from "./supabase";
-import { searchAllProviders } from "./plantProvider";
+import { searchAllProviders, searchAllProvidersPaged, cursorHasMore, type ProviderCursor } from "./plantProvider";
 import type { ProviderSearchResult } from "./verdantlyUtils";
 import type { PlantLibraryRow } from "../services/plantLibraryAdminService";
+
+export { cursorHasMore, type ProviderCursor };
 
 export interface PlantSelection {
   source: "library" | "perenual" | "verdantly" | "ai" | "manual";
@@ -190,6 +192,31 @@ export async function searchExternal(
   const trimmed = query.trim();
   if (!trimmed) return [];
   return searchAllProviders(trimmed, undefined, opts.only, {
+    includeAi: opts.includeAi,
+    homeId: opts.homeId,
+  });
+}
+
+/**
+ * Paged external search (2026-07-22) — the scroll-to-load-more engine behind
+ * the external results section. Pass `cursor: null` for the first page (which
+ * also runs the AI branch when requested); pass the returned cursor back to
+ * fetch the next page from every provider that still has one. Use
+ * `cursorHasMore(cursor)` to decide whether to keep the scroll sentinel alive.
+ */
+export async function searchExternalPaged(
+  query: string,
+  cursor: ProviderCursor | null,
+  opts: { includeAi?: boolean; homeId?: string; only?: ("perenual" | "verdantly" | "ai")[] } = {},
+): Promise<{ results: ProviderSearchResult[]; cursor: ProviderCursor }> {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return {
+      results: [],
+      cursor: { perenual: { nextPage: 1, hasMore: false }, verdantly: { nextPage: 1, hasMore: false } },
+    };
+  }
+  return searchAllProvidersPaged(trimmed, cursor, opts.only, {
     includeAi: opts.includeAi,
     homeId: opts.homeId,
   });

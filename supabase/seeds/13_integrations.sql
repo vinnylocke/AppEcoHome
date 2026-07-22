@@ -92,3 +92,27 @@ VALUES (
   now() - interval '2 hours'
 )
 ON CONFLICT (id) DO UPDATE SET fired_at = now() - interval '2 hours';
+
+-- Soil behaviour profile (2026-07-22) — a pre-computed soil_moisture_profiles
+-- row for the soil sensor so DeviceDetailModal's "Soil behaviour" panel renders
+-- deterministically in E2E (the compute-soil-profiles cron never runs locally).
+INSERT INTO public.soil_moisture_profiles (
+  device_id, home_id, area_id,
+  drydown_rate_pct_per_day, retention_class, drydown_by_weather,
+  watering_response, sample_segments, confidence,
+  temp_behaviour, ec_behaviour, based_on_reading_at, computed_at
+)
+VALUES (
+  '00000000-0000-0000-0014-000000000001',
+  '00000000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0002-000000000001',
+  5.2, 'balanced', '[{"key": "mild", "ratePerDay": 5.2, "segments": 4}]',
+  '{"rewetCount": 4, "avgRewetJump": 18.5, "avgSegmentDurationDays": 3.1}', 4, 0.7,
+  '{"dayMaxC": 24.5, "nightMinC": 12.0, "diurnalSwingC": 12.5, "sampleDays": 7}',
+  '{"mean": 620, "cv": 0.04, "stability": "stable", "trend": "flat", "sampleDays": 7, "ecSource": "calibrated_us_cm"}',
+  now(), now()
+)
+ON CONFLICT (device_id) DO UPDATE SET
+  temp_behaviour = EXCLUDED.temp_behaviour,
+  ec_behaviour   = EXCLUDED.ec_behaviour,
+  computed_at    = now();

@@ -5,7 +5,7 @@
 **Seed dependencies:** `00_bootstrap.sql` (user, home), `03_tasks_blueprints.sql` (today's + overdue tasks so the tray lists rows)
 **App-reference:** [09-persistent-ui/12-today-tasks-tray.md](../app-reference/09-persistent-ui/12-today-tasks-tray.md) · [09-persistent-ui/01-header.md](../app-reference/09-persistent-ui/01-header.md) · [02-dashboard/17-home-main.md](../app-reference/02-dashboard/17-home-main.md)
 
-**Global "Today's Tasks" tray (dashboard-nav-tasks-tray redesign Stage 2, 2026-07-21).** A right-anchored drawer reachable from a header trigger (`today-tasks-tray-trigger`, ListChecks + overdue badge) on every non-focus screen, so today's + overdue tasks are one tap away anywhere in the app. Built on `ModalShell`'s new `drawer` variant; the body is the shared compact `TaskList` (per-row inline complete / postpone / delete); a quick-add opens the slim `QuickAddTaskModal`; a footer button jumps to the full calendar board.
+**Global "Today's Tasks" tray (dashboard-nav-tasks-tray redesign Stage 2, 2026-07-21).** A right-anchored drawer reachable from the desktop header trigger (`today-tasks-tray-trigger` — desktop-only since 2026-07-22) or the phone Deck's Tasks slot (`bottom-tab-tasks`) on every non-focus screen; since 2026-07-22 it carries Today / Completed tabs, so today's + overdue tasks are one tap away anywhere in the app. Built on `ModalShell`'s new `drawer` variant; the body is the shared compact `TaskList` (per-row inline complete / postpone / delete); a quick-add opens the slim `QuickAddTaskModal`; a footer button jumps to the full calendar board.
 
 ## Tray open / act / close (`today-tasks-tray.spec.ts`)
 
@@ -15,6 +15,7 @@
 | TRAY-002 | ✅ | The tray lists task rows, each exposing inline **complete** (`Mark task … as complete`) and **postpone** (`Postpone task …`) — act without leaving the screen | — | ✅ Passing |
 | TRAY-003 | ✅ | The tray's quick-add (`today-tray-quick-add`) opens the slim `quick-add-task-modal` | — | ✅ Passing |
 | TRAY-004 | ✅ | The tray's "Open the full board" (`today-tray-open-board`) navigates to `?view=calendar` | — | ✅ Passing |
+| TRAY-005 | ✅ | The **Completed** tab (`today-tray-tab-completed`, 2026-07-22) lists the seeded completed-today task ("Morning Plant Inspection") with the inline undo toggle; the Today tab excludes it | — | ✅ Passing |
 | TRAY-010 | ✅ | Focus mode (`/walk`) hides the header, so `today-tasks-tray-trigger` has count 0 | — | ✅ Passing |
 
 **Notes**

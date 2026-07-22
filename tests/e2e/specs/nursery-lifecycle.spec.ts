@@ -950,6 +950,14 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
         .locator(".animate-spin, .animate-pulse").first()
         .waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
       await authenticatedPage.getByTestId(`plant-card-${PLANT_BASIL}`).click();
+
+      // Regression (2026-07-22): the glance chip counts PLANTED instances only —
+      // the ended fixture must not inflate it ("1 planted", never "2 planted").
+      await expect(authenticatedPage.getByTestId("plant-edit-glance-strip")).toContainText(
+        "1 planted",
+        { timeout: 10000 },
+      );
+
       await authenticatedPage.getByTestId("plant-modal-tab-instances").click();
 
       const historyRow = authenticatedPage.getByTestId(`plant-history-row-${endedId}`);
@@ -960,8 +968,18 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
       const instanceModal = authenticatedPage.getByRole("dialog", { name: "Edit plant instance" });
       await expect(instanceModal).toBeVisible({ timeout: 10000 });
       // "Lifecycle complete" card — the amend/AI re-run surface (Item 4).
-      await expect(instanceModal.getByText("Lifecycle complete")).toBeVisible();
+      await expect(instanceModal.getByText("Lifecycle complete").first()).toBeVisible();
       await expect(instanceModal.getByTestId("instance-amend-lifecycle")).toBeVisible();
+
+      // Senescence tab (2026-07-22) — ended instances get a dedicated tab
+      // surfacing the end-of-life record that otherwise hides in the journal.
+      await instanceModal.getByTestId("instance-modal-tab-senescence").click();
+      await expect(instanceModal.getByTestId("instance-senescence-tab")).toBeVisible();
+      await expect(instanceModal.getByTestId("senescence-end-badge")).toHaveText(/Natural end/i);
+      await expect(instanceModal.getByTestId("senescence-end-summary")).toContainText(
+        "e2e history tap-through fixture",
+      );
+      await expect(instanceModal.getByTestId("senescence-restore")).toBeVisible();
 
       // View-only — close without amending or restoring.
       await instanceModal.getByLabel("Close").click();

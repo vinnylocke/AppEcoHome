@@ -152,6 +152,105 @@ export async function searchAllProviders(
   return batches.flat();
 }
 
+// ─── Paged search (2026-07-22) ───────────────────────────────────────────────
+// Both providers page their catalogues (Verdantly especially), but the classic
+// searchAllProviders only ever fetched page 1. This variant carries per-provider
+// cursors so the search UI can load further pages seamlessly as the user
+// scrolls, instead of eagerly burning metered API calls on results most
+// searches never reach.
+
+export interface ProviderCursor {
+  perenual: { nextPage: number; hasMore: boolean };
+  verdantly: { nextPage: number; hasMore: boolean };
+}
+
+export function cursorHasMore(cursor: ProviderCursor | null): boolean {
+  return !!cursor && (cursor.perenual.hasMore || cursor.verdantly.hasMore);
+}
+
+export async function searchAllProvidersPaged(
+  query: string,
+  /** null = first page (also runs the AI branch when requested). */
+  cursor: ProviderCursor | null,
+  only?: ("perenual" | "verdantly" | "ai")[],
+  options?: { includeAi?: boolean; homeId?: string },
+): Promise<{ results: ProviderSearchResult[]; cursor: ProviderCursor }> {
+  const enabled = await getEnabledProviders();
+  const active = only ? enabled.filter((p) => only.includes(p as "perenual" | "verdantly" | "ai")) : enabled;
+  const firstPage = cursor === null;
+  const wantAi = firstPage && (options?.includeAi || (only?.includes("ai") ?? false));
+
+  const next: ProviderCursor = {
+    perenual: cursor?.perenual ?? { nextPage: 1, hasMore: true },
+    verdantly: cursor?.verdantly ?? { nextPage: 1, hasMore: true },
+  };
+
+  const calls: Promise<ProviderSearchResult[]>[] = [];
+
+  if (active.includes("perenual") && next.perenual.hasMore) {
+    const page = next.perenual.nextPage;
+    calls.push(
+      PerenualService.searchPlantsPaged(query, page)
+        .then(({ data, hasMore, nextPage }) => {
+          next.perenual = { nextPage, hasMore };
+          return data.map(fromPerenualSearchItem);
+        })
+        .catch(() => {
+          next.perenual = { nextPage: page, hasMore: false };
+          return [] as ProviderSearchResult[];
+        }),
+    );
+  } else if (!active.includes("perenual")) {
+    next.perenual = { nextPage: 1, hasMore: false };
+  }
+
+  if (active.includes("verdantly") && next.verdantly.hasMore) {
+    const page = next.verdantly.nextPage;
+    calls.push(
+      VerdantlyService.searchPlants(query, page)
+        .then(({ results, hasMore, nextPage }) => {
+          next.verdantly = { nextPage, hasMore };
+          return results;
+        })
+        .catch(() => {
+          next.verdantly = { nextPage: page, hasMore: false };
+          return [] as ProviderSearchResult[];
+        }),
+    );
+  } else if (!active.includes("verdantly")) {
+    next.verdantly = { nextPage: 1, hasMore: false };
+  }
+
+  if (wantAi) {
+    calls.push(
+      PlantDoctorService.searchPlantsText(query, options?.homeId ? { homeId: options.homeId } : undefined)
+        .then((d) => (d.matches || []).slice(0, 5).map<ProviderSearchResult>((name, idx) => {
+          const hit = d.hits?.[name];
+          return {
+            id:              `ai-${idx}-${name}`,
+            common_name:     name,
+            scientific_name: [],
+            thumbnail_url:   null,
+            _provider:       "ai",
+            ...(hit && {
+              catalogue_hit: {
+                hit_kind:               hit.hit_kind,
+                plant_id:               hit.plant_id,
+                freshness_version:      hit.freshness_version,
+                last_care_generated_at: hit.last_care_generated_at,
+                overridden_fields:      hit.overridden_fields,
+              },
+            }),
+          };
+        }))
+        .catch(() => [] as ProviderSearchResult[]),
+    );
+  }
+
+  const batches = await Promise.all(calls);
+  return { results: batches.flat(), cursor: next };
+}
+
 // ─── Details ─────────────────────────────────────────────────────────────────
 
 export async function getProviderPlantDetails(plant: {

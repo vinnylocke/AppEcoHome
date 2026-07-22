@@ -364,12 +364,15 @@ export default function PlantEditModal({
     if (!homeId || !plant?.id) return;
     let cancelled = false;
     (async () => {
-      // Inventory items for this plant — gives us instance count + areas
+      // Inventory items for this plant — gives us instance count + areas.
+      // Planted only (2026-07-22): the chip says "planted", so ended /
+      // archived / staged instances must not count toward it.
       const { data: items } = await supabase
         .from("inventory_items")
         .select("id, area_id, areas(name)")
         .eq("home_id", homeId)
-        .eq("plant_id", plant.id);
+        .eq("plant_id", plant.id)
+        .eq("status", "Planted");
       if (cancelled) return;
       const instanceIds = (items ?? []).map((i: any) => i.id);
       const areaIds = new Set((items ?? []).map((i: any) => i.area_id).filter(Boolean));
