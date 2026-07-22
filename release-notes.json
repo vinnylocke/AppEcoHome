@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "\"Add planting tasks\" no longer lists the same sowing step twice — identical planting tasks are now merged, keeping the one with the fuller instructions."
+    ]
+  }
+]

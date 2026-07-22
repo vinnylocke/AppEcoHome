@@ -99,6 +99,30 @@ describe("plantingTasksFromGuide", () => {
     expect(plantingTasksFromGuide(null)).toEqual([]);
     expect(plantingTasksFromGuide(guide([]))).toEqual([]);
   });
+
+  test("dedupes an identical sow task shared by the propagation + germination sections, keeping the richer description", () => {
+    const g = guide([
+      section("propagation", "Sow Lettuce Seeds"), // short desc: "Sow Lettuce Seeds desc"
+      {
+        // germination: same title, longer (step-enriched) description
+        category: "germination", applicable: true, title: "", summary: "", key_facts: [], tips: [], notes: null,
+        steps: [{ step: 1, title: "Fill trays", detail: "seed compost" }],
+        schedulable_tasks: [{
+          title: "Sow Lettuce Seeds",
+          description: "Sow lettuce seeds directly or start indoors in trays.",
+          task_type: "Planting", is_recurring: false, frequency_days: null,
+          active_months: ["Apr"], duration_days: null, priority: "Medium", depends_on_index: null,
+        }],
+      },
+      section("harvesting", "Harvest"),
+    ]);
+    const tasks = plantingTasksFromGuide(g);
+    // One "Sow Lettuce Seeds" (not two) + the harvest task.
+    expect(tasks.map((t) => t.title)).toEqual(["Sow Lettuce Seeds", "Harvest"]);
+    // Kept the richer, step-enriched description.
+    expect(tasks[0].description).toContain("How to:");
+    expect(tasks[0].description).toContain("Fill trays");
+  });
 });
 
 describe("plantingTasksFromPick", () => {

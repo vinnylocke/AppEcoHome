@@ -43,17 +43,41 @@ const SOW_VERB: Record<SeasonalPick["sow_method"], string> = {
 };
 
 /**
+ * Collapse tasks that share a title (case-insensitive, trimmed), keeping the
+ * one with the richer description and its first-seen position. The propagation
+ * and germination sections often both carry the same sow step ("Sow X seeds"),
+ * which would otherwise land on the calendar twice.
+ */
+function dedupeByTitle(tasks: SchedulableTask[]): SchedulableTask[] {
+  const byKey = new Map<string, SchedulableTask>();
+  const order: string[] = [];
+  for (const t of tasks) {
+    const key = (t.title ?? "").trim().toLowerCase();
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, t);
+      order.push(key);
+    } else if ((t.description?.length ?? 0) > (existing.description?.length ?? 0)) {
+      // Same title — keep the more complete instructions, first-seen position.
+      byKey.set(key, t);
+    }
+  }
+  return order.map((k) => byKey.get(k)!);
+}
+
+/**
  * Planting-journey tasks from an existing grow guide. Filters to the
- * propagation + germination + harvesting sections (applicable only), then
- * reuses `flattenSectionsForCalendar` so each section's how-to steps are
- * folded into its first task's description (the "methods").
+ * propagation + germination + harvesting sections (applicable only), reuses
+ * `flattenSectionsForCalendar` so each section's how-to steps are folded into
+ * its first task's description (the "methods"), then dedupes identical-title
+ * tasks so the same sow step isn't added twice.
  */
 export function plantingTasksFromGuide(guide: PlantGrowGuide | null | undefined): SchedulableTask[] {
   if (!guide?.sections?.length) return [];
   const journey = guide.sections.filter(
     (s) => s.applicable && PLANTING_JOURNEY_CATEGORIES.has(s.category),
   );
-  return flattenSectionsForCalendar(journey);
+  return dedupeByTitle(flattenSectionsForCalendar(journey));
 }
 
 /** Distinct month abbreviations spanned by an inclusive ISO date range,

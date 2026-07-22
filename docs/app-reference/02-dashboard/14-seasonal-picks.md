@@ -62,7 +62,9 @@ Grow Guide → Generate → "Add all" just to get a pick onto the calendar. On t
 2. Assembles the **planting-journey** `SchedulableTask[]` via
    `src/lib/seasonalPickPlantingTasks.ts`: prefers an existing grow guide's
    **propagation + germination + harvesting** sections (`plantingTasksFromGuide`,
-   step-enriched); if there's no guide it builds them instantly from the pick's
+   step-enriched, then **deduped by title** — the propagation + germination
+   sections often carry the same sow step, so identical-title tasks are merged
+   keeping the richer description); if there's no guide it builds them instantly from the pick's
    own `sow_method` + `sow_window` (+ `harvest_window`) via
    `plantingTasksFromPick`, then fires `generateGrowGuide` in the background so
    the plant page is ready later. Ongoing care (water/pruning/fertilizing) is
