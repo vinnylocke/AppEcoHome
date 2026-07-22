@@ -21,6 +21,9 @@ interface Props {
   onQuickAdd: (pick: SeasonalPick) => void;
   /** True while this tile's quick-add is preparing (ensure + guide read). */
   preparing?: boolean;
+  /** Fill the parent cell (grid + carousel variants) instead of the fixed
+   *  260/280px width the horizontal-scroll "today" variant needs. */
+  fullWidth?: boolean;
 }
 
 const SOW_ICON: Record<SeasonalPick["sow_method"], React.ReactNode> = {
@@ -63,7 +66,7 @@ function shortMonth(iso: string): string {
  * Gemini) happens inside the modal's `useCataloguePlantFromResult` hook —
  * same path every other plant-search consumer takes.
  */
-export default function SeasonalPickTile({ pick, index, onOpen, onQuickAdd, preparing = false }: Props) {
+export default function SeasonalPickTile({ pick, index, onOpen, onQuickAdd, preparing = false, fullWidth = false }: Props) {
   const [thumb, setThumb] = useState<string | null>(null);
   const [imgErrored, setImgErrored] = useState(false);
 
@@ -111,7 +114,7 @@ export default function SeasonalPickTile({ pick, index, onOpen, onQuickAdd, prep
   const FallbackIcon = pick.edible ? Carrot : Flower2;
 
   return (
-    <div className="group shrink-0 w-[260px] sm:w-[280px] rounded-2xl border border-rhozly-outline/15 bg-white hover:border-rhozly-primary/40 hover:shadow-md transition-all flex flex-col overflow-hidden">
+    <div className={`group rounded-2xl border border-rhozly-outline/15 bg-white hover:border-rhozly-primary/40 hover:shadow-md transition-all flex flex-col overflow-hidden ${fullWidth ? "w-full" : "shrink-0 w-[260px] sm:w-[280px]"}`}>
     <button
       type="button"
       data-testid={`seasonal-pick-${index}`}

@@ -73,6 +73,16 @@ Grow Guide → Generate → "Add all" just to get a pick onto the calendar. On t
    tile's spinner while steps 1–2 run. Emits `SEASONAL_PICK_QUICK_ADD`
    (`{ common_name, task_count, from_guide }`).
 
+**Layout + modal notes (2026-07-22 fix):** in the grid (`dashboard`) and
+`carousel` variants the tile is passed `fullWidth` so it fills its cell
+(`w-full`) instead of the fixed 260/280px the horizontal-scroll `today` variant
+needs — previously the fixed width left large dead space in each grid cell (and
+a huge gap on single-column layouts). `AddToCalendarSheet` is now portaled to
+`document.body` (createPortal + `useFocusTrap` + Escape): opened inline from the
+card, its `fixed inset-0` overlay was otherwise captured by the home page's
+PullToRefresh scroll container (identity `transform` = a containing block),
+landing off-screen and leaving the page clickable.
+
 ### Props received
 
 | Prop | Type | Source | Purpose |

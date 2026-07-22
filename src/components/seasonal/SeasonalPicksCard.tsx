@@ -356,7 +356,7 @@ function SeasonalPicksCardInner({
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
         >
           {payload.picks.map((pick, i) => (
-            <SeasonalPickTile key={`${pick.scientific_name}-${i}`} pick={pick} index={i} onOpen={setDetailResult} onQuickAdd={(p) => handleQuickAdd(p, i)} preparing={preparingIndex === i} />
+            <SeasonalPickTile key={`${pick.scientific_name}-${i}`} pick={pick} index={i} onOpen={setDetailResult} onQuickAdd={(p) => handleQuickAdd(p, i)} preparing={preparingIndex === i} fullWidth />
           ))}
         </div>
       )}
@@ -376,9 +376,9 @@ function SeasonalPicksCardInner({
             {payload.picks.map((pick, i) => (
               <div
                 key={`${pick.scientific_name}-${i}`}
-                className="snap-start shrink-0 w-full pr-2 last:pr-0 [&>div]:!w-full"
+                className="snap-start shrink-0 w-full pr-2 last:pr-0"
               >
-                <SeasonalPickTile pick={pick} index={i} onOpen={setDetailResult} onQuickAdd={(p) => handleQuickAdd(p, i)} preparing={preparingIndex === i} />
+                <SeasonalPickTile pick={pick} index={i} onOpen={setDetailResult} onQuickAdd={(p) => handleQuickAdd(p, i)} preparing={preparingIndex === i} fullWidth />
               </div>
             ))}
           </div>

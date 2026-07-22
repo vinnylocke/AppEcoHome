@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Loader2, MapPin, ChevronDown, Check, Sprout } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { Logger } from "../../lib/errorHandler";
 import {
   scheduleFromSchedulableTasks,
@@ -180,15 +182,34 @@ export default function AddToCalendarSheet({
     return [pickedInstance];
   }, [pickedInstance]);
 
-  if (!open) return null;
+  // Trap focus inside the sheet + close on Escape. Must run before the early
+  // return so hook order stays stable; the trap is inert while `open` is false.
+  const trapRef = useFocusTrap<HTMLDivElement>(open);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
-  return (
+  if (!open || typeof document === "undefined") return null;
+
+  // Portal to <body> so `position: fixed` resolves against the viewport, not a
+  // transformed scroll-container ancestor (the home page's PullToRefresh wrapper
+  // carries an identity transform that would otherwise capture the fixed
+  // overlay — sending it off-screen and letting the page stay clickable).
+  return createPortal(
     <div
       data-testid="add-to-calendar-sheet"
       className="fixed inset-0 z-[100] flex items-end sm:items-center sm:justify-center bg-black/40 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
         onClick={(e) => e.stopPropagation()}
         className="relative w-full sm:max-w-lg bg-rhozly-bg rounded-t-3xl sm:rounded-3xl shadow-2xl border border-rhozly-outline/15 flex flex-col max-h-[90vh] overflow-hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
@@ -358,6 +379,7 @@ export default function AddToCalendarSheet({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

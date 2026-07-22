@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "The \"Sow & grow this week\" cards now fill the available width instead of leaving a large empty gap to the right.",
+      "The \"Add planting tasks\" panel now opens centred on screen and locks the page behind it — before, it could open off-screen so it looked like nothing happened, and the page stayed clickable underneath."
+    ]
+  }
+]
