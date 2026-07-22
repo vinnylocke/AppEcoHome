@@ -46,7 +46,7 @@ test.describe("Shed — discovery, sort, tabs", () => {
     authenticatedPage,
   }) => {
     // Stage 3: the landing grid-filter died — scientific-name lookup lives in
-    // the takeover's "In your Shed" section (same matching rules).
+    // the takeover's "In your garden" section (same matching rules).
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
@@ -138,5 +138,39 @@ test.describe("Shed — discovery, sort, tabs", () => {
     await shed.anyCreditBadge.click();
     await expect(shed.creditPopover).toBeVisible({ timeout: 5000 });
     await expect(shed.creditPopover).toContainText(/source|licence|credit/i);
+  });
+
+  test("SHED-E1: a library result row from the search takeover opens the detail modal with the three-verb footer", async ({
+    authenticatedPage,
+  }) => {
+    // Search unification (Stage E) — the "In your garden" owned section and
+    // the library results coexist; tapping a LIBRARY row's body opens the
+    // shared detail modal, and — because it was opened from the shed search
+    // takeover — the footer carries the three quick-add verbs.
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await shed.addButton.click();
+    await shed.bulkSearchInput.fill("Tomato");
+
+    await expect(authenticatedPage.getByTestId("search-owned-section")).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("search-owned-section").getByText("In your garden")).toBeVisible();
+
+    const libraryRow = authenticatedPage
+      .locator('button[data-testid^="plant-search-result-library-"]:not([data-testid$="-add"])')
+      .first();
+    await expect(libraryRow).toBeVisible({ timeout: 10000 });
+    await libraryRow.click();
+
+    await expect(shed.bulkDetailModal).toBeVisible({ timeout: 8000 });
+    const actions = authenticatedPage.getByTestId("plant-detail-actions");
+    await expect(actions).toBeVisible({ timeout: 8000 });
+    await expect(authenticatedPage.getByTestId("plant-detail-plant-it")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("plant-detail-sow-seeds")).toBeVisible();
+    await expect(authenticatedPage.getByTestId("plant-detail-save-later")).toBeVisible();
+
+    await shed.bulkDetailClose.click();
+    await expect(shed.bulkDetailModal).toHaveCount(0);
   });
 });

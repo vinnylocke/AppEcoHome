@@ -28,14 +28,18 @@ import { libraryRowToPlantDetails } from "../../lib/plantCatalogue";
 import { isUsablePlantImageUrl } from "../../lib/plantThumb";
 import { selectionToProviderResult, type PlantSelection, type PlantFilters } from "../../lib/unifiedPlantSearch";
 import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
+import type { FavouriteLookup } from "../../lib/libraryFavouriteMatch";
 
-/** Minimal owned-plant shape for the "In your Shed" section (Stage 3). */
+/** Minimal owned-plant shape for the "In your garden" section (Stage 3;
+ *  renamed + curated-out rows included in Stage E). */
 export interface OwnedPlantMatch {
   id: number | string;
   common_name: string;
   scientific_name?: string[] | null;
   image_url?: string | null;
   instance_count?: number | null;
+  /** Stage E — curated-out rows surface here too ("Previously in your garden"). */
+  is_archived?: boolean | null;
 }
 
 interface Props {
@@ -55,8 +59,19 @@ interface Props {
   /** Tap an owned row → the host closes the overlay + opens that plant. */
   onOpenOwnedPlant?: (plant: OwnedPlantMatch) => void;
   /** Hub v3 Stage A — derived presence per plant id (plant_presence view).
-   *  Owned rows show ONE pill: Active > Inactive > Saved. */
+   *  Owned rows show ONE pill: Active > Inactive > Saved > Previously. */
   plantPresence?: Map<number, "active" | "inactive">;
+  /** Stage E — favourite identity lookup; library result rows matching one of
+   *  the user's ♥ plants show a filled heart glyph. */
+  favouriteLookup?: FavouriteLookup;
+  /** Stage E — the three-verb detail actions (Plant it / Sow seeds / Save for
+   *  later). Receives ONE cart item shaped exactly like onProceedToBulkAdd's;
+   *  the host runs the import and then acts on the intent. */
+  onQuickAdd?: (
+    items: any[],
+    intent: "plant" | "sow" | "save",
+    commonName: string,
+  ) => void;
 }
 
 // Recent searches — a small local ring so the takeover never opens blank.
@@ -125,6 +140,8 @@ export default function PlantSearchTakeover({
   ownedPlants,
   onOpenOwnedPlant,
   plantPresence,
+  favouriteLookup,
+  onQuickAdd,
 }: Props) {
   const { setPageContext } = usePlantDoctor();
   const persona = usePersona();
@@ -154,6 +171,9 @@ export default function PlantSearchTakeover({
   const [selectedPlantsMap, setSelectedPlantsMap] = useState<Map<string, any>>(new Map());
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const [detailResult, setDetailResult] = useState<ProviderSearchResult | null>(null);
+  // Stage E — the original selection behind the open detail, kept alongside
+  // the provider-result shape so the three-verb footer can build a cart item.
+  const [detailSel, setDetailSel] = useState<PlantSelection | null>(null);
 
   // Hand focus back to the button that opened us when the overlay closes.
   useEffect(() => {
@@ -345,7 +365,29 @@ export default function PlantSearchTakeover({
 
   const openDetail = (sel: PlantSelection) => {
     setRecents(pushRecent(queryRef.current));
+    setDetailSel(sel);
     setDetailResult(selectionToProviderResult(sel));
+  };
+
+  // Stage E — three-verb footer: build the single-item cart exactly like the
+  // review step does and hand it to the host with the intent. The host closes
+  // this overlay (handleProceedToBulkAdd's first line) and runs the import.
+  const quickAddFromDetail = (intent: "plant" | "sow" | "save") => {
+    if (!detailSel || !onQuickAdd) return;
+    const key = selectionKey(detailSel);
+    const item = buildCartItem(detailSel);
+    const preloadedDetails =
+      item.type === "ai"
+        ? (detailsCache.get(key) ??
+          (detailSel.source === "library" && detailSel.raw
+            ? libraryRowToPlantDetails(detailSel.raw)
+            : undefined))
+        : undefined;
+    onQuickAdd(
+      [{ ...item, preloadedDetails }],
+      intent,
+      detailSel.common_name,
+    );
   };
 
   const renderInfoPanel = (id: string, plantName?: string) => (
@@ -361,9 +403,16 @@ export default function PlantSearchTakeover({
   const cartCount = selectedPlantsMap.size;
   const idle = query.trim().length < 2;
 
-  // "In your Shed" — owned matches surface FIRST (Stage 3: this absorbs the
-  // landing grid-filter; one search, two worlds). Same matching rules as the
-  // old grid filter (common + scientific name contains).
+  // "In your garden" — owned matches surface FIRST (Stage 3: this absorbs the
+  // landing grid-filter; one search, two worlds). Stage E: curated-out rows
+  // are included and everything badge-sorts (Active > Inactive > Saved >
+  // Previously) so live plants win the 4 slots.
+  const ownedPresenceRank = (p: OwnedPlantMatch): number => {
+    const pres = plantPresence?.get(Number(p.id));
+    if (pres === "active") return 0;
+    if (pres === "inactive") return 1;
+    return p.is_archived ? 3 : 2;
+  };
   const ownedMatches = React.useMemo(() => {
     if (!ownedPlants || query.trim().length < 2) return [] as OwnedPlantMatch[];
     const q = query.trim().toLowerCase();
@@ -373,8 +422,10 @@ export default function PlantSearchTakeover({
           p.common_name.toLowerCase().includes(q) ||
           (p.scientific_name ?? []).some((n) => n.toLowerCase().includes(q)),
       )
+      .sort((a, b) => ownedPresenceRank(a) - ownedPresenceRank(b))
       .slice(0, 4);
-  }, [ownedPlants, query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownedPlants, query, plantPresence]);
 
   // PORTAL to document.body: PullToRefresh's scroller keeps a residual
   // `transform` after any pull gesture, which makes it the containing block
@@ -763,11 +814,11 @@ export default function PlantSearchTakeover({
                 </div>
               )}
 
-              {/* "In your Shed" — your own plants first, then the world's. */}
+              {/* "In your garden" — your own plants first, then the world's. */}
               {ownedMatches.length > 0 && (
                 <div className="mb-4" data-testid="search-owned-section">
                   <p className="text-2xs font-black uppercase tracking-widest text-rhozly-on-surface/40 px-1 mb-1.5">
-                    In your Shed
+                    In your garden
                   </p>
                   <ul className="space-y-1.5">
                     {ownedMatches.map((p) => (
@@ -785,17 +836,21 @@ export default function PlantSearchTakeover({
                             <p className="font-black text-base text-rhozly-on-surface leading-tight truncate">{p.common_name}</p>
                             <p className="text-xs font-bold text-rhozly-on-surface/45 truncate flex items-center gap-1.5">
                               {(() => {
-                                // Hub v3 Stage A — ONE pill, Active > Inactive > Saved.
+                                // Hub v3 — ONE pill, Active > Inactive > Saved;
+                                // Stage E: curated-out rows with no presence
+                                // read "Previously" (previously in your garden).
                                 const pres = plantPresence?.get(Number(p.id));
                                 const pill = pres === "active"
-                                  ? { label: "Active", cls: "bg-status-success-fill text-status-success-ink border border-status-success-line" }
+                                  ? { key: "active", label: "Active", cls: "bg-status-success-fill text-status-success-ink border border-status-success-line" }
                                   : pres === "inactive"
-                                    ? { label: "Inactive", cls: "bg-rhozly-surface-low text-rhozly-on-surface/55 border border-rhozly-outline/15" }
-                                    : { label: "Saved", cls: "bg-rhozly-primary/10 text-rhozly-primary" };
+                                    ? { key: "inactive", label: "Inactive", cls: "bg-rhozly-surface-low text-rhozly-on-surface/55 border border-rhozly-outline/15" }
+                                    : p.is_archived
+                                      ? { key: "previously", label: "Previously", cls: "bg-rhozly-surface-low text-rhozly-on-surface/40 border border-dashed border-rhozly-outline/25" }
+                                      : { key: "saved", label: "Saved", cls: "bg-rhozly-primary/10 text-rhozly-primary" };
                                 return (
                                   <span
                                     data-testid={`search-owned-presence-${p.id}`}
-                                    data-presence={pres ?? "saved"}
+                                    data-presence={pill.key}
                                     className={`shrink-0 px-1.5 py-0.5 rounded-chip text-2xs font-black ${pill.cls}`}
                                   >
                                     {pill.label}
@@ -803,7 +858,7 @@ export default function PlantSearchTakeover({
                                 );
                               })()}
                               <span className="truncate">
-                                {p.scientific_name?.[0] ? <span className="italic">{p.scientific_name[0]}</span> : "In your Shed"}
+                                {p.scientific_name?.[0] ? <span className="italic">{p.scientific_name[0]}</span> : "In your garden"}
                                 {(p.instance_count ?? 0) > 0 ? ` · ${p.instance_count} planted` : ""}
                               </span>
                             </p>
@@ -835,6 +890,7 @@ export default function PlantSearchTakeover({
                 isSelected={(sel) => selectedPlantsMap.has(selectionKey(sel))}
                 onSelect={handleSelectFromSearch}
                 onViewDetails={openDetail}
+                favouriteLookup={favouriteLookup}
               />
             </>
           )}
@@ -847,7 +903,37 @@ export default function PlantSearchTakeover({
           homeId={homeId}
           aiEnabled={isAiEnabled}
           isPremium={isPremium}
-          onClose={() => setDetailResult(null)}
+          onClose={() => { setDetailResult(null); setDetailSel(null); }}
+          actionsSlot={
+            onQuickAdd && detailSel ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  data-testid="plant-detail-plant-it"
+                  onClick={() => quickAddFromDetail("plant")}
+                  className="flex-1 py-3 bg-rhozly-primary text-white rounded-control font-black text-sm active:scale-[0.98] transition"
+                >
+                  Plant it
+                </button>
+                <button
+                  type="button"
+                  data-testid="plant-detail-sow-seeds"
+                  onClick={() => quickAddFromDetail("sow")}
+                  className="flex-1 py-3 bg-white border-2 border-rhozly-primary/30 text-rhozly-primary rounded-control font-black text-sm can-hover:hover:border-rhozly-primary/60 active:scale-[0.98] transition"
+                >
+                  Sow seeds
+                </button>
+                <button
+                  type="button"
+                  data-testid="plant-detail-save-later"
+                  onClick={() => quickAddFromDetail("save")}
+                  className="flex-1 py-3 bg-rhozly-surface-low text-rhozly-on-surface/70 rounded-control font-black text-sm can-hover:hover:bg-rhozly-surface-low/70 active:scale-[0.98] transition"
+                >
+                  Save for later
+                </button>
+              </div>
+            ) : undefined
+          }
         />
       )}
     </div>,

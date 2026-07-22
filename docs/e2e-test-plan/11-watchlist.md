@@ -33,7 +33,7 @@
 | WL-019 | ✅ | Delete from detail confirm | — | ✅ Passing |
 | WL-020 | ✅ | Delete from detail cancel | — | ✅ Passing |
 | WL-021 | ✅ | Archive ailment | — | ✅ Passing |
-| WL-022 | ✅ | One search: typed watched name surfaces the takeover's "On your watchlist" section | — | ✅ Passing |
+| WL-022 | ✅ | One search: typed watched name surfaces the takeover's "In your garden" section (Stage E heading rename) | — | ✅ Passing |
 | WL-A1 | ✅ | Hub v3: owned rows carry ONE derived presence pill (active/inactive/watching) from `ailment_presence` | — | ✅ Passing |
 | WL-023 | ✅ | No-match query: no owned section; library-miss copy renders | — | ✅ Passing |
 | WL-024 | ✅ | Filter by Pest | — | ✅ Passing |
@@ -75,3 +75,11 @@ The "Find an ailment" flow is a **full-page takeover** (`ailment-add-takeover`),
 | WL-TKO-001 | ✅ | "Find an ailment" opens the full-page takeover (no `aria-modal` dialog); the `ailment-add-back` "Watchlist" control returns to the grid | — | ✅ Passing |
 | WL-TKO-002 | ✅ | `?open=add-ailment` deep-links straight into the takeover with the search input ready | — | ✅ Passing |
 | WL-TKO-003 | ✅ | Overlay pins `ailment-search-input` in the top band (y<130); result-row body tap opens the shared field-guide detail (`ailment-detail-modal` with Watch + ♥); Escape ladder (detail → clear query → close) | Seed 16 (Tomato Hornworm 900001) | ✅ Passing |
+
+### Stage E -- search unification (2026-07-22)
+
+| ID | Automated | What it verifies | Seeds | Status |
+|---|---|---|---|---|
+| WL-E1 | YES | `/shed?tab=watchlist&detail=900001` opens the shared field-guide modal; close REPLACE-deletes the param; unknown id fail-softs | ailment_library seed (900001-900003) | Passing |
+| WL-E2 | YES | `ailment-detail-link-plant` (via detail=900003 Japanese Knotweed -- already watched, no auto-watch side effect) opens `link-ailment-to-plant-modal` with live-instance rows; close only | 06_ailments_watchlist.sql + library seed | Passing |
+| WL-A1 | YES | (updated) presence pill closed set now includes **previously** | -- | Passing |

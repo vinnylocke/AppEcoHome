@@ -37,6 +37,7 @@ BrowserRouter
     │    gated behind isMdBreakpoint and never renders on phones now.)
     ├── /dashboard         ← Dashboard container (Dashboard [home] / Calendar / Weather sub-tabs via ?view=; Locations tab retired Stage 4a)
     ├── /shed              ← GardenHub (Plants | Ailments — Hub v3 Stage D; ?tab=nursery → Seed box sheet, ?tab=senescence[&plant=] → Inactive chip, both auto-redirect; legacy flag restores 4 tabs)
+│                        Stage E: ?detail=<ailment_library.id> on tab=watchlist opens the shared field-guide detail (shareable; open PUSHes, close REPLACE-deletes; unknown id fail-softs)
     ├── /schedule          ← BlueprintManager
     ├── /planner           ← PlannerHub (?tab=planner|shopping)
     ├── /doctor            ← PlantDoctor

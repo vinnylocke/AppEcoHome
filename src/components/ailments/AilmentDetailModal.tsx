@@ -28,6 +28,8 @@ interface Props {
   canWatch: boolean;
   onWatch: () => void;
   onClose: () => void;
+  /** Stage E — forwarded to the body's "Link to a plant" verb (optional). */
+  onLinkToPlant?: () => void;
 }
 
 export default function AilmentDetailModal({
@@ -39,6 +41,7 @@ export default function AilmentDetailModal({
   canWatch,
   onWatch,
   onClose,
+  onLinkToPlant,
 }: Props) {
   const { setPageContext, setIsOpen: setChatOpen } = usePlantDoctor();
   const persona = usePersona();
@@ -152,6 +155,7 @@ export default function AilmentDetailModal({
           onAskAi={askAi}
           isNewGardener={isNewGardener}
           plantNames={plantNames}
+          onLinkToPlant={onLinkToPlant}
         />
       </div>
     </div>,

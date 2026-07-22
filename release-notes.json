@@ -1,9 +1,17 @@
 [
   {
+    "label": "New",
+    "items": [
+      "Plant search results now end in real actions: open any plant's details and choose Plant it, Sow seeds, or Save for later -- Rhozly does the adding and drops you exactly where you'd go next.",
+      "Spotted a pest or disease on a plant? Every ailment page now has \"Link to a plant\" -- pick the affected plants and Rhozly schedules the prevention and remedy tasks.",
+      "Ailment pages are shareable: send a link and it opens straight to that entry on your Ailments tab."
+    ]
+  },
+  {
     "label": "Improved",
     "items": [
-      "The Garden hub is now just two clean tabs — Plants and Ailments — with the same simple layout on both. Your seed packets moved into the Seed box (⋯ menu, or the green strip whenever sowings are on the go), and finished plants live under the Inactive chip.",
-      "Old links keep working: anything pointing at the Nursery or Senescence tabs lands in the right new place automatically."
+      "Searching now shows everything you own under \"In your garden\" -- including plants and ailments you'd removed, marked \"Previously\" so nothing is ever lost.",
+      "Library search results show a little heart when they're already in your favourites."
     ]
   }
 ]

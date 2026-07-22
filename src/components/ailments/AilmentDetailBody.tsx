@@ -10,7 +10,7 @@
 import React from "react";
 import {
   Bug, Biohazard, Sprout, AlertTriangle, Loader2, Leaf,
-  Binoculars, Heart, Sparkles, Check, CalendarRange,
+  Binoculars, Heart, Sparkles, Check, CalendarRange, Link2,
 } from "lucide-react";
 import type { LibraryAilment, AilmentKind } from "../../services/ailmentLibraryService";
 import { AILMENT_KIND_CLASSES, AILMENT_SEVERITY_CLASSES, matchAffectedPlants } from "../../lib/ailmentPresentation";
@@ -40,6 +40,10 @@ export interface AilmentDetailBodyProps {
   /** Persona-adaptive "could affect" voice + the home's active plant names. */
   isNewGardener: boolean;
   plantNames: string[];
+  /** Hub v3 Stage E — the second verb: "Link to a plant". Hosts that can
+   *  resolve/create the home watchlist row supply this; it opens the live-
+   *  instance picker (LinkAilmentToPlantModal). Hidden when absent. */
+  onLinkToPlant?: () => void;
 }
 
 export default function AilmentDetailBody({
@@ -55,6 +59,7 @@ export default function AilmentDetailBody({
   onAskAi,
   isNewGardener,
   plantNames,
+  onLinkToPlant,
 }: AilmentDetailBodyProps) {
   const KindIcon = KIND_ICONS[ailment.kind];
   const kindMeta = AILMENT_KIND_CLASSES[ailment.kind];
@@ -171,6 +176,17 @@ export default function AilmentDetailBody({
           </button>
         )}
       </div>
+
+      {/* Second verb (Stage E) — spotted it on a plant? Link it. */}
+      {onLinkToPlant && (
+        <button
+          onClick={onLinkToPlant}
+          data-testid="ailment-detail-link-plant"
+          className="w-full -mt-2 mb-5 py-3 px-4 rounded-control font-black text-sm flex items-center justify-center gap-2 bg-white border-2 border-rhozly-primary/25 text-rhozly-primary can-hover:hover:border-rhozly-primary/60 transition active:scale-[0.98] touch-manipulation"
+        >
+          <Link2 size={16} /> Link to a plant
+        </button>
+      )}
 
       {/* Could affect your garden */}
       {affects.length > 0 && (

@@ -103,12 +103,12 @@ test.describe("Shed — Tabs and view filters", () => {
 });
 
 // Stage 3 — ONE search: the landing grid-filter died; typed queries live in
-// the takeover, where owned plants surface first ("In your Shed").
+// the takeover, where owned plants surface first ("In your garden").
 test.describe("Shed — Search", () => {
   const ownedSection = (page: import("@playwright/test").Page) =>
     page.getByTestId("search-owned-section");
 
-  test("SHED-010: Searching an owned plant surfaces it in the 'In your Shed' section", async ({ authenticatedPage }) => {
+  test("SHED-010: Searching an owned plant surfaces it in the 'In your garden' section", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
@@ -117,6 +117,7 @@ test.describe("Shed — Search", () => {
     await shed.bulkSearchInput.fill("Tomato");
 
     await expect(ownedSection(authenticatedPage)).toBeVisible({ timeout: 10000 });
+    await expect(ownedSection(authenticatedPage).getByText("In your garden")).toBeVisible();
     await expect(ownedSection(authenticatedPage).getByText("Tomato").first()).toBeVisible();
   });
 
@@ -162,7 +163,7 @@ test.describe("Shed — Search", () => {
     const pill = authenticatedPage.locator('[data-testid^="search-owned-presence-"]').first();
     await expect(pill).toBeVisible({ timeout: 10000 });
     const state = await pill.getAttribute("data-presence");
-    expect(["active", "inactive", "saved"]).toContain(state);
+    expect(["active", "inactive", "saved", "previously"]).toContain(state);
   });
 
   test("SHED-013: Owned-plant matching is case-insensitive", async ({ authenticatedPage }) => {
@@ -1084,7 +1085,7 @@ test.describe("Shed — plant-search takeover (Stage 2)", () => {
 // library-escalation row, persona browse chips.
 // ─────────────────────────────────────────────────────────────────────────────
 test.describe("Shed — search-first landing (Stage 3)", () => {
-  test("SHED-S3-001: one search, two worlds — an owned-plant query shows 'In your Shed' AND library results together", async ({ authenticatedPage }) => {
+  test("SHED-S3-001: one search, two worlds — an owned-plant query shows 'In your garden' AND library results together", async ({ authenticatedPage }) => {
     // Stage 3 landing diet: the escalation row died with the landing filter —
     // owned matches and library results now coexist in the single takeover.
     const shed = new ShedPage(authenticatedPage);

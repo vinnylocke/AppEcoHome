@@ -26,7 +26,7 @@
 | SHED-006 | ✅ | Stage C: the Inactive chip (derived) shows Mint | — | ✅ Passing |
 | SHED-007 | ✅ | Stage C: live plants absent from Inactive | — | ✅ Passing |
 | SHED-008..009 | ✅ | Filter by source (Manual / API) — the select now sits inside the Filters panel: `openFilters()` → "Filter by source" (aria-label unchanged) | — | ✅ Passing |
-| SHED-010 | ✅ | One search: typed owned-plant name surfaces the takeover's "In your Shed" section | — | ✅ Passing |
+| SHED-010 | ✅ | One search: typed owned-plant name surfaces the takeover's "In your garden" section (Stage E heading rename) | — | ✅ Passing |
 | SHED-011 | ✅ | No-match query: no owned section + `Nothing called "…" yet.` copy | — | ✅ Passing |
 | SHED-012 | ✅ | Clear-× empties the query and returns to the idle state (recents/examples/chips) | — | ✅ Passing |
 | SHED-A1 | ✅ | Hub v3: owned search rows carry ONE derived presence pill (`data-presence` ∈ active/inactive/saved) from the `plant_presence` view | — | ✅ Passing |
@@ -154,3 +154,10 @@ Instance detail → Photos tab (`PhotoTimelineTab.tsx`). Observations come from 
 | PTO-005 | ✅ | Sub-Sage tier sees `photo-observation-upsell` line instead of observations when journal photos exist | Sprout profile route patch | 🔲 Pending |
 
 > **2026-07-19 selector fix:** six spec sites waited for a "Save to Shed" button that was relabelled "Add to Shed" in an earlier sprint — the whole SHED-015..027 manual-add family was retry-flaky because of it. Specs now match the real label; the tests pass first-try.
+
+### Stage E -- search unification (2026-07-22)
+
+| ID | Automated | What it verifies | Seeds | Status |
+|---|---|---|---|---|
+| SHED-E1 | YES | Takeover owned section heading "In your garden"; library-row detail shows `plant-detail-actions` with Plant it / Sow seeds / Save for later | 17_plant_library.sql | Passing |
+| SHED-A1 | YES | (updated) presence pill closed set now active/inactive/saved/**previously** | -- | Passing |

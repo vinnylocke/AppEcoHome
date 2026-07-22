@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchPreference } from "../../lib/searchPreference";
 import ImageDisclaimer from "../ImageDisclaimer";
-import { Search, Loader2, Sparkles, Database, Plus, Pencil, Lock, SlidersHorizontal, ChevronDown, Check, Info, ChevronUp, BookOpen } from "lucide-react";
+import { Search, Loader2, Sparkles, Database, Plus, Pencil, Lock, SlidersHorizontal, ChevronDown, Check, Info, ChevronUp, BookOpen, Heart } from "lucide-react";
+import {
+  isLibraryResultFavourited,
+  type FavouriteLookup,
+} from "../../lib/libraryFavouriteMatch";
 import {
   searchLibrary,
   didYouMean,
@@ -72,6 +76,9 @@ interface Props {
    *  (via onViewDetails) instead of selecting; adding happens only on the
    *  trailing + button. The inline ⓘ preview is hidden (redundant). */
   tapOpensDetails?: boolean;
+  /** Hub v3 Stage E — when supplied, result rows matching one of the user's
+   *  favourite plants show a filled ♥ glyph (build via buildFavouriteLookup). */
+  favouriteLookup?: FavouriteLookup;
 }
 
 const CYCLE_OPTIONS = [
@@ -122,6 +129,7 @@ export default function PlantSearch({
   onViewDetails,
   controlledQuery,
   tapOpensDetails = false,
+  favouriteLookup,
 }: Props) {
   const [query, setQuery] = useState(controlledQuery ?? initialQuery);
   const [libraryRows, setLibraryRows] = useState<PlantLibraryRow[]>([]);
@@ -567,6 +575,7 @@ export default function PlantSearch({
                   thumb={row.thumbnail_url ?? row.image_url ?? null}
                   credit={(row as any).image_credit ?? null}
                   source="library"
+                  fav={!!favouriteLookup && isLibraryResultFavourited(row, favouriteLookup)}
                   multiSelect={multiSelect}
                   selected={multiSelect ? !!isSelected?.(sel) : false}
                   onClick={() => onSelect(sel)}
@@ -604,6 +613,18 @@ export default function PlantSearch({
                     thumb={r.thumbnail_url ?? null}
                     credit={(r as any).image_credit ?? null}
                     source={r._provider}
+                    fav={
+                      !!favouriteLookup &&
+                      isLibraryResultFavourited(
+                        {
+                          common_name: r.common_name,
+                          scientific_name: r.scientific_name,
+                          perenual_id: r._provider === "perenual" ? r.id : undefined,
+                          verdantly_id: r._provider === "verdantly" ? String(r.id) : undefined,
+                        },
+                        favouriteLookup,
+                      )
+                    }
                     multiSelect={multiSelect}
                     selected={multiSelect ? !!isSelected?.(sel) : false}
                     onClick={() => onSelect(sel)}
@@ -722,7 +743,7 @@ export default function PlantSearch({
 }
 
 function ResultRow({
-  testId, name, sub, other, thumb, credit, source, onClick, multiSelect = false, selected = false,
+  testId, name, sub, other, thumb, credit, source, fav = false, onClick, multiSelect = false, selected = false,
   tapOpensDetails = false, onDetails,
   allowPreview = false, onInfo, infoActive = false, infoLoading = false, preview = null,
 }: {
@@ -736,6 +757,8 @@ function ResultRow({
    *  renders on the thumbnail tile when the row carries provider metadata. */
   credit?: unknown;
   source: string;
+  /** Stage E — this result matches one of the user's favourite plants. */
+  fav?: boolean;
   onClick: () => void;
   multiSelect?: boolean;
   selected?: boolean;
@@ -771,6 +794,14 @@ function ResultRow({
               <p className="text-xs font-bold text-rhozly-on-surface/45 truncate">
                 {sub && <span className="italic">{sub} · </span>}
                 {badge.label}
+                {fav && (
+                  <Heart
+                    size={12}
+                    data-testid={`${testId}-fav-glyph`}
+                    aria-label="In your favourites"
+                    className="inline-block ml-1.5 -mt-0.5 fill-current text-rose-500"
+                  />
+                )}
               </p>
               {other && other.length > 0 && (
                 <p

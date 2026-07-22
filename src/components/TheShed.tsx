@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { PlantInitialTile } from "./ui/PlantInitialTile";
 import type { PlantFilters } from "../lib/unifiedPlantSearch";
+import { buildFavouriteLookup } from "../lib/libraryFavouriteMatch";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import ManualPlantCreation from "./ManualPlantCreation";
@@ -317,6 +318,13 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     [favourites],
   );
 
+  // Stage E — identity lookup for the ♥ glyph on library search results
+  // (ref ids + species keys + provider ids; see libraryFavouriteMatch.ts).
+  const searchFavouriteLookup = useMemo(
+    () => buildFavouriteLookup(favourites as any),
+    [favourites],
+  );
+
   const handleToggleFavourite = async (plant: any) => {
     const refId = canonicalPlantRefId(plant);
     if (togglingFavouriteRef === refId) return;
@@ -396,10 +404,67 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     setPageContext,
   ]);
 
+  // Ids created by the current import run — the quick-add intent effect
+  // matches on these first (provider detail fetches can rename a plant
+  // between the search result and the saved row, so a name match alone can
+  // silently miss — review catch).
+  const importedPlantIdsRef = useRef<number[]>([]);
   const savePlantToDB = async (skeleton: any, fullCareData?: any) => {
     const { row } = await saveToShedLib(skeleton, fullCareData, homeId);
+    if ((row as any)?.id != null) importedPlantIdsRef.current.push((row as any).id as number);
     return row;
   };
+
+  // Stage E — three-verb quick add from the search detail. Runs the normal
+  // single-item import, then acts on the intent once the refreshed plant list
+  // contains the new row ("plant" → assignment modal, "sow" → Seed box).
+  const [postImportIntent, setPostImportIntent] = useState<{
+    intent: "plant" | "sow";
+    name: string;
+    at: number;
+  } | null>(null);
+  const handleQuickAdd = async (
+    items: any[],
+    intent: "plant" | "sow" | "save",
+    commonName: string,
+  ) => {
+    importedPlantIdsRef.current = [];
+    await handleProceedToBulkAdd(items);
+    if (intent !== "save") {
+      setPostImportIntent({ intent, name: commonName, at: Date.now() });
+    }
+  };
+  useEffect(() => {
+    if (!postImportIntent) return;
+    // Stale intent (failed import, user moved on) must never fire later.
+    if (Date.now() - postImportIntent.at > 120_000) {
+      setPostImportIntent(null);
+      return;
+    }
+    // Prefer the id the import actually created (provider detail fetches can
+    // rename between search result and saved row); the name fallback covers
+    // the duplicate-import case — "Plant it" on an already-owned species
+    // deliberately opens the assignment modal for the existing plant.
+    const imported = plants.filter(
+      (p) => !p.is_archived && importedPlantIdsRef.current.includes(p.id as number),
+    );
+    const match = (imported.length > 0
+      ? imported
+      : plants.filter(
+          (p) =>
+            !p.is_archived &&
+            p.common_name.toLowerCase() === postImportIntent.name.toLowerCase(),
+        )
+    ).sort((a, b) => (b.id as number) - (a.id as number))[0];
+    if (!match) return;
+    if (postImportIntent.intent === "plant") {
+      setSelectedPlant(match);
+    } else {
+      setSeedBoxOpen(true);
+      toast.success(`Now add a ${match.common_name} packet in the Seed box`);
+    }
+    setPostImportIntent(null);
+  }, [plants, postImportIntent]);
 
   const handleProceedToBulkAdd = async (selectedItems: any[]) => {
     setShowBulkSearch(false);
@@ -2874,8 +2939,12 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 onClose={handleCloseModals}
                 onProceedToBulkAdd={handleProceedToBulkAdd}
                 onManualSave={handleManualSave}
-                ownedPlants={plants.filter((p) => !p.is_archived) as unknown as OwnedPlantMatch[]}
+                // Stage E — ALL home rows, curated-out included ("Previously
+                // in your garden"); the takeover badge-sorts them.
+                ownedPlants={plants as unknown as OwnedPlantMatch[]}
                 plantPresence={gardenPresence.plantPresence}
+                favouriteLookup={searchFavouriteLookup}
+                onQuickAdd={handleQuickAdd}
                 onOpenOwnedPlant={(p) => {
                   setShowBulkSearch(false);
                   const full = plants.find((pl) => pl.id === p.id);

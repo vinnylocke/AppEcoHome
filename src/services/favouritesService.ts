@@ -38,7 +38,10 @@ const LIVE_PLANT_SELECT =
   "watering, watering_min_days, watering_max_days, sunlight, " +
   "flowering_season, harvest_season, pruning_month, propagation, attracts, " +
   "is_toxic_humans, is_toxic_pets, indoor, is_edible, drought_tolerant, " +
-  "tropical, medicinal, cuisine, labels, freshness_version, plant_metadata";
+  "tropical, medicinal, cuisine, labels, freshness_version, plant_metadata, " +
+  // Stage E — identity bridges for the library-result ♥ glyph
+  // (src/lib/libraryFavouriteMatch.ts).
+  "perenual_id, verdantly_id, forked_from_plant_id, scientific_name_key";
 
 /** List the current user's favourite plants, newest first, with the live
  *  referenced plant joined (null → tombstone render). */

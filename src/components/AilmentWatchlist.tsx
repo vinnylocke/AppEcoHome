@@ -32,6 +32,7 @@ import BulkAddAilmentsModal from "./BulkAddAilmentsModal";
 // Aliased — this file has its own local AilmentDetailModal (the WATCHLIST
 // row detail); this one is the field-guide detail for search results.
 import LibraryAilmentDetailModal from "./ailments/AilmentDetailModal";
+import LinkAilmentToPlantModal from "./ailments/LinkAilmentToPlantModal";
 import AilmentGardenSection from "./ailments/AilmentGardenSection";
 import HubHeader from "./garden/HubHeader";
 import { AILMENT_SEVERITY_CLASSES } from "../lib/ailmentPresentation";
@@ -865,8 +866,8 @@ function AddAilmentModal({
   // (state reads inside the handler are stale during the await).
   const [libraryAddBusy, setLibraryAddBusy] = useState<number | null>(null);
   const addingLibraryIdsRef = useRef<Set<number>>(new Set());
-  const addFromLibrary = async (lib: LibraryAilment) => {
-    if (addedLibraryIds.has(lib.id) || addingLibraryIdsRef.current.has(lib.id)) return;
+  const addFromLibrary = async (lib: LibraryAilment): Promise<Ailment | null> => {
+    if (addedLibraryIds.has(lib.id) || addingLibraryIdsRef.current.has(lib.id)) return null;
     addingLibraryIdsRef.current.add(lib.id);
     setLibraryAddBusy(lib.id);
     try {
@@ -875,12 +876,26 @@ function AddAilmentModal({
       onSaved(data as Ailment);
       logEvent(EVENT.AILMENT_ADDED, { ailment_id: (data as Ailment).id, name: lib.name, type: kindToWatchlistType(lib.kind) });
       toast.success(`"${lib.name}" added to watchlist.`);
+      return data as Ailment;
     } catch (err: any) {
       Logger.error("Failed to add library ailment", err, { homeId }, err.message || "Add failed.");
+      return null;
     } finally {
       addingLibraryIdsRef.current.delete(lib.id);
       setLibraryAddBusy((prev) => (prev === lib.id ? null : prev));
     }
+  };
+
+  // Stage E — "Link to a plant" from the field-guide detail. Needs the HOME
+  // watchlist row: reuse it when the ailment is already watched, otherwise
+  // watch first (the link IS evidence it belongs on the watchlist).
+  const [linkTarget, setLinkTarget] = useState<Ailment | null>(null);
+  const linkFromDetail = async (lib: LibraryAilment) => {
+    const existing = ownedAilments?.find(
+      (a) => !a.is_archived && ailmentIdentityKey(a.name) === ailmentIdentityKey(lib.name),
+    );
+    const target = existing ?? (await addFromLibrary(lib));
+    if (target) setLinkTarget(target);
   };
 
   // Reach a deeper tier with the current search term pre-filled + run.
@@ -1170,18 +1185,27 @@ function AddAilmentModal({
                     </>
                   )}
 
-                  {/* "On your watchlist" — your own entries first (Stage 3;
-                      absorbs the landing's search input). */}
+                  {/* "In your garden" — your own entries first (Stage 3;
+                      absorbs the landing's search input). Stage E: curated-out
+                      rows included, badge-sorted so live threats win the
+                      4 slots. */}
                   {query.trim().length >= 2 && ownedAilments && (() => {
                     const q = query.trim().toLowerCase();
+                    const rank = (a: Ailment) => {
+                      const pres = ailmentPresence?.get(a.id);
+                      if (pres === "active") return 0;
+                      if (pres === "inactive") return 1;
+                      return a.is_archived ? 3 : 2;
+                    };
                     const owned = ownedAilments
-                      .filter((a) => !a.is_archived && a.name.toLowerCase().includes(q))
+                      .filter((a) => a.name.toLowerCase().includes(q))
+                      .sort((a, b) => rank(a) - rank(b))
                       .slice(0, 4);
                     if (owned.length === 0) return null;
                     return (
                       <div data-testid="ailment-owned-section">
                         <p className="text-2xs font-black uppercase tracking-widest text-rhozly-on-surface/40 px-1 mb-1.5">
-                          On your watchlist
+                          In your garden
                         </p>
                         <ul className="space-y-1.5">
                           {owned.map((a) => {
@@ -1205,17 +1229,21 @@ function AddAilmentModal({
                                     <p className="font-black text-base text-rhozly-on-surface leading-tight truncate">{a.name}</p>
                                     <p className="text-xs font-bold text-rhozly-on-surface/45 truncate flex items-center gap-1.5">
                                       {(() => {
-                                        // Hub v3 Stage A — ONE pill, Active > Inactive > Watching.
+                                        // Hub v3 — ONE pill, Active > Inactive >
+                                        // Watching; Stage E adds "Previously"
+                                        // for curated-out rows with no presence.
                                         const pres = ailmentPresence?.get(a.id);
                                         const pill = pres === "active"
-                                          ? { label: "Active", cls: "bg-status-danger-fill text-status-danger-ink border border-status-danger-line" }
+                                          ? { key: "active", label: "Active", cls: "bg-status-danger-fill text-status-danger-ink border border-status-danger-line" }
                                           : pres === "inactive"
-                                            ? { label: "Inactive", cls: "bg-rhozly-surface-low text-rhozly-on-surface/55 border border-rhozly-outline/15" }
-                                            : { label: "Watching", cls: "bg-status-watch-fill text-status-watch-ink" };
+                                            ? { key: "inactive", label: "Inactive", cls: "bg-rhozly-surface-low text-rhozly-on-surface/55 border border-rhozly-outline/15" }
+                                            : a.is_archived
+                                              ? { key: "previously", label: "Previously", cls: "bg-rhozly-surface-low text-rhozly-on-surface/40 border border-dashed border-rhozly-outline/25" }
+                                              : { key: "watching", label: "Watching", cls: "bg-status-watch-fill text-status-watch-ink" };
                                         return (
                                           <span
                                             data-testid={`ailment-owned-presence-${a.id}`}
-                                            data-presence={pres ?? "watching"}
+                                            data-presence={pill.key}
                                             className={`shrink-0 px-1.5 py-0.5 rounded-chip text-2xs font-black ${pill.cls}`}
                                           >
                                             {pill.label}
@@ -1538,7 +1566,10 @@ function AddAilmentModal({
                                   <button
                                     type="button"
                                     data-testid={`ailment-result-library-${r.cartId}`}
-                                    onClick={(e) => { e.stopPropagation(); navigate(`/ailment-library?ailment=${r.library_id}`); }}
+                                    // Stage E: the field guide lives HERE now —
+                                    // shareable ?detail= on the watchlist tab
+                                    // instead of the /ailment-library page.
+                                    onClick={(e) => { e.stopPropagation(); navigate(`/shed?tab=watchlist&detail=${r.library_id}`); }}
                                     className="ml-1.5 inline-flex items-center gap-0.5 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary hover:bg-rhozly-primary/20 transition-colors"
                                   >
                                     <Library size={10} /> In library
@@ -1826,6 +1857,14 @@ function AddAilmentModal({
           canWatch
           onWatch={() => addFromLibrary(detailAilment)}
           onClose={() => setDetailAilment(null)}
+          onLinkToPlant={() => linkFromDetail(detailAilment)}
+        />
+      )}
+      {linkTarget && (
+        <LinkAilmentToPlantModal
+          homeId={homeId}
+          ailment={linkTarget}
+          onClose={() => setLinkTarget(null)}
         />
       )}
     </div>,
@@ -2153,6 +2192,74 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
       setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("open"); return n; }, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  // ── Hub v3 Stage E — shareable field-guide deep link ──────────────────────
+  // /shed?tab=watchlist&detail=<ailment_library.id> — the SAME numeric
+  // identity the old /ailment-library?ailment= carried, so Stage F's redirect
+  // is a pure param rename. REACTIVE derivation (unlike the one-shot open=
+  // pattern): opening PUSHes, closing REPLACE-deletes, so Back closes it.
+  const detailId = searchParams.get("detail");
+  const [detailLibrary, setDetailLibrary] = useState<LibraryAilment[] | null>(null);
+  useEffect(() => {
+    if (!detailId || detailLibrary) return;
+    let cancelled = false;
+    fetchAilmentLibrary()
+      .then((rows) => { if (!cancelled) setDetailLibrary(rows); })
+      .catch((err) => Logger.warn("Could not load the ailment library for ?detail=", { err }));
+    return () => { cancelled = true; };
+  }, [detailId, detailLibrary]);
+  const detailLibraryAilment = useMemo(
+    () =>
+      detailId && detailLibrary
+        ? detailLibrary.find((r) => String(r.id) === detailId) ?? null
+        : null,
+    [detailId, detailLibrary],
+  );
+  // Unknown / stale id → fail soft (drop the param) once the library loaded.
+  useEffect(() => {
+    if (detailId && detailLibrary && !detailLibraryAilment) {
+      setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("detail"); return n; }, { replace: true });
+    }
+  }, [detailId, detailLibrary, detailLibraryAilment, setSearchParams]);
+  const closeDetailParam = () =>
+    setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("detail"); return n; }, { replace: true });
+  const [detailWatchBusy, setDetailWatchBusy] = useState(false);
+  const detailWatching =
+    !!detailLibraryAilment &&
+    ailments.some(
+      (a) => !a.is_archived && ailmentIdentityKey(a.name) === ailmentIdentityKey(detailLibraryAilment.name),
+    );
+  const watchFromDetailPage = async (): Promise<Ailment | null> => {
+    if (!detailLibraryAilment || detailWatchBusy) return null;
+    setDetailWatchBusy(true);
+    try {
+      const data = await addLibraryAilmentToWatchlist(detailLibraryAilment, homeId);
+      setAilments((prev) => [data as Ailment, ...prev]);
+      logEvent(EVENT.AILMENT_ADDED, {
+        ailment_id: (data as Ailment).id,
+        name: detailLibraryAilment.name,
+        type: kindToWatchlistType(detailLibraryAilment.kind),
+      });
+      toast.success(`"${detailLibraryAilment.name}" added to watchlist.`);
+      return data as Ailment;
+    } catch (err: any) {
+      Logger.error("Failed to add library ailment", err, { homeId }, err.message || "Add failed.");
+      return null;
+    } finally {
+      setDetailWatchBusy(false);
+    }
+  };
+  // "Link to a plant" from the page-level detail — reuse the watched home row
+  // or watch first (the sighting IS the reason it belongs on the watchlist).
+  const [pageLinkTarget, setPageLinkTarget] = useState<Ailment | null>(null);
+  const linkFromDetailPage = async () => {
+    if (!detailLibraryAilment) return;
+    const existing = ailments.find(
+      (a) => !a.is_archived && ailmentIdentityKey(a.name) === ailmentIdentityKey(detailLibraryAilment.name),
+    );
+    const target = existing ?? (await watchFromDetailPage());
+    if (target) setPageLinkTarget(target);
+  };
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
     type: "delete" | "archive" | "unarchive";
@@ -2544,6 +2651,28 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
           onDelete={(id) => setAilments((prev) => prev.filter((a) => a.id !== id))}
         />,
         document.body,
+      )}
+
+      {/* Stage E — the shareable ?detail= field-guide host (library identity). */}
+      {detailLibraryAilment && (
+        <LibraryAilmentDetailModal
+          ailment={detailLibraryAilment}
+          homeId={homeId}
+          aiEnabled={aiEnabled}
+          watching={detailWatching}
+          watchingBusy={detailWatchBusy}
+          canWatch
+          onWatch={() => { watchFromDetailPage(); }}
+          onClose={closeDetailParam}
+          onLinkToPlant={linkFromDetailPage}
+        />
+      )}
+      {pageLinkTarget && (
+        <LinkAilmentToPlantModal
+          homeId={homeId}
+          ailment={pageLinkTarget}
+          onClose={() => setPageLinkTarget(null)}
+        />
       )}
 
       <ConfirmModal

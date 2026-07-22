@@ -59,7 +59,11 @@ export class WatchlistPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.heading = page.getByRole("heading", { name: "Ailment Watchlist" });
+    // Batch-1 HubHeader diet renamed the page h1 to just "Watchlist", and
+    // the count badge renders INSIDE the heading (accessible name
+    // "Watchlist6") — anchored prefix matches both loading and loaded
+    // states without colliding with "Your watchlist is empty.".
+    this.heading = page.getByRole("heading", { name: /^Watchlist/ });
     // Primary CTA — renamed "Add" → "Find an ailment" to parallel the Shed's
     // "Find a plant". Target by testid so the label can evolve.
     this.addButton = page.locator('[data-testid="watchlist-add-btn"]');
@@ -78,8 +82,11 @@ export class WatchlistPage {
     // Stage 2 overlay: the takeover is input-first (no "Add to Watchlist"
     // title) — the pinned search input IS the takeover's identity.
     this.addModalHeading = page.locator('[data-testid="ailment-search-input"]');
-    this.manualModeTab = page.getByRole("button", { name: /^Manual$/i });
-    this.aiModeTab = page.getByRole("button", { name: /^AI$/i });
+    // Stage-2 overlay gave the mode toggles role="tab" — target testids.
+    this.manualModeTab = page.getByTestId("ailment-tab-manual");
+    // The AI tier is the escalation row now (appears only after a query
+    // exhausts the library) — WL-012/013 self-skip while it's hidden.
+    this.aiModeTab = page.getByTestId("ailment-search-ai");
     this.aiSearchInput = page.getByPlaceholder(/rose pests|black spot|aphids/i);
     this.aiSearchButton = page.getByLabel("Search with AI");
     this.nameInput = page.getByLabel(/Name \*/i);

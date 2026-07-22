@@ -353,7 +353,7 @@ test.describe("Watchlist — Detail modal", () => {
 test.describe("Watchlist — Search", () => {
   // Stage 3 — ONE search: the landing text-filter died; name lookup lives in
   // the takeover, where your own watchlist rows surface first.
-  test("WL-022: Searching a watched name surfaces it in the 'On your watchlist' section", async ({ authenticatedPage }) => {
+  test("WL-022: Searching a watched name surfaces it in the 'In your garden' section", async ({ authenticatedPage }) => {
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
     await wl.waitForLoad();
@@ -363,12 +363,14 @@ test.describe("Watchlist — Search", () => {
 
     const owned = authenticatedPage.getByTestId("ailment-owned-section");
     await expect(owned).toBeVisible({ timeout: 10000 });
+    await expect(owned.getByText("In your garden")).toBeVisible();
     await expect(owned.getByText("Aphid").first()).toBeVisible();
   });
 
-  test("WL-A1: owned watchlist rows carry ONE derived presence pill (Active > Inactive > Watching)", async ({ authenticatedPage }) => {
+  test("WL-A1: owned watchlist rows carry ONE derived presence pill (Active > Inactive > Watching > Previously)", async ({ authenticatedPage }) => {
     // Hub v3 Stage A — derived from the ailment_presence VIEW; contract is
-    // one pill per owned row from the closed state set.
+    // one pill per owned row from the closed state set. Stage E added the
+    // 4th "previously" state for archived rows with no derived presence.
     const wl = new WatchlistPage(authenticatedPage);
     await wl.goto();
     await wl.waitForLoad();
@@ -379,7 +381,7 @@ test.describe("Watchlist — Search", () => {
     const pill = authenticatedPage.locator('[data-testid^="ailment-owned-presence-"]').first();
     await expect(pill).toBeVisible({ timeout: 10000 });
     const state = await pill.getAttribute("data-presence");
-    expect(["active", "inactive", "watching"]).toContain(state);
+    expect(["active", "inactive", "watching", "previously"]).toContain(state);
   });
 
   test("WL-023: A no-match query shows no owned section", async ({ authenticatedPage }) => {
@@ -799,5 +801,50 @@ test.describe("Watchlist — ailment-add takeover (Stage 5)", () => {
     await expect(input).toHaveValue("");
     await authenticatedPage.keyboard.press("Escape");
     await expect(authenticatedPage.getByTestId("ailment-add-takeover")).toHaveCount(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stage E — shareable ?detail= field-guide deep link + "Link to a plant".
+// Uses "Japanese Knotweed" — the ONE library row (900003, seed 16) whose name
+// matches an already-active seeded watchlist ailment (seed 06), so opening
+// the field guide + linking a plant never auto-watches (idempotent re-run).
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe("Watchlist — field-guide deep link (Stage E)", () => {
+  test("WL-E1: ?detail=<ailment_library.id> opens the field-guide modal; closing REPLACE-deletes the param", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/shed?tab=watchlist&detail=900003");
+
+    const detail = authenticatedPage.getByTestId("ailment-detail-modal");
+    await expect(detail).toBeVisible({ timeout: 15000 });
+    await expect(detail.getByText("Japanese Knotweed").first()).toBeVisible();
+    await expect(authenticatedPage).toHaveURL(/detail=900003/);
+
+    await authenticatedPage.getByTestId("ailment-detail-modal-close").click();
+    await expect(detail).toHaveCount(0);
+    await expect(authenticatedPage).not.toHaveURL(/detail=/);
+  });
+
+  test("WL-E1b: unknown ?detail= id fails soft — the param is silently removed", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/shed?tab=watchlist&detail=999999999");
+
+    await expect(authenticatedPage.getByTestId("ailment-detail-modal")).toHaveCount(0, { timeout: 10000 });
+    await expect(authenticatedPage).not.toHaveURL(/detail=/, { timeout: 10000 });
+  });
+
+  test("WL-E2: 'Link to a plant' from the field-guide detail opens the live-instance picker (open + close only)", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/shed?tab=watchlist&detail=900003");
+
+    const detail = authenticatedPage.getByTestId("ailment-detail-modal");
+    await expect(detail).toBeVisible({ timeout: 15000 });
+
+    await authenticatedPage.getByTestId("ailment-detail-link-plant").click();
+
+    const picker = authenticatedPage.getByTestId("link-ailment-to-plant-modal");
+    await expect(picker).toBeVisible({ timeout: 10000 });
+    await expect(picker.locator('[data-testid^="link-ailment-instance-"]').first()).toBeVisible({ timeout: 8000 });
+
+    // Close WITHOUT selecting/linking — non-destructive.
+    await authenticatedPage.getByTestId("link-ailment-to-plant-close").click();
+    await expect(picker).toHaveCount(0);
   });
 });

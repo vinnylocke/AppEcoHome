@@ -18,6 +18,10 @@ interface Props {
   onClose: () => void;
   /** z-index class — defaults above a host modal already at z-[100]. */
   zIndexClassName?: string;
+  /** Hub v3 Stage E — host-supplied sticky footer (the three-verb actions:
+   *  Plant it / Sow seeds / Save for later). The modal stays inspection-only;
+   *  the host owns what the verbs do. */
+  actionsSlot?: React.ReactNode;
 }
 
 type Tab = "care" | "grow" | "companions" | "light" | "soil";
@@ -45,6 +49,7 @@ export default function PlantDetailModal({
   isPremium,
   onClose,
   zIndexClassName = "z-[140]",
+  actionsSlot,
 }: Props) {
   const { plant, ensuring, error } = useCataloguePlantFromResult(result, homeId);
   const [activeTab, setActiveTab] = useState<Tab>("care");
@@ -225,6 +230,16 @@ export default function PlantDetailModal({
               )}
             </div>
           </>
+        )}
+
+        {actionsSlot && (
+          <div
+            data-testid="plant-detail-actions"
+            className="shrink-0 border-t border-rhozly-outline/10 px-4 sm:px-6 py-3 bg-rhozly-surface-lowest"
+            style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}
+          >
+            {actionsSlot}
+          </div>
         )}
       </div>
     </div>,
