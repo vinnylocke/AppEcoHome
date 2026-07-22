@@ -1,15 +1,26 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Sparkles, Loader2, RefreshCw, AlertCircle, Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
+import toast from "react-hot-toast";
 import {
   fetchSeasonalPicks,
   type SeasonalPicksResponse,
+  type SeasonalPick,
 } from "../../services/seasonalPicksService";
 import { Logger } from "../../lib/errorHandler";
 import { logEvent, EVENT } from "../../events/registry";
 import SeasonalPickTile from "./SeasonalPickTile";
 import PlantDetailModal from "../PlantDetailModal";
+import AddToCalendarSheet from "../growGuide/AddToCalendarSheet";
 import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
 import FeatureGate from "../shared/FeatureGate";
+import { supabase } from "../../lib/supabase";
+import { ensureCataloguePlantFromSearchResult } from "../../lib/plantCatalogue";
+import { PlantDoctorService, type PlantGrowGuide } from "../../services/plantDoctorService";
+import {
+  plantingTasksFromGuide,
+  plantingTasksFromPick,
+} from "../../lib/seasonalPickPlantingTasks";
+import type { SchedulableTask } from "../../lib/scheduleFromSchedulableTask";
 
 interface Props {
   homeId: string;
@@ -57,6 +68,12 @@ function SeasonalPicksCardInner({
   // Detail overlay for a tapped pick — same Care/Grow Guide/Companions/Light
   // modal we use from plant search results everywhere else.
   const [detailResult, setDetailResult] = useState<ProviderSearchResult | null>(null);
+  // Quick-add "planting tasks" flow: which tile is preparing (ensure + guide
+  // read), and the AddToCalendarSheet payload once tasks are assembled.
+  const [preparingIndex, setPreparingIndex] = useState<number | null>(null);
+  const [addSheet, setAddSheet] = useState<
+    { plantId: number; plantName: string; tasks: SchedulableTask[] } | null
+  >(null);
   // Collapse state — persisted per variant so the user's preference on the
   // dashboard doesn't override their preference on Today / the carousel.
   // Read lazily in an effect to keep the render path SSR-safe + robust against
@@ -122,6 +139,74 @@ function SeasonalPicksCardInner({
   useEffect(() => {
     load();
   }, [load]);
+
+  // One-tap "Add planting tasks" — resolve the pick to a catalogue plant, then
+  // assemble its planting-journey tasks (sow → germinate/transplant → harvest)
+  // and open AddToCalendarSheet. Prefers an existing grow guide's tasks; else
+  // builds them instantly from the pick's own sow method + windows and kicks
+  // off guide generation in the background so the plant page is ready later.
+  const handleQuickAdd = useCallback(
+    async (pick: SeasonalPick, index: number) => {
+      if (preparingIndex !== null) return; // one at a time
+      setPreparingIndex(index);
+      try {
+        const synth: ProviderSearchResult = {
+          id: `seasonal-${pick.scientific_name.toLowerCase().replace(/\s+/g, "-")}`,
+          common_name: pick.common_name,
+          scientific_name: [pick.scientific_name],
+          thumbnail_url: null,
+          _provider: "ai",
+          ...(pick.plant_library_id ? { plant_library_id: pick.plant_library_id } : {}),
+        };
+
+        // Resolve to a real catalogue plant — clones the plant_library row when
+        // present, else creates a reusable AI catalogue plant. (Library-missing
+        // picks are separately seeded into plant_library by the picks handler.)
+        const plant = await ensureCataloguePlantFromSearchResult(synth, { homeId });
+        const plantId = plant.plantId;
+        if (!plantId || plantId <= 0) throw new Error("Couldn't resolve this plant.");
+
+        const { data: guideRow } = await supabase
+          .from("plant_grow_guides")
+          .select("guide_data")
+          .eq("plant_id", plantId)
+          .maybeSingle();
+        const guideTasks = guideRow?.guide_data
+          ? plantingTasksFromGuide(guideRow.guide_data as PlantGrowGuide)
+          : [];
+
+        let tasks = guideTasks;
+        const fromGuide = guideTasks.length > 0;
+        if (!fromGuide) {
+          tasks = plantingTasksFromPick(pick);
+          if (aiEnabled) {
+            // Fire-and-forget — cache the guide for when they open the plant.
+            PlantDoctorService.generateGrowGuide(plantId, homeId).catch((err) =>
+              Logger.error("SeasonalPicksCard background grow-guide gen failed", err, { plantId }),
+            );
+          }
+        }
+
+        if (tasks.length === 0) {
+          toast("No planting steps for this pick yet — open it to see the full guide.");
+          return;
+        }
+
+        logEvent(EVENT.SEASONAL_PICK_QUICK_ADD, {
+          common_name: pick.common_name,
+          task_count: tasks.length,
+          from_guide: fromGuide,
+        });
+        setAddSheet({ plantId, plantName: pick.common_name, tasks });
+      } catch (err) {
+        Logger.error("SeasonalPicksCard quick-add failed", err, { homeId });
+        toast.error("Couldn't prepare planting tasks — try again.");
+      } finally {
+        setPreparingIndex(null);
+      }
+    },
+    [preparingIndex, homeId, aiEnabled],
+  );
 
   // ── Render ──────────────────────────────────────────────────────────────
 
@@ -260,7 +345,7 @@ function SeasonalPicksCardInner({
         >
           {payload.picks.map((pick, i) => (
             <div key={`${pick.scientific_name}-${i}`} className="snap-start">
-              <SeasonalPickTile pick={pick} index={i} onOpen={setDetailResult} />
+              <SeasonalPickTile pick={pick} index={i} onOpen={setDetailResult} onQuickAdd={(p) => handleQuickAdd(p, i)} preparing={preparingIndex === i} />
             </div>
           ))}
         </div>
@@ -271,7 +356,7 @@ function SeasonalPicksCardInner({
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
         >
           {payload.picks.map((pick, i) => (
-            <SeasonalPickTile key={`${pick.scientific_name}-${i}`} pick={pick} index={i} onOpen={setDetailResult} />
+            <SeasonalPickTile key={`${pick.scientific_name}-${i}`} pick={pick} index={i} onOpen={setDetailResult} onQuickAdd={(p) => handleQuickAdd(p, i)} preparing={preparingIndex === i} />
           ))}
         </div>
       )}
@@ -291,9 +376,9 @@ function SeasonalPicksCardInner({
             {payload.picks.map((pick, i) => (
               <div
                 key={`${pick.scientific_name}-${i}`}
-                className="snap-start shrink-0 w-full pr-2 last:pr-0 [&>button]:!w-full"
+                className="snap-start shrink-0 w-full pr-2 last:pr-0 [&>div]:!w-full"
               >
-                <SeasonalPickTile pick={pick} index={i} onOpen={setDetailResult} />
+                <SeasonalPickTile pick={pick} index={i} onOpen={setDetailResult} onQuickAdd={(p) => handleQuickAdd(p, i)} preparing={preparingIndex === i} />
               </div>
             ))}
           </div>
@@ -326,6 +411,17 @@ function SeasonalPicksCardInner({
           aiEnabled={aiEnabled}
           isPremium={isPremium}
           onClose={() => setDetailResult(null)}
+        />
+      )}
+      {addSheet && (
+        <AddToCalendarSheet
+          open
+          homeId={homeId}
+          plantId={addSheet.plantId}
+          plantName={addSheet.plantName}
+          schedulableTasks={addSheet.tasks}
+          heading="Add planting tasks"
+          onClose={() => setAddSheet(null)}
         />
       )}
     </section>

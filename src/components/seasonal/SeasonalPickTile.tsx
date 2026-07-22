@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Sprout, Home as HomeIcon, Scissors, Combine, MoveRight,
   Sun, CloudSun, Cloud, Trees, Carrot, Flower2, ChevronRight,
-  Loader2,
+  Loader2, CalendarPlus,
 } from "lucide-react";
 import type { SeasonalPick } from "../../services/seasonalPicksService";
 import { getPlantWikiInfo } from "../../lib/wikipedia";
@@ -16,6 +16,11 @@ interface Props {
   /** Open this pick in the shared `PlantDetailModal` overlay (Care / Grow
    *  Guide / Companions / Light). The parent card owns the modal state. */
   onOpen: (result: ProviderSearchResult) => void;
+  /** One-tap "Add planting tasks" — the parent card ensures the catalogue
+   *  plant, assembles the planting-journey tasks, and opens AddToCalendarSheet. */
+  onQuickAdd: (pick: SeasonalPick) => void;
+  /** True while this tile's quick-add is preparing (ensure + guide read). */
+  preparing?: boolean;
 }
 
 const SOW_ICON: Record<SeasonalPick["sow_method"], React.ReactNode> = {
@@ -58,7 +63,7 @@ function shortMonth(iso: string): string {
  * Gemini) happens inside the modal's `useCataloguePlantFromResult` hook —
  * same path every other plant-search consumer takes.
  */
-export default function SeasonalPickTile({ pick, index, onOpen }: Props) {
+export default function SeasonalPickTile({ pick, index, onOpen, onQuickAdd, preparing = false }: Props) {
   const [thumb, setThumb] = useState<string | null>(null);
   const [imgErrored, setImgErrored] = useState(false);
 
@@ -106,11 +111,12 @@ export default function SeasonalPickTile({ pick, index, onOpen }: Props) {
   const FallbackIcon = pick.edible ? Carrot : Flower2;
 
   return (
+    <div className="group shrink-0 w-[260px] sm:w-[280px] rounded-2xl border border-rhozly-outline/15 bg-white hover:border-rhozly-primary/40 hover:shadow-md transition-all flex flex-col overflow-hidden">
     <button
       type="button"
       data-testid={`seasonal-pick-${index}`}
       onClick={openPreview}
-      className="group shrink-0 w-[260px] sm:w-[280px] text-left rounded-2xl border border-rhozly-outline/15 bg-white hover:border-rhozly-primary/40 hover:shadow-md active:scale-[0.99] transition-all p-3 flex flex-col gap-2.5"
+      className="flex-1 text-left active:scale-[0.99] transition-transform p-3 flex flex-col gap-2.5"
     >
       {/* Hero — thumbnail or fallback icon */}
       <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-rhozly-surface-low border border-rhozly-outline/10">
@@ -181,6 +187,24 @@ export default function SeasonalPickTile({ pick, index, onOpen }: Props) {
         <ChevronRight size={11} />
       </span>
     </button>
+
+      {/* One-tap "Add planting tasks" — sibling of the open-detail button
+          (never nested, so the card holds no button-in-button). Ensures the
+          plant + assembles the sow → germinate → harvest tasks in the parent. */}
+      <div className="px-3 pb-3">
+        <button
+          type="button"
+          data-testid={`seasonal-pick-add-${index}`}
+          onClick={() => onQuickAdd(pick)}
+          disabled={preparing}
+          aria-label={`Add planting tasks for ${pick.common_name} to your calendar`}
+          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl bg-rhozly-primary/10 border border-rhozly-primary/20 text-rhozly-primary text-[10px] font-black uppercase tracking-widest can-hover:hover:bg-rhozly-primary/15 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition"
+        >
+          {preparing ? <Loader2 size={13} className="animate-spin" /> : <CalendarPlus size={13} />}
+          {preparing ? "Preparing…" : "Add planting tasks"}
+        </button>
+      </div>
+    </div>
   );
 }
 

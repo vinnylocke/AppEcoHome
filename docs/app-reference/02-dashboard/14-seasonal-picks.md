@@ -12,6 +12,8 @@
 - `src/components/seasonal/SeasonalPicksCard.tsx`
 - `src/components/seasonal/SeasonalPickTile.tsx`
 - `src/services/seasonalPicksService.ts`
+- `src/lib/seasonalPickPlantingTasks.ts` — planting-journey task assembly (guide + pick-derived)
+- `src/components/growGuide/AddToCalendarSheet.tsx` — reused confirm sheet
 
 ---
 
@@ -31,13 +33,45 @@ SeasonalPicksCard (variant: "today" | "dashboard")
 ├── Source label ("Personalised for your garden" | "A few ideas for this week")
 ├── Manual refresh button (calls fetchSeasonalPicks with forceRegen: true)
 └── Tile list
-    └── SeasonalPickTile × 4-6
-        ├── Hero image (Wikipedia thumbnail — lazy, fallback icon)
-        ├── Sow-method chip (Direct / Indoor / Cutting / Division / Transplant)
-        ├── Title (common_name + scientific_name italic)
-        ├── Reasoning (one sentence, line-clamped to 3)
-        └── Footer chips (sow window · harvest window · effort · sun icons)
+    └── SeasonalPickTile × 4-6  (root is a <div>, NOT a <button>, so the tap-to-open
+        │                        body button and the add button never nest)
+        ├── Body button (`seasonal-pick-{i}`) → opens PlantDetailModal
+        │   ├── Hero image (Wikipedia thumbnail — lazy, fallback icon)
+        │   ├── Sow-method chip (Direct / Indoor / Cutting / Division / Transplant)
+        │   ├── Title (common_name + scientific_name italic)
+        │   ├── Reasoning (one sentence, line-clamped to 3)
+        │   └── Footer chips (sow window · harvest window · effort · sun icons)
+        └── "Add planting tasks" button (`seasonal-pick-add-{i}`, 2026-07-22)
+            → parent card's quick-add flow (ensure plant → assemble planting-
+              journey tasks → AddToCalendarSheet)
 ```
+
+### Quick-add planting tasks (2026-07-22)
+
+A one-tap shortcut so the user doesn't have to open the tile → detail →
+Grow Guide → Generate → "Add all" just to get a pick onto the calendar. On tap,
+`SeasonalPicksCard.handleQuickAdd`:
+
+1. Builds the same synthesized `ProviderSearchResult` the tile's `openPreview`
+   uses and calls `ensureCataloguePlantFromSearchResult` → a real catalogue
+   `plantId` (clones the `plant_library` row when `plant_library_id` is present,
+   else creates a reusable AI catalogue plant). Library-missing picks are
+   independently seeded into `plant_library` by `seasonalPicksHandler` at
+   generation time, so novel picks still become first-class library plants —
+   without the admin-only `add-plant-to-library` path.
+2. Assembles the **planting-journey** `SchedulableTask[]` via
+   `src/lib/seasonalPickPlantingTasks.ts`: prefers an existing grow guide's
+   **propagation + germination + harvesting** sections (`plantingTasksFromGuide`,
+   step-enriched); if there's no guide it builds them instantly from the pick's
+   own `sow_method` + `sow_window` (+ `harvest_window`) via
+   `plantingTasksFromPick`, then fires `generateGrowGuide` in the background so
+   the plant page is ready later. Ongoing care (water/pruning/fertilizing) is
+   deliberately excluded.
+3. Opens `AddToCalendarSheet` (heading "Add planting tasks") pre-loaded with
+   those tasks + `plantId` — reusing its duplicate detection, per-instance
+   picker, and "Also add to your Shed" toggle. `preparingIndex` drives the
+   tile's spinner while steps 1–2 run. Emits `SEASONAL_PICK_QUICK_ADD`
+   (`{ common_name, task_count, from_guide }`).
 
 ### Props received
 
@@ -94,7 +128,8 @@ SeasonalPicksCard (variant: "today" | "dashboard")
 ### Data flow — write paths
 
 - **Manual refresh** → calls the edge fn with `forceRegen: true`, which bypasses both the client and server cache and upserts a fresh row.
-- **Tap a tile** → `navigate('/library/plant/preview', { state: { result: synthResult } })` — the library's instant-preview path handles the rest (catalogue ensure, URL settle, Save to Shed, Care Guide, etc.). No DB write happens from the card itself.
+- **Tap a tile's body** → opens `PlantDetailModal` in-card (the shared Care / Grow Guide / Companions / Light overlay; the `/library/plant/preview` route was retired). The overlay's `useCataloguePlantFromResult` handles the catalogue ensure. No DB write from the card itself on open.
+- **Tap "Add planting tasks"** → the quick-add flow above: ensures the catalogue plant (a write if not yet cloned), reads the grow guide, and opens `AddToCalendarSheet` — the actual task inserts happen inside the sheet's `TaskActionButtons`.
 
 ### Edge functions invoked
 
@@ -173,10 +208,27 @@ The card also reframes the app for new gardeners. The Library is "search for pla
 
 #### 2. Tap a pick
 
-- Opens the standard `PlantPreview` screen at `/library/plant/preview` with an instant placeholder hero. The full Care Guide loads in the background — by the time you look at the tabs, the data is there.
+- Tapping the tile body opens the shared plant detail overlay (`PlantDetailModal`) with an instant placeholder hero. The full Care Guide loads in the background — by the time you look at the tabs, the data is there.
 - From there: Save to Shed, view the Grow Guide, view Companions, view Light. All the existing flows.
 
-#### 3. Manual refresh (Sage+)
+#### 3. Add planting tasks (one tap — 2026-07-22)
+
+- Each tile has an **"Add planting tasks"** button. Tap it and Rhozly does the
+  legwork you'd otherwise do by hand: it works out what this plant needs to get
+  sown, grown on, and harvested, and drops those tasks onto your calendar — no
+  digging into the grow guide first.
+- What you get is the **planting journey** only: sow (by the right method for
+  this plant), any transplant/plant-out step, and the harvest window. It leaves
+  out the ongoing chores (watering, pruning, feeding) — you can still add those
+  from the full grow guide when you want them.
+- A confirm sheet opens so you can see the tasks, skip any that clash with a
+  routine you already have, attach them to a specific plant, and — if you don't
+  own this plant yet — add it to your Shed at the same time.
+- If Rhozly doesn't have a full guide for this plant yet, it still adds the sow
+  and harvest tasks from what it knows this week, and quietly writes the full
+  guide in the background so it's waiting for you when you open the plant later.
+
+#### 4. Manual refresh (Sage+)
 
 - The small circular refresh button in the card header re-runs the picks with `forceRegen: true`. Useful on a Sunday when your weekly plan shifted and you want a fresh look.
 - Costs one Gemini call. The cached row is overwritten with the new picks.
@@ -253,6 +305,9 @@ No difference.
 - `src/components/seasonal/SeasonalPicksCard.tsx` — card shell + variants
 - `src/components/seasonal/SeasonalPickTile.tsx` — one tile + tap → PlantPreview
 - `src/services/seasonalPicksService.ts` — invoke wrapper + sessionStorage cache
+- `src/lib/seasonalPickPlantingTasks.ts` — `plantingTasksFromGuide` / `plantingTasksFromPick` (planting journey; unit-tested)
+- `src/components/growGuide/AddToCalendarSheet.tsx` + `src/lib/scheduleFromSchedulableTask.ts` — the reused add-to-calendar path
+- `src/lib/plantCatalogue.ts` — `ensureCataloguePlantFromSearchResult` (resolve pick → catalogue plant)
 - `supabase/functions/_shared/seasonalPicks.ts` — Gemini schema + prompt + ISO week + normaliser
 - `supabase/functions/_shared/seasonalPicksFallback.ts` — deterministic Sprout/Botanist picker
 - `supabase/functions/_shared/seasonalPicksHandler.ts` — shared orchestrator

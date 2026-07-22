@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,620 tests across 152 files
+### Unit tests — 1,632 tests across 154 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
@@ -752,6 +752,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `gardenWalk.test.ts` | 49 | `composeAndOrderWalk` (banding, indoor filter, same-day dedupe, cap, **fresh-walk mode `ignoreTodayProgress` re-walks today's plants while keeping visit metadata/banding**) + `visitedTodayIds` (same-day set matches the exclusion predicate) + RHO-18 instance grouping (same-plant same-area collapse into one card, different-area separate, manual-name grouping, group band = most-urgent member, summed counts, distinct-nickname collapse, cap counts groups) + RHO-18 route (task keyed to a non-representative member resolves to the group step) + RHO-17 `composeWalkRoute` (home→location→area→plant ordering, empty-section omission, most-specific task assignment incl. multi-plant/personal/ghost/fallbacks, section done vs skipped filtering, unassigned section, attention preview, `MAX_PLANTS_PER_WALK`) + `sectionForStep`, `isWalkableTask` + Phase 2 telemetry (device → most-specific-step assignment with area/location/home fallbacks, device-only sections stay alive, multi-sensor areas, `areas.latest_soil_*` → `latest` strip, deviceless input keeps Phase 1 behaviour) + Phase 3 weaving (`derivePlanPhase` PlanStaging parity incl. plant-first, home watchlist digest with link counts + archived exclusion, per-area ailment context via itemAreas, In-Progress plan digests + area banners + `openTaskCount`, enrichment-never-forces-a-section rule) |
 | `taskActions.test.ts` | 16 | RHO-17 shared task mutation core — `completeTask`/`skipTask`/`postponeTask` ghost vs physical vs blueprint payload parity with TaskList, `unique_blueprint_date` 23505 → UPDATE fallback, event logging, `materialiseGhost` select passthrough, `snoozeHarvestTask` (today+days, window_end_date cap, ghost materialise-first, ≥1-day floor) |
 | `scheduleFromSchedulableTask.test.ts` | 28 | `scheduleFromSchedulableTask` — month-window → blueprint dates, incl. wrap-around windows (Nov–Jan) |
+| `seasonalPickPlantingTasks.test.ts` | 9 | `src/lib/seasonalPickPlantingTasks.ts` — planting-journey tasks for a seasonal pick: `plantingTasksFromGuide` (propagation/germination/harvesting only, step-enriched) + `plantingTasksFromPick` (sow-method verb, window→months, harvest task) (2026-07-22) |
 | `useHomeRealtime.test.ts` | 6 | `useHomeRealtime` — callback fires on matching table, debounce, multi-subscriber, cleanup |
 | `plantLabels.test.ts` | 23 | `derivePlantLabels` — plant_type, cycle variants, watering variants, drought_tolerant, care_level, indoor, edible, tropical, pruning deduplication |
 | `yieldService.test.ts` | 10 | `validateYieldValue`, `fetchYieldRecords`, `insertYieldRecord`, `deleteYieldRecord`, `updateExpectedHarvestDate` |

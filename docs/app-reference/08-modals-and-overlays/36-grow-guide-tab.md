@@ -238,6 +238,10 @@ The guide is the same for every gardener growing this species — generated once
 
 ---
 
+
+
+> **Also opened from Seasonal Picks (2026-07-22).** The Sow & grow tile's "Add planting tasks" button reuses `AddToCalendarSheet` with the plant's **planting-journey** tasks (propagation + germination + harvesting), and may trigger this guide's generation in the background when none exists yet. See [Seasonal Picks Card](../02-dashboard/14-seasonal-picks.md).
+
 ## Related reference files
 
 - [Plant Edit Modal](./06-plant-edit-modal.md) — parent surface (Shed plant card)

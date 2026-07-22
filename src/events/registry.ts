@@ -79,6 +79,8 @@ export const EVENT = {
   SEASONAL_PICKS_LOADED:    "seasonal_picks_loaded",
   SEASONAL_PICKS_REFRESHED: "seasonal_picks_refreshed",
   SEASONAL_PICK_OPENED:     "seasonal_pick_opened",
+  // One-tap "Add planting tasks" from a seasonal pick tile (2026-07-22).
+  SEASONAL_PICK_QUICK_ADD:  "seasonal_pick_quick_add",
   // RHO-4 Phase 3 — bulk seed-packet import (Nursery CSV / AI paste).
   // Payload: { attempted, succeeded, failed, favourited, mode: "csv" | "paste", source }.
   BULK_PACKET_IMPORT_COMPLETED: "bulk_packet_import_completed",
