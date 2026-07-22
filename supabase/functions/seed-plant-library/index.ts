@@ -55,6 +55,7 @@ import {
   seedRowToColumnShape,
   type SeedRow,
 } from "../_shared/plantSeedPrompt.ts";
+import { isAcceptablePlantEnrichment } from "../_shared/plantEnrichmentGuard.ts";
 
 const FN = "seed-plant-library";
 
@@ -245,6 +246,21 @@ async function runSeedBatch(
     const row = seedRowToColumnShape(p, { seeded_by_run_id: runId });
     if (!row) {
       stats.failed += 1;
+      continue;
+    }
+
+    // Reject over-generic / garbage enrichments (e.g. a cultivar answered as
+    // the bare category "Root vegetable", or a junk scientific name) so they
+    // never poison the global library — a miss is filled on demand by the AI
+    // care-guide path.
+    const guard = isAcceptablePlantEnrichment(row.common_name, row.scientific_name);
+    if (!guard.ok) {
+      stats.skipped += 1;
+      log(FN, "enrichment_rejected", {
+        run_id: runId,
+        common_name: String(row.common_name ?? ""),
+        reason: guard.reason,
+      });
       continue;
     }
 

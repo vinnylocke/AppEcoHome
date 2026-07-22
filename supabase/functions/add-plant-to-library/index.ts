@@ -19,6 +19,7 @@ import {
   seedRowToColumnShape,
 } from "../_shared/plantSeedPrompt.ts";
 import { computeSciKey } from "../_shared/plantNameSources.ts";
+import { isAcceptablePlantEnrichment } from "../_shared/plantEnrichmentGuard.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { requireAdmin } from "../_shared/requireAdmin.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
@@ -99,6 +100,16 @@ Deno.serve(async (req) => {
     const aiPlant = Array.isArray(parsed.plants) ? parsed.plants[0] : null;
     if (!aiPlant) {
       return json({ error: "No plant data returned." }, 422);
+    }
+
+    // Reject over-generic / garbage enrichments (bare category or junk
+    // scientific name) so they never enter the global library. The common_name
+    // is pinned to the user's input below, so this mainly guards the AI's
+    // scientific name; a generic user input is caught too.
+    const guard = isAcceptablePlantEnrichment(name, aiPlant.scientific_name);
+    if (!guard.ok) {
+      warn(FN, "enrichment_rejected", { name, reason: guard.reason });
+      return json({ error: `Couldn't add a reliable entry for "${name}" (${guard.reason}). Try a more specific name.` }, 422);
     }
 
     // 2. Dedup against scientific_name_key BEFORE insert.

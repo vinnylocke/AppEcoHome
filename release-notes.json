@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Some recommended plants showed generic data instead of the real plant — e.g. Carrot 'Autumn King' opened as \"Root vegetable\". We removed the mislabeled library entries behind these mismatches and now block over-generic AI entries from being created, so specific plants and varieties keep their own information."
+    ]
+  }
+]
