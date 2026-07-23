@@ -70,6 +70,13 @@ All three gate identically — a viewer sees no add button, no manage kebab, no 
 
 Until migration `20260827000000_inventory_items_rls_home_members.sql`, `inventory_items` was the outlier: its policy trusted `user_profiles.home_id` (the user's own "currently active home" pointer) instead of `home_members`. Two failures: (1) a removed member's profile still pointed at the home, so a kicked member kept full read/write/delete over the entire shed until they switched homes; (2) a legitimate member of a second home couldn't see that home's shed unless it was their active profile home (broke `multiple_homes`). The policy is now the canonical `home_members` membership subquery (`home_members_can_manage_inventory`, `FOR ALL` with matching `USING` / `WITH CHECK`, `(SELECT auth.uid())` wrapped).
 
+### Image judge tables — canonical home-scoped (2026-07-23)
+
+Two new home-scoped tables from the image tap → right/wrong → replace feature ([docs/plans/image-judge-and-replace.md](../../plans/image-judge-and-replace.md)) both use the canonical `home_members` membership subquery, `FOR ALL` with matching `USING`/`WITH CHECK`, `(SELECT auth.uid())` wrapped:
+
+- **`image_rejections`** (`20261023000000`) — GRANT SELECT/INSERT/**DELETE** (no UPDATE — rejections are immutable; DELETE = undo). The `plant-image-search` / `ailment-image-search` edge functions read it via the **service role** (bypassing RLS) filtered by the request `home_id`; they must never mutate the cross-user shared image caches.
+- **`ailment_image_overrides`** (`20261024000000`) — GRANT SELECT/INSERT/UPDATE/DELETE. Bridges to the global (read-only) `ailment_library` by `name_key` else `identity_key` (two partial uniques, mirroring `user_favourite_ailments`).
+
 ### Source-aware global-row policy (`plants` table)
 
 The `plants` table is special: it allows `home_id IS NULL` rows as global catalogue entries (Perenual API + AI catalogue). The UPDATE policy must permit normal write paths while preventing users from tampering with the new global AI catalogue (Wave 1 of AI Plant Overhaul, migration `20260620000100`):

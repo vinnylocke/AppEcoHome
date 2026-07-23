@@ -1,6 +1,6 @@
 # User Profile Dropdown
 
-> The top-right menu opened from the user avatar in the persistent header. Contains links to Account Settings, Garden Quiz, Location/Home Management, Task Schedules, the Audit Log (admin), the Guide Studio (admin), Contact Support, and Sign Out. Also surfaces a "What's New" pill when a new app version has shipped recently. (The no-op "Getting Started" item was removed in the dashboard-nav-tasks-tray Stage 4, 2026-07-21, B8.)
+> The top-right menu opened from the user avatar in the persistent header. Contains links to Account Settings, Garden Preferences, Location/Home Management, an **Admin & Oversight** section (Audit Log plus the platform-admin tools — Guide Studio, Plant Library, AI Calls, Content Feedback), a **System** section (Sync now, Check for update), Contact Support, and Sign Out. Also surfaces a "What's New" pill when a new app version has shipped recently. (The no-op "Getting Started" item was removed in the dashboard-nav-tasks-tray Stage 4, 2026-07-21, B8. The 2026-07-23 IA reorg removed "Task Manager"/Routines from Management — it's already primary under the Planner "Routines" tab — and moved Sync now / Check for update out of Help into their own System section.)
 
 **Trigger:** Tap the user avatar in the top-right of the header.
 **Source file:** `src/components/UserProfileDropdown.tsx`
@@ -12,10 +12,11 @@
 A multi-section dropdown:
 
 - **Header** — name + email
-- **Account** — Account Settings, Garden Quiz & Preferences
-- **Management** — Location Management, Members & Permissions, Task Manager, Audit Log (if `canViewAudit`)
-- **Admin** — Guide Studio, Content Feedback (`/admin/content-feedback`) (if `isAdmin`)
-- **Help** — What's New (if recent version), Help & FAQ (deep-links to `/help` → `/guides?tab=help`), Contact Support, Image credits
+- **Account** — Account Settings, Garden Preferences
+- **Management** — Location Management, Members & Permissions (opens the all-homes settings page). Holds home-structure CRUD only — "Routines" (Task Manager) was removed 2026-07-23; it's already primary under the Planner "Routines" tab and a copy here just duplicated feature nav
+- **Admin & Oversight** *(renders when `canViewAudit || isAdmin`)* — Audit Log (if `canViewAudit`, independent of `isAdmin`), then Guide Studio, Plant Library, AI Calls, Content Feedback (each if `isAdmin`) — 4 admin tools, read-only inspection surfaces
+- **Help** — What's New (if recent version), Help & FAQ (deep-links to `/help` → `/guides?tab=help`), Contact Support, Credits & sources
+- **System** *(renders when `onSyncNow` or `onCheckForUpdate` is passed)* — Sync now (offline-first push+pull), Check for update (forces a fresh SW/version probe)
 - **Sign Out** — `supabase.auth.signOut()`
 - **Footer** — app version label (tap to open release notes)
 
@@ -35,8 +36,9 @@ UserProfileDropdown
     ├── Header card (name + email)
     ├── Account section
     ├── Management section
-    ├── Admin section (conditional)
-    ├── Help section (What's New / Help & FAQ / Contact Support / Image credits)
+    ├── Admin & Oversight section (conditional — canViewAudit || isAdmin)
+    ├── Help section (What's New / Help & FAQ / Contact Support / Credits & sources)
+    ├── System section (conditional — onSyncNow || onCheckForUpdate)
     ├── Sign Out
     └── App version label
 └── ContactSupportModal (when supportOpen)
@@ -50,10 +52,12 @@ UserProfileDropdown
 | `firstName` | `string?` | App.tsx | Fallback for nameLabel |
 | `email` | `string \| null` | App.tsx | Header + ContactSupportModal default |
 | `subscriptionTier` | `SubscriptionTier?` | App.tsx | Tier label under name |
-| `isAdmin` | `boolean?` | App.tsx | Gates Admin section |
-| `canViewAudit` | `boolean?` | App.tsx | Gates Audit Log link |
+| `isAdmin` | `boolean?` | App.tsx | Gates the 4 platform-admin tools in Admin & Oversight (Guide Studio, Plant Library, AI Calls, Content Feedback) |
+| `canViewAudit` | `boolean?` | App.tsx | Gates the Audit Log link in Admin & Oversight |
 | `appVersion` | `string?` | App.tsx (release-notes.json) | What's New + footer label |
 | `onVersionClick` | `() => void?` | App.tsx | Open release notes modal |
+| `onCheckForUpdate` | `() => Promise<{ updateAvailable: boolean }>?` | App.tsx (`versionState.refresh`) | Powers the System section's "Check for update" — presence gates whether the System section renders |
+| `onSyncNow` | `() => Promise<void>?` | App.tsx (`handleSyncNow`) | Powers the System section's "Sync now" (offline-first flush queue + refresh) — presence gates whether the System section renders |
 
 ### Local state
 
@@ -83,13 +87,16 @@ Dismissed by tapping the What's New button or app version label.
 | Item | Path |
 |------|------|
 | Account Settings | `/gardener` |
-| Garden Quiz & Preferences | `/profile` |
+| Garden Preferences | `/profile` |
 | Location Management | `/management` |
-| Members & Permissions | `/home-management` |
-| Task Manager | `/schedule` |
+| Members & Permissions | `/home-management` (the all-homes settings page) |
 | Audit Log | `/audit` |
 | Guide Studio | `/admin/guides` |
+| Plant Library | `/admin/plant-library` |
+| AI Calls | `/admin/ai-calls` |
 | Content Feedback | `/admin/content-feedback` |
+
+"Task Manager" (`/schedule`) was removed from Management in the 2026-07-23 IA reorg — Routines is already primary under the Planner tab.
 
 ### Data flow
 
@@ -120,9 +127,13 @@ None.
 
 | Section | Gated by |
 |---------|----------|
-| Admin → Guide Studio | `isAdmin` |
-| Admin → Content Feedback | `isAdmin` |
-| Management → Audit Log | `canViewAudit` |
+| Admin & Oversight section (rendered at all) | `canViewAudit \|\| isAdmin` |
+| Admin & Oversight → Audit Log | `canViewAudit` (a standalone boolean, independent of `isAdmin`) |
+| Admin & Oversight → Guide Studio | `isAdmin` |
+| Admin & Oversight → Plant Library | `isAdmin` |
+| Admin & Oversight → AI Calls | `isAdmin` |
+| Admin & Oversight → Content Feedback | `isAdmin` |
+| System section (rendered at all) | `onSyncNow \|\| onCheckForUpdate` passed from App.tsx (both always passed today) |
 
 ### Error states
 
@@ -152,18 +163,21 @@ This is the catch-all "settings + advanced" menu. Most casual users open it twic
 
 - Opens the Account tab of GardenerProfile.
 
-#### 2. Account → Garden Quiz & Preferences
+#### 2. Account → Garden Preferences
 
 - Opens `/profile` — re-take the quiz or swipe.
 
 #### 3. Management
 
-- Three (or four with audit) shortcuts to management screens. Live here so they're not cluttering main navigation.
+- Two shortcuts to home-structure screens (Location Management, Members & Permissions — the latter opens the all-homes settings page). Live here so they're not cluttering main navigation. "Task Manager" was removed 2026-07-23 — Routines is already primary under the Planner tab, so a copy here was a duplicate.
 
-#### 4. Admin (admin only)
+#### 4. Admin & Oversight (only if you have `canViewAudit` or `isAdmin`)
 
-- Guide Studio for AI-authored guides.
-- Content Feedback — the 👍/👎 + comment reports users have left on guides, docs, help answers and workflows (`/admin/content-feedback`).
+- Audit Log — the read-only activity + AI-usage timeline for this home. Visible to anyone with `canViewAudit`, even non-admin owners.
+- Guide Studio for AI-authored guides. *(admin only)*
+- Plant Library — the global plant-knowledge-base seed/verify dashboard. *(admin only)*
+- AI Calls — every AI call across every home, with cost/token/status detail. *(admin only)*
+- Content Feedback — the 👍/👎 + comment reports users have left on guides, docs, help answers and workflows (`/admin/content-feedback`). *(admin only)*
 
 #### 5. What's New (pulse dot visible)
 
@@ -179,11 +193,17 @@ This is the catch-all "settings + advanced" menu. Most casual users open it twic
 
 - Opens `ContactSupportModal` with your name + email pre-filled.
 
-#### 8. Sign Out
+#### 8. System — Sync now / Check for update
+
+- **Sync now** — pushes any offline-queued writes and pulls fresh data (profile + dashboard). Useful after a spell offline; shows a spinner and a "Synced with the server" toast.
+- **Check for update** — forces a fresh DB-version fetch + service-worker update probe. If an update is pending, the app applies it (the same banner UpdateBanner would show); otherwise a "you're on the latest version" toast confirms.
+- Moved out of Help into their own section 2026-07-23 — these are account/system actions, not help content.
+
+#### 9. Sign Out
 
 - Red link at the bottom. Calls `supabase.auth.signOut()`.
 
-#### 9. App version (footer)
+#### 10. App version (footer)
 
 - Tap → release notes (same as What's New).
 
@@ -215,7 +235,7 @@ Same layout. Tier label changes from Sprout/Botanist/Sage/Evergreen.
 ### What to do if something looks wrong
 
 - **Dropdown shows wrong name:** App.tsx `displayName` is stale. Refresh the page after editing name in Account.
-- **Admin section missing despite being admin:** `isAdmin` flag in profile may be false. Verify in `user_profiles.is_admin`.
+- **Admin & Oversight section missing despite being admin:** `isAdmin` flag in profile may be false. Verify in `user_profiles.is_admin`. (If only the admin tools are missing but Audit Log still shows, `canViewAudit` is true and `isAdmin` is false — that's correct, not a bug.)
 - **Sign Out doesn't redirect:** auth state listener in App.tsx may be stuck. Hard refresh.
 
 ---
@@ -226,6 +246,9 @@ Same layout. Tier label changes from Sprout/Botanist/Sage/Evergreen.
 - [Members & Permissions Tab](../07-management/02-members-permissions.md)
 - [Audit Log](../07-management/08-audit-log.md)
 - [Admin Guide Generator](../07-management/09-admin-guide-generator.md)
+- [Plant Library Admin](../07-management/10-plant-library-admin.md)
+- [AI Calls Admin](../07-management/11-ai-calls-admin.md)
+- [Content Feedback Admin](../07-management/12-content-feedback-admin.md)
 - [Release Notes Modal](../08-modals-and-overlays/19-release-notes.md)
 - [Contact Support Modal](../08-modals-and-overlays/18-contact-support.md)
 - [Header / Top Bar](../09-persistent-ui/01-header.md)

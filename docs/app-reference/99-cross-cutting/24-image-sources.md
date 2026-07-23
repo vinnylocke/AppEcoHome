@@ -32,13 +32,10 @@ Single entry point for "get me images for query X". Merges sources, returns up t
 
 ### `SmartImage` component
 
-Tries multiple URLs in order; falls back to placeholder on all-fail:
+Wraps a single `<img>`: on mount it checks the Cache API bucket `rhozly-image-cache` for the exact `src`, fetches + stores the response on a miss (rendering an object URL from the blob), and on fetch failure shows the provided `fallback` string or an inline leaf placeholder. It takes a single `src` + one `fallback` — **not** a `sources={[...]}` array (earlier doc drift, fixed 2026-07-23):
 
-```ts
-<SmartImage
-  sources={[primary, secondary, fallback]}
-  alt="Tomato"
-/>
+```tsx
+<SmartImage src={primary} fallback={placeholder} alt="Tomato" />
 ```
 
 ### AI relevance vetting (`vet: true`)
@@ -75,6 +72,12 @@ Rewrites external URLs through Supabase with cache headers + CORS. Used for prov
 - Browser cache via cache headers.
 - Service worker runtime cache (PWA).
 - Image proxy adds long max-age for re-fetches.
+
+### Rejection & per-home image override (2026-07-23)
+
+On surfaces the user OWNS (Shed plant card + detail, Watchlist ailment card + detail) the main image is tappable → **right / wrong**. A **wrong** verdict is a plain client INSERT into `image_rejections` (home-scoped: `home_id`, `subject_kind` = `plant`|`ailment`, `subject_key` = the normalised name / `name_key` the pool is cache-keyed on, `rejected_url`). The image-search edge functions (`plant-image-search`, `ailment-image-search`) read that table via the **service role** filtered by the request `home_id` and exclude those URLs from every future candidate pool — persisting across the 90-day cache TTL. The filter is **per-home and in-memory only**: it must NEVER mutate the cross-user shared caches (`plant_image_cache` / `plant_gallery_cache` / the ailment caches), or one home's reject would change the image for every home. An exhausted pool → the function returns `{ images: [] }` and the UI keeps the current image ("no other photos found").
+
+Because `ailment_library` is global read-only, a home's replacement ailment image is stored in **`ailment_image_overrides`** (home-scoped, bridged to the bigint library id by `name_key` else `identity_key`, carrying `image_credit` for attribution) AND mirrored into the writable `ailments.thumbnail_url` for home watchlist rows. Ailment image resolution order: home `ailments.thumbnail_url` → `ailment_image_overrides` → `ailment_library` image → KindIcon. See [Data Model — Ailments](./06-data-model-ailments.md) and [docs/plans/image-judge-and-replace.md](../../plans/image-judge-and-replace.md).
 
 ### Attribution (Wave 22.0002)
 

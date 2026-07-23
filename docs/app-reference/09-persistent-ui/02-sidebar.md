@@ -41,11 +41,13 @@ nav (left rail, aria-label="Primary navigation")
 }
 ```
 
-Current entries (top → bottom): **Garden:** Dashboard (`/dashboard`, `/management`, `/home-management`, `/` on desktop — overdue badge, rose), Plants (`/shed`, `/watchlist`) · **Plan:** Planner (`/planner`, `/shopping`, `/schedule`), Journal (`/journal`, `/notes`) · **AI & Tools:** Tools (`/tools`, `/doctor`, `/visualiser`, `/lightsensor`, `/guides`, `/garden-layout`, `/sun-trajectory`, `/weekly` — icon `IconTools`/Wrench), Integrations, Head Gardener (`/manager` — **Evergreen only**, see below). (The mobile-only **Quick** item was removed 2026-07-20 with the retirement of the `/quick` launcher home.)
+Current entries (top → bottom): **Garden:** Dashboard (`/dashboard`, `/management`, `/home-management`, `/` on desktop), Plants (`/shed`, `/watchlist`) · **Plan:** Planner (`/planner`, `/shopping`, `/schedule`), Journal (`/journal`, `/notes`) · **AI & Tools:** Tools (`/tools`, `/doctor`, `/visualiser`, `/lightsensor`, `/guides`, `/garden-layout`, `/sun-trajectory`, `/weekly`, `/reports` — icon `IconTools`/Wrench), Integrations, Head Gardener (`/manager` — **Evergreen only**, see below). (The mobile-only **Quick** item was removed 2026-07-20 with the retirement of the `/quick` launcher home.)
+
+**2026-07-23 IA reorg — the Dashboard item no longer carries the overdue badge.** The `badge`/`badgeTone` fields were dropped from the Dashboard entry in `navLinks`; the overdue count now lives ONLY on the [header's Today's-Tasks tray trigger](./01-header.md). This mirrors the mobile Deck's "one badge, on the surface that actually answers it" decision (the Deck's badge lives on its Tasks slot, not Home).
 
 The **Notes** item was removed in the Phase 5 IA pass — Notes is now a tab inside the Journal hub, so the **Journal** item's `matchPaths` cover both `/journal` and `/notes`.
 
-**Orphan-route reparenting (Phase 5 IA):** routes without their own nav item fold into a parent's `matchPaths` so the active-nav highlight resolves when you land on them — `/schedule` (Routines) → **Planner**, `/weekly` (Weekly Overview) → **Tools**, `/management` + `/home-management` (Location Manager / home management) → **Dashboard**, `/notes` → **Journal**.
+**Orphan-route reparenting (Phase 5 IA):** routes without their own nav item fold into a parent's `matchPaths` so the active-nav highlight resolves when you land on them — `/schedule` (Routines) → **Planner**, `/weekly` (Weekly Overview) → **Tools**, `/reports` (Garden Reports) → **Tools**, `/management` + `/home-management` (Location Manager / home management) → **Dashboard**, `/notes` → **Journal**. See [Routing](../99-cross-cutting/21-routing.md) for the mobile-side equivalent (the Shelf reuses this same `navLinks` array; the Deck's own two route-backed tabs are a separate, narrower list).
 
 **Conditional Head Gardener:** the Head Gardener item (`id: "manager"`, `/manager`) is only rendered when `tierAllowsFeature(profile.subscription_tier, "head_gardener")` is true — i.e. Evergreen tier (`head_gardener` is Evergreen-gated in `src/constants/tierFeatures.ts`). Lower tiers don't see the nav entry at all, but the `/manager` route still exists and renders its own `FeatureGate` upgrade wall for anyone who deep-links in. **Integrations is deliberately left visible for every tier** (first-run discoverability — hiding it would strand users trying to add their first device).
 
@@ -119,7 +121,7 @@ Same layout, with one difference: **Head Gardener only appears on Evergreen**. L
 ### Common mistakes / pitfalls
 
 - **Looking for sub-tabs in the sidebar.** Sub-tabs (e.g. Planner vs Shopping) live within the parent screen.
-- **Expecting Plant Doctor under its own sidebar item.** It lives under Tools here — but it has its own tab in the mobile bottom bar.
+- **Expecting Plant Doctor under its own sidebar item.** It lives under Tools here on desktop. On mobile it has no dedicated slot either — since Phase 6b it's reached through the Deck's centre **Capture** FAB (its hero action), not a bottom-bar tab. See [Bottom Tab Bar](./11-bottom-tab-bar.md).
 
 ### Recommended workflows
 

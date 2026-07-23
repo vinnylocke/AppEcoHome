@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, ArrowRight, Cpu, BarChart3 } from "lucide-react";
+import { ChevronRight, ArrowRight, Cpu, BarChart3, CalendarDays } from "lucide-react";
 import { IconDoctor, IconLayout, IconScan, IconLight, IconSunTracker, IconGuides } from "../constants/icons";
 
 interface Tool {
@@ -12,7 +12,7 @@ interface Tool {
   color: string;
 }
 
-type GroupId = "plan" | "measure" | "diagnose";
+type GroupId = "plan" | "measure" | "review" | "diagnose";
 
 interface ToolGroup {
   id: GroupId;
@@ -66,15 +66,34 @@ const GROUPS: ToolGroup[] = [
         path: "/sun-trajectory",
         color: "bg-orange-100 text-orange-700 border-orange-200",
       },
+    ],
+  },
+  {
+    // 2026-07-23 IA reorg — the look-back / look-ahead pair. Garden Reports moved
+    // here from "Measure & Track" (it's a review, not a live measurement), and
+    // Weekly Overview finally gets a tile (the /weekly route was already in the
+    // Tools nav matchPaths but had no tile — only reachable from the dashboard
+    // Week Ahead card + the Sunday push). Both tiles are ungated at the tile
+    // level; /weekly adapts to aiEnabled internally.
+    id: "review",
+    label: "Review & Plan Ahead",
+    description: "Look back at what happened and see what's coming up.",
+    tools: [
       {
-        // B16 (dashboard-nav-tasks-tray Stage 5) — the monthly/yearly review
-        // view, finally surfaced (was fully built but never routed).
         id: "garden-reports",
         icon: <BarChart3 size={22} />,
         label: "Garden Reports",
         description: "Your month and year in review — tasks done, harvests, plantings, trends.",
         path: "/reports",
         color: "bg-violet-100 text-violet-700 border-violet-200",
+      },
+      {
+        id: "weekly-overview",
+        icon: <CalendarDays size={22} />,
+        label: "Weekly Overview",
+        description: "Your week ahead — what's due, what's ready, and the weather to plan around.",
+        path: "/weekly",
+        color: "bg-teal-100 text-teal-700 border-teal-200",
       },
     ],
   },

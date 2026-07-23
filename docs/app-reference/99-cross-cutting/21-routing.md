@@ -10,8 +10,8 @@
 BrowserRouter
 └── App.tsx routes
     ├── /                  ← Redirect → /dashboard (BOTH phone + desktop; the phone-only /quick landing was retired 2026-07-20 — "one responsive home")
-    ├── /quick             ← Redirect → /dashboard replace (legacy deep-links only; QuickAccessHome was RETIRED 2026-07-20 — its customisable launcher now lives in the dashboard's QuickActionsRow)
-    ├── /quick/calendar    ← LocalizedTaskCalendar (planting + rain advice + today's tasks; reached via the dashboard's "Today" launcher tile; still focus-mode on mobile)
+    ├── /quick             ← Redirect → /dashboard replace (legacy deep-links only; QuickAccessHome was RETIRED 2026-07-20; the quickLauncher catalogue/prefs/hook/picker were deleted outright 2026-07-23 — QuickActionsRow now renders only a "Start a Garden Walk" tile, shown once the home has ≥5 plants)
+    ├── /quick/calendar    ← LocalizedTaskCalendar (planting + rain advice + today's tasks; ORPHANED/URL-only since its dashboard "Today" launcher tile was removed 2026-07-21 — no in-app nav path reaches it anymore; still focus-mode on mobile)
     │   (retired: /library/* — the entire Library UI was removed in Wave 17.
     │    Plant search is now in-context (Add-to-Shed / Shopping / Multi-ID /
     │    Nursery picker); the detail overlay is PlantDetailModal, opened from
@@ -45,7 +45,6 @@ BrowserRouter
     ├── /profile           ← GardenProfile + HabitQuiz
     ├── /management        ← LocationManager
     ├── /watchlist         ← redirect → /shed?tab=watchlist
-    ├── /ailment-library   ← AilmentLibrary (?ailment= to deep-link an entry)
     ├── /visualiser        ← PlantVisualiser
     ├── /lightsensor       ← Sun Tracker family
     ├── /sun-trajectory    ← SunTrajectoryAR
@@ -111,15 +110,15 @@ Parsed in `src/App.tsx` (~line 514; `DashboardView = "home" | "calendar" | "weat
 
 ### Quick-add deep links (from GlobalQuickAdd)
 
+Pruned to the 5 highest-frequency "create" verbs (Phase 5 IA pass) — cut items (To-Do lists, Add Task Automation, Log Ailment, Create Guide) remain reachable from their own surfaces.
+
 | Action | Path |
 |--------|------|
-| Add Task | `/dashboard?view=calendar&open=add-task` |
-| Add Task Automation | `/schedule?open=add-task` |
 | Add Plant | `/shed?open=add-plant` |
+| Add Task | `/dashboard?view=calendar&open=add-task` |
+| Diagnose a Plant | `/doctor` |
 | Create Plan | `/planner?open=new-plan` |
-| Create Location | `/management?open=add-location` |
-| Log Ailment | `/shed?tab=watchlist&open=add-ailment` |
-| Create Guide | `/guides?tab=community&open=new-guide` |
+| Add Location | `/management?open=add-location` |
 
 ### URL state consumption
 
@@ -137,16 +136,21 @@ useEffect(() => {
 
 Pattern: read once, then strip the `?open=` param to avoid re-opening on subsequent navigations.
 
-### Nav active-state — orphan-route reparenting (Phase 5 IA)
+### Nav active-state — orphan-route reparenting (Phase 5 IA; mobile rewritten for the Phase 6b Deck)
 
-Several routes have no nav item of their own, so they're folded into a parent item's `matchPaths` (in `navLinks` / `bottomTabs`, `src/App.tsx`) so the active-nav highlight still resolves when you land on them. A route matches when `pathname === p || pathname.startsWith(p + "/")`.
+Several routes have no nav item of their own, so they're folded into a parent item's `matchPaths` (in `navLinks`, `src/App.tsx` ~line 1379) so the active-nav highlight still resolves when you land on them. A route matches when `pathname === p || pathname.startsWith(p + "/")`.
 
-| Orphan route | Highlights (desktop sidebar) | Highlights (mobile bottom tab) |
-|---|---|---|
-| `/schedule` (Routines) | Planner | Planner |
-| `/weekly` (Weekly Overview) | Tools | Tools |
-| `/management`, `/home-management` (Location Manager / home management) | Dashboard | Home |
-| `/journal`, `/notes` | Journal (desktop has its own Journal item) | Planner (no Journal tab on mobile) |
+**Desktop sidebar + the mobile Shelf** share the exact same `navLinks` array (the Shelf — `MobileNavDrawer` — is passed `navLinks` filtered to drop `dashboard`/`shed` in normal mode, full `navLinks` in focus mode), so orphan-route highlighting resolves identically on both:
+
+| Orphan route | Highlights |
+|---|---|
+| `/schedule` (Routines) | Planner |
+| `/weekly` (Weekly Overview) | Tools |
+| `/reports` (Garden Reports) | Tools |
+| `/management`, `/home-management` (Location Manager / home management) | Dashboard |
+| `/journal`, `/notes` | Journal |
+
+**The mobile bottom tab bar (the Deck) is a separate, narrower list and does NOT use `navLinks`.** Since Phase 6b it has only two route-backed destination tabs — **Home** (`matchPaths: /dashboard, /management, /home-management`) and **Plants** (`matchPaths: /shed, /watchlist`) — plus three action slots with no `matchPaths` at all: **Capture** (opens the Capture sheet), **Tasks** (opens the Today's-Tasks tray), and **More** (opens the Shelf). Planner, Tools, Journal, Integrations, and Head Gardener have **no Deck slot** and light no bottom tab; they're reached via **More → the Shelf**, whose own active-highlighting falls back to the desktop table above. See [Bottom Tab Bar](../09-persistent-ui/11-bottom-tab-bar.md) for the full slot-by-slot breakdown.
 
 The **Head Gardener** nav item (`/manager`) is conditionally rendered — it only appears when `tierAllowsFeature(profile.subscription_tier, "head_gardener")` is true (Evergreen tier; see `src/constants/tierFeatures.ts`). Lower tiers don't see the nav entry, but the `/manager` route still exists and renders its own `FeatureGate` upgrade wall for anyone who deep-links in. See [Sidebar Navigation](../09-persistent-ui/02-sidebar.md) and [Bottom Tab Bar](../09-persistent-ui/11-bottom-tab-bar.md) for the full per-item `matchPaths`.
 
@@ -161,6 +165,7 @@ Legacy / alias paths that immediately `Navigate ... replace` to their canonical 
 | `/notes` | `/journal?tab=notes` (Phase 5 IA — Notes folded into the Journal hub) |
 | `/insights` | `/manager?tab=insights` |
 | `/watchlist` | `/shed?tab=watchlist` |
+| `/ailment-library` | `/shed?tab=watchlist` (`?ailment=X` carries over to `&detail=X`; `AilmentLibraryRedirect` in App.tsx — page deleted, URLs never die) |
 | `/shopping` | `/planner?tab=shopping` |
 | `/help` | `/guides?tab=help` |
 | `*` (unknown) | `/dashboard` |

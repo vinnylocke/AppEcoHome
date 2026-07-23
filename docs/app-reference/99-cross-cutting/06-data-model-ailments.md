@@ -102,6 +102,12 @@ areaAilmentSeverity[area_id] = countActiveByArea(plant_instance_ailments JOIN in
 
 **Reads are `user_id`-only** — filtering by `home_id` would silently return nothing under the user-scoped RLS. Phase 3 (`user_favourite_seed_packets`) is deferred to its own migration.
 
+### Per-home image override — `ailment_image_overrides` (2026-07-23)
+
+Because `ailment_library` is **global and client-read-only**, a home can't change a catalogue row's image (and shouldn't — it would change the image for every home). So a home's chosen ailment image lives in `ailment_image_overrides` (migration `20261024000000`, home-scoped). Columns: `home_id` (FK homes), `ailment_library_id` (**bigint**, nullable, resolved best-effort by `name_key` like the favourites table, `ON DELETE CASCADE`), `identity_key` (lowercased name bridge when no library match), `image_url`, `thumb_url`, `image_credit jsonb` (attribution carried from the chosen candidate), `source`, audit columns. **Two partial uniques** exactly like `user_favourite_ailments` — `(home_id, ailment_library_id) WHERE …NOT NULL` and `(home_id, identity_key) WHERE …NULL` — so client writes are find-then-upsert (PostgREST can't disambiguate `on_conflict`). RLS: canonical home-scoped `FOR ALL` (`home_id IN (SELECT home_id FROM home_members WHERE user_id = (SELECT auth.uid()))`); GRANT SELECT/INSERT/UPDATE/DELETE to `authenticated`.
+
+**Ailment image resolution order:** (1) home `ailments.thumbnail_url` (if a watchlist row exists) → (2) `ailment_image_overrides.image_url` for this home + library id / identity_key → (3) `ailment_library.image_url`/`thumbnail_url` → (4) KindIcon tile. The "tap image → wrong → replace" flow ([docs/plans/image-judge-and-replace.md](../../plans/image-judge-and-replace.md)) writes BOTH the override (source of truth for library/field-guide surfaces) and the mirrored `ailments.thumbnail_url` (no-join card render). Rejected image URLs are recorded per-home in `image_rejections` (see [Image Sources](./24-image-sources.md#rejection--per-home-image-override-2026-07-23)) so the new `ailment-image-search` never re-serves them.
+
 ---
 
 ## Role 2 — Expert Gardener's Guide

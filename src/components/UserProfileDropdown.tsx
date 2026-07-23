@@ -4,7 +4,6 @@ import {
   LogOut,
   Building2,
   Wrench,
-  Repeat,
   Sprout,
   Wand2,
   Library,
@@ -197,14 +196,14 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
     { testId: "user-profile-garden-profile", icon: <Sprout size={15} />, label: "Garden Preferences", path: "/profile" },
   ];
 
+  // Management holds home-structure CRUD only. "Routines" moved out (2026-07-23
+  // IA reorg) — it's already primary under the Planner "Routines" tab; a copy
+  // here duplicated feature nav in an account menu. Audit Log moved to the
+  // "Admin & Oversight" section below (read-only inspection, not CRUD).
   const managementItems: DropdownItem[] = [
     { testId: "user-profile-location-management", icon: <Wrench size={15} />, label: "Location Management", path: "/management" },
     { testId: "user-profile-home-management", icon: <Building2 size={15} />, label: "Members & Permissions", path: "/home-management" },
-    { testId: "user-profile-task-manager", icon: <Repeat size={15} />, label: "Routines", path: "/schedule" },
   ];
-  if (canViewAudit) {
-    managementItems.push({ testId: "user-profile-audit-log", icon: <ClipboardList size={15} />, label: "Audit Log", path: "/audit" });
-  }
 
   return (
     <>
@@ -296,26 +295,39 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
               ))}
             </div>
 
-            {/* Admin section */}
-            {isAdmin && (
+            {/* Admin & Oversight section — read-only inspection surfaces (2026-07-23
+                IA reorg). Audit Log is gated on canViewAudit (a non-admin owner can
+                hold it), independent of the isAdmin flag that gates the 4 platform
+                admin tools. The section renders when the user has EITHER. */}
+            {(canViewAudit || isAdmin) && (
               <div className="p-1.5 pb-0">
-                <SectionLabel label="Admin" />
-                <DropdownLink
-                  item={{ testId: "user-profile-guide-studio", icon: <Wand2 size={15} />, label: "Guide Studio", path: "/admin/guides" }}
-                  onNavigate={go}
-                />
-                <DropdownLink
-                  item={{ testId: "user-profile-plant-library", icon: <Library size={15} />, label: "Plant Library", path: "/admin/plant-library" }}
-                  onNavigate={go}
-                />
-                <DropdownLink
-                  item={{ testId: "user-profile-ai-calls", icon: <Activity size={15} />, label: "AI Calls", path: "/admin/ai-calls" }}
-                  onNavigate={go}
-                />
-                <DropdownLink
-                  item={{ testId: "user-profile-content-feedback", icon: <MessageSquareText size={15} />, label: "Content Feedback", path: "/admin/content-feedback" }}
-                  onNavigate={go}
-                />
+                <SectionLabel label="Admin & Oversight" />
+                {canViewAudit && (
+                  <DropdownLink
+                    item={{ testId: "user-profile-audit-log", icon: <ClipboardList size={15} />, label: "Audit Log", path: "/audit" }}
+                    onNavigate={go}
+                  />
+                )}
+                {isAdmin && (
+                  <>
+                    <DropdownLink
+                      item={{ testId: "user-profile-guide-studio", icon: <Wand2 size={15} />, label: "Guide Studio", path: "/admin/guides" }}
+                      onNavigate={go}
+                    />
+                    <DropdownLink
+                      item={{ testId: "user-profile-plant-library", icon: <Library size={15} />, label: "Plant Library", path: "/admin/plant-library" }}
+                      onNavigate={go}
+                    />
+                    <DropdownLink
+                      item={{ testId: "user-profile-ai-calls", icon: <Activity size={15} />, label: "AI Calls", path: "/admin/ai-calls" }}
+                      onNavigate={go}
+                    />
+                    <DropdownLink
+                      item={{ testId: "user-profile-content-feedback", icon: <MessageSquareText size={15} />, label: "Content Feedback", path: "/admin/content-feedback" }}
+                      onNavigate={go}
+                    />
+                  </>
+                )}
               </div>
             )}
 
@@ -379,39 +391,48 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                 <span className="flex-1 text-left">Credits &amp; sources</span>
                 <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
               </button>
-              {onSyncNow && (
-                <button
-                  data-testid="user-profile-sync-now"
-                  onClick={(e) => { e.stopPropagation(); handleSyncNow(); }}
-                  disabled={isSyncing}
-                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group disabled:opacity-60 disabled:cursor-wait"
-                >
-                  <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
-                    {isSyncing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-                  </span>
-                  <span className="flex-1 text-left">{isSyncing ? "Syncing…" : "Sync now"}</span>
-                </button>
-              )}
-              {onCheckForUpdate && (
-                <button
-                  data-testid="user-profile-check-for-update"
-                  onClick={(e) => { e.stopPropagation(); handleCheckForUpdate(); }}
-                  disabled={isCheckingForUpdate}
-                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group disabled:opacity-60 disabled:cursor-wait"
-                >
-                  <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
-                    {isCheckingForUpdate ? (
-                      <Loader2 size={15} className="animate-spin" />
-                    ) : (
-                      <DownloadCloud size={15} />
-                    )}
-                  </span>
-                  <span className="flex-1 text-left">
-                    {isCheckingForUpdate ? "Checking…" : "Check for update"}
-                  </span>
-                </button>
-              )}
             </div>
+
+            {/* System section — offline-queue / PWA service-worker actions
+                (2026-07-23 IA reorg). These are account/system actions, not
+                Help content, so they sit under their own "System" label. */}
+            {(onSyncNow || onCheckForUpdate) && (
+              <div className="p-1.5 pb-0">
+                <SectionLabel label="System" />
+                {onSyncNow && (
+                  <button
+                    data-testid="user-profile-sync-now"
+                    onClick={(e) => { e.stopPropagation(); handleSyncNow(); }}
+                    disabled={isSyncing}
+                    className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
+                      {isSyncing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                    </span>
+                    <span className="flex-1 text-left">{isSyncing ? "Syncing…" : "Sync now"}</span>
+                  </button>
+                )}
+                {onCheckForUpdate && (
+                  <button
+                    data-testid="user-profile-check-for-update"
+                    onClick={(e) => { e.stopPropagation(); handleCheckForUpdate(); }}
+                    disabled={isCheckingForUpdate}
+                    className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
+                      {isCheckingForUpdate ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : (
+                        <DownloadCloud size={15} />
+                      )}
+                    </span>
+                    <span className="flex-1 text-left">
+                      {isCheckingForUpdate ? "Checking…" : "Check for update"}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Sign out */}
             <div className="border-t border-rhozly-outline/10 p-1.5 mt-1.5">

@@ -6,7 +6,7 @@ import {
   Plus, Search, Loader2, Biohazard, X,
   Edit3, Trash2, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle,
   CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles, Library, FileText,
-  ArrowLeft, Binoculars, MoreVertical,
+  ArrowLeft, Binoculars, MoreVertical, ImageOff, Camera,
 } from "lucide-react";
 import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -20,6 +20,8 @@ import {
 } from "../services/ailmentLibraryService";
 import SmartImage from "./SmartImage";
 import MultiImageGallery from "./MultiImageGallery";
+import JudgeImagePrompt from "./JudgeImagePrompt";
+import { replaceAilmentImage } from "../lib/ailmentImageOverride";
 import { ConfirmModal } from "./ConfirmModal";
 import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
@@ -1868,6 +1870,8 @@ function AilmentCard({
   favouriteBusy,
   canDelete,
   aiEnabled,
+  homeId,
+  onImageReplaced,
 }: {
   ailment: Ailment;
   affectedCount: number;
@@ -1882,12 +1886,45 @@ function AilmentCard({
   favouriteBusy: boolean;
   canDelete: boolean;
   aiEnabled: boolean;
+  homeId: string;
+  onImageReplaced: () => void;
 }) {
   const meta = TYPE_META[ailment.type];
   const srcMeta = SOURCE_META[ailment.source] ?? SOURCE_META.manual;
   // Card parity (v3 feedback #2): actions live in the body row + kebab —
   // the plants pattern (Wave 22.0009) — never floating on the photo.
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Image judge/replace (2026-07-23) — tap the corner → "is this right?". Wrong
+  // records the current image in image_rejections (never re-served for this
+  // home) and swaps in the next candidate via ailment-image-search, writing
+  // both the home ailments row and the per-home override. When the card is
+  // icon-only (no image yet), the button reads "Add a photo".
+  const [judgeOpen, setJudgeOpen] = useState(false);
+  const [judgeBusy, setJudgeBusy] = useState(false);
+  const handleJudgeWrong = async () => {
+    setJudgeBusy(true);
+    try {
+      const result = await replaceAilmentImage({
+        homeId,
+        ailmentId: ailment.id,
+        name: ailment.name,
+        scientificName: ailment.scientific_name ?? null,
+        currentUrl: ailment.thumbnail_url ?? null,
+      });
+      if (result) {
+        toast.success(ailment.thumbnail_url ? "Photo replaced." : "Photo added.");
+        onImageReplaced();
+      } else {
+        toast("No other photos found for this one.", { icon: "🔍" });
+      }
+    } catch {
+      toast.error("Couldn't fetch another photo. Try again.");
+    } finally {
+      setJudgeBusy(false);
+      setJudgeOpen(false);
+    }
+  };
 
   return (
     <div
@@ -1916,12 +1953,36 @@ function AilmentCard({
           </div>
         )}
 
+        {/* Image judge — top-right corner. stopPropagation so it doesn't open
+            the card. "Add a photo" when the card is icon-only. */}
+        <button
+          type="button"
+          data-testid={`judge-image-ailment-${ailment.id}`}
+          onClick={(e) => { e.stopPropagation(); setJudgeOpen(true); }}
+          aria-label={ailment.thumbnail_url ? "Wrong photo? Replace it" : "Add a photo"}
+          title={ailment.thumbnail_url ? "Wrong photo? Replace it" : "Add a photo"}
+          className="absolute top-3 right-3 z-10 w-9 h-9 min-w-[36px] min-h-[36px] rounded-full bg-white/90 backdrop-blur shadow-md text-rhozly-on-surface/70 hover:text-rhozly-primary hover:bg-white flex items-center justify-center transition-colors"
+        >
+          {ailment.thumbnail_url ? <ImageOff size={15} /> : <Camera size={15} />}
+        </button>
+
         {/* Source badge — bottom left (plants-card parity). */}
         <div className="absolute bottom-3 left-3">
           <span className={`bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 shadow-sm border border-white/20 ${srcMeta.colour}`}>
             {srcMeta.icon} {srcMeta.label}
           </span>
         </div>
+
+        <JudgeImagePrompt
+          open={judgeOpen}
+          name={ailment.name}
+          busy={judgeBusy}
+          wrongLabel={ailment.thumbnail_url ? "Wrong" : "Add a photo"}
+          onRight={() => setJudgeOpen(false)}
+          onWrong={handleJudgeWrong}
+          onClose={() => setJudgeOpen(false)}
+          testIdSuffix={`ailment-${ailment.id}`}
+        />
 
         {/* Photos button — bottom right */}
         <MultiImageGallery
@@ -2607,6 +2668,8 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
               favouriteBusy={togglingFavouriteKey === ailmentIdentityKey(a.name)}
               aiEnabled={aiEnabled}
               canDelete={can("ailments.delete")}
+              homeId={homeId}
+              onImageReplaced={fetchAilments}
             />
           ))}
         </div>

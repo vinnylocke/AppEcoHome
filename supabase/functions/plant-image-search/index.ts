@@ -7,6 +7,12 @@ import {
   parseScores,
   MIN_PLANT_PHOTO_CONFIDENCE,
 } from "../_shared/plantImageVet.ts";
+import {
+  resolveMemberHome,
+  loadRejectedUrls,
+  isRejected,
+  filterRejected,
+} from "../_shared/imageRejections.ts";
 
 const FN = "plant-image-search";
 
@@ -329,14 +335,29 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { query, count = 9, vet = false } = await req.json();
+    const { query, count = 9, vet = false, home_id = null, subject_kind = "plant" } = await req.json();
     if (!query?.trim()) throw new Error("query is required");
 
     const queryKey = normaliseQuery(query);
+    const subjectKind = subject_kind === "ailment" ? "ailment" : "plant";
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const db = supabaseUrl && serviceKey ? createClient(supabaseUrl, serviceKey) : null;
+
+    // Rejection-awareness (2026-07-23 image judge feature): when a home_id is
+    // supplied AND the caller is a verified member, load the URLs this home has
+    // rejected for this subject, so they are excluded from every candidate pool.
+    // Empty set (the common case, and every call without home_id) → zero change.
+    let rejectedUrls = new Set<string>();
+    if (db && supabaseUrl && home_id) {
+      const memberHome = await resolveMemberHome(req, db, supabaseUrl, anonKey, home_id);
+      if (memberHome) {
+        rejectedUrls = await loadRejectedUrls(db, memberHome, subjectKind, queryKey);
+      }
+    }
+    const hasRejections = rejectedUrls.size > 0;
 
     // ── Fast path — cache hit for thumbnail-only requests (count === 1) ─
     // The result-list thumbnail is the universal hot path. Skipping the
@@ -351,7 +372,8 @@ Deno.serve(async (req) => {
       if (
         cached &&
         cached.thumb_url &&
-        new Date(cached.expires_at).getTime() > Date.now()
+        new Date(cached.expires_at).getTime() > Date.now() &&
+        !isRejected(cached, rejectedUrls)
       ) {
         return new Response(
           JSON.stringify({ images: [imageFromCacheRow(cached)] }),
@@ -377,10 +399,14 @@ Deno.serve(async (req) => {
         cachedGallery.images.length > 0 &&
         new Date(cachedGallery.expires_at).getTime() > Date.now()
       ) {
-        return new Response(JSON.stringify({ images: cachedGallery.images }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
-        });
+        const servable = filterRejected(cachedGallery.images, rejectedUrls);
+        if (servable.length > 0) {
+          return new Response(JSON.stringify({ images: servable }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+        // else: every cached image was rejected by this home → fall through to a live refetch.
       }
     }
 
@@ -406,16 +432,23 @@ Deno.serve(async (req) => {
     const wiki = wikiRes.status === "fulfilled" ? wikiRes.value : [];
 
     // Wikipedia first (best reference image), then interleave Unsplash + Pixabay
-    const images: GalleryImage[] = [...wiki];
+    const pool: GalleryImage[] = [...wiki];
     const maxLen = Math.max(unsplash.length, pixabay.length);
     for (let i = 0; i < maxLen; i++) {
-      if (unsplash[i]) images.push(unsplash[i]);
-      if (pixabay[i]) images.push(pixabay[i]);
+      if (unsplash[i]) pool.push(unsplash[i]);
+      if (pixabay[i]) pool.push(pixabay[i]);
     }
 
-    // ── Write-through — upsert the first image so the next caller
-    //    (any user, any device) gets it from the DB.
-    if (db && images[0]) {
+    // Exclude anything this home has rejected (order preserved). Empty result
+    // → the response is { images: [] } and the UI keeps its current image.
+    const images: GalleryImage[] = filterRejected(pool, rejectedUrls);
+
+    // ── Write-through — upsert the first image so the next caller (any user,
+    //    any device) gets it from the DB. CRITICAL: skip when a rejection was
+    //    applied — images[0] is then THIS home's next-choice, and the
+    //    plant_image_cache row is cross-user, so writing it would leak one
+    //    home's reject to everyone. Filtering stays per-home + in-memory only.
+    if (db && images[0] && !hasRejections) {
       const first = images[0];
       // Fire-and-forget; we don't want cache writes to block the
       // response. Errors are non-fatal (RLS denial, quota, etc.).
@@ -451,8 +484,10 @@ Deno.serve(async (req) => {
       if (geminiKey && finalImages.length > 0) {
         finalImages = await vetGallery(finalImages, query, geminiKey, db);
         // Cache the vetted gallery — non-empty only, so a glitchy all-filtered
-        // run can retry next time rather than caching an empty result.
-        if (db && finalImages.length > 0) {
+        // run can retry next time rather than caching an empty result. Skip when
+        // a rejection was applied (the array is this home's filtered set — the
+        // cache is cross-user, same leak concern as the count:1 write-through).
+        if (db && finalImages.length > 0 && !hasRejections) {
           db.from("plant_gallery_cache")
             .upsert(
               {

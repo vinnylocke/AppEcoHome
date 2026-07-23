@@ -21,9 +21,12 @@ import {
   Tag,
   Globe,
   Pencil,
+  ImageOff,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import WikiImagePicker from "./WikiImagePicker";
+import JudgeImagePrompt from "./JudgeImagePrompt";
+import { rejectImage, fetchReplacementImage } from "../lib/imageRejections";
 import PlantResultThumb from "./PlantResultThumb";
 // Wave 22.0006 — hero image opens in-app lightbox (with credit overlay)
 // instead of firing the file picker. Change-photo moves to a dedicated
@@ -36,6 +39,8 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface ManualPlantCreationProps {
   initialData?: any;
+  /** Home context for the image judge/replace flow (reject + fetch a replacement). */
+  homeId?: string;
   onSave?: (data: any) => void;
   onCancel?: () => void;
   isSaving?: boolean;
@@ -108,6 +113,7 @@ const SEASON_OPTIONS = ["Spring", "Summer", "Autumn", "Winter", "Year-round"];
 
 export default function ManualPlantCreation({
   initialData,
+  homeId,
   onSave,
   onCancel,
   isSaving,
@@ -279,6 +285,54 @@ export default function ManualPlantCreation({
   const updateForm: typeof setFormData = (updater) => {
     setDirty(true);
     setFormData(updater);
+  };
+
+  // Image judge/replace (2026-07-23) — tap the hero → "is this right?". A WRONG
+  // verdict records the current image in image_rejections (home-scoped) so it's
+  // never re-served for this home, then fetches the next candidate via
+  // plant-image-search (which excludes rejections) and sets it into the form.
+  // Nothing persists until the user Saves — so an AI/Perenual/Verdantly plant
+  // forks exactly as any other field edit would (PlantEditModal.onForkSave).
+  const [judgeOpen, setJudgeOpen] = useState(false);
+  const [judgeBusy, setJudgeBusy] = useState(false);
+  const handleJudgeWrong = async () => {
+    const name = (formData.common_name || "").trim();
+    const currentUrl = formData.thumbnail_url || formData.image_url || "";
+    if (!homeId || !name || !currentUrl) {
+      setJudgeOpen(false);
+      return;
+    }
+    setJudgeBusy(true);
+    try {
+      await rejectImage({
+        homeId,
+        subjectKind: "plant",
+        name,
+        rejectedUrl: currentUrl,
+        subjectId: initialData?.id ?? null,
+      });
+      const replacement = await fetchReplacementImage({
+        functionName: "plant-image-search",
+        name,
+        homeId,
+        subjectKind: "plant",
+      });
+      if (replacement) {
+        updateForm((prev) => ({
+          ...prev,
+          thumbnail_url: replacement.full_url,
+          image_url: replacement.full_url,
+        }));
+        toast.success("Found another photo — Save to keep it.");
+      } else {
+        toast("No other photos found. Try Search Wikipedia below.", { icon: "🔍" });
+      }
+    } catch {
+      toast.error("Couldn't fetch another photo. Try again.");
+    } finally {
+      setJudgeBusy(false);
+      setJudgeOpen(false);
+    }
   };
 
   const handleInputChange = (e: any) => {
@@ -600,6 +654,23 @@ export default function ManualPlantCreation({
                       >
                         <Pencil size={14} />
                       </button>
+                      {/* Image judge (2026-07-23) — "wrong photo? replace it".
+                          Sits beside the pencil; only in an edit context (homeId). */}
+                      {homeId && formData.common_name && (
+                        <button
+                          type="button"
+                          data-testid={`judge-image-plant-${initialData?.id ?? "new"}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setJudgeOpen(true);
+                          }}
+                          aria-label="Wrong photo? Replace it"
+                          title="Wrong photo? Replace it"
+                          className="absolute top-2 right-12 w-9 h-9 min-w-[36px] min-h-[36px] rounded-full bg-white/90 backdrop-blur shadow-md text-rhozly-on-surface/70 hover:text-rhozly-primary hover:bg-white flex items-center justify-center transition-colors"
+                        >
+                          <ImageOff size={14} />
+                        </button>
+                      )}
                       {heroCredit && (
                         <div className="absolute bottom-2 left-2" onClick={(e) => e.stopPropagation()}>
                           <ImageCredit credit={heroCredit} variant="badge-only" />
@@ -650,6 +721,16 @@ export default function ManualPlantCreation({
                   onClose={() => setShowWikiPicker(false)}
                 />
               )}
+
+              <JudgeImagePrompt
+                open={judgeOpen}
+                name={formData.common_name || "this plant"}
+                busy={judgeBusy}
+                onRight={() => setJudgeOpen(false)}
+                onWrong={handleJudgeWrong}
+                onClose={() => setJudgeOpen(false)}
+                testIdSuffix={`plant-${initialData?.id ?? "new"}`}
+              />
 
               <div className="space-y-2">
                 <div className="flex justify-between items-end px-1">

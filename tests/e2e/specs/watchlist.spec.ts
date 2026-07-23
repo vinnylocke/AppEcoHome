@@ -954,3 +954,27 @@ test.describe("Watchlist — field-guide deep link (Stage E)", () => {
     await expect(picker).toHaveCount(0);
   });
 });
+
+test.describe("Watchlist — image judge", () => {
+  test("AIMG-001: ailment cards expose an image-judge button that opens the shared prompt", async ({ authenticatedPage }) => {
+    // Image tap → right/wrong → replace (2026-07-23). Every ailment card carries
+    // a top-right judge button (`judge-image-ailment-{id}`) that opens the shared
+    // JudgeImagePrompt. This locks the affordance + the Right (no-op, no network)
+    // path; the full Wrong→ailment-image-search→replace flow is covered by a
+    // seeded run (mocked edge fn + DB assertions) — see the plan doc.
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    const judge = authenticatedPage.locator('[data-testid^="judge-image-ailment-"]').first();
+    await expect(judge).toBeVisible({ timeout: 10000 });
+    await judge.click();
+
+    const prompt = authenticatedPage.locator('[data-testid^="judge-image-prompt-ailment-"]').first();
+    await expect(prompt).toBeVisible({ timeout: 8000 });
+
+    // "Right" dismisses the prompt without any network call or image change.
+    await authenticatedPage.locator('[data-testid^="judge-image-right-ailment-"]').first().click();
+    await expect(prompt).toBeHidden({ timeout: 8000 });
+  });
+});

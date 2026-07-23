@@ -106,7 +106,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Guides List](./05-tools/07-guides-list.md) — Rhozly + Community guides with bookmarks
 - [x] [Community Guide Reader](./05-tools/08-community-guide-reader.md) — single-guide view
 - [x] [Community Guide Editor](./05-tools/09-community-guide-editor.md) — user authoring
-- [x] [Garden Profile / Habit Quiz](./05-tools/10-garden-profile.md) — preferences editor
+- [x] [Garden Profile / Habit Quiz](./05-tools/10-garden-profile.md) — preferences editor. **Filed here for historical reasons only** — it has no Tools Hub tile; it's account-scoped, reached from the User Profile Dropdown ("Garden Preferences") + onboarding. A cleaner home would be `06-account/`
 - [x] [Garden Reports](./05-tools/11-garden-reports.md) — month + year in review (tasks, plants, harvests, weather, highlights); surfaced at `/reports` in the dashboard-nav-tasks-tray Stage 5 (was orphaned)
 
 ## 06 — Account & Settings
@@ -130,8 +130,11 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Integrations — Devices Tab](./07-management/05-integrations-devices.md)
 - [x] [Integrations — Automations Tab](./07-management/06-integrations-automations.md)
 - [x] [Integrations — Soil Readings](./07-management/07-integrations-readings.md)
-- [x] [Audit Log](./07-management/08-audit-log.md) — admin-only AI usage + activity
+- [x] [Audit Log](./07-management/08-audit-log.md) — home-scoped activity + AI usage; gated on `can_view_audit`, not `is_admin`
 - [x] [Admin Guide Generator](./07-management/09-admin-guide-generator.md) — AI-authored guide drafting
+- [x] [Plant Library Admin](./07-management/10-plant-library-admin.md) — global `plant_library` seed/verify dashboard; `is_admin`-gated
+- [x] [AI Calls Admin](./07-management/11-ai-calls-admin.md) — global cross-home AI call log (cost/tokens/status + feedback); `is_admin`-gated
+- [x] [Content Feedback Admin](./07-management/12-content-feedback-admin.md) — 👍/👎 + comments on guides/docs/help/workflows; `is_admin`-gated
 
 ## 08 — Modals & Overlays
 

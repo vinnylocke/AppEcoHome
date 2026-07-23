@@ -33,16 +33,43 @@ test.describe("Stage 4 — discoverability", () => {
     await expect(authenticatedPage.getByTestId("user-profile-help")).toBeVisible();
   });
 
+  test("DISC-IA1: 'Routines' left the account menu; Sync/Check moved to a System section", async ({ authenticatedPage }) => {
+    // 2026-07-23 IA reorg — Routines is feature nav (already under Planner), so
+    // it was pulled out of the account dropdown's Management section. Sync now /
+    // Check for update are system actions, split out of "Help" into "System".
+    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.getByTestId("user-profile-trigger").click();
+    await expect(authenticatedPage.getByTestId("user-profile-dropdown")).toBeVisible({ timeout: 8000 });
+    // Routines gone; the two management CRUD items remain.
+    await expect(authenticatedPage.getByTestId("user-profile-task-manager")).toHaveCount(0);
+    await expect(authenticatedPage.getByTestId("user-profile-location-management")).toBeVisible();
+    // Sync now / Check for update still reachable (now under the System label).
+    await expect(authenticatedPage.getByTestId("user-profile-check-for-update")).toBeVisible();
+  });
+
   test("DISC-B16: Garden Reports is routed and reachable from the Tools hub", async ({ authenticatedPage }) => {
     // Stage 5 — the fully-built reports view was orphaned (no route); now wired
-    // to /reports with a Measure & Track tile (locked decision: surface it).
+    // to /reports. 2026-07-23 IA reorg moved the tile from "Measure & Track"
+    // into the new "Review & Plan Ahead" group (tools-group-review).
     await authenticatedPage.goto("/tools");
+    await expect(authenticatedPage.getByTestId("tools-group-review")).toBeVisible({ timeout: 10000 });
     const tile = authenticatedPage.getByTestId("tools-hub-garden-reports");
     await expect(tile).toBeVisible({ timeout: 10000 });
     await tile.click();
     await expect(authenticatedPage).toHaveURL(/\/reports/, { timeout: 8000 });
     // The reports view renders (its Monthly / Year-in-Review toggle is the stable anchor).
     await expect(authenticatedPage.getByTestId("reports-view-toggle")).toBeVisible({ timeout: 15000 });
+  });
+
+  test("DISC-B16b: Weekly Overview has a Tools-hub tile that routes to /weekly", async ({ authenticatedPage }) => {
+    // 2026-07-23 IA reorg — /weekly was in the Tools nav matchPaths but had no
+    // tile (only reachable from the dashboard Week Ahead card). Now surfaced in
+    // the "Review & Plan Ahead" group alongside Garden Reports.
+    await authenticatedPage.goto("/tools");
+    const tile = authenticatedPage.getByTestId("tools-hub-weekly-overview");
+    await expect(tile).toBeVisible({ timeout: 10000 });
+    await tile.click();
+    await expect(authenticatedPage).toHaveURL(/\/weekly/, { timeout: 8000 });
   });
 
   test("DISC-B15: the Schedule header shows a live task summary, not 'Operational Hub'", async ({ authenticatedPage }) => {

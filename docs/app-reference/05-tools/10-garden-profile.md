@@ -8,6 +8,8 @@
 - `src/components/HabitQuiz.tsx` — quiz (also documented at [01-onboarding/05](../01-onboarding/05-garden-quiz.md))
 - `src/components/PlantSwipeDeck.tsx` — swipe-to-prefer mini-game
 
+> **Filing note:** this file lives under `05-tools/` for historical reasons, but Garden Profile has **no tile in the Tools Hub** (`/tools`) — it isn't one of the `GROUPS` in `src/components/ToolsHub.tsx`. It's **account-scoped**, reached only from the [User Profile Dropdown](../06-account/09-user-profile-dropdown.md)'s "Garden Preferences" item (Account section) and from onboarding (the Garden Quiz step). If you're hunting for it in the Tools Hub, it isn't there by design — this doc's location doesn't imply a Tools tile. A cleaner home would be `06-account/`, but the file wasn't moved to keep this sync minimal; flagged in [00-INDEX.md](../00-INDEX.md).
+
 ---
 
 ## Quick Summary

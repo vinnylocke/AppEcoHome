@@ -1387,7 +1387,12 @@ function AppShell() {
   }> = [
     // One responsive home (2026-07-20): the mobile-only "Quick" launcher item
     // was retired with the /quick home — phone + desktop both use /dashboard.
-    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/management", "/home-management", "/"], badge: overdueTaskCount, badgeTone: "rose", group: "garden" },
+    // 2026-07-23 IA reorg — the overdue badge is NOT on this desktop sidebar
+    // item; it lives only on the header's Today's-Tasks tray trigger (the
+    // surface that opens the tray), mirroring the mobile "one badge, on the
+    // surface that answers it" decision. A duplicate here showed the same
+    // count twice with a different cap ('99+' vs the trigger's '9+').
+    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/management", "/home-management", "/"], group: "garden" },
     { id: "shed",      icon: <IconPlants />, label: "Plants", matchPaths: ["/shed", "/watchlist"], group: "garden" },
     // Phase 5 IA — /schedule (Routines) reparented under Planner so the nav
     // resolves an active item when you're on it; Notes folded into Journal.
@@ -1409,9 +1414,11 @@ function AppShell() {
     ai: "AI & Tools",
   };
 
-  // The thumb-reach bar (mobile only, hidden in focus mode). "Doctor" gets its
-  // own slot — the app's flagship AI flow was previously two taps deep under
-  // Tools — so the Tools tab's matchPaths deliberately exclude /doctor here.
+  // The thumb-reach bar (mobile only, hidden in focus mode). Phase 6b Deck:
+  // four destinations around a raised centre Capture FAB. Plant Doctor is the
+  // Capture sheet's hero action (it has NO dedicated Deck slot); Tools, Planner,
+  // Journal and Integrations live in "More" → Shelf. The desktop sidebar Tools
+  // item INCLUDES /doctor in its matchPaths (see line ~1396).
   const bottomTabs = [
     // Phase 6b — the Deck: four destinations wrapped around a raised centre
     // Capture FAB. Plant Doctor is reached via Capture (its hero action) and

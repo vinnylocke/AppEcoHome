@@ -9,7 +9,7 @@
 
 ## Quick Summary
 
-Three sections of tool tiles (Plan & Design, Measure & Track, Diagnose & Learn) plus a dedicated Connect Hardware card (links to Integrations) plus three Workflow recipes (Plan a new bed / A plant looks unwell / Just bought a new plant). Every tile is a navigate-on-tap shortcut.
+Four sections of tool tiles (Plan & Design, Measure & Track, Review & Plan Ahead, Diagnose & Learn) plus a dedicated Connect Hardware card (links to Integrations) plus three Workflow recipes (Plan a new bed / A plant looks unwell / Just bought a new plant). Every tile is a navigate-on-tap shortcut.
 
 Pure layout — no fetches, no state, no auth gating. Tools that themselves require AI tiers paywall on the destination, not here.
 
@@ -25,7 +25,7 @@ ToolsHub
 ├── Tool groups
 │   ├── Plan & Design (Garden Layout, Plant Visualiser)
 │   ├── Measure & Track (Light Sensor, Sun Tracker)
-│   ├── Measure & Track also carries Garden Reports (B16, Stage 5 — /reports)
+│   ├── Review & Plan Ahead (Garden Reports, Weekly Overview — 2026-07-23 IA reorg)
 │   └── Diagnose & Learn (Plant Doctor, Guides — the Ailments tile was removed 2026-07-22)
 ├── Connect Hardware card → /integrations
 └── Workflows (3 multi-step recipes)
@@ -37,11 +37,14 @@ ToolsHub
 
 ```ts
 [
-  { id: "plan",     label: "Plan & Design",   tools: [{ id: "garden-layout", path: "/garden-layout" }, { id: "plant-visualiser", path: "/visualiser" }] },
-  { id: "measure",  label: "Measure & Track", tools: [{ id: "light-sensor",  path: "/lightsensor"  }, { id: "sun-tracker",      path: "/sun-trajectory" }] },
-  { id: "diagnose", label: "Diagnose & Learn", tools: [{ id: "garden-ai",     path: "/doctor"       }, { id: "guides",            path: "/guides" }] }, // the ailment-library tile was removed 2026-07-22 — the Garden Hub's Ailments tab is the one ailment surface
+  { id: "plan",     label: "Plan & Design",      tools: [{ id: "garden-layout",   path: "/garden-layout"  }, { id: "plant-visualiser", path: "/visualiser" }] },
+  { id: "measure",  label: "Measure & Track",    tools: [{ id: "light-sensor",    path: "/lightsensor"    }, { id: "sun-tracker",      path: "/sun-trajectory" }] },
+  { id: "review",   label: "Review & Plan Ahead", tools: [{ id: "garden-reports", path: "/reports"        }, { id: "weekly-overview", path: "/weekly" }] },
+  { id: "diagnose", label: "Diagnose & Learn",    tools: [{ id: "plant-doctor",   path: "/doctor"         }, { id: "guides",          path: "/guides" }] }, // the ailment-library tile was removed 2026-07-22 — the Garden Hub's Ailments tab is the one ailment surface
 ]
 ```
+
+**2026-07-23 IA reorg — new "Review & Plan Ahead" group** (`data-testid="tools-group-review"`): Garden Reports moved here from "Measure & Track" (it's a review of the past, not a live measurement — `tools-hub-garden-reports`), and Weekly Overview finally got a tile (`tools-hub-weekly-overview`) — the `/weekly` route was already in the [sidebar's Tools `matchPaths`](../09-persistent-ui/02-sidebar.md) but previously had no tile here, only reachable via the dashboard Week Ahead card + the Sunday push. Both tiles are ungated at the tile level; the `/weekly` route itself adapts its content to `aiEnabled` internally (AI-grounded tips for Sage+, deterministic content below). The Diagnose & Learn tool's `id` is `plant-doctor` (`data-testid="tools-hub-plant-doctor"`) — not `garden-ai`.
 
 #### `WORKFLOWS`
 
@@ -99,7 +102,7 @@ None.
 
 ### Why open this screen
 
-When you don't know what tool you need yet but have a problem to solve, this is the navigator. The grouping (Plan / Measure / Diagnose) maps to gardener intent. The Workflows section bundles tools into step-by-step recipes for jobs that span multiple screens.
+When you don't know what tool you need yet but have a problem to solve, this is the navigator. The grouping (Plan / Measure / Review / Diagnose) maps to gardener intent. The Workflows section bundles tools into step-by-step recipes for jobs that span multiple screens.
 
 ### Every flow on this screen
 
@@ -116,13 +119,13 @@ When you don't know what tool you need yet but have a problem to solve, this is 
 #### 3. Connect Hardware
 
 - Highlighted sky-tinted card linking to Integrations.
-- Promoted because the integration step is the highest-impact + least-discovered upgrade for serious gardeners.
+- Promoted because the integration step is the highest-impact + least-discovered upgrade for serious gardeners. It's a deliberate exception to the grouped-tile pattern — a first-run-style CTA outside the four `GROUPS`, not itself a group.
 
 ### Information on display — what every field means
 
 | Element | Meaning |
 |---------|---------|
-| Group header | Intent category (Plan / Measure / Diagnose) |
+| Group header | Intent category (Plan / Measure / Review / Diagnose) |
 | Tool tile | Icon + name + one-line description |
 | Workflow card | Pre-baked multi-step recipe |
 
@@ -160,9 +163,12 @@ When you don't know what tool you need yet but have a problem to solve, this is 
 - [Plant Visualiser](./05-plant-visualiser.md)
 - [Light Sensor](../03-garden-hub/09-light-sensor.md)
 - [Sun Tracker AR](../03-garden-hub/08-sun-tracker-ar.md)
+- [Garden Reports](./11-garden-reports.md)
+- [Weekly Overview Page](../02-dashboard/15-weekly-overview.md)
 - [Plant Doctor](./02-plant-doctor.md)
 - [Guides List](./07-guides-list.md)
 - [Integrations — Devices Tab](../07-management/05-integrations-devices.md)
+- [Sidebar Navigation](../09-persistent-ui/02-sidebar.md) — Tools `matchPaths` include `/reports` and `/weekly`
 
 ## Code references for ongoing maintenance
 

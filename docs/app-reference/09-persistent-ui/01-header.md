@@ -2,7 +2,7 @@
 
 > The sticky branded header at the top of every authenticated screen. Contains the logo, home dropdown, global search, the Today's-Tasks tray trigger (desktop-only since 2026-07-22 — phones use the Deck's Tasks slot), user profile dropdown, offline/queue badges, and — **on desktop only (Phase 6b)** — the sidebar-collapse hamburger and the quick-add "+" menu. The beta feedback banner sits immediately below for beta users.
 
-**Source file:** `src/App.tsx` (inline in the root layout, header block ~lines 1449-1506)
+**Source file:** `src/App.tsx` (inline in the root layout, header block ~lines 1497-1583 — the focus-mode wrapper `<div>` through the closing `</header>`, including the Today's-Tasks tray trigger and the `hidden md:block` GlobalQuickAdd wrap)
 
 ---
 

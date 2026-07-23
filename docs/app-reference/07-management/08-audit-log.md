@@ -1,6 +1,6 @@
 # Audit Log
 
-> A read-only timeline of every action members have taken in this home — plus a separate AI usage breakdown by user / function / model / cost. Admin / `audit.view_all` only.
+> A read-only timeline of every action members have taken in this home — plus a separate AI usage breakdown by user / function / model / cost. Gated on `user_profiles.can_view_audit` — a standalone per-user boolean, independent of the `is_admin` flag (that flag instead gates the platform-admin tools: Guide Studio, Plant Library, AI Calls, Content Feedback). A non-admin home owner or a member an owner has granted access to can hold `can_view_audit` and see this page.
 
 **Route:** `/audit`
 **Source file:** `src/components/AuditPage.tsx` (~600 lines)
@@ -108,8 +108,8 @@ None.
 
 ### Permissions
 
-- `audit.view_all` — gates the page entirely.
-- Without it, the link in the User Profile Dropdown is hidden.
+- `user_profiles.can_view_audit` (boolean) — gates the `/audit` route entirely in `App.tsx` (`profile?.can_view_audit && <Route path="/audit" .../>`). Set per-member via a dedicated toggle in [Members & Permissions](./02-members-permissions.md) (`set_member_audit_access` RPC) — it is **not** part of the generic `home_members.permissions` JSONB grid and **not** tied to `is_admin`.
+- Without it, the Audit Log link in the User Profile Dropdown's Admin & Oversight section is hidden (that section itself only renders when `canViewAudit || isAdmin`).
 
 ### Error states
 
@@ -184,7 +184,7 @@ Same for every tier — but AI Usage section is mostly zero for non-AI tiers.
 
 ### New user vs returning user
 
-- **New user:** rarely lands here; usually doesn't have `audit.view_all`.
+- **New user:** rarely lands here; usually doesn't have `can_view_audit`.
 - **Returning shared-home owner:** weekly check-in.
 
 ### Common mistakes / pitfalls
@@ -201,7 +201,7 @@ Same for every tier — but AI Usage section is mostly zero for non-AI tiers.
 
 ### What to do if something looks wrong
 
-- **Page shows "no permission":** `audit.view_all` is off for your role. Ask owner.
+- **Page shows "no permission":** `can_view_audit` is off for your account. Ask the home owner to grant it via Members & Permissions.
 - **Events missing:** check date range. Older events may have been pruned.
 - **AI Usage section empty:** no AI calls in range, or `ai_calls` table not populated.
 
@@ -209,8 +209,8 @@ Same for every tier — but AI Usage section is mostly zero for non-AI tiers.
 
 ## Related reference files
 
-- [Members & Permissions](./02-members-permissions.md) — `audit.view_all`
-- [User Profile Dropdown](../06-account/09-user-profile-dropdown.md) — Audit Log link
+- [Members & Permissions](./02-members-permissions.md) — the `can_view_audit` toggle
+- [User Profile Dropdown](../06-account/09-user-profile-dropdown.md) — Audit Log link (Admin & Oversight section)
 - [Events Registry (cross-cutting)](../99-cross-cutting/10-edge-functions-catalogue.md)
 - [AI — Gemini (cross-cutting)](../99-cross-cutting/13-ai-gemini.md)
 

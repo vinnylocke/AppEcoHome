@@ -850,6 +850,7 @@ export default function PlantEditModal({
 
               <ManualPlantCreation
                 initialData={fullPlantData}
+                homeId={homeId}
                 onSave={handleSaveWithOverride}
                 submitLabel={forksOnEdit ? "Save as my own copy" : "Save Updates"}
                 isSaving={isSaving}
