@@ -92,3 +92,14 @@ Adds a Greenhouse fragmentation pair (`BP_OPT_FRAG_A_ID` + `BP_OPT_FRAG_B_ID` �
 | SCH-V-003 | ✅ | Filter Location → Area cascade — Area DISABLED on "Unassigned (None)" | — | ✅ Passing |
 | SCH-V-004 | ✅ | Pause toggle always visible on seeded card (Phase 4.5 — no longer hover-gated, so touch users see it) | — | ✅ Passing |
 | SCH-V-005 | ✅ | Pause toggle opens 7d / 14d / 30d options | — | ✅ Passing |
+
+## Annual recurrence + year cap (Track B, 2026-07)
+
+**Spec file:** `tests/e2e/specs/recurrence-cap.spec.ts`
+
+The "Repeat every year" checkbox + optional "Stop after N years" cap in the routine editor (AddTaskModal, opened from `/schedule`). The recurrence *logic* (`once`/`annual`/`lifecycle_capped` ↔ `recurs_until`, per-year window projection) is covered by unit/Deno tests (`recurrence.test.ts`, `windowTasks.test.ts`, `taskEngineOffline.test.ts`, `dailyBrief.test.ts`, `annualWindows.test.ts`); this spec covers the UI wiring.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| RCUR-001 | ✅ | Recurrence controls reveal progressively: `repeat-every-year-checkbox` hidden until an end date is set; `repeat-years-input` (min=1) hidden until "Repeat every year" is checked; clearing the end date hides both again | — | ✅ Passing |
+| RCUR-002 | ✅ | Authoring a routine with an end date + "Repeat every year" + "Stop after 3 years" saves it — the new blueprint card appears in the list | — | ✅ Passing |
