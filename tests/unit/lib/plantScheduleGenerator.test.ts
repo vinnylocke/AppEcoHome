@@ -171,6 +171,48 @@ describe("buildBlueprintFromSchedule — lifecycle caps", () => {
   });
 });
 
+describe("buildBlueprintFromSchedule — lifecycle → recurrence_kind (Track B)", () => {
+  const base = {
+    schedule: {
+      start_reference: "Seasonal:06-01:Summer Harvest Start",
+      start_offset_days: 0,
+      end_reference: "Seasonal:08-31:Summer Harvest End",
+      end_offset_days: 0,
+      frequency_days: 1,
+    },
+    triggerDateStr: TODAY_FIXED,
+    targetYear: 2026,
+  };
+
+  it("perennial → recurs every year ('annual', no cap)", () => {
+    const r = buildBlueprintFromSchedule({ ...base, plantCycle: "Perennial" });
+    expect(r.recurrence_kind).toBe("annual");
+    expect(r.recurs_until).toBeNull();
+  });
+
+  it("annual → single cycle ('once')", () => {
+    const r = buildBlueprintFromSchedule({ ...base, plantCycle: "Annual" });
+    expect(r.recurrence_kind).toBe("once");
+    expect(r.recurs_until).toBeNull();
+  });
+
+  it("biennial → 'lifecycle_capped' with recurs_until = trigger + 2 years", () => {
+    const r = buildBlueprintFromSchedule({ ...base, plantCycle: "Biennial" });
+    expect(r.recurrence_kind).toBe("lifecycle_capped");
+    expect(r.recurs_until).toBe("2028-05-15");
+  });
+
+  it("null / unknown cycle → 'once' (safe default)", () => {
+    expect(buildBlueprintFromSchedule({ ...base, plantCycle: null }).recurrence_kind).toBe("once");
+    expect(buildBlueprintFromSchedule({ ...base, plantCycle: "Herbaceous" }).recurrence_kind).toBe("once");
+  });
+
+  it("matches lifecycle case-insensitively and by substring (e.g. 'Perennial herb')", () => {
+    expect(buildBlueprintFromSchedule({ ...base, plantCycle: "perennial" }).recurrence_kind).toBe("annual");
+    expect(buildBlueprintFromSchedule({ ...base, plantCycle: "Perennial herb" }).recurrence_kind).toBe("annual");
+  });
+});
+
 describe("buildBlueprintFromSchedule — frequency / null handling", () => {
   it("handles null offsets as zero", () => {
     const result = buildBlueprintFromSchedule({

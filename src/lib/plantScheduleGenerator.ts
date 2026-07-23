@@ -20,11 +20,21 @@ export interface PlantScheduleRow {
   frequency_days: number;
 }
 
+export type RecurrenceKind = "once" | "annual" | "lifecycle_capped";
+
 export interface BlueprintDates {
   /** ISO yyyy-mm-dd. null when the computed window is entirely in the past for a non-perennial. */
   start_date: string | null;
   /** ISO yyyy-mm-dd. null when end_reference = "Ongoing" and no cycle cap applies. */
   end_date: string | null;
+  /** Track B — how the blueprint recurs across years, derived from the plant
+   *  lifecycle: perennial → `annual` (repeats every year), biennial →
+   *  `lifecycle_capped` (repeats until `recurs_until`), annual / unknown →
+   *  `once`. Only actually recurs for windowed / seasonal (end_date) blueprints;
+   *  inert on ongoing (no-end_date) routines. */
+  recurrence_kind: RecurrenceKind;
+  /** ISO yyyy-mm-dd terminal date for `lifecycle_capped`, else null. */
+  recurs_until: string | null;
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -119,13 +129,30 @@ export function buildBlueprintFromSchedule(opts: {
     }
   }
 
+  // Derive recurrence across YEARS from the plant lifecycle (Track B): perennial
+  // → repeats every year; biennial → repeats until its 2-year cap; annual /
+  // unknown → runs once. Only windowed / seasonal (end_date) blueprints actually
+  // recur — this is inert on ongoing (no-end_date) routines.
+  let recurrence_kind: RecurrenceKind = "once";
+  let recurs_until: string | null = null;
+  if (plantCycle) {
+    const cycleStr = plantCycle.toLowerCase();
+    if (cycleStr.includes("perennial")) {
+      recurrence_kind = "annual";
+    } else if (cycleStr.includes("biennial")) {
+      recurrence_kind = "lifecycle_capped";
+      recurs_until = absoluteMaxEndMs !== null ? formatSafeDate(absoluteMaxEndMs) : null;
+    }
+    // "annual" (non-perennial) and unknown cycles stay 'once'.
+  }
+
   if (absoluteMaxEndMs !== null) {
     if (endMs === null || endMs > absoluteMaxEndMs) {
       endMs = absoluteMaxEndMs;
     }
     if (startMs > absoluteMaxEndMs) {
       // Start is past the lifecycle cap — no tasks would ever fire.
-      return { start_date: null, end_date: null };
+      return { start_date: null, end_date: null, recurrence_kind, recurs_until };
     }
   }
 
@@ -146,5 +173,7 @@ export function buildBlueprintFromSchedule(opts: {
   return {
     start_date: formatSafeDate(startMs),
     end_date: endMs !== null ? formatSafeDate(endMs) : null,
+    recurrence_kind,
+    recurs_until,
   };
 }

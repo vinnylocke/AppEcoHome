@@ -1,1 +1,4 @@
-[]
+[
+  { "label": "Fixed", "items": ["The calendar now highlights next year's harvest window range too, not just the current year's."] },
+  { "label": "Improved", "items": ["Newly-added plants inherit yearly carry-over from their lifecycle — a perennial's harvest, pruning and watering windows now repeat every year automatically."] }
+]

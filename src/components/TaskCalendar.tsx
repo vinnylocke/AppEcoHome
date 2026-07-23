@@ -181,8 +181,18 @@ export default function TaskCalendar({
   // calendar's 3-month main fetch range.
   const harvestWindowDates = useMemo(() => {
     if (!showHarvestWindows) return new Set<string>();
-    return collectHarvestWindowDates(harvestWindowTasks);
-  }, [harvestWindowTasks, showHarvestWindows]);
+    // Base set: the dedicated, view-independent query of PERSISTED Pending
+    // harvest windows (reliable across any month for the current year).
+    const persisted = collectHarvestWindowDates(harvestWindowTasks);
+    // Track B (annual carry-over): a FUTURE year's window is a projected GHOST,
+    // not a persisted row, so it never appears in the query above. Fold in the
+    // harvest window tasks (incl. ghosts) the engine produced for the current
+    // view band, so next year's ripening stretch tints when you page into it.
+    const projected = collectHarvestWindowDates(
+      tasks.filter((t) => t.type === "Harvesting" || t.type === "Harvest"),
+    );
+    return projected.size ? new Set<string>([...persisted, ...projected]) : persisted;
+  }, [harvestWindowTasks, tasks, showHarvestWindows]);
 
   const getTasksForDate = useCallback(
     (date: Date) => {

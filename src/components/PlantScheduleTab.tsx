@@ -314,12 +314,27 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       }
     }
 
+    // Track B — recurrence across years, derived from the plant lifecycle:
+    // perennial repeats every year, biennial repeats until its 2-year cap,
+    // annual / unknown run once. Mirror of plantScheduleGenerator.
+    let recurrence_kind: "once" | "annual" | "lifecycle_capped" = "once";
+    let recurs_until: string | null = null;
+    if (plantCycle) {
+      const cycleStr = plantCycle.toLowerCase();
+      if (cycleStr.includes("perennial")) {
+        recurrence_kind = "annual";
+      } else if (cycleStr.includes("biennial")) {
+        recurrence_kind = "lifecycle_capped";
+        recurs_until = absoluteMaxEndMs ? formatSafeDate(absoluteMaxEndMs) : null;
+      }
+    }
+
     if (absoluteMaxEndMs) {
       if (!endMs || endMs > absoluteMaxEndMs) {
         endMs = absoluteMaxEndMs;
       }
       if (startMs > absoluteMaxEndMs) {
-        return { start_date: null, end_date: null };
+        return { start_date: null, end_date: null, recurrence_kind, recurs_until };
       }
     }
 
@@ -340,6 +355,8 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     return {
       start_date: formatSafeDate(startMs),
       end_date: endStr,
+      recurrence_kind,
+      recurs_until,
     };
   };
 
@@ -441,7 +458,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           : todayStr;
 
         for (const s of pendingGeneratedSchedules) {
-          const { start_date, end_date } = getDatesForBlueprint(
+          const { start_date, end_date, recurrence_kind, recurs_until } = getDatesForBlueprint(
             s.start_reference,
             s.start_offset_days,
             s.end_reference,
@@ -477,6 +494,8 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             is_auto_generated: true,
             start_date: start_date,
             end_date: end_date,
+            recurrence_kind,
+            recurs_until,
           });
         }
       }
@@ -644,7 +663,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             const plantedAtStr = p.planted_at
               ? p.planted_at.split("T")[0]
               : todayStr;
-            const { start_date, end_date } = getDatesForBlueprint(
+            const { start_date, end_date, recurrence_kind, recurs_until } = getDatesForBlueprint(
               newSchedule.start_reference,
               newSchedule.start_offset_days,
               newSchedule.end_reference,
@@ -670,6 +689,8 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
               is_auto_generated: false,
               start_date: start_date,
               end_date: end_date,
+              recurrence_kind,
+              recurs_until,
             });
           }
 
