@@ -1,0 +1,14 @@
+import { chromium } from "@playwright/test";
+import { pathToFileURL } from "url";
+import { resolve } from "path";
+const html = resolve(process.argv[2]);
+const out = resolve(process.argv[3]);
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ deviceScaleFactor: 2 });
+const page = await ctx.newPage();
+await page.goto(pathToFileURL(html).href, { waitUntil: "networkidle" });
+await page.emulateMedia({ media: "print" });
+await page.pdf({ path: out, format: "A4", printBackground: true, preferCSSPageSize: true, margin: { top: "0", bottom: "0", left: "0", right: "0" } });
+console.log("PDF:", out);
+await browser.close();
+process.exit(0);

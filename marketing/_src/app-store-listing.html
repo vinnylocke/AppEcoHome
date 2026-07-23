@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Rhozly — App Store Listing Kit</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--green:#075737;--green-deep:#063d28;--rose:#e80d2a;--bg:#faf9f7;--surface:#efeeec;--ink:#1a1c1b;--muted:#5c655f;--muted2:#8a938c;--outline:rgba(26,28,27,.14);
+    --display:"Plus Jakarta Sans",sans-serif;--body:"Inter",sans-serif;}
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0;}
+  body{font-family:var(--body);color:var(--ink);font-size:12px;line-height:1.55;}
+  @page{size:A4;margin:0;}
+  .sheet{padding:15mm 15mm;break-after:page;position:relative;min-height:297mm;}
+  .sheet:last-child{break-after:auto;}
+  h1,h2,h3{font-family:var(--display);font-weight:800;letter-spacing:-.02em;margin:0;line-height:1.08;}
+  .eyebrow{font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--green);}
+  .h2{font-size:24px;margin-bottom:5px;}
+  .rule{height:3px;width:44px;background:var(--rose);border-radius:2px;margin:10px 0 16px;}
+  .sub{color:var(--muted);font-size:12.5px;max-width:74ch;margin-bottom:16px;line-height:1.6;}
+  .foot{position:absolute;bottom:9mm;left:15mm;right:15mm;display:flex;justify-content:space-between;font-size:8.5px;color:var(--muted2);border-top:1px solid var(--outline);padding-top:6px;letter-spacing:.02em;}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace;}
+  /* cover */
+  .cover{min-height:297mm;background:radial-gradient(120% 90% at 82% -10%,#0e6a45,#075737 46%,#063d28);color:#fff;padding:26mm 22mm;display:flex;flex-direction:column;}
+  .cover .mark{width:96px;height:96px;border-radius:24px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 18px 44px rgba(0,0,0,.3);}
+  .cover .mark img{width:66px;height:66px;}
+  .cover h1{font-size:58px;margin-top:auto;letter-spacing:-.03em;}
+  .cover .tag{font-family:var(--display);font-size:20px;font-weight:600;color:#cfe6da;margin-top:10px;}
+  .cover .lede{font-size:13px;color:#bcdccb;max-width:90mm;margin-top:16px;line-height:1.6;}
+  .cover .credit{font-size:10px;color:#8fb9a4;margin-top:22px;letter-spacing:.02em;}
+  /* blocks */
+  .card{border:1px solid var(--outline);border-radius:14px;background:#fff;padding:14px 16px;margin-bottom:11px;break-inside:avoid;}
+  .card .lab{font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;}
+  .card .lab .cnt{color:var(--green);}
+  .field{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--bg);border:1px solid var(--outline);border-radius:8px;padding:9px 11px;white-space:pre-wrap;line-height:1.5;color:#24312b;}
+  .desc{font-size:11px;white-space:pre-wrap;line-height:1.55;}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .meta{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:11px;}
+  .meta b{font-family:var(--display);color:var(--green);}
+  .assetrow{display:flex;gap:16px;align-items:center;margin-bottom:6px;}
+  .icon{width:96px;height:96px;border-radius:22px;box-shadow:0 8px 22px rgba(20,40,30,.18);flex:none;}
+  .fg{width:100%;border-radius:12px;border:1px solid var(--outline);}
+  .shots{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;}
+  .shots.tab{grid-template-columns:1fr 1fr;margin-top:12px;}
+  .shots img{width:100%;border-radius:10px;border:1px solid var(--outline);box-shadow:0 6px 16px -8px rgba(20,40,30,.3);}
+  table.spec{width:100%;border-collapse:collapse;font-size:10.5px;}
+  table.spec td,table.spec th{border-bottom:1px solid var(--outline);padding:7px 8px;text-align:left;vertical-align:top;}
+  table.spec th{font-family:var(--display);color:var(--green);font-size:10px;text-transform:uppercase;letter-spacing:.08em;}
+  .pill{display:inline-block;background:#e6efe9;color:var(--green);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.08em;padding:3px 9px;border-radius:999px;}
+</style></head>
+<body>
+
+<section class="cover">
+  <div class="mark"><img src="logo.png" alt="Rhozly"></div>
+  <h1>Rhozly</h1>
+  <div class="tag">App Store Listing Kit</div>
+  <p class="lede">Everything needed to publish Rhozly to the Apple App Store and Google Play — copy, screenshots, icon, feature graphic and specs. All screenshots are real captures of the live app.</p>
+  <div class="credit">Prepared July 2026 · Apple App Store + Google Play · rhozly.com</div>
+</section>
+
+<section class="sheet">
+  <div class="eyebrow">At a glance</div>
+  <h2 class="h2">The essentials</h2>
+  <div class="rule"></div>
+  <div class="assetrow">
+    <img class="icon" src="../app-store/icon/rhozly-icon-1024.png" alt="icon">
+    <div class="meta">
+      <b>Name</b><span>Rhozly</span>
+      <b>Subtitle</b><span>Smart plant &amp; garden care</span>
+      <b>Tagline</b><span>Your garden's brain — plan, grow, thrive.</span>
+      <b>Category</b><span>Lifestyle (secondary: Productivity / House &amp; Home)</span>
+      <b>Age rating</b><span>4+ / Everyone</span>
+      <b>Platforms</b><span>iOS &amp; Android (Capacitor) · installable PWA</span>
+    </div>
+  </div>
+  <div style="margin-top:14px" class="eyebrow">Google Play feature graphic (1024 × 500)</div>
+  <div class="rule"></div>
+  <img class="fg" src="../app-store/screenshots/google-play/feature-graphic-1024x500.png" alt="feature graphic">
+  <div class="foot"><span>Rhozly — App Store Listing Kit</span><span>Essentials · 02</span></div>
+</section>
+
+<section class="sheet">
+  <div class="eyebrow">Apple App Store</div>
+  <h2 class="h2">Listing copy</h2>
+  <div class="rule"></div>
+  <div class="two">
+    <div class="card"><div class="lab">Subtitle <span class="cnt">25 / 30</span></div><div class="field">Smart plant &amp; garden care</div></div>
+    <div class="card"><div class="lab">Keywords <span class="cnt">99 / 100</span></div><div class="field">plant care,garden planner,plant identifier,plant diagnosis,gardening,watering reminder,veg garden,houseplant</div></div>
+  </div>
+  <div class="card"><div class="lab">Promotional text <span class="cnt">146 / 170</span></div><div class="field">Your AI garden companion. Identify any plant, diagnose problems from a photo, and never miss a watering — in one calm, beautiful app. Free to start.</div></div>
+  <div class="card"><div class="lab">Description <span class="cnt">≤ 4000</span></div><div class="desc">Rhozly is the calm, all-in-one home for your garden — part plant encyclopaedia, part task planner, part AI plant doctor. Whether you tend three houseplants or a whole veg plot, Rhozly tells you exactly what to do today and helps every plant thrive.
+
+<b>KNOW WHAT TO DO, EVERY DAY</b> — one dashboard shows today's tasks, your local weather and every area of your garden; smart, weather-aware reminders for watering, feeding and pruning; a guided "Garden Walk" takes you plant by plant.
+
+<b>AI PLANT LENS</b> — snap a photo and Rhozly identifies the plant, spots what's wrong and suggests care; diagnose pests, disease and deficiencies in seconds, then turn the fix into a task.
+
+<b>GARDEN AI — AN ASSISTANT THAT ACTS</b> — chat powered by Google's Gemini Pro models (our most advanced model yet is exclusive to Evergreen) that knows YOUR garden: it checks your plants, tasks, weather and soil sensors, answers anything, and sets up schedules, plans and automations for you to confirm with one tap — every answer in the same clear layout.
+
+<b>EVERY PLANT, ORGANISED</b> — catalogue your collection with photos and journals; track seedlings in the Nursery; keep an Ailment Watchlist of pests, diseases and invasives.
+
+<b>PLAN &amp; DESIGN</b> — draw your garden to scale in a 2D &amp; 3D layout editor with sun &amp; microclimate per bed; seasonal plans, companion-planting tips and a Sunday "week ahead"; measure light with the Light Sensor and the AR Sun Tracker.
+
+<b>WEATHER THAT WORKS FOR YOU</b> — local forecasts with frost and heatwave alerts, tuned to your plants and hemisphere.
+
+<b>GROWS WITH YOU</b> — expert guides, smart-sensor &amp; valve integrations, and shared gardens with per-member permissions.
+
+Start free with Sprout. Upgrade to Botanist, Sage or Evergreen for AI features, deeper planning and higher limits. Works on phone and tablet, online or off.</div></div>
+  <div class="foot"><span>Rhozly — App Store Listing Kit</span><span>Apple copy · 03</span></div>
+</section>
+
+<section class="sheet">
+  <div class="eyebrow">Google Play</div>
+  <h2 class="h2">Listing copy</h2>
+  <div class="rule"></div>
+  <div class="card"><div class="lab">App title <span class="cnt">27 / 30</span></div><div class="field">Rhozly: Plant &amp; Garden Care</div></div>
+  <div class="card"><div class="lab">Short description <span class="cnt">79 / 80</span></div><div class="field">Plan, identify &amp; care for every plant — AI plant lens, tasks &amp; smart reminders.</div></div>
+  <div class="card"><div class="lab">Full description <span class="cnt">≤ 4000</span></div><div class="desc">Rhozly is the calm, all-in-one home for your garden — part plant encyclopaedia, part task planner, part AI plant doctor. Whether you tend three houseplants or a whole veg plot, Rhozly tells you exactly what to do today and helps every plant thrive.
+
+🌱 <b>Know what to do, every day</b> — one dashboard for today's tasks, weather and every area; weather-aware reminders; a guided Garden Walk.
+📸 <b>AI Plant Lens</b> — snap a photo to identify plants and diagnose pests, disease and deficiencies, then turn the fix into a task.
+💬 <b>Garden AI</b> — a Gemini-Pro-powered assistant that knows YOUR garden (our most advanced model yet on Evergreen): it checks your plants, tasks and sensors, answers anything, and stages schedules, plans and automations for one-tap confirmation.
+🪴 <b>Every plant, organised</b> — catalogue with photos &amp; journals, track seedlings in the Nursery, keep an Ailment Watchlist.
+📐 <b>Plan &amp; design</b> — 2D &amp; 3D layout editor with sun &amp; microclimate, seasonal plans, companion planting, and a Sunday week-ahead.
+🌦️ <b>Weather that works for you</b> — forecasts with frost &amp; heatwave alerts, tuned to your plants and hemisphere.
+🌳 <b>Grows with you</b> — expert guides, smart sensor &amp; valve integrations, shared gardens with permissions.
+
+Start free with Sprout. Upgrade to Botanist, Sage or Evergreen for AI features, deeper planning and higher limits. Works on phone and tablet, online or off.</div></div>
+  <div class="foot"><span>Rhozly — App Store Listing Kit</span><span>Google copy · 04</span></div>
+</section>
+
+<section class="sheet">
+  <div class="eyebrow">Screenshots</div>
+  <h2 class="h2">Real captures, on-brand frames</h2>
+  <div class="rule"></div>
+  <p class="sub">Phone (iPhone 6.7" / Play phone) — five screens. Captured live from the app, framed in Rhozly's brand style with a caption per screen.</p>
+  <div class="shots">
+    <img src="../app-store/screenshots/apple/iphone-6.7/01-dashboard.png">
+    <img src="../app-store/screenshots/apple/iphone-6.7/02-plant-lens.png">
+    <img src="../app-store/screenshots/apple/iphone-6.7/03-shed.png">
+    <img src="../app-store/screenshots/apple/iphone-6.7/04-watchlist.png">
+    <img src="../app-store/screenshots/apple/iphone-6.7/05-guides.png">
+  </div>
+  <p class="sub" style="margin-top:16px">Tablet / desktop (iPad 12.9" / Play tablet) — two screens.</p>
+  <div class="shots tab">
+    <img src="../app-store/screenshots/apple/ipad-12.9/01-garden-layout.png">
+    <img src="../app-store/screenshots/apple/ipad-12.9/02-dashboard.png">
+  </div>
+  <div class="foot"><span>Rhozly — App Store Listing Kit</span><span>Screenshots · 05</span></div>
+</section>
+
+<section class="sheet">
+  <div class="eyebrow">Asset checklist</div>
+  <h2 class="h2">Specs &amp; where everything lives</h2>
+  <div class="rule"></div>
+  <table class="spec">
+    <tr><th>Asset</th><th>Spec</th><th>Store</th><th>Location in repo</th></tr>
+    <tr><td>App icon</td><td>1024×1024 PNG (no alpha)</td><td>Both</td><td class="mono">app-store/icon/rhozly-icon-1024.png</td></tr>
+    <tr><td>iPhone 6.7"</td><td>1290×2796 ×5</td><td>Apple</td><td class="mono">app-store/screenshots/apple/iphone-6.7/</td></tr>
+    <tr><td>iPad 12.9"</td><td>2732×2048 ×2</td><td>Apple</td><td class="mono">app-store/screenshots/apple/ipad-12.9/</td></tr>
+    <tr><td>Feature graphic</td><td>1024×500</td><td>Google</td><td class="mono">app-store/screenshots/google-play/feature-graphic-1024x500.png</td></tr>
+    <tr><td>Phone</td><td>1080×1920 ×5</td><td>Google</td><td class="mono">app-store/screenshots/google-play/phone/</td></tr>
+    <tr><td>Tablet</td><td>1920×1200 ×2</td><td>Google</td><td class="mono">app-store/screenshots/google-play/tablet/</td></tr>
+    <tr><td>Listing copy</td><td>Markdown, char-counted</td><td>Both</td><td class="mono">app-store/listing-copy/</td></tr>
+  </table>
+  <div style="margin-top:16px" class="card">
+    <div class="lab">Before you submit</div>
+    <div style="font-size:11px;line-height:1.7">
+      <span class="pill">Apple</span> Export a 512px icon isn't needed (upload 1024). Add privacy "nutrition label" answers. Provide a demo login if the reviewer needs one.<br>
+      <span class="pill">Google</span> Export the icon at 512×512. Complete the Data Safety form and content-rating questionnaire.<br>
+      <span class="pill">Both</span> Confirm the Privacy Policy URL is live and the marketing/support URLs resolve.
+    </div>
+  </div>
+  <div class="foot"><span>Rhozly — App Store Listing Kit</span><span>Specs · 06</span></div>
+</section>
+
+</body></html>

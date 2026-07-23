@@ -1,10 +1,1 @@
-[
-  {
-    "label": "Fixed",
-    "items": [
-      "\"Sow & grow this week\" suggestions are more accurate: a variety no longer opens as a different variety (e.g. Lettuce 'Lollo Rossa' showing as another lettuce), and picks that would have shown the wrong plant now get their own correct care details.",
-      "Plant names no longer include the propagation method — \"Geranium softwood cuttings\" is now just \"Geranium\" (the method already shows as its own chip), so the care guide isn't tied to the method either.",
-      "Long plant names are fully readable in the detail popup instead of being cut off."
-    ]
-  }
-]
+[]
