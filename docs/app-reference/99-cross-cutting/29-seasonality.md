@@ -9,11 +9,19 @@
 ```
 src/lib/seasonal.ts
 ├── getHemisphere(country?, timezone?, lat?) → "northern" | "southern"
-├── getSeason(date, hemisphere) → "spring" | "summer" | "autumn" | "winter"
+├── getFrequencyDays(wateringTerm) → number
 ├── normalizePeriods(input) → string[] (shape normalisation only — no shifting)
-├── getSinglePeriodRange(period, hemisphere) → { start, end } MM-DD (SH month shifting lives here)
-└── buildAutoSeasonalSchedules(plant, hemisphere) → blueprints
+└── getSinglePeriodRange(period, hemisphere) → { start, end } MM-DD (SH month shifting lives here)
+
+src/lib/plantScheduleFactory.ts
+└── buildAutoSeasonalSchedules(plant, hemisphere) → plant_schedules "Seasonal:MM-DD" refs
 ```
+
+> **Drift fix (2026-07-23):** this summary previously listed `getSeason(date, hemisphere)` (which does not exist anywhere) and placed `buildAutoSeasonalSchedules` in `seasonal.ts` (it lives in `plantScheduleFactory.ts`). Corrected above.
+
+### Annual carry-over — seasonal windows repeat each year (Track B, 2026-07)
+
+Seasonal boundaries are FIXED month/day (`getSinglePeriodRange` returns the same MM-DD every year, hemisphere-shifted — no weather/ripeness input), which is exactly what makes year-over-year carry-over deterministic. A `task_blueprints.recurrence_kind = 'annual'` blueprint treats its stored start/end as a MM-DD template that `projectAnnualWindows` (`src/lib/windowTasks.ts`) rolls into each occurrence year — so a harvest/pruning/seasonal-watering window opens on the **same dates every year**, only the year advancing (leap-day 02-29 → 02-28; southern hemisphere is the northern windows shifted +6 months). See [Data Model — Tasks](./04-data-model-tasks.md#annual-carry-over--recurrence_kind-track-b-2026-07).
 
 ---
 

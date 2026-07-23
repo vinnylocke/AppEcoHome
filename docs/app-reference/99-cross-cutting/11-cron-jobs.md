@@ -60,6 +60,8 @@
 
 Most crons fire on the dashboard schedule, not in user-local time. `generate-tasks` is an exception — it iterates homes and uses each home's timezone to determine "today".
 
+**Annual carry-over (Track B, 2026-07):** `generate-tasks` still SKIPS seasonal window types (Harvesting/Harvest/Pruning — the frontend ghost engine owns them), but an `annual` / `lifecycle_capped` seasonal-**frequency** routine (e.g. summer watering) is now re-materialised each year within its projected season window (via `_shared/annualWindows.ts` `projectAnnualWindows`) instead of dying at the literal single-year `end_date`. `generate-daily-brief` and `generate-weekly-overviews` likewise roll each window blueprint into its current occurrence before deciding whether its window is open / opening. See [Data Model — Tasks](./04-data-model-tasks.md#annual-carry-over--recurrence_kind-track-b-2026-07).
+
 ### Per-cron failure isolation
 
 Each cron handles per-user / per-home errors locally and logs to `cron_run_logs` (or similar) so a single failure doesn't tank the whole batch.

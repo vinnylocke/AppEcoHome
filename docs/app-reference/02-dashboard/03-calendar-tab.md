@@ -232,6 +232,8 @@ The Calendar tab answers "when does what need doing?" Where the Dashboard tab te
 
 - Opens AddTaskModal. You can create a one-off task or a recurring schedule. Has the AI generate-from-photo button if you're on Sage/Evergreen.
 
+> **Harvest-window highlight (Track B, 2026-07):** the amber tint over a harvest window's date range (`harvestWindowDates` in `TaskCalendar.tsx`) comes from a dedicated, view-independent query of PERSISTED Pending harvest tasks — now **UNIONed with the engine's projected window ghosts** for the current view band. That union is what makes **next year's** harvest window tint when you page into it: a future-year window is a projected ghost (not a persisted row), so it would otherwise be invisible to the persisted-only query. See `collectHarvestWindowDates` + [Data Model — Tasks](../99-cross-cutting/04-data-model-tasks.md#annual-carry-over--recurrence_kind-track-b-2026-07).
+
 #### 8. Export to Calendar (ICS)
 
 - Tap the Export button → downloads `rhozly-tasks-YYYY-MM-DD.ics` with all pending tasks for the next 90 days as all-day events.
