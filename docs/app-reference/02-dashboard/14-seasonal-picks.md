@@ -46,6 +46,23 @@ SeasonalPicksCard (variant: "today" | "dashboard")
               journey tasks → AddToCalendarSheet)
 ```
 
+### Name hygiene + variety matching (2026-07-23)
+
+- **Names carry no propagation method.** The generation prompt + schema forbid it,
+  and `normaliseSeasonalPicks` runs `stripPropagationMethod` as a safety net, so
+  "Geranium softwood cuttings" is stored as "Geranium" (the method lives in
+  `sow_method`). Previously the method was baked into the name and locked into the
+  care guide it generated for.
+- **Variety-aware library matching.** `attachPlantLibraryIds` no longer attaches a
+  pick to *any* row sharing its `scientific_name_key` — it uses
+  `bestLibraryMatch` (`_shared/plantNameMatch.ts`): exact name, else the generic
+  species the pick extends, else **null**. So "Lettuce 'Lollo Rossa'" no longer
+  attaches to the only Lactuca sativa row ("Daisy Lambert Butterhead Lettuce", a
+  different cultivar with sparse data) — it resolves via the AI care path with its
+  own name + generated data. Cultivar identities accumulate organically as they're
+  generated (no backfill); the modal always shows the picked name via
+  `preferPickedName`.
+
 ### Quick-add planting tasks (2026-07-22)
 
 A one-tap shortcut so the user doesn't have to open the tile → detail →

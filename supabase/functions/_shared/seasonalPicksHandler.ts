@@ -26,6 +26,7 @@ import {
   type SeasonalPick,
 } from "./seasonalPicks.ts";
 import { fallbackSeasonalPicks } from "./seasonalPicksFallback.ts";
+import { bestLibraryMatch } from "./plantNameMatch.ts";
 
 export interface GenerateSeasonalPicksOpts {
   homeId: string;
@@ -321,21 +322,29 @@ async function attachPlantLibraryIds(
     return picks.map((p) => ({ ...p, plant_library_id: null }));
   }
 
+  // Fetch ALL rows per key (not just the first) so we can pick the one that
+  // genuinely IS this plant by name — a shared scientific_name_key alone attached
+  // a lettuce cultivar to whatever single Lactuca sativa row existed (a DIFFERENT
+  // cultivar), inheriting its name + sparse data.
   const { data } = await supabase
     .from("plant_library")
-    .select("id, scientific_name_key")
+    .select("id, common_name, scientific_name_key")
     .in("scientific_name_key", uniqueKeys);
 
-  const byKey = new Map<string, number>();
-  for (const row of (data ?? []) as Array<{ id: number; scientific_name_key: string }>) {
-    if (row.scientific_name_key && !byKey.has(row.scientific_name_key)) {
-      byKey.set(row.scientific_name_key, row.id);
-    }
+  const candidatesByKey = new Map<string, Array<{ id: number; common_name: string }>>();
+  for (const row of (data ?? []) as Array<{ id: number; common_name: string; scientific_name_key: string }>) {
+    if (!row.scientific_name_key) continue;
+    const list = candidatesByKey.get(row.scientific_name_key) ?? [];
+    list.push({ id: row.id, common_name: row.common_name });
+    candidatesByKey.set(row.scientific_name_key, list);
   }
 
   return picks.map((p, i) => ({
     ...p,
-    plant_library_id: byKey.get(keysByPick[i]) ?? null,
+    // Only attach when a candidate is a genuine identity match (exact name or the
+    // generic species this pick extends). A different same-species cultivar → null
+    // → the pick resolves via the AI care path with its own name + data.
+    plant_library_id: bestLibraryMatch(p.common_name, candidatesByKey.get(keysByPick[i]) ?? []),
   }));
 }
 

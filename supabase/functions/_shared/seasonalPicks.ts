@@ -9,6 +9,8 @@
  * Botanist tiers route to the deterministic fallback in `./seasonalPicksFallback.ts`.
  */
 
+import { stripPropagationMethod } from "./plantNameMatch.ts";
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type SowMethod =
@@ -69,7 +71,7 @@ export const SEASONAL_PICKS_SCHEMA = {
         properties: {
           common_name: {
             type: "STRING",
-            description: "Plain-English plant name. For varietals, append in quotes — e.g. \"Tomato 'Sungold'\".",
+            description: "The plant name ONLY. For varietals append the variety in quotes — e.g. \"Tomato 'Sungold'\". NEVER include the propagation method or action: write \"Geranium\", not \"Geranium softwood cuttings\"; \"Lavender 'Hidcote'\", not \"Lavender 'Hidcote' cuttings\". The method belongs in sow_method.",
           },
           scientific_name: {
             type: "STRING",
@@ -237,6 +239,7 @@ export function buildSeasonalPicksPrompt(ctx: SeasonalPicksPromptContext): strin
     `  7. NEVER recommend anything that violates the user's dislikes.`,
     `  8. NEVER pick the SAME species twice in one response.`,
     `  9. No emoji. No markdown. JSON only — the schema enforces shape.`,
+    `  10. "common_name" is the plant name ONLY — the propagation method goes in "sow_method", NEVER in the name (write "Geranium", not "Geranium softwood cuttings").`,
   );
 
   return lines.join("\n");
@@ -299,7 +302,9 @@ export function normaliseSeasonalPicks(raw: unknown): SeasonalPicksPayload | nul
       ? { start: harvest.start, end: harvest.end }
       : null;
     valid.push({
-      common_name: r.common_name.trim(),
+      // Strip any propagation method the model baked into the name ("Geranium
+      // softwood cuttings" → "Geranium") — the method lives in sow_method.
+      common_name: stripPropagationMethod(r.common_name.trim()),
       scientific_name: r.scientific_name.trim(),
       sow_method: sowMethod,
       sow_window_start: r.sow_window_start,

@@ -1,24 +1,23 @@
 import { describe, test, expect } from "vitest";
-import { normalizePlantName, formatOtherNames, preferSpecificName } from "../../../src/lib/plantNames";
+import { normalizePlantName, formatOtherNames, preferPickedName } from "../../../src/lib/plantNames";
 
-describe("preferSpecificName", () => {
-  test("keeps the cultivar/variety name when it extends the catalogue species name", () => {
-    expect(preferSpecificName("Radish 'French Breakfast'", "Radish")).toBe("Radish 'French Breakfast'");
-    expect(preferSpecificName("Beetroot 'Boltardy'", "Beetroot")).toBe("Beetroot 'Boltardy'");
-    expect(preferSpecificName("Lavender 'Hidcote' cuttings", "Lavender")).toBe("Lavender 'Hidcote' cuttings");
-    expect(preferSpecificName("Carrot 'Autumn King'", "Carrot")).toBe("Carrot 'Autumn King'");
+describe("preferPickedName", () => {
+  test("keeps the variety the user picked, even when it resolved to a different-cultivar or species row", () => {
+    // Extends the species row → keep.
+    expect(preferPickedName("Radish 'French Breakfast'", "Radish")).toBe("Radish 'French Breakfast'");
+    expect(preferPickedName("Beetroot 'Boltardy'", "Beetroot")).toBe("Beetroot 'Boltardy'");
+    // Resolved to a DIFFERENT cultivar (the Lollo Rossa bug) → still show the pick.
+    expect(preferPickedName("Lettuce 'Lollo Rossa'", "Daisy Lambert Butterhead Lettuce")).toBe("Lettuce 'Lollo Rossa'");
+    expect(preferPickedName("Carrot 'Autumn King'", "Root vegetable")).toBe("Carrot 'Autumn King'");
   });
-  test("uses the catalogue name when the picked name isn't a more specific form of it", () => {
-    // No shared prefix — trust the cleaner catalogue name (conservative; avoids
-    // regressing generic searches that resolve to a canonical catalogue name).
-    expect(preferSpecificName("rose", "Rosa 'Peace'")).toBe("Rosa 'Peace'");
-    expect(preferSpecificName("Radish", "Radish")).toBe("Radish");
-    expect(preferSpecificName("radish", "Radish")).toBe("Radish"); // case-only diff → catalogue
+  test("normalises to the catalogue's casing when the two are the same name", () => {
+    expect(preferPickedName("radish", "Radish")).toBe("Radish");
+    expect(preferPickedName("Radish", "Radish")).toBe("Radish");
   });
   test("handles empties", () => {
-    expect(preferSpecificName("", "Radish")).toBe("Radish");
-    expect(preferSpecificName("Radish 'X'", "")).toBe("Radish 'X'");
-    expect(preferSpecificName(null, undefined)).toBe("");
+    expect(preferPickedName("", "Radish")).toBe("Radish");
+    expect(preferPickedName("Radish 'X'", "")).toBe("Radish 'X'");
+    expect(preferPickedName(null, undefined)).toBe("");
   });
 });
 

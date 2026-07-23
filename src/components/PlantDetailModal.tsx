@@ -8,7 +8,7 @@ import LightTab from "./LightTab";
 import SensorRequirementsTab from "./SensorRequirementsTab";
 import { useCataloguePlantFromResult } from "../hooks/useCataloguePlantFromResult";
 import type { ProviderSearchResult } from "../lib/verdantlyUtils";
-import { formatOtherNames, preferSpecificName } from "../lib/plantNames";
+import { formatOtherNames, preferPickedName } from "../lib/plantNames";
 
 interface Props {
   result: ProviderSearchResult;
@@ -83,7 +83,7 @@ export default function PlantDetailModal({
   // Keep the variety/cultivar the user actually picked ("Radish 'French
   // Breakfast'") instead of the species name the catalogue clone collapses to
   // ("Radish"). The clone still provides the care DATA; this is display only.
-  const displayName = preferSpecificName(result.common_name, plant?.details.common_name);
+  const displayName = preferPickedName(result.common_name, plant?.details.common_name);
 
   return createPortal(
     <div className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in`}>
@@ -95,7 +95,7 @@ export default function PlantDetailModal({
       >
         <div className="p-6 sm:p-8 pb-4 shrink-0 flex justify-between items-start border-b border-rhozly-outline/10">
           <div className="min-w-0">
-            <h3 data-testid="plant-detail-name" className="text-2xl sm:text-3xl font-black truncate">
+            <h3 data-testid="plant-detail-name" className="text-2xl sm:text-3xl font-black break-words line-clamp-2">
               {displayName}
             </h3>
             {sciLine && (

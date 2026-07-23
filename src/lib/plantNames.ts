@@ -15,29 +15,24 @@ export function normalizePlantName(input: string): string {
 }
 
 /**
- * Choose which name to DISPLAY for a resolved plant. When the name the user
- * actually picked/searched (`picked`) extends the catalogue name (`catalogue`)
- * — a cultivar / variety / form like "Radish 'French Breakfast'" that resolved
- * onto the species row "Radish" — keep the picked name so the variety isn't
- * lost. Otherwise use the catalogue name (cleaner for generic results).
- *
- * The species clone provides the care DATA; this keeps the specific IDENTITY.
+ * Choose which name to DISPLAY for a resolved plant. The catalogue is
+ * species-level, so a variety pick ("Lettuce 'Lollo Rossa'") resolves onto some
+ * same-species row — either the generic species ("Lettuce") or, worse, a
+ * DIFFERENT cultivar ("Daisy Lambert Butterhead Lettuce"). Either way the name
+ * the user actually picked is the right thing to show, so prefer it; the
+ * resolved row still supplies the care DATA. Falls back to the catalogue name
+ * only when there's no picked name, and normalises to the catalogue's casing
+ * when the two are the same name.
  */
-export function preferSpecificName(
+export function preferPickedName(
   picked: string | null | undefined,
   catalogue: string | null | undefined,
 ): string {
   const p = (picked ?? "").trim();
   const c = (catalogue ?? "").trim();
   if (!p) return c;
-  if (!c) return p;
-  const pl = p.toLowerCase();
-  const cl = c.toLowerCase();
-  if (pl === cl) return c;
-  // Picked name is "<catalogue name> …" — extra tokens (a quoted cultivar, a
-  // variety, a form). Keep it. e.g. "Radish 'French Breakfast'" over "Radish".
-  if (p.length > c.length && pl.startsWith(cl + " ")) return p;
-  return c;
+  if (c && normalizePlantName(p) === normalizePlantName(c)) return c;
+  return p;
 }
 
 /**

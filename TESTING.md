@@ -813,7 +813,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `libraryFavouriteMatch.test.ts` | 24 | Hub v3 Stage E — library-result ♥ matching (`src/lib/libraryFavouriteMatch.ts`): `plantSciNameKey` (sci-array wins, empty-string fallback to common name, whitespace collapse/trim/lowercase, undefined → ""), `buildFavouriteLookup` (live-plant fields win over tombstone, tombstone fallback, provider-id collection, null plant_id skipped), `isLibraryResultFavourited` (catalogue-hit global ref-id path, perenual/verdantly provider-id paths, sci-key fallback incl. home_fork hits, precedence, empty-key guard) |
 | `favouriteIdentity.test.ts` | 50 | Cross-home favourites pure helpers — **Plants (Phase 1):** `canonicalPlantRefId` (manual/api own id, AI→global parent, orphan fallback, non-AI provenance ignored), `isSourceLockedForTier` (full source×tier matrix), `lockedSourceMessage`, `shouldForkOnEdit` (copy-on-write decision), `buildFavouriteSnapshot` (whitelist cap, null-skip, falsy-keep), `buildForkRow` (re-source manual, drop provider ids, provenance via canonical id, strip bookkeeping). **Ailments (Phase 2):** `isAilmentSourceLockedForTier` (perenual/ai/library matrix), `lockedAilmentSourceMessage`, `ailmentIdentityKey` (name_key mirror — lowercase/trim/collapse-ws), `buildAilmentSnapshot` (whitelist cap). **Seed packets (Phase 3):** `packetIdentityKey` (variety\|plant composite, casing/spacing stability, missing parts), `buildPacketSnapshot` (variety-reference whitelist — never live stock/sowings) |
 
-### Edge function tests — Deno (1,021 tests across 91 files)
+### Edge function tests — Deno (1,031 tests across 93 files)
 
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|
