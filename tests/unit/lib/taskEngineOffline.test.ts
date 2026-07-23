@@ -209,6 +209,97 @@ describe("buildRenderTasks (pure)", () => {
   });
 });
 
+describe("buildRenderTasks — annual carry-over (Track B)", () => {
+  // A band spanning this year AND next year, so a projected 2027 occurrence
+  // becomes visible when the user navigates forward.
+  const MULTI = { startDateStr: "2026-01-01", endDateStr: "2027-12-31", todayStr: "2026-07-01" };
+  const harvestBp = (over: Record<string, unknown> = {}) => ({
+    id: "bp-h", home_id: "h", title: "Summer Harvest", task_type: "Harvesting",
+    frequency_days: 1, start_date: "2026-06-01", end_date: "2026-08-31", inventory_item_ids: [],
+    ...over,
+  });
+
+  test("recurrence_kind 'once' (default) does NOT carry the window into next year", () => {
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [], blueprints: [harvestBp({ recurrence_kind: "once" })], skippedTombstones: [], ...MULTI,
+    });
+    expect(tasks.filter((t) => t.isGhost).map((g) => g.due_date)).toEqual(["2026-06-01"]);
+  });
+
+  test("a blueprint with NO recurrence_kind defaults to 'once' (legacy cache safety)", () => {
+    const bp = harvestBp();
+    delete (bp as Record<string, unknown>).recurrence_kind;
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [], blueprints: [bp], skippedTombstones: [], ...MULTI,
+    });
+    expect(tasks.filter((t) => t.isGhost).map((g) => g.due_date)).toEqual(["2026-06-01"]);
+  });
+
+  test("recurrence_kind 'annual' emits one window ghost PER YEAR, same MM-DD", () => {
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [], blueprints: [harvestBp({ recurrence_kind: "annual" })], skippedTombstones: [], ...MULTI,
+    });
+    const ghosts = tasks.filter((t) => t.isGhost);
+    expect(ghosts.map((g) => [g.due_date, g.window_end_date])).toEqual([
+      ["2026-06-01", "2026-08-31"],
+      ["2027-06-01", "2027-08-31"],
+    ]);
+    // year-embedded ghost ids → distinct materialisation keys per year
+    expect(ghosts.map((g) => g.id)).toEqual(["ghost-bp-h-2026-06-01", "ghost-bp-h-2027-06-01"]);
+  });
+
+  test("completing THIS year suppresses only this year's ghost — next year still shows (Point 2)", () => {
+    // The owner's real case: 2026 window completed/skipped, 2027 must reappear.
+    const completed2026 = {
+      id: "c26", blueprint_id: "bp-h", due_date: "2026-06-05", window_end_date: "2026-08-31",
+      status: "Completed", type: "Harvesting", completed_at: "2026-06-05T10:00:00.000Z",
+    };
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [completed2026], blueprints: [harvestBp({ recurrence_kind: "annual" })], skippedTombstones: [], ...MULTI,
+    });
+    // No 2026 ghost (its window has a real resolved task); 2027 ghost emitted.
+    expect(tasks.filter((t) => t.isGhost).map((g) => g.due_date)).toEqual(["2027-06-01"]);
+    // the 2026 completion itself is still present
+    expect(tasks.some((t) => t.id === "c26")).toBe(true);
+  });
+
+  test("a Skipped 2026 tombstone likewise suppresses only 2026, not 2027", () => {
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [], blueprints: [harvestBp({ recurrence_kind: "annual" })],
+      skippedTombstones: [{ blueprint_id: "bp-h", due_date: "2026-06-01" }], ...MULTI,
+    });
+    expect(tasks.filter((t) => t.isGhost).map((g) => g.due_date)).toEqual(["2027-06-01"]);
+  });
+
+  test("annual seasonal FREQUENCY routine re-anchors each year and never bleeds into the off-season", () => {
+    // Summer watering every 30 days; must appear in both summers, never in the gap.
+    const bp = {
+      id: "bp-w", home_id: "h", title: "Summer Watering", task_type: "Watering",
+      frequency_days: 30, start_date: "2026-06-01", end_date: "2026-08-31",
+      recurrence_kind: "annual", inventory_item_ids: [],
+    };
+    const dues = buildRenderTasks({
+      physicalTasks: [], blueprints: [bp], skippedTombstones: [], ...MULTI,
+    }).tasks.filter((t) => t.isGhost).map((g) => g.due_date as string);
+    expect(dues).toContain("2026-06-01");
+    expect(dues).toContain("2027-06-01");
+    // every occurrence sits inside a Jun–Aug window (no fall/winter bleed)
+    expect(dues.every((d) => d.slice(5, 7) >= "06" && d.slice(5, 7) <= "08")).toBe(true);
+    // and the routine carries NO window_end_date (it's a frequency task, not a window task)
+    expect(buildRenderTasks({ physicalTasks: [], blueprints: [bp], skippedTombstones: [], ...MULTI })
+      .tasks.filter((t) => t.isGhost).every((g) => g.window_end_date === undefined)).toBe(true);
+  });
+
+  test("lifecycle_capped stops projecting after recurs_until", () => {
+    const bp = harvestBp({ recurrence_kind: "lifecycle_capped", recurs_until: "2027-08-31" });
+    const { tasks } = buildRenderTasks({
+      physicalTasks: [], blueprints: [bp], skippedTombstones: [],
+      startDateStr: "2026-01-01", endDateStr: "2029-12-31", todayStr: "2026-07-01",
+    });
+    expect(tasks.filter((t) => t.isGhost).map((g) => g.due_date)).toEqual(["2026-06-01", "2027-06-01"]);
+  });
+});
+
 describe("TaskEngine.injectOffline*", () => {
   beforeEach(() => {
     store.clear();

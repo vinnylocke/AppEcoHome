@@ -3,10 +3,12 @@ import {
   assembleBrief,
   buildBriefVoicePrompt,
   buildDeterministicSummary,
+  buildWindowSignals,
   dropResolvedWindows,
   prependBriefToDigest,
   MAX_ITEMS,
   type BriefSignals,
+  type WindowBlueprintInput,
 } from "@shared/dailyBrief.ts";
 
 function signals(over: Partial<BriefSignals> = {}): BriefSignals {
@@ -250,6 +252,65 @@ Deno.test("DB-023: composed through assembleBrief — sole open window resolved 
   const { items, stats } = assembleBrief(signals({ windows }));
   assertEquals(items.some((i) => i.kind === "window"), false);
   assertEquals(stats.windowsOpen, 0);
+});
+
+// ─── Window rolling → brief signal (buildWindowSignals, Track B B3) ──────────
+// Each recurring window blueprint is rolled into its CURRENT occurrence before
+// it becomes a brief item: 'annual' rolls to this year's window; 'once' uses
+// the literal frozen window. `horizon` = today + 3 days.
+
+const wbp = (over: Partial<WindowBlueprintInput> = {}): WindowBlueprintInput => ({
+  id: "bp-h", title: "Summer Harvest", task_type: "Harvesting",
+  start_date: "2026-06-01", end_date: "2026-08-31", recurrence_kind: "annual", ...over,
+});
+
+Deno.test("DB-024: a 'once' window open today reports opensInDays 0", () => {
+  const out = buildWindowSignals(
+    [wbp({ recurrence_kind: "once", start_date: "2026-07-01", end_date: "2026-08-31" })],
+    new Set(), "2026-07-10", "2026-07-13",
+  );
+  assertEquals(out, [{ taskType: "Harvesting", title: "Summer Harvest", opensInDays: 0 }]);
+});
+
+Deno.test("DB-025: a window neither open nor opening within the horizon is dropped", () => {
+  const out = buildWindowSignals(
+    [wbp({ recurrence_kind: "once", start_date: "2026-09-01", end_date: "2026-10-31" })],
+    new Set(), "2026-07-10", "2026-07-13",
+  );
+  assertEquals(out, []);
+});
+
+Deno.test("DB-026: an 'annual' window rolls to the current year (its stored dates are last year's)", () => {
+  // Stored template is 2026; today is 2027 → the 2027 occurrence is open now.
+  const out = buildWindowSignals(
+    [wbp({ recurrence_kind: "annual", start_date: "2026-06-01", end_date: "2026-08-31" })],
+    new Set(), "2027-07-10", "2027-07-13",
+  );
+  assertEquals(out, [{ taskType: "Harvesting", title: "Summer Harvest", opensInDays: 0 }]);
+});
+
+Deno.test("DB-027: a resolved blueprint is dropped (Track A suppression still applies)", () => {
+  const out = buildWindowSignals([wbp({ id: "bp-h" })], new Set(["bp-h"]), "2026-07-10", "2026-07-13");
+  assertEquals(out, []);
+});
+
+Deno.test("DB-028: opensInDays is measured from the ROLLED start (opening in 3 days)", () => {
+  const out = buildWindowSignals(
+    [wbp({ recurrence_kind: "annual", start_date: "2026-07-13", end_date: "2026-09-30" })],
+    new Set(), "2026-07-10", "2026-07-13",
+  );
+  assertEquals(out, [{ taskType: "Harvesting", title: "Summer Harvest", opensInDays: 3 }]);
+});
+
+Deno.test("DB-029: Point 2 — resolved THIS year is silent, but next year's window re-opens", () => {
+  const bp = wbp({ id: "bp-h", recurrence_kind: "annual", start_date: "2026-06-01", end_date: "2026-08-31" });
+  // 2026: the completed window is in the resolved set → no item.
+  assertEquals(buildWindowSignals([bp], new Set(["bp-h"]), "2026-07-10", "2026-07-13"), []);
+  // 2027: the 2026 completion has aged out of the resolved set → the window returns.
+  assertEquals(
+    buildWindowSignals([bp], new Set(), "2027-07-10", "2027-07-13"),
+    [{ taskType: "Harvesting", title: "Summer Harvest", opensInDays: 0 }],
+  );
 });
 
 // ─── AI-voice prompt contract (home redesign Stage 3 — The Brief) ────────────

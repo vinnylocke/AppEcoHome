@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 import { readSnapshot, writeSnapshot } from "./snapshotCache";
 import { isOffline } from "../hooks/useOnline";
-import { isSeasonalWindowType } from "./windowTasks";
+import { isSeasonalWindowType, projectAnnualWindows } from "./windowTasks";
 
 export const getLocalDateString = (date: Date) => {
   const year = date.getFullYear();
@@ -347,95 +347,56 @@ export function buildRenderTasks(input: {
       ? String(bp.paused_until).split("T")[0]
       : null;
 
+    // recurrence_kind (Track B — annual carry-over). 'once' (the default, and
+    // the value for legacy cached blueprints that predate the column) keeps the
+    // frozen single-year behaviour: the ghost stops at end_date. 'annual' /
+    // 'lifecycle_capped' treat the stored start_date/end_date as a MM-DD
+    // TEMPLATE that `projectAnnualWindows` rolls into each occurrence year
+    // (fixed boundaries). Because every projected occurrence embeds its year in
+    // its due_date (and thus its ghost id + the unique_blueprint_date
+    // tombstone), completing one year can never suppress another.
+    const recurrenceKind = bp.recurrence_kind ?? "once";
+    const recursAnnually =
+      recurrenceKind === "annual" || recurrenceKind === "lifecycle_capped";
+    const bpStartIso = String(bp.start_date).slice(0, 10);
+    const bpEndIso = bp.end_date ? String(bp.end_date).slice(0, 10) : null;
+
     // ── Seasonal window branch (Harvesting/Harvest + Pruning) ─────────
     // A windowed blueprint with start_date + end_date emits ONE ghost per
-    // window (due_date = window start, window_end_date = close), active
-    // across the whole window rather than overdue-by-default. Pruning
-    // joined harvest here in 2026-07 — a seasonal pruning is one window
-    // task, not a task per day. Single source: `windowTasks.ts`.
-    if (isSeasonalWindowType(bp.task_type) && bp.end_date) {
+    // window (due_date = window start, window_end_date = close), active across
+    // the whole window rather than overdue-by-default. Pruning joined harvest
+    // here in 2026-07. For an 'annual' blueprint it emits ONE ghost PER
+    // PROJECTED YEAR. Single source of the type set + projection: `windowTasks.ts`.
+    if (isSeasonalWindowType(bp.task_type) && bpEndIso) {
       if (pausedUntilStr && todayStr < pausedUntilStr) return;
 
-      const ghostStartIso = bp.start_date;
-      const intersectsRange =
-        ghostStartIso <= endDateStr && bp.end_date >= startDateStr;
-      if (!intersectsRange) return;
+      const windows = recursAnnually
+        ? projectAnnualWindows(bpStartIso, bpEndIso, startDateStr, endDateStr, todayStr, {
+            recursUntil: bp.recurs_until,
+          })
+        : bpStartIso <= endDateStr && bpEndIso >= startDateStr
+          ? [{ start: bpStartIso, end: bpEndIso, year: Number(bpStartIso.slice(0, 4)) }]
+          : [];
 
-      // Window-aware suppression: a real task ANYWHERE inside [start, end]
-      // means this window already has its representative task — don't emit a
-      // duplicate ghost. (Covers the exact-window-start case too.)
-      const hasWindowTask = (dueDatesByBlueprint.get(bp.id) ?? []).some(
-        (d) => d >= ghostStartIso && d <= bp.end_date,
-      );
-      if (hasWindowTask) return;
+      for (const w of windows) {
+        // Window-aware suppression, PER PROJECTED YEAR: a real task (physical or
+        // skip-tombstone) anywhere inside THIS window means it already has its
+        // representative — don't emit a duplicate. Keyed on the year-specific
+        // [w.start, w.end], so completing/skipping 2026 never suppresses 2027.
+        const hasWindowTask = (dueDatesByBlueprint.get(bp.id) ?? []).some(
+          (d) => d >= w.start && d <= w.end,
+        );
+        if (hasWindowTask) continue;
 
-      ghosts.push({
-        id: `ghost-${bp.id}-${ghostStartIso}`,
-        blueprint_id: bp.id,
-        home_id: bp.home_id,
-        title: bp.title,
-        description: bp.description,
-        type: bp.task_type,
-        due_date: ghostStartIso,
-        window_end_date: bp.end_date,
-        status: "Pending",
-        location_id: bp.location_id,
-        area_id: bp.area_id,
-        plan_id: bp.plan_id,
-        inventory_item_ids: bp.inventory_item_ids || [],
-        locations: bp.locations,
-        scope: bp.scope || "home",
-        created_by: bp.created_by || null,
-        assigned_to: bp.assigned_to || null,
-        isGhost: true,
-      });
-      return;
-    }
-
-    const freq = bp.frequency_days;
-
-    const MS_PER_DAY = 86_400_000;
-    const parseUtcMs = (s: string) =>
-      Date.parse(`${String(s).split("T")[0]}T00:00:00Z`);
-    const stepMs = freq * MS_PER_DAY;
-
-    let ghostMs = parseUtcMs(bp.start_date);
-    const rangeStartMs = parseUtcMs(startDateStr);
-    const rangeEndMs = parseUtcMs(endDateStr);
-    if (Number.isNaN(ghostMs)) return;
-
-    if (ghostMs < rangeStartMs) {
-      const diffDays = Math.ceil((rangeStartMs - ghostMs) / MS_PER_DAY);
-      const cyclesToSkip = Math.ceil(diffDays / freq);
-      ghostMs += cyclesToSkip * stepMs;
-    }
-
-    while (ghostMs <= rangeEndMs) {
-      const ghostDateStr = new Date(ghostMs).toISOString().split("T")[0];
-      if (bp.end_date && ghostDateStr > bp.end_date) break;
-
-      if (pausedUntilStr && ghostDateStr < pausedUntilStr) {
-        ghostMs += stepMs;
-        continue;
-      }
-
-      const alreadyExists =
-        materialisedKeys.has(`${bp.id}:${ghostDateStr}`)
-        || tombstoneSet.has(`${bp.id}:${ghostDateStr}`);
-
-      if (
-        !alreadyExists &&
-        ghostDateStr >= startDateStr &&
-        ghostDateStr <= endDateStr
-      ) {
         ghosts.push({
-          id: `ghost-${bp.id}-${ghostDateStr}`,
+          id: `ghost-${bp.id}-${w.start}`,
           blueprint_id: bp.id,
           home_id: bp.home_id,
           title: bp.title,
           description: bp.description,
           type: bp.task_type,
-          due_date: ghostDateStr,
+          due_date: w.start,
+          window_end_date: w.end,
           status: "Pending",
           location_id: bp.location_id,
           area_id: bp.area_id,
@@ -448,7 +409,86 @@ export function buildRenderTasks(input: {
           isGhost: true,
         });
       }
-      ghostMs += stepMs;
+      return;
+    }
+
+    const freq = bp.frequency_days;
+
+    const MS_PER_DAY = 86_400_000;
+    const parseUtcMs = (s: string) =>
+      Date.parse(`${String(s).split("T")[0]}T00:00:00Z`);
+    const stepMs = freq * MS_PER_DAY;
+
+    // Emit the frequency grid over the render band, anchored at `anchorStr` and
+    // stopping at `windowEndStr` (null = unbounded, e.g. an always-on routine
+    // with no end_date). Factored out so an 'annual' seasonal-frequency routine
+    // (e.g. summer watering) can re-run the grid once per projected year's
+    // window, each season re-anchored at its own start.
+    const emitFreqGrid = (anchorStr: string, windowEndStr: string | null) => {
+      let ghostMs = parseUtcMs(anchorStr);
+      if (Number.isNaN(ghostMs)) return;
+      const rangeStartMs = parseUtcMs(startDateStr);
+      const rangeEndMs = parseUtcMs(endDateStr);
+
+      if (ghostMs < rangeStartMs) {
+        const diffDays = Math.ceil((rangeStartMs - ghostMs) / MS_PER_DAY);
+        const cyclesToSkip = Math.ceil(diffDays / freq);
+        ghostMs += cyclesToSkip * stepMs;
+      }
+
+      while (ghostMs <= rangeEndMs) {
+        const ghostDateStr = new Date(ghostMs).toISOString().split("T")[0];
+        if (windowEndStr && ghostDateStr > windowEndStr) break;
+
+        if (pausedUntilStr && ghostDateStr < pausedUntilStr) {
+          ghostMs += stepMs;
+          continue;
+        }
+
+        const alreadyExists =
+          materialisedKeys.has(`${bp.id}:${ghostDateStr}`)
+          || tombstoneSet.has(`${bp.id}:${ghostDateStr}`);
+
+        if (
+          !alreadyExists &&
+          ghostDateStr >= startDateStr &&
+          ghostDateStr <= endDateStr
+        ) {
+          ghosts.push({
+            id: `ghost-${bp.id}-${ghostDateStr}`,
+            blueprint_id: bp.id,
+            home_id: bp.home_id,
+            title: bp.title,
+            description: bp.description,
+            type: bp.task_type,
+            due_date: ghostDateStr,
+            status: "Pending",
+            location_id: bp.location_id,
+            area_id: bp.area_id,
+            plan_id: bp.plan_id,
+            inventory_item_ids: bp.inventory_item_ids || [],
+            locations: bp.locations,
+            scope: bp.scope || "home",
+            created_by: bp.created_by || null,
+            assigned_to: bp.assigned_to || null,
+            isGhost: true,
+          });
+        }
+        ghostMs += stepMs;
+      }
+    };
+
+    if (recursAnnually && bpEndIso) {
+      // Seasonal frequency routine — one grid per projected year's window, each
+      // re-anchored at that season's start.
+      const windows = projectAnnualWindows(bpStartIso, bpEndIso, startDateStr, endDateStr, todayStr, {
+        recursUntil: bp.recurs_until,
+      });
+      for (const w of windows) emitFreqGrid(w.start, w.end);
+    } else {
+      // 'once' (or no end_date) — a single grid from the template start; the
+      // terminal end_date break is preserved for capped one-off routines.
+      emitFreqGrid(bpStartIso, bpEndIso);
     }
   });
 

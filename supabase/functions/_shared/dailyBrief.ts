@@ -10,6 +10,7 @@
 // Pure: no network, no Date.now(); fully unit-testable in Deno.
 
 import { personaInstruction, type Persona } from "./persona.ts";
+import { projectAnnualWindows } from "./annualWindows.ts";
 
 export interface BriefSignals {
   todayStr: string; // YYYY-MM-DD (home-local enough for a 04:30 UTC cron)
@@ -94,6 +95,54 @@ export function dropResolvedWindows<T extends { id: string }>(
 ): T[] {
   if (resolvedBlueprintIds.size === 0) return windows;
   return windows.filter((w) => !resolvedBlueprintIds.has(w.id));
+}
+
+export interface WindowBlueprintInput {
+  id: string;
+  title: string;
+  task_type: string;
+  start_date: string;
+  end_date: string;
+  recurrence_kind?: string | null;
+  recurs_until?: string | null;
+}
+
+/**
+ * Build the brief's `windows` signal from a home's recurring window blueprints
+ * (Track B, B3). Each blueprint is rolled into its CURRENT occurrence —
+ * 'annual' / 'lifecycle_capped' via `projectAnnualWindows` (this year's window,
+ * fixed boundaries); 'once' (default / legacy) uses the literal frozen window —
+ * then kept only when that occurrence is open now or opening within the horizon
+ * (`horizonStr`, = today + 3 days). Already-resolved windows are dropped first
+ * (`dropResolvedWindows`), so a finished window stays gone THIS year while next
+ * year's re-opens (its resolving task's window_end_date has aged out of the
+ * resolved set). `opensInDays` is measured from the ROLLED start.
+ *
+ * Pure — strings in, objects out, no Date.now().
+ */
+export function buildWindowSignals(
+  blueprints: WindowBlueprintInput[],
+  resolvedBlueprintIds: ReadonlySet<string>,
+  todayStr: string,
+  horizonStr: string,
+): Array<{ taskType: string; title: string; opensInDays: number }> {
+  const dayMs = 86_400_000;
+  return dropResolvedWindows(blueprints, resolvedBlueprintIds).flatMap((b) => {
+    const start = String(b.start_date).slice(0, 10);
+    const end = String(b.end_date).slice(0, 10);
+    const recursAnnually = b.recurrence_kind === "annual" || b.recurrence_kind === "lifecycle_capped";
+    const occStart: string | undefined = recursAnnually
+      ? projectAnnualWindows(start, end, todayStr, horizonStr, todayStr, { recursUntil: b.recurs_until })[0]?.start
+      : start <= horizonStr && end >= todayStr
+        ? start
+        : undefined;
+    if (!occStart) return [];
+    return [{
+      taskType: b.task_type,
+      title: b.title,
+      opensInDays: Math.max(0, Math.ceil((Date.parse(`${occStart}T00:00:00Z`) - Date.parse(`${todayStr}T00:00:00Z`)) / dayMs)),
+    }];
+  });
 }
 
 /** Deterministic scoring table — the ranking IS the product decision. */

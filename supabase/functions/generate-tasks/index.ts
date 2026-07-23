@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { serviceClient } from "../_shared/supabaseClient.ts";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
+import { projectAnnualWindows } from "../_shared/annualWindows.ts";
 
 const FN = "generate-tasks";
 
@@ -82,7 +83,6 @@ serve(async (req) => {
         harvestSkipped += 1;
         continue;
       }
-      const startStr = bp.start_date || bp.created_at.split("T")[0];
       const freq = bp.frequency_days as number;
       if (!freq || freq <= 0) continue;
 
@@ -93,56 +93,80 @@ serve(async (req) => {
       // the same schedule on different days (double-frequency duplicates).
       // Dates that already have a task (incl. postponed originals) are
       // dropped by the unique_blueprint_date constraint at insert time.
-      const startMs = parseSafeDate(startStr).getTime();
       const todayMs = parseSafeDate(todayStr).getTime();
       const stepMs = freq * 86_400_000;
-      const cyclesToSkip = Math.max(0, Math.ceil((todayMs - startMs) / stepMs));
-      let nextMs = startMs + cyclesToSkip * stepMs;
-
-      const endMs = bp.end_date ? parseSafeDate(bp.end_date).getTime() : null;
       const pausedUntilMs = bp.paused_until
         ? parseSafeDate(bp.paused_until).getTime()
         : null;
       const maxMs = maxDate.getTime();
 
-      while (nextMs <= maxMs) {
-        if (endMs !== null && nextMs > endMs) break;
+      // Materialise one frequency grid, anchored at `anchorStr`, over the 7-day
+      // horizon and bounded by `windowEndStr` (null = unbounded). Factored out
+      // so an 'annual' seasonal-frequency routine runs the grid once per
+      // projected year's window — re-anchored at each season's start — instead
+      // of dying at the literal (single-year) end_date.
+      const materialiseGrid = (anchorStr: string, windowEndStr: string | null) => {
+        const startMs = parseSafeDate(anchorStr).getTime();
+        const endMs = windowEndStr ? parseSafeDate(windowEndStr).getTime() : null;
+        const cyclesToSkip = Math.max(0, Math.ceil((todayMs - startMs) / stepMs));
+        let nextMs = startMs + cyclesToSkip * stepMs;
 
-        // Occurrences inside a pause window are skipped permanently; the
-        // grid resumes at the first occurrence on/after paused_until.
-        if (pausedUntilMs !== null && nextMs < pausedUntilMs) {
+        while (nextMs <= maxMs) {
+          if (endMs !== null && nextMs > endMs) break;
+
+          // Occurrences inside a pause window are skipped permanently; the
+          // grid resumes at the first occurrence on/after paused_until.
+          if (pausedUntilMs !== null && nextMs < pausedUntilMs) {
+            nextMs += stepMs;
+            continue;
+          }
+
+          tasksToInsert.push({
+            home_id: bp.home_id,
+            blueprint_id: bp.id,
+            title: bp.title,
+            description: bp.description,
+            type: bp.task_type,
+            due_date: new Date(nextMs).toISOString().split("T")[0],
+            location_id: bp.location_id,
+            area_id: bp.area_id,
+            // Carry the blueprint's ownership/visibility + plan link
+            // (bug-audit-2026-07-10 #5). Without these the row takes the DB
+            // defaults (scope='home', created_by=NULL, plan_id=NULL), so the cron
+            // leaked every PERSONAL routine home-wide nightly and plan-linked
+            // routines vanished from plan views.
+            scope: bp.scope ?? "home",
+            created_by: bp.created_by ?? null,
+            assigned_to: bp.assigned_to ?? null,
+            plan_id: bp.plan_id ?? null,
+            // Prefer the array column (set by automationEngine); fall back to the
+            // legacy singular column so older blueprints still work.
+            inventory_item_ids: bp.inventory_item_ids?.length
+              ? bp.inventory_item_ids
+              : bp.inventory_item_id
+                ? [bp.inventory_item_id]
+                : null,
+          });
+
           nextMs += stepMs;
-          continue;
         }
+      };
 
-        tasksToInsert.push({
-          home_id: bp.home_id,
-          blueprint_id: bp.id,
-          title: bp.title,
-          description: bp.description,
-          type: bp.task_type,
-          due_date: new Date(nextMs).toISOString().split("T")[0],
-          location_id: bp.location_id,
-          area_id: bp.area_id,
-          // Carry the blueprint's ownership/visibility + plan link
-          // (bug-audit-2026-07-10 #5). Without these the row takes the DB
-          // defaults (scope='home', created_by=NULL, plan_id=NULL), so the cron
-          // leaked every PERSONAL routine home-wide nightly and plan-linked
-          // routines vanished from plan views.
-          scope: bp.scope ?? "home",
-          created_by: bp.created_by ?? null,
-          assigned_to: bp.assigned_to ?? null,
-          plan_id: bp.plan_id ?? null,
-          // Prefer the array column (set by automationEngine); fall back to the
-          // legacy singular column so older blueprints still work.
-          inventory_item_ids: bp.inventory_item_ids?.length
-            ? bp.inventory_item_ids
-            : bp.inventory_item_id
-              ? [bp.inventory_item_id]
-              : null,
-        });
-
-        nextMs += stepMs;
+      const recurrenceKind = bp.recurrence_kind ?? "once";
+      const startStr = bp.start_date || bp.created_at.split("T")[0];
+      if ((recurrenceKind === "annual" || recurrenceKind === "lifecycle_capped") && bp.end_date) {
+        // Roll the season template into the occurrence(s) overlapping the 7-day
+        // horizon and materialise within each year's window.
+        const maxDateStr = maxDate.toISOString().split("T")[0];
+        const windows = projectAnnualWindows(
+          String(bp.start_date).slice(0, 10), String(bp.end_date).slice(0, 10),
+          todayStr, maxDateStr, todayStr, { recursUntil: bp.recurs_until },
+        );
+        for (const w of windows) materialiseGrid(w.start, w.end);
+      } else {
+        // 'once' (or no end_date) — a single grid from the template start; the
+        // terminal end_date break stays for genuinely capped routines.
+        materialiseGrid(startStr, bp.end_date ? String(bp.end_date).slice(0, 10) : null);
       }
     }
 

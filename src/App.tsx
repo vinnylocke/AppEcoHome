@@ -889,7 +889,7 @@ function AppShell() {
               .or(`due_date.eq.${todayStr},and(due_date.lte.${todayStr},window_end_date.gte.${todayStr})`),
             supabase
               .from("task_blueprints")
-              .select("id, location_id, start_date, created_at, end_date, frequency_days, task_type, paused_until")
+              .select("id, location_id, start_date, created_at, end_date, frequency_days, task_type, paused_until, recurrence_kind, recurs_until")
               .in("location_id", locationIds)
               .eq("is_recurring", true)
               .eq("is_archived", false),

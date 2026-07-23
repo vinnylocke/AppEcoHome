@@ -99,6 +99,29 @@ Wave 21.0004 closes this with three reinforcing changes:
 
 Invariant going forward: **at most one Pending harvest task per blueprint at any time**, with `window_end_date` matching `blueprint.end_date`.
 
+### Annual carry-over — `recurrence_kind` (Track B, 2026-07)
+
+Before this, `task_blueprints.start_date` / `end_date` were **frozen single-year dates**: once `end_date` passed, the ghost engine stopped and nothing recreated the routine next year (harvest/pruning/seasonal-watering all expired after one season). Two columns fix that (`20261021000000_blueprint_recurrence_kind.sql`):
+
+| Column | Type | Meaning |
+|--------|------|---------|
+| `recurrence_kind` | text NOT NULL DEFAULT `'once'` (CHECK in `once` / `annual` / `lifecycle_capped`) | `once` = terminal at `end_date` (today's behaviour + manual one-offs). `annual` = the stored `start_date`/`end_date` are a **MM-DD template**; the engine projects one occurrence per year on the same fixed calendar boundaries. `lifecycle_capped` = `annual` but stops after `recurs_until` (e.g. biennials). |
+| `recurs_until` | date? | Terminal date for `lifecycle_capped` (NULL = uncapped). |
+
+**Backfill** set existing recurring **Harvesting/Harvest/Pruning/Watering** blueprints with an `end_date` to `annual`; everything else stays `once`.
+
+**Projection (`projectAnnualWindows`).** The single source of the roll is `src/lib/windowTasks.ts` (mirrored, byte-for-byte in logic, into `supabase/functions/_shared/annualWindows.ts` since Deno can't import from `src/`). It rolls the template MM-DD into each occurrence year — fixed boundaries (same dates every year), wrap-aware (a Nov→Feb window puts its end in year+1), leap-day-safe (02-29 → 02-28 in non-leap years), capped at `today + ANNUAL_PROJECTION_MAX_YEARS` (**5**, in `windowTasks.ts`), and never past `recurs_until`.
+
+**Year-scoped completion — the load-bearing invariant.** Every projected occurrence embeds its year in its `due_date` (and thus its ghost id `ghost-{bp.id}-{YYYY-MM-DD}`), so the existing `unique_blueprint_date(blueprint_id, due_date)` UNIQUE index isolates each year's Completed/Skipped tombstone. Completing (or "complete all"-ing) a 2026 window writes 2026-dated rows that **cannot** suppress the 2027 occurrence — the ghost engine's window-aware suppression (`hasWindowTask`) now tests the specific projected year's `[start, end]`, not the blueprint's literal span.
+
+**Consumers of the projection** (all roll to the current year rather than reading the literal stored dates):
+- `taskEngine.buildRenderTasks` — window branch emits one ghost per projected year; the frequency branch (seasonal watering) re-anchors its grid at each year's season start. Runs online **and** against the offline snapshot (pure JS).
+- `locationTaskCounts.buildLocationTaskCounts` — the "remaining today" count rolls to the occurrence covering today instead of dying at the literal `end_date`.
+- `generate-tasks` cron — annual seasonal-frequency routines re-materialise each year within the today+7d horizon (window types are still frontend-owned / skipped).
+- `generate-daily-brief` (`buildWindowSignals`) + `generate-weekly-overviews` — roll each blueprint into its current occurrence before deciding whether its window is open / opening; see [Garden Brain](./39-garden-brain.md).
+
+A blueprint with a missing/null `recurrence_kind` (e.g. a pre-migration cached snapshot) safely degrades to `once` everywhere.
+
 ### `todo_lists` table
 
 Sibling table that groups N `tasks` rows under a shared `due_date`. Created by the user via the Add To-Do List modal; managed via the My To-Do Lists modal.

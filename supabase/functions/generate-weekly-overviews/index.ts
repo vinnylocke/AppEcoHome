@@ -23,6 +23,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
+import { projectAnnualWindows } from "../_shared/annualWindows.ts";
 
 const FN = "generate-weekly-overviews";
 
@@ -473,23 +474,38 @@ serve(async (req) => {
         .filter((n): n is string => !!n);
 
       // 5. Harvest / prune windows opening this week — derived from
-      // task_blueprints with start_date inside the week.
+      // task_blueprints. NOT filtered by literal start_date: an 'annual'
+      // blueprint's stored start is last year's template, so we roll each into
+      // its current occurrence below and check whether THAT opens this week
+      // (Track B, B3).
       const { data: blueprints } = await supabase
         .from("task_blueprints")
-        .select("id, title, task_type, start_date, end_date, inventory_item_ids")
+        .select("id, title, task_type, start_date, end_date, inventory_item_ids, recurrence_kind, recurs_until")
         .eq("home_id", home.id)
         .eq("is_archived", false)
-        .in("task_type", ["Harvesting", "Harvest", "Pruning"])
-        .gte("start_date", weekStart)
-        .lte("start_date", weekEnd);
+        .in("task_type", ["Harvesting", "Harvest", "Pruning"]);
 
       const harvest: { plant_name: string; reason: string }[] = [];
       const prune: { plant_name: string; reason: string }[] = [];
       for (const bp of blueprints ?? []) {
+        const litStart = String(bp.start_date).slice(0, 10);
+        const recursAnnually = bp.recurrence_kind === "annual" || bp.recurrence_kind === "lifecycle_capped";
+        // The occurrence start relevant to this week: rolled for 'annual',
+        // literal otherwise. Only windows OPENING within the week qualify
+        // (start ∈ [weekStart, weekEnd]) — preserving the original semantic.
+        let occStart: string | undefined;
+        if (recursAnnually && bp.end_date) {
+          occStart = projectAnnualWindows(
+            litStart, String(bp.end_date).slice(0, 10), weekStart, weekEnd, weekStart, { recursUntil: bp.recurs_until },
+          ).find((w) => w.start >= weekStart && w.start <= weekEnd)?.start;
+        } else if (litStart >= weekStart && litStart <= weekEnd) {
+          occStart = litStart;
+        }
+        if (!occStart) continue;
         const ids = (bp as any).inventory_item_ids as string[] | null;
         const item = (inventoryItems ?? []).find((i) => ids?.includes(i.id));
         const name = item?.plant_name ?? bp.title.replace(/\s+(harvest|pruning)\s*$/i, "");
-        const entry = { plant_name: name, reason: `Window opens ${getDayName(bp.start_date)}` };
+        const entry = { plant_name: name, reason: `Window opens ${getDayName(occStart)}` };
         if (bp.task_type === "Pruning") prune.push(entry);
         else harvest.push(entry);
       }

@@ -13,7 +13,7 @@
 // keeps Completed rows (only Skipped is dropped) precisely so they suppress
 // their ghosts.
 
-import { isSeasonalWindowType } from "./windowTasks";
+import { isSeasonalWindowType, projectAnnualWindows } from "./windowTasks";
 
 export interface TaskCountRow {
   location_id?: string | null;
@@ -30,6 +30,8 @@ export interface BlueprintCountRow {
   created_at?: string | null;
   end_date?: string | null;
   task_type?: string | null;
+  recurrence_kind?: string | null;
+  recurs_until?: string | null;
 }
 
 /**
@@ -73,16 +75,35 @@ export function buildLocationTaskCounts(
     if (!bp.location_id || !bp.frequency_days) return;
     // Mirror the TaskEngine pause rule: occurrences before paused_until never count.
     if (bp.paused_until && todayStr < String(bp.paused_until).split("T")[0]) return;
-    const anchorStr = (bp.start_date || bp.created_at || new Date().toISOString()).split("T")[0];
-    const anchorMs = new Date(anchorStr).getTime();
-    if (todayMs < anchorMs) return;
-    if (bp.end_date && todayMs > new Date(bp.end_date).getTime()) return;
     const existing = existingByLocation[bp.location_id];
     if (existing?.has(bp.id)) return;
+
+    // recurrence_kind (Track B): 'annual' / 'lifecycle_capped' roll the stored
+    // start_date/end_date TEMPLATE into the occurrence covering today (fixed
+    // boundaries), so the count keeps working next year instead of the literal
+    // end_date silently zeroing it. 'once' (default + legacy) is unchanged.
+    const recursAnnually = bp.recurrence_kind === "annual" || bp.recurrence_kind === "lifecycle_capped";
+    let anchorStr: string;
+    if (recursAnnually && bp.end_date && bp.start_date) {
+      // The occurrence whose window covers today (empty = off-season → skip).
+      const win = projectAnnualWindows(
+        String(bp.start_date).slice(0, 10), String(bp.end_date).slice(0, 10),
+        todayStr, todayStr, todayStr, { recursUntil: bp.recurs_until },
+      )[0];
+      if (!win) return;
+      anchorStr = win.start;
+    } else {
+      anchorStr = (bp.start_date || bp.created_at || new Date().toISOString()).split("T")[0];
+      const aMs = new Date(anchorStr).getTime();
+      if (todayMs < aMs) return;
+      if (bp.end_date && todayMs > new Date(bp.end_date).getTime()) return;
+    }
+
+    const anchorMs = new Date(anchorStr).getTime();
     // Windowed blueprints (Harvesting/Harvest + Pruning) emit ONE window
     // task active across [start_date, end_date] — counting them on every
-    // freq-aligned day multiplied them. In-window (checked above) counts
-    // once. Single source for the type set: `windowTasks.ts`.
+    // freq-aligned day multiplied them. In-window counts once. Single source
+    // for the type set: `windowTasks.ts`.
     const isWindowType = isSeasonalWindowType(bp.task_type) && !!bp.end_date;
     const diffDays = Math.round((todayMs - anchorMs) / (1000 * 60 * 60 * 24));
     if (isWindowType || diffDays % bp.frequency_days === 0) {

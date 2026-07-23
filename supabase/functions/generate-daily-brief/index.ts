@@ -25,7 +25,7 @@ import { extractJsonObject } from "../_shared/extractJson.ts";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 import { modelsForTier } from "../agent-chat/chatModels.ts";
 import { isOverdue, effectiveDueDate } from "../_shared/dashboardStats.ts";
-import { assembleBrief, buildBriefVoicePrompt, dropResolvedWindows, type BriefSignals, type BriefPayload } from "../_shared/dailyBrief.ts";
+import { assembleBrief, buildBriefVoicePrompt, buildWindowSignals, type BriefSignals, type BriefPayload, type WindowBlueprintInput } from "../_shared/dailyBrief.ts";
 import type { Persona } from "../_shared/persona.ts";
 
 const FN = "generate-daily-brief";
@@ -69,12 +69,15 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
     db.from("weather_alerts")
       .select("type, message, is_active, ends_at, locations!inner(home_id)")
       .eq("locations.home_id", homeId).eq("is_active", true).gte("ends_at", new Date().toISOString()),
+    // All recurring window blueprints for the home — deliberately NOT filtered
+    // by literal start/end date: an 'annual' blueprint's stored dates are last
+    // year's template, so the date filter would hide next year's window.
+    // gatherSignals rolls each into its current occurrence below (Track B, B3).
     db.from("task_blueprints")
-      .select("id, title, task_type, start_date, end_date")
+      .select("id, title, task_type, start_date, end_date, recurrence_kind, recurs_until")
       .eq("home_id", homeId).eq("is_recurring", true).eq("is_archived", false)
       .in("task_type", ["Harvesting", "Harvest", "Pruning"])
-      .not("end_date", "is", null)
-      .lte("start_date", in3).gte("end_date", today),
+      .not("end_date", "is", null),
     db.from("automation_runs")
       .select("status, triggered_at, automations!inner(name, home_id)")
       .eq("automations.home_id", homeId).eq("status", "failed").gte("triggered_at", since24h),
@@ -141,6 +144,15 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
     ((resolvedWindows ?? []) as Array<{ blueprint_id: string }>).map((r) => r.blueprint_id),
   );
 
+  // Roll each window blueprint into its current occurrence + drop resolved ones
+  // (Track B, B3 — see buildWindowSignals). `in3` is today + 3 days.
+  const windowsSignal = buildWindowSignals(
+    (windowBps ?? []) as WindowBlueprintInput[],
+    resolvedWindowBlueprintIds,
+    today,
+    in3,
+  );
+
   return {
     todayStr: today,
     overdueCount: overdue.length,
@@ -161,14 +173,7 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
     verifications,
     onTrackAreas,
     weatherAlerts: ((alerts ?? []) as Array<{ type: string; message: string }>).map((a) => ({ type: a.type, message: a.message })),
-    windows: dropResolvedWindows(
-      (windowBps ?? []) as Array<{ id: string; title: string; task_type: string; start_date: string }>,
-      resolvedWindowBlueprintIds,
-    ).map((b) => ({
-      taskType: b.task_type,
-      title: b.title,
-      opensInDays: Math.max(0, Math.ceil((Date.parse(`${b.start_date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / dayMs)),
-    })),
+    windows: windowsSignal,
     failedAutomations: ((failedRuns ?? []) as Array<{ automations: { name: string } }>).map((r) => ({ name: r.automations?.name ?? "automation" })),
     lowBatteryDevices: ((lowBattery ?? []) as Array<{ name: string; battery_percent: number }>).map((d) => ({ name: d.name, battery: d.battery_percent })),
     insightTitles: ((insights ?? []) as Array<{ insight_text: string }>).map((i) =>
