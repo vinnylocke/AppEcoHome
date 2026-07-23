@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,639 tests across 155 files
+### Unit tests — 1,656 tests across 156 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
@@ -765,6 +765,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `locationMutations.test.ts` | 4 | Stats+locations Stage 4b shared location DB path (`src/lib/locationMutations.ts`, used by the home garden grid's inline add/manage + LocationManager) — `createLocation` (trims name, `is_outside` + `home_id` insert shape), `renameLocation` (trims), `setLocationEnvironment` (flips `is_outside`), `deleteLocation` (`.delete().eq("id")`); each returns the raw Supabase `{ error }` (permission-agnostic — the caller `can()`-gates) |
 | `components/AddLocationSheet.test.ts` | 3 | Stats+locations Stage 4b inline add-location modal — the **defense-in-depth permission re-check**: a caller without `locations.create` is blocked in `handleSave` (no `createLocation` call, error toast), a permitted caller creates + fires `onCreated`, and an empty name is rejected before any DB call. Closes the review-found empty-garden CTA bypass at the sheet itself. |
 | `plantNames.test.ts` | 8 | `normalizePlantName` (crab apple = crabapple = Crab-Apple, punctuation/digits, nullish) + `formatOtherNames` (string[]/jsonb-string/comma/null shapes, dedupe vs common+scientific spacing-insensitively) — plant-search "other names" + intuitive matching |
+| `plantSeasons.test.ts` | 17 | `normaliseSeasons` / `normaliseMonths` — care-form season/month chip normalisation: split comma-joined strings, `fall`→`Autumn`, casing, dedupe, canonical ordering, full month names → 3-letter abbrevs, drop unknown months (2026-07-23) |
 | `sensorRequirements.test.ts` | 7 | Plant Soil Requirements — `formatSensorRange` (band + em-dash), `buildSensorRequirementRows` (units, partial/empty), `hasAnySensorRange` / `hasAllSensorRanges` |
 | `taskOverdue.test.ts` | 44 | `isTaskOverdue`/window helpers + RHO-19 `lateCompletionDueDate` (late vs on-time, window-aware deadline, UTC-slice guard) + `completedLocalDate` |
 | `plantLightUtils.test.ts` | 16 | `getOptimalLuxRange` — full sun/partial/shade mapping, union of ranges, empty/unknown returns null; `getLightFitness` — all 5 ratings, boundary values, color/bgColor presence |
@@ -813,7 +814,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `libraryFavouriteMatch.test.ts` | 24 | Hub v3 Stage E — library-result ♥ matching (`src/lib/libraryFavouriteMatch.ts`): `plantSciNameKey` (sci-array wins, empty-string fallback to common name, whitespace collapse/trim/lowercase, undefined → ""), `buildFavouriteLookup` (live-plant fields win over tombstone, tombstone fallback, provider-id collection, null plant_id skipped), `isLibraryResultFavourited` (catalogue-hit global ref-id path, perenual/verdantly provider-id paths, sci-key fallback incl. home_fork hits, precedence, empty-key guard) |
 | `favouriteIdentity.test.ts` | 50 | Cross-home favourites pure helpers — **Plants (Phase 1):** `canonicalPlantRefId` (manual/api own id, AI→global parent, orphan fallback, non-AI provenance ignored), `isSourceLockedForTier` (full source×tier matrix), `lockedSourceMessage`, `shouldForkOnEdit` (copy-on-write decision), `buildFavouriteSnapshot` (whitelist cap, null-skip, falsy-keep), `buildForkRow` (re-source manual, drop provider ids, provenance via canonical id, strip bookkeeping). **Ailments (Phase 2):** `isAilmentSourceLockedForTier` (perenual/ai/library matrix), `lockedAilmentSourceMessage`, `ailmentIdentityKey` (name_key mirror — lowercase/trim/collapse-ws), `buildAilmentSnapshot` (whitelist cap). **Seed packets (Phase 3):** `packetIdentityKey` (variety\|plant composite, casing/spacing stability, missing parts), `buildPacketSnapshot` (variety-reference whitelist — never live stock/sowings) |
 
-### Edge function tests — Deno (1,031 tests across 93 files)
+### Edge function tests — Deno (1,034 tests across 93 files)
 
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|

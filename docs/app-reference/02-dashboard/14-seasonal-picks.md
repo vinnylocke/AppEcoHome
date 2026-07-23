@@ -48,11 +48,15 @@ SeasonalPicksCard (variant: "today" | "dashboard")
 
 ### Name hygiene + variety matching (2026-07-23)
 
-- **Names carry no propagation method.** The generation prompt + schema forbid it,
-  and `normaliseSeasonalPicks` runs `stripPropagationMethod` as a safety net, so
-  "Geranium softwood cuttings" is stored as "Geranium" (the method lives in
-  `sow_method`). Previously the method was baked into the name and locked into the
-  care guide it generated for.
+- **Names keep the variety, drop only the method.** The generation prompt + schema
+  actively instruct the model to KEEP the cultivar in quotes ("Lettuce 'Lollo
+  Rossa'", "Carrot 'Autumn King'") — gardeners value it — while excluding only the
+  propagation method, which `normaliseSeasonalPicks` also strips via
+  `stripPropagationMethod` as a safety net ("Geranium softwood cuttings" → "Geranium",
+  the method living in `sow_method`). **History note:** the 41.0061 wording ("the
+  plant name ONLY") over-corrected and made the model drop varieties too; 41.0063
+  reworded it to preserve them (the exclusion is method-only). Previously the method
+  was baked into the name and locked into the care guide it generated for.
 - **Variety-aware library matching.** `attachPlantLibraryIds` no longer attaches a
   pick to *any* row sharing its `scientific_name_key` — it uses
   `bestLibraryMatch` (`_shared/plantNameMatch.ts`): exact name, else the generic

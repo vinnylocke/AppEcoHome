@@ -71,7 +71,7 @@ export const SEASONAL_PICKS_SCHEMA = {
         properties: {
           common_name: {
             type: "STRING",
-            description: "The plant name ONLY. For varietals append the variety in quotes — e.g. \"Tomato 'Sungold'\". NEVER include the propagation method or action: write \"Geranium\", not \"Geranium softwood cuttings\"; \"Lavender 'Hidcote'\", not \"Lavender 'Hidcote' cuttings\". The method belongs in sow_method.",
+            description: "The plant name, INCLUDING the specific variety/cultivar in quotes when you have one in mind — e.g. \"Tomato 'Sungold'\", \"Lettuce 'Lollo Rossa'\", \"Carrot 'Autumn King'\". Keeping the variety is valuable to the gardener. The ONLY thing to exclude is the propagation method/action: write \"Geranium\", not \"Geranium softwood cuttings\"; \"Lavender 'Hidcote'\", not \"Lavender 'Hidcote' cuttings\" — the method belongs in sow_method.",
           },
           scientific_name: {
             type: "STRING",
@@ -239,7 +239,7 @@ export function buildSeasonalPicksPrompt(ctx: SeasonalPicksPromptContext): strin
     `  7. NEVER recommend anything that violates the user's dislikes.`,
     `  8. NEVER pick the SAME species twice in one response.`,
     `  9. No emoji. No markdown. JSON only — the schema enforces shape.`,
-    `  10. "common_name" is the plant name ONLY — the propagation method goes in "sow_method", NEVER in the name (write "Geranium", not "Geranium softwood cuttings").`,
+    `  10. KEEP the variety/cultivar in "common_name" (e.g. "Lettuce 'Lollo Rossa'", "Carrot 'Autumn King'") — gardeners value it. The ONLY thing forbidden in the name is the propagation method, which goes in "sow_method" (write "Geranium", not "Geranium softwood cuttings").`,
   );
 
   return lines.join("\n");

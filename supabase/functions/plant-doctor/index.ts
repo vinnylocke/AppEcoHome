@@ -1003,8 +1003,9 @@ Each match must be a real plant species. Format each as "Common Name (Scientific
 ${locationLine ? `Location context: ${locationLine}. Ensure seasonal advice (pruning months, flowering season, harvest season) reflects this hemisphere and location.` : ""}
 
 Return all fields accurately. STRICT formatting rules:
-- flowering_season + harvest_season: only one or more of "Spring", "Summer", "Autumn", "Winter". Never months. Never year-round descriptions; if year-round, return all four seasons.
+- flowering_season + harvest_season: only one or more of "Spring", "Summer", "Autumn", "Winter". Use British English — "Autumn", NEVER "Fall". Never months. Never year-round descriptions; if year-round, return all four seasons.
 - pruning_month: only abbreviated month names from this exact set: "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec". Never full month names. Never seasons.
+- Each array element is a SINGLE value — one season or month per element. NEVER comma-join into one string (["Spring","Summer"], not ["Spring, Summer"]).
 - All three arrays must be tuned to the ${hemisphere} Hemisphere (e.g. summer harvest in northern hemisphere is Jun-Aug, in southern hemisphere is Dec-Feb).`;
 
       const { text: rawText, usage } = await callGeminiCascade(

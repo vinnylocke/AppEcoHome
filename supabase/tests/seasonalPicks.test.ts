@@ -199,6 +199,48 @@ Deno.test("SEASONAL_PICKS_SCHEMA root requires picks", () => {
   assertEquals(SEASONAL_PICKS_SCHEMA.type, "OBJECT");
 });
 
+Deno.test("common_name schema keeps the variety and forbids only the method", () => {
+  // deno-lint-ignore no-explicit-any
+  const desc: string = (SEASONAL_PICKS_SCHEMA as any)
+    .properties.picks.items.properties.common_name.description;
+  const lower = desc.toLowerCase();
+  // Must actively keep the cultivar/variety…
+  assert(lower.includes("variety") || lower.includes("cultivar"), "description should mention variety/cultivar");
+  assert(desc.includes("'Lollo Rossa'") || desc.includes("'Sungold'"), "description should exemplify a variety");
+  // …and must NOT tell the model to return the species name "ONLY".
+  assert(!/\bname only\b/i.test(desc), "description must not say 'name ONLY' (drops varieties)");
+});
+
+Deno.test("prompt OUTPUT RULES keep varieties but forbid the propagation method", () => {
+  const prompt = buildSeasonalPicksPrompt({
+    currentDate: "2026-04-15",
+    hemisphere: "Northern",
+    weekIso: "2026-W16",
+    country: null, lat: null, lng: null,
+    lastFrostIso: null, firstFrostIso: null,
+    edibleFocus: null, effortPreference: null, dislikes: null,
+    shed: [],
+  });
+  assert(/variety|cultivar/i.test(prompt), "prompt should instruct keeping the variety");
+  assert(prompt.includes("sow_method"), "prompt should route the method to sow_method");
+  assert(!/name only/i.test(prompt), "prompt must not say 'name only'");
+});
+
+Deno.test("normaliseSeasonalPicks keeps the cultivar but strips a baked-in method", () => {
+  const result = normaliseSeasonalPicks({
+    picks: [
+      mkPick({ common_name: "Lettuce 'Lollo Rossa'" }),
+      mkPick({ common_name: "Geranium softwood cuttings" }),
+      mkPick({ common_name: "Lavender 'Hidcote' cuttings" }),
+    ],
+  });
+  assertEquals(result?.picks.map((p) => p.common_name), [
+    "Lettuce 'Lollo Rossa'", // cultivar preserved
+    "Geranium",              // method stripped
+    "Lavender 'Hidcote'",    // cultivar kept, method stripped
+  ]);
+});
+
 // ─────────────────────────────────────────────────────────────────────────
 // fallbackSeasonalPicks — Sprout/Botanist deterministic path
 // ─────────────────────────────────────────────────────────────────────────

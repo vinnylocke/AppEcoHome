@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
+import { normaliseSeasons, normaliseMonths } from "../lib/plantSeasons";
 import {
   ChevronDown,
   ChevronUp,
@@ -247,23 +248,13 @@ export default function ManualPlantCreation({
         ? initialData.cycle.charAt(0).toUpperCase() + initialData.cycle.slice(1)
         : formData.cycle;
 
-      const safeFlowering = Array.isArray(initialData.flowering_season)
-        ? initialData.flowering_season
-        : initialData.flowering_season
-          ? [initialData.flowering_season]
-          : [];
-
-      const safeHarvest = Array.isArray(initialData.harvest_season)
-        ? initialData.harvest_season
-        : initialData.harvest_season
-          ? [initialData.harvest_season]
-          : [];
-
-      const safePruning = Array.isArray(initialData.pruning_month)
-        ? initialData.pruning_month
-        : initialData.pruning_month
-          ? [initialData.pruning_month]
-          : [];
+      // Season/month values arrive in three shapes (array, comma-joined string,
+      // or a single string) from different catalogue paths, and sometimes carry
+      // American "fall" or mixed casing. Normalise so the MultiSelect renders
+      // one canonical chip per value. See src/lib/plantSeasons.ts.
+      const safeFlowering = normaliseSeasons(initialData.flowering_season);
+      const safeHarvest = normaliseSeasons(initialData.harvest_season);
+      const safePruning = normaliseMonths(initialData.pruning_month);
 
       setFormData((prev) => ({
         ...prev,

@@ -53,6 +53,20 @@ Lets a gardener inspect a plant's complete care information — not just the qui
 - Shows **common name** (title) + **scientific name** (italic subtitle) + an **"Also known as: …"** line listing `other_names` when present (`testid=plant-detail-other-names`), built via `src/lib/plantNames.ts` `formatOtherNames` (dedupes vs common/scientific). Mirrors the `ResultRow` + `PlantInfoPanel` name display. See [Plant Providers § Library search matching](../99-cross-cutting/25-plant-providers.md).
 - **Variety-name preservation (2026-07-23).** `plant_library` / the AI catalogue is largely species-level, so a variety pick ("Lettuce 'Lollo Rossa'") resolves onto some same-species row — the generic species ("Lettuce") or, worse, a DIFFERENT cultivar ("Daisy Lambert Butterhead Lettuce"). The modal's displayed identity is `preferPickedName(result.common_name, plant.details.common_name)` (`src/lib/plantNames.ts`) — it shows the name the user actually picked (falling back to the catalogue name only when there's no pick, normalising to the catalogue's casing when identical). Applied to the title, the Care tab's name field, and the Grow / Companions / Light / Soil tabs. Display-only — the resolved row still supplies the care DATA; shared rows are never mutated. The title now `line-clamp-2 break-words` (was single-line `truncate`) so long variety names stay readable. Matching + name hygiene are fixed upstream in the picks pipeline (see [Seasonal Picks](../02-dashboard/14-seasonal-picks.md)). Unit-tested in `tests/unit/lib/plantNames.test.ts`.
 
+### Season / month display normalisation (2026-07-23)
+The Care tab (`ManualPlantCreation`, read-only here) renders `flowering_season`,
+`harvest_season` and `pruning_month` as chips. Those values reach the form in three
+inconsistent shapes: AI-catalogue plants store them as a comma-JOINED string (via
+`plantCatalogue.ts`'s `.join(", ")`), library-cloned plants keep arrays, and both
+can carry American "fall" or mixed casing. Left raw, a joined string wrapped into a
+single-element array rendered as **one chip** ("Spring, Summer, Autumn") instead of
+three. The `initialData` ingest now runs `normaliseSeasons` / `normaliseMonths`
+(`src/lib/plantSeasons.ts`) which split joined strings, map `fall`→`Autumn`,
+Title-case, and dedupe — so each value is its own canonical chip. Display-only; never
+mutates stored data (no backfill). Unit-tested in `tests/unit/lib/plantSeasons.test.ts`.
+Generation-side, the `generate_care_guide` prompt also now demands British-English
+seasons + one-value-per-array-element.
+
 ### Data flow — read paths
 - **`useCataloguePlantFromResult`** renders an instant placeholder from `result`, then calls `ensureCataloguePlantFromSearchResult(result, { homeId })` (clones into the catalogue `plants` table; library rows via `ensureCataloguePlantFromLibrary`, dedup by scientific name — no Gemini). Resolves to a `CataloguePlant` with a positive `plantId`.
 - **Grow Guide / Companions / Light** tabs fire their own edge-fn / cache reads once `plant.plantId > 0` (identical to `PlantPreview`). Until then they show a "Preparing the plant…" placeholder.
