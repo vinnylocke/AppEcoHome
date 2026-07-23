@@ -14,6 +14,7 @@
 | MGMT-002 | ✅ | "New Location" button | — | ✅ Passing |
 | MGMT-003 | ✅ | Nav link → `/management` | — | ✅ Passing |
 | MGMT-004 | ✅ | Existing locations ("Outside Garden", "Indoor Space") | — | ✅ Passing |
+| AREA-SOIL-001 | ✅ | Area tile shows live soil chips: set `areas.latest_soil_*` directly (45% / 18.5°C), assert `area-soil-moisture-{id}` + `area-soil-temp-{id}` render on the tile (owner request 2026-07-23; `buildSoilChips`) | direct DB write + cleanup | ✅ Passing |
 | MGMT-005 | ✅ | New Location form opens | — | ✅ Passing |
 | MGMT-006 | ✅ | Form has name input | — | ✅ Passing |
 | MGMT-007 | ✅ | Form cancel hides it | — | ✅ Passing |

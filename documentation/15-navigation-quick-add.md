@@ -80,7 +80,7 @@ Each home has its own permissions system. The home owner can control what other 
 
 ## Quick Launcher (formerly "Global Quick Add")
 
-The **+** button in the header opens the **Quick Launcher** — a customisable sheet of shortcuts that lets you create or jump to anything without leaving the current page.
+The **+** button in the header opens the **Quick Launcher** — a sheet of shortcuts that lets you create or jump to anything without leaving the current page.
 
 ![The Quick Add menu — create a task, plant, plan, location, ailment, and more from anywhere](/doc-images/15-navigation-quick-add-01-menu.webp)
 
@@ -105,7 +105,7 @@ The **+** button in the header opens the **Quick Launcher** — a customisable s
 | **Sun Tracker** | Sun trajectory AR |
 | **Guides** | Knowledge base |
 
-You can pick which 8 (or more) tiles appear, and in what order, under **Profile → Quick Launcher** — see [Profile & Preferences](./14-profile-preferences.md#quick-launcher-customisation).
+The tiles shown are fixed by Rhozly and currently can't be reordered or hidden.
 
 The menu closes automatically after you tap a tile, or tap anywhere outside the menu (or press **Escape**) to dismiss it without taking any action.
 

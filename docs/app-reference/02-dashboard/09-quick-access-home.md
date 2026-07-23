@@ -1,3 +1,5 @@
+> **⚠️ ARCHIVED 2026-07-23** — The Quick Access Home (`/quick`) was retired 2026-07-20 and the Quick Launcher customiser was removed outright 2026-07-23. This file is kept for historical reference only; none of the code it describes exists anymore.
+
 # Quick Access Home — **RETIRED**
 
 > **This surface has been removed (2026-07-20 — "one responsive home").** The phone-only `/quick` launcher home (`QuickAccessHome`) was folded into the responsive `/dashboard`. Phone + desktop now BOTH land on `/dashboard` (Simple density on phone is the fast glanceable view; two-column studio on desktop). It was redundant: the dashboard's **QuickActionsRow** already renders from the SAME customisable launcher catalogue + saved pins (`home-quick-actions`, `home-quick-tile-*`, `home-quick-actions-customise`), and `/quick` was also focus-mode (no header/Deck), making the phone's landing screen inconsistent with the rest of the app.

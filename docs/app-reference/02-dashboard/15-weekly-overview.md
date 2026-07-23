@@ -16,7 +16,6 @@ Default-on pref: `weeklyOverview` in the [Notifications Tab](../06-account/02-no
 ### Entry points
 
 - **Dashboard** — `WeekAheadPreview` sneak-peek card on the merged home's **Workbench** posture ([Home (Main Dashboard)](./17-home-main.md)), in the insight rail (the Garden Snapshot that used to sit below it was deleted outright in the stats+locations redesign Stage 2, 2026-07-20), inside `FeatureGate feature="ai_insights"` ([`src/components/shared/WeekAheadPreview.tsx`](../../../src/components/shared/WeekAheadPreview.tsx)). Reads the latest `weekly_overviews` row and surfaces a chip strip (e.g. "5 tasks · 2 weather alerts · 3 to sow"). Whole card is a button → `/weekly`. Renders a generic "Tap to generate this week's overview" CTA when no row exists yet.
-- **Quick Launcher** — opt-in tile (`weekly` catalogue id, accent amber). Not in the default pin set; users add it from Account Settings → Quick Launcher.
 - **Push notification** — Sunday morning `weekly_overview` notification deep-links to `/weekly`.
 - **URL** — `/weekly`.
 

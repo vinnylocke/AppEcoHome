@@ -150,8 +150,7 @@ cache and re-resolves — called on tier change and sign-out so already-mounted 
 tier without a full reload (mounted gates keep showing the last-known tier until the fresh one lands). **`UpgradeNudge` deep-links to the plan picker (RHO-12):** both its
 compact button and its full-panel "See plans" CTA `navigate("/gardener?section=plans")`.
 `GardenerProfile` reads `?section=plans`, forces the Account tab, scrolls the `#plan-section`
-("Your Plan") card into view, then strips the param — mirroring the existing `?section=quick-launcher`
-pattern. The effect depends on the section param value (not just mount) so it still fires when a nudge
+("Your Plan") card into view, then strips the param. The effect depends on the section param value (not just mount) so it still fires when a nudge
 is tapped while already on `/gardener`. **`FeatureGate` fallback semantics:** omit `fallback` → the full default
 `UpgradeNudge` panel; `fallback={null}` → render **nothing**; `fallback={<UpgradeNudge … compact />}`
 → the slim one-line teaser. (Before RHO-2 a `??` bug made `fallback={null}` wrongly render the full

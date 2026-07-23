@@ -30,22 +30,23 @@ test.describe("Shed — Tabs and view filters", () => {
     await expect(shed.bulkAddButton).toBeVisible();
   });
 
-  test("SHED-005: All is the default chip; the Active chip shows only live plants", async ({ authenticatedPage }) => {
-    // Hub v3 Stage C — presence chips on derived data. Under All, Mint
-    // (curated out but WITH history) is visible as Inactive; under Active
-    // (live instance or sowing) it is not.
+  test("SHED-005: Active is the smart default when the garden has live plants; All surfaces inactive (Mint)", async ({ authenticatedPage }) => {
+    // Smart default (2026-07-23): the Shed lands on the Active chip when live
+    // plants exist. Under Active (live instance or sowing) Mint — curated out
+    // but WITH history — is not shown; the All chip surfaces it as Inactive.
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
 
-    await expect(shed.scopeHomeBtn).toHaveAttribute("aria-selected", "true");
-    const cards = authenticatedPage.locator("[data-plant-card]");
-    await expect(cards.first()).toBeVisible({ timeout: 10000 });
-
-    await shed.activeTab.click();
-    await shed.waitForLoad();
-    await expect(shed.plantCard("Tomato")).toBeVisible({ timeout: 10000 }); // Unplanted counts as Active
+    // Lands on Active: Tomato (unplanted counts as Active) shows, Mint does not.
+    await expect(shed.activeTab).toHaveAttribute("aria-selected", "true", { timeout: 10000 });
+    await expect(shed.plantCard("Tomato")).toBeVisible({ timeout: 10000 });
     await expect(shed.plantCard("Mint")).not.toBeVisible();
+
+    // All surfaces the inactive, history-only plant.
+    await shed.scopeHomeBtn.click();
+    await shed.waitForLoad();
+    await expect(shed.plantCard("Mint")).toBeVisible({ timeout: 10000 });
   });
 
   test("SHED-006: the Inactive chip shows plants with only history (Mint)", async ({ authenticatedPage }) => {
@@ -79,6 +80,10 @@ test.describe("Shed — Tabs and view filters", () => {
     const mintId = (workerNum + 1) * 1_000_000 + 5;
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
+    await shed.waitForLoad();
+    // Mint is history-only (Inactive); the smart default lands on Active, so
+    // switch to All to surface it and its "N past" chip.
+    await shed.scopeHomeBtn.click();
     await shed.waitForLoad();
 
     await expect(shed.plantCard("Mint")).toBeVisible({ timeout: 10000 });
@@ -116,8 +121,12 @@ test.describe("Shed — Tabs and view filters", () => {
       const shed = new ShedPage(authenticatedPage);
       await shed.goto();
       await shed.waitForLoad();
+      // The hidden-collection hint is an All-view safety net; the smart default
+      // lands on Active, so switch to All first.
+      await shed.scopeHomeBtn.click();
+      await shed.waitForLoad();
 
-      // Hidden from the default (All) grid — no presence, not hearted.
+      // Hidden from the All grid — no presence, not hearted.
       await expect(shed.plantCard(plantName)).not.toBeVisible();
 
       // Counted in the "N more in your collection" safety-net hint.

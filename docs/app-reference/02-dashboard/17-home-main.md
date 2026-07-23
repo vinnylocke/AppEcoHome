@@ -170,7 +170,7 @@ The `garden` section's grid became the **manage-in-place surface for locations**
 Landed in Stage 0, **now the composition engine** (Stage 4 consumes it):
 
 - `effectivePersona(persona)` — **the canonical null⇒new collapse.** Don't re-derive with ad-hoc `persona !== "experienced"` checks in new code.
-- `HomePosture = "porch" | "workbench"` + `HOME_PRESETS` registry — per-posture `{sectionOrder, variants}` declarative recipes, consumed by HomeMain's single `renderSection` loop. Mirrors the proven `quickLauncherCatalogue`/`resolvePins` pattern (one registry, one renderer, user override always wins).
+- `HomePosture = "porch" | "workbench"` + `HOME_PRESETS` registry — per-posture `{sectionOrder, variants}` declarative recipes, consumed by HomeMain's single `renderSection` loop (one registry, one renderer, user override always wins).
 - `readStoredPosture()` / `storePosture()` — localStorage key **`rhozly:home:preset`**, with a legacy alias read of `rhozly:home:density` (`"detailed"` → workbench, `"simple"` → porch).
 - `resolveHomePosture(persona, stored)` — resolution ladder: explicit override > legacy density alias > persona default. Pure given its inputs (pass `stored` from `readStoredPosture()`) so tests exercise the ladder without localStorage.
 
@@ -185,7 +185,6 @@ Landed in Stage 0, **now the composition engine** (Stage 4 consumes it):
 - **Attention filtering moved into HomeMain (Stage 2):** `ATTENTION_EXCLUDE_KINDS = ["overdue_tasks", "weather_alert"]` is applied **once, in a memo**, producing `attentionItems`. The hero + task list own overdue; the global [WeatherAlertBanner](./08-weather-alert-banner.md) owns alerts — so only the telemetry + harvest kinds (`automation_failed` / `low_battery` / `soil_dry` / `harvest_closing`) survive. The **same memoised `attentionItems`** feeds both the Workbench's `AttentionRow` and the Porch's `NextBestAction` top rung — filtered here (not inside AttentionRow) precisely so the two postures share one post-filter list.
 - **Homes query (App.tsx `fetchDashboardData`):** `supabase.from("homes").select("*, weather_snapshots(data, updated_at), locations(*, areas(id, name), inventory_items(id, status, area_id, growth_state, plant_name))")`. Fires on mount, pull-to-refresh, realtime events, revisit. Caching: the dashboard sessionStorage/localStorage snapshot pattern — see [Caching](../99-cross-cutting/14-caching.md).
 - **Inventory realtime refetch (App.tsx `handleInventoryRealtime`)** — carries `area_id, growth_state, plant_name` so a realtime refresh doesn't strip the grid's grouping data.
-- **`useQuickLauncherPins(userId)`** — localStorage read + background revalidate. See [Quick Access Home](./09-quick-access-home.md).
 - **`usePersona()`** — module-cached persona; drives the **posture default** and quick-action defaults. Since Stage 0 the cache is **primed synchronously by App.tsx's profile fetch** (`primePersona`), so the hook's own `user_profiles.select("persona")` read is a first-boot fallback rather than the normal path.
 - **`TaskList`**, **`SeasonalPicksCard`**, **`WeekAheadPreview`** — plus **`GardenBrainBriefCard`**, **`AdaptiveCareCard`**, **`HeadGardenerCard`**, **`AssistantCard`** (composed inside **`TheBrief`**) — make their own reads as documented on their own surfaces. (`HomeStatusStrip`, `NextBestAction`, and `TheBrief` itself are props-only — no fetches.)
 
@@ -334,7 +333,7 @@ One card per location: indoors/outdoors icon, name, "Outdoors · 3 areas · 12 p
 
 #### 7. The Garden Walk tile (both postures)
 
-Once you have **5 or more plants**, a full-width **"Start a Garden Walk"** tile sits just under today's tasks — a guided check-in on every plant, returning here when you finish. (dashboard-nav-tasks-tray redesign Stage 1, 2026-07-21: the customisable quick-actions launcher grid that used to sit below it was removed — every tile but the Walk duplicated a nav-bar destination, and it sat near the bottom of the page. The pin picker still lives at `/gardener?section=quick-launcher`, and the catalogue is unchanged, but nothing renders those pins on the home now.)
+Once you have **5 or more plants**, a full-width **"Start a Garden Walk"** tile sits just under today's tasks — a guided check-in on every plant, returning here when you finish. (dashboard-nav-tasks-tray redesign Stage 1, 2026-07-21: the customisable quick-actions launcher grid that used to sit below it was removed — every tile but the Walk duplicated a nav-bar destination, and it sat near the bottom of the page. The picker and catalogue were themselves removed outright 2026-07-23 — `QuickActionsRow` now renders only this tile.)
 
 #### 8. Tasks — compact everywhere, with a prominent Board button in both postures
 
@@ -445,7 +444,7 @@ No differences (the BetaFeedbackBanner renders app-wide above the page as usual)
 - [Today's Tasks Tray](../09-persistent-ui/12-today-tasks-tray.md) — the global header-triggered drawer that renders this same compact TaskList on every non-home screen (Stage 2)
 - [Locations Tab — RETIRED](./02-locations-tab.md) — the standalone `?view=locations` grid, retired into this page's garden grid in Stage 4a (2026-07-20); its stub maps where each piece went
 - [Location Page (Drill-In)](./07-location-page.md) — where card headers and area rows land
-- [Quick Access Home](./09-quick-access-home.md) — **RETIRED (2026-07-20)**; its launcher catalogue + pins still exist in code but no longer render on the home — the `QuickActionsRow` grid was cut in Stage 1 (2026-07-21), leaving only the Garden Walk tile
+- [Quick Access Home](./09-quick-access-home.md) — **ARCHIVED 2026-07-23**; its launcher grid was cut from the home in Stage 1 (2026-07-21, leaving only the Garden Walk tile) and its catalogue + picker code was deleted outright 2026-07-23
 - [Garden Walk](./13-garden-walk.md) — the walk launcher's destination
 - [Seasonal Picks Card](./14-seasonal-picks.md) — Porch only
 - [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md), [Garden Quiz](../01-onboarding/05-garden-quiz.md), [Notification Opt-In](../01-onboarding/07-notification-opt-in.md), [PWA Install Prompt](../01-onboarding/08-pwa-install.md) — the single-slot cascade
@@ -482,7 +481,7 @@ No differences (the BetaFeedbackBanner renders app-wide above the page as usual)
 - `src/App.tsx:~522` — `rhozly_dashboard_view` persistence + legacy fall-through
 - `src/App.tsx:~1745` — slimmed three-tab switcher (Dashboard / Calendar / Weather — Locations dropped Stage 4a) + conditional sync pill; `~1779` — `promoSlot` cascade build + HomeMain mount
 - `src/onboarding/flowRegistry.ts` — `dashboard_tour` (Porch anchors; step 2 "Your day in one sentence")
-- `src/lib/quickLauncherCatalogue.ts` / `src/lib/quickLauncherPrefs.ts` / `src/hooks/usePersona.ts` (`primePersona` / `notifyPersonaChanged`) / `src/lib/profileCache.ts` (`CachedProfile.persona`)
+- `src/hooks/usePersona.ts` (`primePersona` / `notifyPersonaChanged`) / `src/lib/profileCache.ts` (`CachedProfile.persona`)
 - `tests/e2e/specs/home-main.spec.ts` + `tests/e2e/pages/HomeMainPage.ts` — HOME-001..008, HOME-013, HOME-014 (Stage 4 — HOME-008 seeds the Workbench posture for the attention inbox; HOME-013 seeds the Porch and asserts the Next Best Action surfaces the top attention item. Stats+locations Stage 3 — HOME-014 asserts the compact today list's per-row inline complete + Postpone + the task-board pill are all reachable on the home)
 - `tests/e2e/pages/DashboardPage.ts` — `goto()` seeds `rhozly:home:density = detailed` (aliased to the Workbench posture) then visits plain `/dashboard` (classic-content specs ride on that)
 - `docs/plans/new-home-dashboard.md` + `docs/plans/hyperplexed-ui-craft-overhaul.md` (§4.2 — the merge) + `docs/plans/home-redesign-two-postures.md` (the two-postures redesign — Stages 0–4 shipped 2026-07-20)

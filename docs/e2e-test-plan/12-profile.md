@@ -45,7 +45,7 @@
 | GP-021 | ✅ | A tier-locked `UpgradeNudge` (Head Gardener on `/manager` for a Sprout user) navigates to `/gardener?section=plans` and the plan cards become visible | `user_profiles` tier→sprout | ✅ Passing |
 | GP-022 | ✅ | Notifications tab → "Weather actions" → `weather-task-creation-toggle` flips `homes.weather_task_creation` on/off (home-scoped, persists) | — | 🔲 Pending (verified live 2026-07-10 via browser probe) |
 
-**RHO-12 (GP-020/021):** tier-locked `UpgradeNudge` banners deep-link to the plan picker via `/gardener?section=plans`. `GardenerProfile` forces the Account tab, scrolls `#plan-section` ("Your Plan") into view, then strips the param — mirroring the existing `?section=quick-launcher` pattern.
+**RHO-12 (GP-020/021):** tier-locked `UpgradeNudge` banners deep-link to the plan picker via `/gardener?section=plans`. `GardenerProfile` forces the Account tab, scrolls `#plan-section` ("Your Plan") into view, then strips the param.
 
 **Note:** the Voice toggle (`?tab=notifications`) writes `user_profiles.voice_settings` keyed on `uid`. GP-011 guards the regression where it filtered on a non-existent `id` column and silently never saved.
 

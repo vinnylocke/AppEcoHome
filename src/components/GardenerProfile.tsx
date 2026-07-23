@@ -8,7 +8,6 @@ import { useAchievements } from "../hooks/useAchievements";
 import { ACHIEVEMENTS } from "../lib/achievements";
 import AIUsagePanel from "./AIUsagePanel";
 import SearchSourceSection from "./SearchSourceSection";
-import QuickLauncherPicker from "./quick/QuickLauncherPicker";
 import { useHighContrast } from "../hooks/useHighContrast";
 import PersonaSetting from "./PersonaSetting";
 import JournalAutoUpdateSetting from "./JournalAutoUpdateSetting";
@@ -1503,21 +1502,6 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
     setParams(p, { replace: true });
   };
 
-  // "Customise quick launcher" deep link (?section=quick-launcher): ensure the
-  // Account tab (where the picker lives) is active, scroll to it, strip param.
-  useEffect(() => {
-    if (params.get("section") !== "quick-launcher") return;
-    setTabState("account");
-    const t = setTimeout(() => {
-      document.getElementById("quick-launcher-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 350);
-    const p = new URLSearchParams(params);
-    p.delete("section");
-    setParams(p, { replace: true });
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // "See plans" deep link (?section=plans): the tier-locked UpgradeNudge banners
   // route here (RHO-12). Force the Account tab (where the plan picker lives),
   // scroll to the "Your Plan" section, then strip the param. Depends on the
@@ -1678,21 +1662,6 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
           />
           <PersonaSetting userId={userId} />
           <JournalAutoUpdateSetting userId={userId} />
-          <div id="quick-launcher-section" />
-          <QuickLauncherPicker
-            userId={userId}
-            homeId={homeId ?? null}
-            subscriptionTier={
-              (subscriptionTier as
-                | "sprout"
-                | "botanist"
-                | "sage"
-                | "evergreen"
-                | null) ?? null
-            }
-            aiEnabled={aiEnabled}
-            isBeta={isBeta}
-          />
         </div>
       )}
 

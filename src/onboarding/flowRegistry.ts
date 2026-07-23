@@ -585,8 +585,8 @@ export const flowRegistry: FlowDef[] = [
         attachTo: { element: null, on: null },
       },
       {
-        title: "Persona + Quick Launcher",
-        body: "Profile also lets you pick a Persona (how Rhozly speaks to you — Plain, Cheerful, Expert, Mentor) and customise the Quick Launcher (drag-to-reorder the 16 shortcut tiles in the + menu). Both update everywhere instantly.",
+        title: "Persona",
+        body: "Profile also lets you pick a Persona — how Rhozly speaks to you (Plain, Cheerful, Expert, Mentor). It updates everywhere instantly.",
         attachTo: { element: null, on: null },
       },
       {
@@ -606,8 +606,8 @@ export const flowRegistry: FlowDef[] = [
   // Throttle (one auto-tour per day) applies unless `important: true`.
 
   // quick_access_tour removed 2026-07-20 — the phone /quick launcher home it
-  // described was retired ("one responsive home"); its launcher now lives on
-  // the responsive /dashboard (see quick_launcher_customise_tour below).
+  // described was retired ("one responsive home"). The Quick Launcher customiser
+  // itself was later removed outright (2026-07-23) along with its tour.
 
   {
     id: "weekly_overview_tour",
@@ -926,32 +926,4 @@ export const flowRegistry: FlowDef[] = [
     ],
   },
 
-  {
-    id: "quick_launcher_customise_tour",
-    order: 23,
-    trigger: "manual-only",
-    route: "/profile",
-    prerequisite: "global_welcome",
-    title: "Customise the Quick Launcher",
-    description: "Pick which 8 (or more) tiles appear in the Quick Actions on your dashboard, and in what order.",
-    category: "Getting Started",
-    estimated_minutes: 1,
-    steps: [
-      {
-        title: "Your toolbox, your way",
-        body: "The Quick Launcher — the Quick Actions tiles on your dashboard — defaults to the eight most-used shortcuts. Sixteen are available — let's pick yours.",
-        attachTo: { element: null, on: null },
-      },
-      {
-        title: "Toggle and reorder",
-        body: "Under Profile → Quick Launcher, toggle each of the 16 tiles on or off, and drag the row handle to reorder them. Changes apply instantly — no save button needed.",
-        attachTo: { element: null, on: null },
-      },
-      {
-        title: "Reset to defaults",
-        body: "Made a mess of it? Tap Reset to restore the original eight. The customisation lives per-user and persists across devices.",
-        attachTo: { element: null, on: null },
-      },
-    ],
-  },
 ];

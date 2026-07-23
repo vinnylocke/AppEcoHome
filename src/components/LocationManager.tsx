@@ -27,6 +27,7 @@ import type { Location, Area } from "../types";
 import { ConfirmModal } from "./ConfirmModal";
 import InfoTooltip from "./InfoTooltip";
 import { Logger } from "../lib/errorHandler";
+import { buildSoilChips } from "../lib/soilReadings";
 import toast from "react-hot-toast";
 import AreaSensorsPanel from "./area/AreaSensorsPanel";
 import AreaAiAnalysisPanel from "./area/AreaAiAnalysisPanel";
@@ -575,6 +576,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnab
                 <div className="space-y-2">
                   {loc.areas.map((area: any) => {
                     const meta = areaMeta.get(area.id);
+                    const soilChips = buildSoilChips(area);
                     return (
                     <div
                       key={area.id}
@@ -644,10 +646,10 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnab
                         </div>
                       </div>
 
-                      {/* Cross-feature metadata row — plant count, lux, layout link */}
-                      {meta && (meta.plantCount > 0 || meta.latestLux != null || meta.shapeId) && (
+                      {/* Cross-feature metadata row — plant count, live soil reading, lux, layout link */}
+                      {((meta && (meta.plantCount > 0 || meta.latestLux != null || meta.shapeId)) || soilChips.length > 0) && (
                         <div className="px-4 pb-2 -mt-1 flex flex-wrap items-center gap-1.5">
-                          {meta.plantCount > 0 && (
+                          {meta && meta.plantCount > 0 && (
                             <span
                               data-testid={`area-plant-count-${area.id}`}
                               className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"
@@ -655,7 +657,25 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnab
                               🌱 {meta.plantCount} plant{meta.plantCount !== 1 ? "s" : ""}
                             </span>
                           )}
-                          {meta.latestLux != null && (
+                          {soilChips.map((chip) => (
+                            <span
+                              key={chip.key}
+                              data-testid={`area-soil-${chip.key}-${area.id}`}
+                              title={
+                                chip.recordedAt
+                                  ? `Latest reading ${new Date(chip.recordedAt).toLocaleString("en-GB")}${chip.stale ? " · may be stale" : ""}`
+                                  : "No recent reading"
+                              }
+                              className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border ${
+                                chip.stale
+                                  ? "bg-rhozly-on-surface/5 text-rhozly-on-surface/40 border-rhozly-outline/20"
+                                  : "bg-sky-50 text-sky-700 border-sky-200"
+                              }`}
+                            >
+                              {chip.icon} {chip.label}
+                            </span>
+                          ))}
+                          {meta && meta.latestLux != null && (
                             <span
                               data-testid={`area-latest-lux-${area.id}`}
                               className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200"
@@ -664,7 +684,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnab
                               ☀ {Math.round(meta.latestLux).toLocaleString()} lx
                             </span>
                           )}
-                          {meta.shapeId && (
+                          {meta && meta.shapeId && (
                             <button
                               data-testid={`area-open-layout-${area.id}`}
                               onClick={() => {

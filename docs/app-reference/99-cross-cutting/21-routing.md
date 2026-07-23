@@ -53,7 +53,7 @@ BrowserRouter
     ├── /help              ← Redirect → /guides?tab=help (Sprint 2 — top-level shortcut to App Help)
     ├── /join/:token       ← JoinHomeViaToken (Sprint 4b — invite redemption landing page; lives OUTSIDE AppShell so signed-out invitees can land on it before signing in)
     ├── /shopping          ← ShoppingLists (alias to /planner?tab=shopping)
-    ├── /gardener          ← GardenerProfile (Account Settings; ?tab=account|notifications|achievements|stats, ?section=quick-launcher|plans)
+    ├── /gardener          ← GardenerProfile (Account Settings; ?tab=account|notifications|achievements|stats, ?section=plans)
     ├── /journal           ← JournalNotesHub (Journal + Notes tabs; ?tab=notes deep-links Notes — Phase 5 IA merge)
     ├── /weekly            ← WeeklyOverviewPage
     ├── /reports           ← GardenReports (month/year in review — surfaced Stage 5, B16)
@@ -84,7 +84,6 @@ BrowserRouter
 | `?locationId=X` / `?areaId=X` / `?instanceId=X` | Drill-in (Dashboard locations → area → plant) |
 | `?date=YYYY-MM-DD` | Select a day on the Calendar (TaskCalendar) |
 | `?category=X` | Filter Routines by task type (BlueprintManager) |
-| `?section=quick-launcher` | Scroll to the Quick Launcher picker on Account settings |
 | `?section=plans` | Force the Account tab + scroll to the "Your Plan" picker (`#plan-section`); tier-locked `UpgradeNudge` banners route here (RHO-12) |
 | `?ailment=X` | Deep-link an Ailment Library entry |
 

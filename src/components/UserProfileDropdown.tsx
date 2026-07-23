@@ -15,6 +15,7 @@ import {
   ClipboardList,
   Sparkles,
   RefreshCw,
+  DownloadCloud,
   Loader2,
   HelpCircle,
   Activity,
@@ -402,7 +403,7 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                     {isCheckingForUpdate ? (
                       <Loader2 size={15} className="animate-spin" />
                     ) : (
-                      <RefreshCw size={15} />
+                      <DownloadCloud size={15} />
                     )}
                   </span>
                   <span className="flex-1 text-left">

@@ -171,20 +171,6 @@ The persona affects the AI's reply tone in chat, the wording of notifications, a
 
 ---
 
-## Quick Launcher Customisation
-
-The **Quick Launcher** is the round + button in the header (and the home tiles on the [Quick Access Home](./15-navigation-quick-add.md#quick-access-home-mobile)). It opens a sheet of shortcuts — by default the most-used 8.
-
-Under **Profile → Quick Launcher**, pick which tiles appear:
-
-- **Drag-to-reorder** the tile catalogue (Today Focus, Add Plant, Plant Lens, Notes, Weekly Overview, Add Task, Shopping List, Watering, Walk, Nursery, Garden AI, Areas, Plans, Visualiser, Sun Tracker, Guides — 16 total)
-- **Toggle on/off** each tile
-- **Reset to defaults** restores the original eight
-
-Changes apply instantly — no save button needed.
-
----
-
 ## AI Usage
 
 The **AI Usage** panel (visible on the Account tab of your Profile page) shows your Gemini AI token consumption for the current billing period:

@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { test } from "../fixtures/auth";
 import { LocationManagementPage } from "../pages/LocationManagementPage";
 import { mockEdgeFunction } from "../fixtures/api-mocks";
@@ -59,6 +60,60 @@ test.describe("Area setup — Location Management page", () => {
     // Either the New Location button (always present) confirms the page loaded,
     // or we see location cards
     await expect(mgmt.newLocationButton).toBeVisible({ timeout: 10000 });
+  });
+
+  test("AREA-SOIL-001: a fresh soil reading renders moisture/temp chips on the area tile", async ({ authenticatedPage }) => {
+    // Owner request 2026-07-23: surface an area's current reading on the tile
+    // (no need to open Advanced Metrics). The `latest_soil_*` columns are
+    // denormalised by the integrations ingest path; set them directly here so
+    // the test is independent of trigger/ingest timing, then assert the chips.
+    const workerNum = parseInt(process.env.PLAYWRIGHT_WORKER_INDEX ?? "0", 10) + 1;
+    const homeId = `0000000${workerNum}-0000-0000-0000-000000000002`;
+    const url = process.env.VITE_SUPABASE_URL!;
+    const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
+    const email = `test${workerNum}@rhozly.com`;
+    const password = process.env.TEST_USER_PASSWORD ?? "TestPassword123!";
+    const supabase: SupabaseClient = createClient(url, key);
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    expect(signInError).toBeNull();
+
+    const { data: areas } = await supabase.from("areas").select("id").eq("home_id", homeId).limit(1);
+    const areaId = areas?.[0]?.id as string | undefined;
+    expect(areaId).toBeTruthy();
+
+    const nowIso = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from("areas")
+      .update({
+        latest_soil_moisture_pct: 45,
+        latest_soil_moisture_recorded_at: nowIso,
+        latest_soil_temp_c: 18.5,
+        latest_soil_temp_recorded_at: nowIso,
+      })
+      .eq("id", areaId!);
+    expect(updateError).toBeNull();
+
+    try {
+      const mgmt = new LocationManagementPage(authenticatedPage);
+      await mgmt.goto();
+      await expect(mgmt.heading).toBeVisible({ timeout: 10000 });
+
+      const moisture = authenticatedPage.getByTestId(`area-soil-moisture-${areaId}`);
+      await expect(moisture).toBeVisible({ timeout: 10000 });
+      await expect(moisture).toContainText("45%");
+      await expect(authenticatedPage.getByTestId(`area-soil-temp-${areaId}`)).toContainText("18.5°C");
+    } finally {
+      // Restore the area so the reading doesn't leak into other specs.
+      await supabase
+        .from("areas")
+        .update({
+          latest_soil_moisture_pct: null,
+          latest_soil_moisture_recorded_at: null,
+          latest_soil_temp_c: null,
+          latest_soil_temp_recorded_at: null,
+        })
+        .eq("id", areaId!);
+    }
   });
 });
 

@@ -22,7 +22,7 @@
 |---|---|---|---|---|
 | SHED-MOBILE-001 | ✅ | Phone-portrait: the search launcher + ⋯ overflow (holding Bulk add) are reachable (Stage 3 — one primary affordance) | — | ✅ Passing |
 | SHED-SOIL-001 | ✅ | Plant edit modal → "Soil Needs" tab renders the sensor-requirements list or empty state | — | ✅ Passing |
-| SHED-005 | ✅ | Stage C: All is the default presence chip; Active shows only live plants (Unplanted counts; Mint excluded) | — | ✅ Passing |
+| SHED-005 | ✅ | Smart default (2026-07-23): Active is the default chip when live plants exist (Unplanted counts; Mint excluded); All chip surfaces inactive Mint | — | ✅ Passing |
 | SHED-006 | ✅ | Stage C: the Inactive chip (derived) shows Mint | — | ✅ Passing |
 | SHED-007 | ✅ | Stage C: live plants absent from Inactive | — | ✅ Passing |
 | SHED-008..009 | ✅ | Filter by source (Manual / API) — the select now sits inside the Filters panel: `openFilters()` → "Filter by source" (aria-label unchanged) | — | ✅ Passing |

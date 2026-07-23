@@ -3,7 +3,7 @@
 > Your garden's month and year in review — tasks completed, new plants, prunes, harvests and weather events, with month-on-month deltas, a 12-month breakdown and "Wrapped-style" highlights. Fully built earlier as an email-report companion view, but **never routed — surfaced in the dashboard-nav-tasks-tray redesign Stage 5 (2026-07-21, B16; locked decision: surface it)**.
 
 **Route:** `/reports` (lazy-loaded; lights the **Tools** nav item via its `matchPaths`).
-**How to reach it:** Tools hub → *Measure & Track* → **Garden Reports** tile (`tools-hub-garden-reports`); also pinnable as the "Reports" Quick Launcher tile (`garden-reports` catalogue entry).
+**How to reach it:** Tools hub → *Measure & Track* → **Garden Reports** tile (`tools-hub-garden-reports`).
 **Source files:** `src/components/GardenReports.tsx` (the view) · `src/hooks/useGardenReport.ts` (all data fetching + pure stat helpers).
 
 ---
@@ -103,7 +103,6 @@ It's your garden's memory. A month from now you won't remember whether February 
 1. **Check the month** — open Reports (Tools → Garden Reports), read the stat cards; the little up/down badges compare against the previous month.
 2. **Walk back in time** — the ‹ › arrows step through past months.
 3. **See the year** — flip the toggle to *Year in Review* for totals, a month-by-month chart, and the highlight lines.
-4. **Pin it** — add the "Reports" tile to your Quick Launcher from Gardener Profile if you check it often.
 
 ### Information on display — what every field means
 
@@ -150,5 +149,5 @@ Identical for every tier.
 - `src/components/GardenReports.tsx` — the view (toggle, MonthlyReview, YearlyReview, StatCard/DeltaBadge)
 - `src/hooks/useGardenReport.ts` — fetching + the exported pure helpers (`subtractStats`, `sumStats`, `generateHighlights`)
 - `src/App.tsx` — the `/reports` route (lazy) + `/reports` in the Tools nav `matchPaths`
-- `src/components/ToolsHub.tsx` — the `garden-reports` tile · `src/lib/quickLauncherCatalogue.ts` — the "Reports" pin
+- `src/components/ToolsHub.tsx` — the `garden-reports` tile
 - `tests/e2e/specs/stage4-discoverability.spec.ts` — DISC-B16

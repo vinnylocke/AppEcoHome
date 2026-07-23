@@ -44,7 +44,7 @@
 | `rhozly:home:preset` | Home posture override (`"porch"` \| `"workbench"`) — the user's explicit choice via the home's posture toggle (home redesign Stage 0, `src/lib/personaPresets.ts`). Resolution ladder: this key > the legacy `rhozly:home:density` alias (`"detailed"` → workbench, `"simple"` → porch — still honoured so pre-redesign users and density-seeding e2e specs carry over) > persona default. |
 | `rhozly:home:density` | Legacy Simple/Detailed home density choice — still written by the density toggle and read as a posture alias by `readStoredPosture()` (see `rhozly:home:preset` above). |
 | `rhozly:snap:v1:{name}:{scope}` | Generic per-screen offline read caches (offline-first Phase 2, `src/lib/snapshotCache.ts`). `name` ∈ {homes, watchlist, planner, journal, automations, layouts, layout, notes, **tasks**}, `scope` = home/user/layout id. Written on each successful fetch, painted instantly on open. Cleared on sign-out via `clearAllSnapshots()`. The `tasks` snapshot (Phase 5) stores the engine's **raw** inputs (physical tasks + full blueprint list + skip tombstones) per home; `TaskEngine` rebuilds the rendered list — including pure-JS ghost generation — from it when a fetch fails offline, and offline-created tasks/routines are injected into it so they appear in every task view. |
-| `rhozly_quick_launcher_v1` | Quick Launcher pin order — `{ pinned: string[] }`. Synced to `user_profiles.quick_launcher_pins`. Cleared on sign-out. |
+| `rhozly_quick_launcher_v1` | **Legacy** — Quick Launcher pin order (`{ pinned: string[] }`). The Quick Launcher customiser was removed outright 2026-07-23; no code reads or writes this key anymore. May still linger harmlessly on existing devices. The `user_profiles.quick_launcher_pins` column it used to sync to is kept in the DB, unread. |
 | `rhozly_quick_menu_seen` | Has the user seen the floating menu hint on `/quick` (boolean string) |
 | `ewelink_oauth_*` | eWeLink OAuth dance |
 
@@ -152,11 +152,8 @@ The app feels instant for warm sessions because so much is cached, and on cold o
 - `src/lib/dashboardCache.ts` — local-first dashboard snapshot read/write/clear
 - `src/lib/personaPresets.ts` — `rhozly:home:preset` read/write + legacy `rhozly:home:density` alias (`readStoredPosture` / `storePosture`)
 - `src/lib/profileCache.ts` — cached profile row incl. `persona` (offline boot priming)
-- `src/lib/quickLauncherPrefs.ts` — local-first launcher pins (mirrors Supabase via `user_profiles.quick_launcher_pins`)
-- `src/hooks/useQuickLauncherPins.ts` — local-first hook for launcher pins (same pattern as dashboard)
 - `src/App.tsx` — `fetchDashboardData` snapshot accumulator + read-on-mount wiring, sign-out clears dashboard + shed caches (and the offline queue)
 - `src/components/ErrorPage.tsx` — Clear Cache button (prefix-matched localStorage sweep + SW Cache Storage wipe)
 - `tests/unit/lib/dashboardCache.test.ts`
-- `tests/unit/lib/quickLauncherPrefs.test.ts`
 - `vite.config.ts` — PWA runtime caching config
 - `supabase/functions/image-proxy/index.ts`

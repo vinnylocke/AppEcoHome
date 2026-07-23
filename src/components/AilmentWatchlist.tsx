@@ -2315,6 +2315,21 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   }, [homeId]);
 
   useEffect(() => { fetchAilments(); fetchAffectedCounts(); }, [fetchAilments, fetchAffectedCounts]);
+
+  // Smart default (owner request 2026-07-23): land on the Active chip when the
+  // watchlist actually has active ailments, else stay on All. One-shot — fires
+  // once both ailments and presence have loaded; never overrides a manual pick
+  // (userChoseChipRef guards the load-window race where a click lands first).
+  const didSmartDefaultRef = useRef(false);
+  const userChoseChipRef = useRef(false);
+  useEffect(() => {
+    if (didSmartDefaultRef.current || userChoseChipRef.current || legacyFilters) return;
+    if (gardenPresence.loading || ailments.length === 0) return; // wait for both to load
+    didSmartDefaultRef.current = true;
+    const hasActive = ailments.some((a) => gardenPresence.ailmentPresence.get(a.id) === "active");
+    if (hasActive) setPresenceChip("active");
+  }, [gardenPresence.loading, gardenPresence.ailmentPresence, ailments, legacyFilters]);
+
   useHomeRealtime("ailments", fetchAilments);
   useHomeRealtime("plant_instance_ailments", fetchAffectedCounts);
 
@@ -2450,9 +2465,9 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
                 { key: "archived", label: "Archived", testId: "watchlist-chip-archived", active: scope === "home" && viewTab === "archived", onClick: () => { switchScope("home"); setViewTab("archived"); setFilter("all"); } },
               ]
             : [
-                { key: "all", label: `All${presenceCounts.all > 0 ? ` · ${presenceCounts.all}` : ""}`, testId: "watchlist-scope-home", active: scope === "home" && presenceChip === "all", onClick: () => { switchScope("home"); setPresenceChip("all"); } },
-                { key: "active", label: `Active${presenceCounts.active > 0 ? ` · ${presenceCounts.active}` : ""}`, testId: "watchlist-chip-active", active: scope === "home" && presenceChip === "active", onClick: () => { switchScope("home"); setPresenceChip("active"); } },
-                { key: "inactive", label: `Inactive${presenceCounts.inactive > 0 ? ` · ${presenceCounts.inactive}` : ""}`, testId: "watchlist-chip-inactive", active: scope === "home" && presenceChip === "inactive", onClick: () => { switchScope("home"); setPresenceChip("inactive"); } },
+                { key: "all", label: `All${presenceCounts.all > 0 ? ` · ${presenceCounts.all}` : ""}`, testId: "watchlist-scope-home", active: scope === "home" && presenceChip === "all", onClick: () => { userChoseChipRef.current = true; switchScope("home"); setPresenceChip("all"); } },
+                { key: "active", label: `Active${presenceCounts.active > 0 ? ` · ${presenceCounts.active}` : ""}`, testId: "watchlist-chip-active", active: scope === "home" && presenceChip === "active", onClick: () => { userChoseChipRef.current = true; switchScope("home"); setPresenceChip("active"); } },
+                { key: "inactive", label: `Inactive${presenceCounts.inactive > 0 ? ` · ${presenceCounts.inactive}` : ""}`, testId: "watchlist-chip-inactive", active: scope === "home" && presenceChip === "inactive", onClick: () => { userChoseChipRef.current = true; switchScope("home"); setPresenceChip("inactive"); } },
                 // v3 feedback polish — the "Watching" chip died: visibility is
                 // presence OR 🔭, and the merged Watchlist chip (below) IS the
                 // affinity view.

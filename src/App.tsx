@@ -39,7 +39,6 @@ import {
   clearAllDashboardCaches,
   purgeLegacyV1DashboardCaches,
 } from "./lib/dashboardCache";
-import { clearLocalPins as clearQuickLauncherPins } from "./lib/quickLauncherPrefs";
 import { clearQueue as clearOfflineQueue, flushQueue } from "./lib/offlineQueue";
 import { clearAllShedCaches } from "./hooks/useCachedShed";
 import { writeProfileCache, readProfileCache, clearAllProfileCaches, type CachedProfile } from "./lib/profileCache";
@@ -1281,7 +1280,6 @@ function AppShell() {
         clearAllShedCaches();
         clearAllProfileCaches();
         clearAllSnapshots();
-        clearQuickLauncherPins();
         clearOfflineQueue();
         invalidateEntitlements();
         // Drop the legacy service-worker runtime cache that used to hold

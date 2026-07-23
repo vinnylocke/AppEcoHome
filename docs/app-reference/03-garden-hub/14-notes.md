@@ -198,7 +198,6 @@ No differences today. Future AI tooling (summarise / suggest tags) will be Sage+
 ## Related reference files
 
 - [Global Journal](./11-global-journal.md) — the sibling **Journal** tab of the same `/journal` hub; event-anchored, single-target, backed by `plant_journals`
-- [Quick Access Home](../02-dashboard/09-quick-access-home.md) — the Quick Launcher `notes` entry now deep-links to `/journal?tab=notes`
 - [Routing](../99-cross-cutting/21-routing.md) — `/journal`, the `?tab=notes` param, and the `/notes → /journal?tab=notes` redirect
 - [Image Sources](../99-cross-cutting/24-image-sources.md) — `plant-images` bucket conventions
 

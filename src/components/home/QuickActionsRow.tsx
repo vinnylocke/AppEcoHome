@@ -7,9 +7,9 @@ import { Footprints, ChevronRight } from "lucide-react";
  * The customisable quick-actions launcher grid was removed from the home
  * (dashboard-nav-tasks-tray redesign Stage 1, 2026-07-21): every tile but one
  * duplicated a nav-bar destination, and the grid sat near the bottom of the
- * page. The pin catalogue + the /gardener?section=quick-launcher picker stay
- * in the codebase but no longer render here. What remains is the single
- * genuinely non-nav destination — the guided Garden Walk (keeps the
+ * page. The pin catalogue + Account-settings picker were later removed
+ * outright (2026-07-23). What remains is the single genuinely non-nav
+ * destination — the guided Garden Walk (keeps the
  * dash-garden-walk testid + the state.from contract so it returns to
  * /dashboard on finish). Renders only once the garden has >= 5 plants.
  */

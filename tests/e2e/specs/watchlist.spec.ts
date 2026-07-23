@@ -126,6 +126,23 @@ test.describe("Watchlist — tabs", () => {
     await expect(wl.scopeFavouritesBtn).toContainText("Watchlist");
   });
 
+  test("WL-tab-smart-default: Active is the smart default when the watchlist has active ailments", async ({ authenticatedPage }) => {
+    // Smart default (2026-07-23): land on the Active chip when live-linked
+    // ailments exist (seeded Aphid / Early Blight / Japanese Knotweed are
+    // active via plant_instance_ailments). Falls back to All when none are.
+    const wl = new WatchlistPage(authenticatedPage);
+    await wl.goto();
+    await wl.waitForLoad();
+
+    await expect(authenticatedPage.getByTestId("watchlist-chip-active")).toHaveAttribute(
+      "aria-selected",
+      "true",
+      { timeout: 10000 },
+    );
+    await expect(wl.ailmentCard("Aphid")).toBeVisible({ timeout: 10000 });
+    await expect(wl.ailmentCard("Powdery Mildew")).not.toBeVisible();
+  });
+
   test("WL-tab-archived: the legacy Archived axis still works under the fallback flag", async ({ authenticatedPage }) => {
     // Hub v3 Stage C: Powdery Mildew (curated out, no history) is search-only
     // in the derived model; the legacy flag restores the old axis.
@@ -173,8 +190,12 @@ test.describe("Watchlist — tabs", () => {
       const wl = new WatchlistPage(authenticatedPage);
       await wl.goto();
       await wl.waitForLoad();
+      // The hidden-collection hint is an All-view safety net; the smart default
+      // lands on Active (seeded ailments are active), so switch to All first.
+      await wl.scopeHomeBtn.click();
+      await wl.waitForLoad();
 
-      // Hidden from the default (All) grid — no presence, not watched.
+      // Hidden from the All grid — no presence, not watched.
       await expect(wl.ailmentCard(ailmentName)).not.toBeVisible();
 
       // Counted in the "N more in your collection" safety-net hint.

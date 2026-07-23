@@ -8,8 +8,7 @@ type Persona = UserProfile["persona"];
  *
  * The persona decides WHAT the homepage contains, not just its copy density:
  * each preset is a declarative recipe (an ordered list of visible sections)
- * rendered by HomeMain's single section loop. This mirrors the
- * quickLauncherCatalogue/resolvePins pattern — one registry, one renderer,
+ * rendered by HomeMain's single section loop — one registry, one renderer,
  * user override always wins.
  *
  * Resolution ladder (resolveHomePreset):

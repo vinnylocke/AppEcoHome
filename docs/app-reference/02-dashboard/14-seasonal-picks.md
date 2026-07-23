@@ -6,7 +6,7 @@
 - `/dashboard` — rendered by the merged home ([Home (Main Dashboard)](./17-home-main.md)) in **Simple density only** (Detailed hides it to stay telemetry-first).
 - `/weekly` — mounted as a section on the Weekly Overview page between "Sow this week" and "Ready to harvest" (Wave 21.0005).
 
-> Previously also on `/quick/calendar` (`variant="today"`, removed Wave 21.0004) and `/quick` (`variant="carousel"`, removed Wave 21.0005). Both placements duplicated content; the Today screen now stays tight on "what's happening right now" and the Quick Launcher home now leads with the customisable launcher + walk tile. Personalised picks live on `/weekly` where they pair naturally with the deterministic "Sow this week" chip strip and the rest of the week-ahead context.
+> Previously also on `/quick/calendar` (`variant="today"`, removed Wave 21.0004) and `/quick` (`variant="carousel"`, removed Wave 21.0005). Both placements duplicated content; the Today screen now stays tight on "what's happening right now" and the since-retired Quick Launcher home led with the customisable launcher + walk tile. Personalised picks live on `/weekly` where they pair naturally with the deterministic "Sow this week" chip strip and the rest of the week-ahead context.
 
 **Source files:**
 - `src/components/seasonal/SeasonalPicksCard.tsx`

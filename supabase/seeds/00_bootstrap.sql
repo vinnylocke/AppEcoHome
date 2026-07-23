@@ -182,7 +182,6 @@ SET
     "plantnet_identification_tour": "dismissed",
     "nursery_tour": "dismissed",
     "garden_walk_tour": "dismissed",
-    "seasonal_picks_tour": "dismissed",
-    "quick_launcher_customise_tour": "dismissed"
+    "seasonal_picks_tour": "dismissed"
   }'::jsonb
 WHERE uid = '00000000-0000-0000-0000-000000000001';

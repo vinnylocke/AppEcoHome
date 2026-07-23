@@ -1692,6 +1692,19 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     return { active, inactive, hidden, all: active + inactive + visibleLoved };
   }, [plants, gardenPresence.plantPresence, isHearted]);
 
+  // Smart default (owner request 2026-07-23): land on the Active chip when the
+  // garden actually has active plants, else stay on All. One-shot — fires once
+  // both plants and presence have loaded, and never overrides a manual pick
+  // (userChoseChipRef guards the load-window race where a click lands first).
+  const didSmartDefaultRef = useRef(false);
+  const userChoseChipRef = useRef(false);
+  useEffect(() => {
+    if (didSmartDefaultRef.current || userChoseChipRef.current || legacyFilters) return;
+    if (gardenPresence.loading || plants.length === 0) return; // wait for both to load
+    didSmartDefaultRef.current = true;
+    if (presenceCounts.active > 0) setPresenceChip("active");
+  }, [gardenPresence.loading, plants.length, presenceCounts.active, legacyFilters]);
+
   const filteredPlants = useMemo(() => {
     const base = plants.filter((p) => {
       if (legacyFilters) {
@@ -2021,21 +2034,21 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                       label: presenceCounts.all > 0 ? `All · ${presenceCounts.all}` : "All",
                       testId: "shed-scope-home",
                       active: scope === "home" && presenceChip === "all",
-                      onClick: () => { switchScope("home"); setPresenceChip("all"); },
+                      onClick: () => { userChoseChipRef.current = true; switchScope("home"); setPresenceChip("all"); },
                     },
                     {
                       key: "chip-active",
                       label: presenceCounts.active > 0 ? `Active · ${presenceCounts.active}` : "Active",
                       testId: "shed-chip-active",
                       active: scope === "home" && presenceChip === "active",
-                      onClick: () => { switchScope("home"); setPresenceChip("active"); },
+                      onClick: () => { userChoseChipRef.current = true; switchScope("home"); setPresenceChip("active"); },
                     },
                     {
                       key: "chip-inactive",
                       label: presenceCounts.inactive > 0 ? `Inactive · ${presenceCounts.inactive}` : "Inactive",
                       testId: "shed-chip-inactive",
                       active: scope === "home" && presenceChip === "inactive",
-                      onClick: () => { switchScope("home"); setPresenceChip("inactive"); },
+                      onClick: () => { userChoseChipRef.current = true; switchScope("home"); setPresenceChip("inactive"); },
                     },
                     // v3 feedback polish — the Saved chip died (visibility =
                     // presence OR ♥); the merged ♥ Favourites chip IS the

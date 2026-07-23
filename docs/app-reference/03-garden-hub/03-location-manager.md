@@ -9,7 +9,7 @@
 
 ## Quick Summary
 
-Shows every Location for the active home as expandable rows. Each row contains the location's areas as cards with metric chips (plant count, recent lux, "on layout" flag). The owner can create / rename / delete locations and areas. Per-area metric editing is via an "Advanced Settings" accordion containing pH, lux, water movement, growing medium, nutrient source, etc. — each with an InfoTooltip explaining the field for beginners.
+Shows every Location for the active home as expandable rows. Each row contains the location's areas as cards with metric chips (plant count, live soil reading — moisture / temp / EC, recent lux, "on layout" flag). The owner can create / rename / delete locations and areas. Per-area metric editing is via an "Advanced Settings" accordion containing pH, lux, water movement, growing medium, nutrient source, etc. — each with an InfoTooltip explaining the field for beginners.
 
 **Area ↔ Sensor linkage Phase 1 (2026-06-16):** the area-edit modal now mounts an [`AreaSensorsPanel`](../../../src/components/area/AreaSensorsPanel.tsx) at the top showing every soil sensor linked to the area via `devices.area_id`. The panel shows: latest moisture / temp / EC per sensor, an averaged tile across all sensors (or just the single-sensor reading), a per-sensor list with last-seen timestamps, and a 24h / 7d / 30d history chart drawing one line per sensor plus a dashed average line. When no sensors are linked, a "Link a soil sensor" CTA deep-links to `/integrations` where the user can assign a sensor via Device Settings. The aggregation math lives in [`computeAreaMetricSummary`](../../../src/services/areaSensorsService.ts) and is unit-tested separately.
 
@@ -30,7 +30,7 @@ LocationManager
 │   ├── Location name + edit/delete buttons
 │   ├── Is_outside toggle
 │   ├── Area cards grid
-│   │   ├── Area name + lux + plants + "On layout" chips (areaMeta)
+│   │   ├── Area name + plants + soil reading (💧/🌡/⚡) + lux + "On layout" chips
 │   │   ├── Edit + delete buttons
 │   │   └── Tap to open metric panel
 │   └── Add Area button
@@ -55,6 +55,7 @@ LocationManager
     .eq("home_id", homeId);
   ```
 - `areaMeta` map computed from a side query of `inventory_items.area_id` counts + the most recent `area_lux_readings` per area.
+- **Live soil-reading chips** (added 2026-07-23) come straight off the `areas(*)` select — the denormalised `latest_soil_moisture_pct` / `latest_soil_temp_c` / `latest_soil_ec` (+ `_recorded_at`) columns maintained by the integrations ingest path. `buildSoilChips(area)` ([`src/lib/soilReadings.ts`](../../../src/lib/soilReadings.ts)) turns them into 💧/🌡/⚡ chips; a reading older than 24h (or with no timestamp) renders greyed as stale. No extra query — the metadata row now shows even when only a soil reading is present.
 
 ### Data flow — write paths
 

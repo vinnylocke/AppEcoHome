@@ -98,4 +98,5 @@ Every ailment ♥ became a 🔭 Binoculars (never a heart on ailments): the card
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| WL-P1 | ✅ | Visibility law: an ailment with no `plant_instance_ailments` link and no 🔭 (inserted directly, bypassing every auto-watch add flow) is hidden from the default list; `watchlist-hidden-collection-hint` counts it and opens the takeover where it's still findable via search | — | ✅ Passing |
+| WL-P1 | ✅ | Visibility law: an ailment with no `plant_instance_ailments` link and no 🔭 (inserted directly, bypassing every auto-watch add flow) is hidden from the grid; the test switches to the **All** chip (the hint is an All-view net after the smart default) then asserts `watchlist-hidden-collection-hint` counts it and opens the takeover where it's still findable via search | — | ✅ Passing |
+| WL-tab-smart-default | ✅ | Smart default (2026-07-23): lands on the **Active** chip when live-linked ailments exist (seeded Aphid / Early Blight / Japanese Knotweed are active); archived Powdery Mildew stays hidden. Falls back to All when nothing is active | 06 + 09 seeds | ✅ Passing |

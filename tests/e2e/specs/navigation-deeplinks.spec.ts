@@ -16,11 +16,9 @@ test.describe("Navigation deep-links", () => {
     await expect(authenticatedPage).not.toHaveURL(/category=/, { timeout: 10000 });
   });
 
-  test("NAV-003: /gardener?section=quick-launcher lands on Account with the picker anchor", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/gardener?section=quick-launcher");
-    await expect(authenticatedPage.locator("#quick-launcher-section")).toBeAttached({ timeout: 10000 });
-    await expect(authenticatedPage).not.toHaveURL(/section=/);
-  });
+  // NAV-003 (/gardener?section=quick-launcher → Account picker anchor) RETIRED
+  // 2026-07-23 — the quick-launcher customiser was removed outright; the
+  // ?section=quick-launcher deep link and its picker no longer exist.
 
   test("NAV-004: /dashboard?view=calendar&date=YYYY-MM-DD is consumed (date stripped)", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/dashboard?view=calendar&date=2026-06-19");
