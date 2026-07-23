@@ -120,6 +120,8 @@ Before this, `task_blueprints.start_date` / `end_date` were **frozen single-year
 - `generate-tasks` cron — annual seasonal-frequency routines re-materialise each year within the today+7d horizon (window types are still frontend-owned / skipped).
 - `generate-daily-brief` (`buildWindowSignals`) + `generate-weekly-overviews` — roll each blueprint into its current occurrence before deciding whether its window is open / opening; see [Garden Brain](./39-garden-brain.md).
 
+**Authoring.** `recurrence_kind` is set automatically at schedule-generation time from the plant lifecycle (`src/lib/plantScheduleGenerator.ts` `buildBlueprintFromSchedule` + its mirror in `PlantScheduleTab.getDatesForBlueprint`: perennial → `annual`, biennial → `lifecycle_capped`, annual/unknown → `once`), and can be overridden by a **"Repeat every year"** toggle in the routine editors — `AddTaskModal` (which also backs BlueprintManager's edit, all four blueprint write paths) and `InstanceCareRoutine` (create path; the inline edit preserves the stored value). The toggle appears only when an `end_date` is set and writes `annual` / `once`; clearing the end date resets it to `once`. `BlueprintManager`'s "Next:" schedule preview rolls an `annual` blueprint's window into the current occurrence via `projectAnnualWindows` so it never shows the expired one.
+
 A blueprint with a missing/null `recurrence_kind` (e.g. a pre-migration cached snapshot) safely degrades to `once` everywhere.
 
 ### `todo_lists` table

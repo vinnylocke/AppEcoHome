@@ -118,6 +118,12 @@ export default function AddTaskModal({
       TASK_TYPE_DEFAULT_FREQUENCY[existingBlueprint?.task_type || "Maintenance"] ||
       7,
     end_date: existingBlueprint?.end_date || "",
+    // Track B — "repeat every year". 'annual' reopens a windowed/seasonal routine
+    // (one with an end_date) next year; 'once' keeps the end_date terminal. A
+    // biennial's 'lifecycle_capped' reads as annual for this toggle.
+    recurrence_kind: (existingBlueprint?.recurrence_kind && existingBlueprint.recurrence_kind !== "once"
+      ? "annual"
+      : "once") as "once" | "annual",
     scope: (existingBlueprint?.scope as "home" | "personal") || "home",
     assigned_to: existingBlueprint?.assigned_to || "",
   });
@@ -155,6 +161,7 @@ export default function AddTaskModal({
       form.isRecurring !== init.isRecurring ||
       form.frequency_days !== init.frequency_days ||
       form.end_date !== init.end_date ||
+      form.recurrence_kind !== init.recurrence_kind ||
       form.scope !== init.scope ||
       form.assigned_to !== init.assigned_to
     );
@@ -559,6 +566,8 @@ export default function AddTaskModal({
             frequency_days: form.frequency_days,
             start_date: form.start_date,
             end_date: form.end_date || null,
+            recurrence_kind: form.recurrence_kind,
+            recurs_until: null,
             scope: form.scope,
             assigned_to: form.assigned_to || null,
           };
@@ -590,6 +599,8 @@ export default function AddTaskModal({
             is_recurring: true,
             start_date: form.start_date,
             end_date: form.end_date || null,
+            recurrence_kind: form.recurrence_kind,
+            recurs_until: null,
             scope: form.scope,
             created_by: currentUserId,
             assigned_to: form.assigned_to || null,
@@ -746,6 +757,8 @@ export default function AddTaskModal({
             frequency_days: form.frequency_days,
             start_date: form.start_date,
             end_date: form.end_date || null,
+            recurrence_kind: form.recurrence_kind,
+            recurs_until: null,
             scope: form.scope,
             assigned_to: form.assigned_to || null,
           })
@@ -775,6 +788,8 @@ export default function AddTaskModal({
               is_recurring: true,
               start_date: form.start_date,
               end_date: form.end_date || null,
+              recurrence_kind: form.recurrence_kind,
+              recurs_until: null,
               scope: form.scope,
               created_by: currentUserId,
               assigned_to: form.assigned_to || null,
@@ -1517,11 +1532,42 @@ export default function AddTaskModal({
                     type="date"
                     value={form.end_date}
                     onChange={(e) =>
-                      setForm({ ...form, end_date: e.target.value })
+                      setForm({
+                        ...form,
+                        end_date: e.target.value,
+                        // Recurrence is meaningless without an end date — reset it on clear.
+                        recurrence_kind: e.target.value ? form.recurrence_kind : "once",
+                      })
                     }
                     className="w-full p-4 min-h-[44px] bg-white rounded-2xl font-bold outline-none border border-rhozly-outline/10 cursor-pointer"
                   />
                 </div>
+
+                {/* Track B — "repeat every year". Only meaningful with an end
+                    date (a windowed / seasonal routine): ON reopens the window
+                    next year; OFF keeps the end date terminal. */}
+                {form.end_date && (
+                  <label
+                    data-testid="repeat-every-year-toggle"
+                    className="col-span-2 flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border border-rhozly-outline/10 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      data-testid="repeat-every-year-checkbox"
+                      checked={form.recurrence_kind === "annual"}
+                      onChange={(e) =>
+                        setForm({ ...form, recurrence_kind: e.target.checked ? "annual" : "once" })
+                      }
+                      className="w-5 h-5 accent-rhozly-primary shrink-0"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-xs font-black text-rhozly-on-surface">Repeat every year</span>
+                      <span className="block text-[10px] font-medium text-rhozly-on-surface/50 leading-snug">
+                        Reopen this window next year instead of stopping at the end date — ideal for perennials like fruit bushes.
+                      </span>
+                    </span>
+                  </label>
+                )}
 
                 {/* Live "next 3 occurrences" preview so the user can
                     sanity-check the schedule before saving. Pure

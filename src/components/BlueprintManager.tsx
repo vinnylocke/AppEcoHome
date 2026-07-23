@@ -34,6 +34,7 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
 import { Logger } from "../lib/errorHandler";
 import { getLocalDateString } from "../lib/taskEngine";
+import { projectAnnualWindows } from "../lib/windowTasks";
 
 interface BlueprintManagerProps {
   homeId: string;
@@ -816,10 +817,28 @@ export default function BlueprintManager({ homeId, aiEnabled = false, embedded =
                     accent hue; today is ringed; per-dot titles carry dates. */}
                 {(() => {
                   if (!bp.frequency_days || bp.frequency_days <= 0) return null;
-                  const anchorStr = (bp.start_date || bp.created_at || new Date().toISOString()).split("T")[0];
+                  const todayStr = getLocalDateString(new Date());
+                  // Track B — for an 'annual' blueprint the stored start/end are
+                  // last year's template; roll to the current/next occurrence so
+                  // the preview reflects this year's window, not the expired one.
+                  let anchorStr = (bp.start_date || bp.created_at || new Date().toISOString()).split("T")[0];
+                  let effEndStr: string | null = bp.end_date ?? null;
+                  const recursAnnually =
+                    bp.recurrence_kind === "annual" || bp.recurrence_kind === "lifecycle_capped";
+                  if (recursAnnually && bp.start_date && bp.end_date) {
+                    const dayMsLocal = 24 * 60 * 60 * 1000;
+                    const horizon = new Date(new Date(todayStr).getTime() + 550 * dayMsLocal)
+                      .toISOString().split("T")[0];
+                    const win = projectAnnualWindows(
+                      bp.start_date, bp.end_date, todayStr, horizon, todayStr, { recursUntil: bp.recurs_until },
+                    ).find((w) => w.end >= todayStr);
+                    if (!win) return null; // past the lifecycle cap — nothing upcoming
+                    anchorStr = win.start;
+                    effEndStr = win.end;
+                  }
                   const anchorMs = new Date(anchorStr).getTime();
-                  const todayMs = new Date(getLocalDateString(new Date())).getTime();
-                  const endMs = bp.end_date ? new Date(bp.end_date).getTime() : null;
+                  const todayMs = new Date(todayStr).getTime();
+                  const endMs = effEndStr ? new Date(effEndStr).getTime() : null;
                   const dayMs = 24 * 60 * 60 * 1000;
 
                   // Find the first occurrence >= today
