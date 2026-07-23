@@ -27,6 +27,7 @@ import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { logEvent, EVENT } from "../events/registry";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { getNextOccurrences, formatPreviewLine } from "../lib/scheduleDatePreview";
+import { deriveRecurrence, yearsFromRecurrence } from "../lib/recurrence";
 import { BlueprintService } from "../services/blueprintService";
 import { TaskEngine } from "../lib/taskEngine";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
@@ -100,6 +101,14 @@ export default function AddTaskModal({
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
   }, []);
 
+  // Track B — reconstruct the "repeat every year" + optional cap controls from
+  // the existing blueprint's recurrence_kind / recurs_until.
+  const initRecurrence = yearsFromRecurrence(
+    existingBlueprint?.start_date,
+    existingBlueprint?.recurrence_kind,
+    existingBlueprint?.recurs_until,
+  );
+
   const [form, setForm] = useState({
     title: existingBlueprint?.title || "",
     type: existingBlueprint?.task_type || "Maintenance",
@@ -118,12 +127,11 @@ export default function AddTaskModal({
       TASK_TYPE_DEFAULT_FREQUENCY[existingBlueprint?.task_type || "Maintenance"] ||
       7,
     end_date: existingBlueprint?.end_date || "",
-    // Track B — "repeat every year". 'annual' reopens a windowed/seasonal routine
-    // (one with an end_date) next year; 'once' keeps the end_date terminal. A
-    // biennial's 'lifecycle_capped' reads as annual for this toggle.
-    recurrence_kind: (existingBlueprint?.recurrence_kind && existingBlueprint.recurrence_kind !== "once"
-      ? "annual"
-      : "once") as "once" | "annual",
+    // Track B — "repeat every year" (repeatAnnually) + optional "stop after N
+    // years" cap (repeatYears; "" = forever). Derived to recurrence_kind /
+    // recurs_until at save via deriveRecurrence.
+    repeatAnnually: initRecurrence.repeatAnnually,
+    repeatYears: (initRecurrence.repeatYears ?? "") as number | "",
     scope: (existingBlueprint?.scope as "home" | "personal") || "home",
     assigned_to: existingBlueprint?.assigned_to || "",
   });
@@ -161,7 +169,8 @@ export default function AddTaskModal({
       form.isRecurring !== init.isRecurring ||
       form.frequency_days !== init.frequency_days ||
       form.end_date !== init.end_date ||
-      form.recurrence_kind !== init.recurrence_kind ||
+      form.repeatAnnually !== init.repeatAnnually ||
+      form.repeatYears !== init.repeatYears ||
       form.scope !== init.scope ||
       form.assigned_to !== init.assigned_to
     );
@@ -542,6 +551,14 @@ export default function AddTaskModal({
     }
     if (hasError) return;
 
+    // Track B — resolve the "repeat every year" + optional cap controls to the
+    // persisted recurrence columns (once / annual / lifecycle_capped).
+    const rec = deriveRecurrence(
+      form.start_date,
+      form.repeatAnnually,
+      form.repeatYears === "" ? null : Number(form.repeatYears),
+    );
+
     // Offline-first: a plain one-off task, a NEW recurring routine, a routine
     // EDIT, and dependency linking all work offline. Everything is a set of
     // idempotent client-uuid writes queued for replay; the task/blueprint is
@@ -566,8 +583,8 @@ export default function AddTaskModal({
             frequency_days: form.frequency_days,
             start_date: form.start_date,
             end_date: form.end_date || null,
-            recurrence_kind: form.recurrence_kind,
-            recurs_until: null,
+            recurrence_kind: rec.recurrence_kind,
+            recurs_until: rec.recurs_until,
             scope: form.scope,
             assigned_to: form.assigned_to || null,
           };
@@ -599,8 +616,8 @@ export default function AddTaskModal({
             is_recurring: true,
             start_date: form.start_date,
             end_date: form.end_date || null,
-            recurrence_kind: form.recurrence_kind,
-            recurs_until: null,
+            recurrence_kind: rec.recurrence_kind,
+            recurs_until: rec.recurs_until,
             scope: form.scope,
             created_by: currentUserId,
             assigned_to: form.assigned_to || null,
@@ -757,8 +774,8 @@ export default function AddTaskModal({
             frequency_days: form.frequency_days,
             start_date: form.start_date,
             end_date: form.end_date || null,
-            recurrence_kind: form.recurrence_kind,
-            recurs_until: null,
+            recurrence_kind: rec.recurrence_kind,
+            recurs_until: rec.recurs_until,
             scope: form.scope,
             assigned_to: form.assigned_to || null,
           })
@@ -788,8 +805,8 @@ export default function AddTaskModal({
               is_recurring: true,
               start_date: form.start_date,
               end_date: form.end_date || null,
-              recurrence_kind: form.recurrence_kind,
-              recurs_until: null,
+              recurrence_kind: rec.recurrence_kind,
+              recurs_until: rec.recurs_until,
               scope: form.scope,
               created_by: currentUserId,
               assigned_to: form.assigned_to || null,
@@ -1535,38 +1552,61 @@ export default function AddTaskModal({
                       setForm({
                         ...form,
                         end_date: e.target.value,
-                        // Recurrence is meaningless without an end date — reset it on clear.
-                        recurrence_kind: e.target.value ? form.recurrence_kind : "once",
+                        // Recurrence is meaningless without an end date — reset on clear.
+                        repeatAnnually: e.target.value ? form.repeatAnnually : false,
+                        repeatYears: e.target.value ? form.repeatYears : "",
                       })
                     }
                     className="w-full p-4 min-h-[44px] bg-white rounded-2xl font-bold outline-none border border-rhozly-outline/10 cursor-pointer"
                   />
                 </div>
 
-                {/* Track B — "repeat every year". Only meaningful with an end
-                    date (a windowed / seasonal routine): ON reopens the window
-                    next year; OFF keeps the end date terminal. */}
+                {/* Track B — "repeat every year" (only with an end date) + an
+                    optional "stop after N years" cap. Blank = forever. */}
                 {form.end_date && (
-                  <label
-                    data-testid="repeat-every-year-toggle"
-                    className="col-span-2 flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border border-rhozly-outline/10 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      data-testid="repeat-every-year-checkbox"
-                      checked={form.recurrence_kind === "annual"}
-                      onChange={(e) =>
-                        setForm({ ...form, recurrence_kind: e.target.checked ? "annual" : "once" })
-                      }
-                      className="w-5 h-5 accent-rhozly-primary shrink-0"
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-xs font-black text-rhozly-on-surface">Repeat every year</span>
-                      <span className="block text-[10px] font-medium text-rhozly-on-surface/50 leading-snug">
-                        Reopen this window next year instead of stopping at the end date — ideal for perennials like fruit bushes.
+                  <div className="col-span-2 space-y-2">
+                    <label
+                      data-testid="repeat-every-year-toggle"
+                      className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border border-rhozly-outline/10 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        data-testid="repeat-every-year-checkbox"
+                        checked={form.repeatAnnually}
+                        onChange={(e) => setForm({ ...form, repeatAnnually: e.target.checked })}
+                        className="w-5 h-5 accent-rhozly-primary shrink-0"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-black text-rhozly-on-surface">Repeat every year</span>
+                        <span className="block text-[10px] font-medium text-rhozly-on-surface/50 leading-snug">
+                          Reopen this window next year instead of stopping at the end date — ideal for perennials like fruit bushes.
+                        </span>
                       </span>
-                    </span>
-                  </label>
+                    </label>
+                    {form.repeatAnnually && (
+                      <label className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-rhozly-outline/10">
+                        <span className="text-xs font-bold text-rhozly-on-surface/70 shrink-0">Stop after</span>
+                        <input
+                          type="number"
+                          min={1}
+                          data-testid="repeat-years-input"
+                          value={form.repeatYears}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              repeatYears: e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value, 10) || 1),
+                            })
+                          }
+                          placeholder="∞"
+                          className="w-16 p-2 bg-rhozly-surface-lowest rounded-lg font-bold text-sm text-center outline-none border border-rhozly-outline/10"
+                        />
+                        <span className="text-xs font-bold text-rhozly-on-surface/70 shrink-0">years</span>
+                        <span className="text-[10px] font-medium text-rhozly-on-surface/45 leading-snug">
+                          Leave blank for forever.
+                        </span>
+                      </label>
+                    )}
+                  </div>
                 )}
 
                 {/* Live "next 3 occurrences" preview so the user can

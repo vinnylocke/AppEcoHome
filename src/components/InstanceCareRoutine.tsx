@@ -21,6 +21,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { BlueprintService } from "../services/blueprintService";
 import { getLocalDateString } from "../lib/taskEngine";
+import { deriveRecurrence } from "../lib/recurrence";
 
 interface InstanceCareRoutineProps {
   inventoryItemId: string;
@@ -69,8 +70,10 @@ export default function InstanceCareRoutine({
     frequency_days: 7 as number | "",
     start_date: todayStr,
     end_date: "",
-    // Track B — "repeat every year" (only meaningful with an end_date).
-    recurrence_kind: "once" as "once" | "annual",
+    // Track B — "repeat every year" + optional "stop after N years" cap
+    // (repeatYears "" = forever). Only meaningful with an end_date.
+    repeatAnnually: false,
+    repeatYears: "" as number | "",
   });
 
   // Success animation state
@@ -273,6 +276,14 @@ export default function InstanceCareRoutine({
 
     // Create optimistic entry
     const optimisticId = `temp-${Date.now()}`;
+    // Track B — resolve the "repeat every year" + cap controls once.
+    const rec = deriveRecurrence(
+      newRoutine.start_date || todayStr,
+      newRoutine.is_recurring && newRoutine.repeatAnnually,
+      newRoutine.repeatYears === "" ? null : Number(newRoutine.repeatYears),
+    );
+    const attemptedRepeatAnnually = newRoutine.repeatAnnually;
+    const attemptedRepeatYears = newRoutine.repeatYears;
     const optimisticRoutine = {
       id: optimisticId,
       home_id: homeId,
@@ -291,8 +302,8 @@ export default function InstanceCareRoutine({
         newRoutine.is_recurring && newRoutine.end_date
           ? newRoutine.end_date
           : null,
-      recurrence_kind: newRoutine.recurrence_kind,
-      recurs_until: null,
+      recurrence_kind: rec.recurrence_kind,
+      recurs_until: rec.recurs_until,
       priority: "Medium",
       created_at: new Date().toISOString(),
     };
@@ -307,7 +318,8 @@ export default function InstanceCareRoutine({
       frequency_days: 7,
       start_date: todayStr,
       end_date: "",
-      recurrence_kind: "once",
+      repeatAnnually: false,
+      repeatYears: "",
     });
     setIsAdding(false);
 
@@ -324,8 +336,8 @@ export default function InstanceCareRoutine({
         frequency_days: optimisticRoutine.frequency_days,
         start_date: optimisticRoutine.start_date,
         end_date: optimisticRoutine.end_date,
-        recurrence_kind: optimisticRoutine.recurrence_kind,
-        recurs_until: null,
+        recurrence_kind: rec.recurrence_kind,
+        recurs_until: rec.recurs_until,
         priority: "Medium",
       };
 
@@ -367,7 +379,8 @@ export default function InstanceCareRoutine({
         frequency_days: optimisticRoutine.frequency_days || 7,
         start_date: optimisticRoutine.start_date,
         end_date: optimisticRoutine.end_date || "",
-        recurrence_kind: optimisticRoutine.recurrence_kind,
+        repeatAnnually: attemptedRepeatAnnually,
+        repeatYears: attemptedRepeatYears,
       });
       Logger.error("Failed to create care routine", error, {}, "Failed to create routine.");
     } finally {
@@ -516,7 +529,8 @@ export default function InstanceCareRoutine({
                     setNewRoutine({
                       ...newRoutine,
                       end_date: e.target.value,
-                      recurrence_kind: e.target.value ? newRoutine.recurrence_kind : "once",
+                      repeatAnnually: e.target.value ? newRoutine.repeatAnnually : false,
+                      repeatYears: e.target.value ? newRoutine.repeatYears : "",
                     })
                   }
                   className="w-full p-3 bg-white rounded-xl font-bold text-sm outline-none border border-transparent focus:border-rhozly-primary disabled:opacity-50"
@@ -524,28 +538,50 @@ export default function InstanceCareRoutine({
               </div>
             </div>
 
-            {/* Track B — "repeat every year" (only with an end date). */}
+            {/* Track B — "repeat every year" (only with an end date) + an
+                optional "stop after N years" cap. Blank = forever. */}
             {newRoutine.end_date && (
-              <label
-                data-testid="routine-repeat-every-year"
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white border border-rhozly-outline/10 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  data-testid="routine-repeat-every-year-checkbox"
-                  checked={newRoutine.recurrence_kind === "annual"}
-                  onChange={(e) =>
-                    setNewRoutine({ ...newRoutine, recurrence_kind: e.target.checked ? "annual" : "once" })
-                  }
-                  className="w-4 h-4 accent-rhozly-primary shrink-0"
-                />
-                <span className="min-w-0">
-                  <span className="block text-xs font-black text-rhozly-on-surface">Repeat every year</span>
-                  <span className="block text-[10px] font-medium text-rhozly-on-surface/50 leading-snug">
-                    Reopen this window next year instead of stopping at the end date.
+              <div className="space-y-2">
+                <label
+                  data-testid="routine-repeat-every-year"
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white border border-rhozly-outline/10 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    data-testid="routine-repeat-every-year-checkbox"
+                    checked={newRoutine.repeatAnnually}
+                    onChange={(e) => setNewRoutine({ ...newRoutine, repeatAnnually: e.target.checked })}
+                    className="w-4 h-4 accent-rhozly-primary shrink-0"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-black text-rhozly-on-surface">Repeat every year</span>
+                    <span className="block text-[10px] font-medium text-rhozly-on-surface/50 leading-snug">
+                      Reopen this window next year instead of stopping at the end date.
+                    </span>
                   </span>
-                </span>
-              </label>
+                </label>
+                {newRoutine.repeatAnnually && (
+                  <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-rhozly-outline/10">
+                    <span className="text-xs font-bold text-rhozly-on-surface/70 shrink-0">Stop after</span>
+                    <input
+                      type="number"
+                      min={1}
+                      data-testid="routine-repeat-years-input"
+                      value={newRoutine.repeatYears}
+                      onChange={(e) =>
+                        setNewRoutine({
+                          ...newRoutine,
+                          repeatYears: e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value, 10) || 1),
+                        })
+                      }
+                      placeholder="∞"
+                      className="w-14 p-1.5 bg-rhozly-surface-lowest rounded-lg font-bold text-sm text-center outline-none border border-rhozly-outline/10"
+                    />
+                    <span className="text-xs font-bold text-rhozly-on-surface/70 shrink-0">years</span>
+                    <span className="text-[10px] font-medium text-rhozly-on-surface/45">Blank = forever.</span>
+                  </label>
+                )}
+              </div>
             )}
 
             <button

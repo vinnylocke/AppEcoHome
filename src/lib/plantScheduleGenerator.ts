@@ -11,6 +11,8 @@
 //   - The plant's cycle (annual/biennial/perennial) for the absolute
 //     end-of-life cap.
 
+import { deriveRecurrence, type RecurrenceKind } from "./recurrence";
+
 export interface PlantScheduleRow {
   id?: string;
   start_reference: string | null;
@@ -20,7 +22,7 @@ export interface PlantScheduleRow {
   frequency_days: number;
 }
 
-export type RecurrenceKind = "once" | "annual" | "lifecycle_capped";
+export type { RecurrenceKind };
 
 export interface BlueprintDates {
   /** ISO yyyy-mm-dd. null when the computed window is entirely in the past for a non-perennial. */
@@ -129,30 +131,13 @@ export function buildBlueprintFromSchedule(opts: {
     }
   }
 
-  // Derive recurrence across YEARS from the plant lifecycle (Track B): perennial
-  // → repeats every year; biennial → repeats until its 2-year cap; annual /
-  // unknown → runs once. Only windowed / seasonal (end_date) blueprints actually
-  // recur — this is inert on ongoing (no-end_date) routines.
-  let recurrence_kind: RecurrenceKind = "once";
-  let recurs_until: string | null = null;
-  if (plantCycle) {
-    const cycleStr = plantCycle.toLowerCase();
-    if (cycleStr.includes("perennial")) {
-      recurrence_kind = "annual";
-    } else if (cycleStr.includes("biennial")) {
-      recurrence_kind = "lifecycle_capped";
-      recurs_until = absoluteMaxEndMs !== null ? formatSafeDate(absoluteMaxEndMs) : null;
-    }
-    // "annual" (non-perennial) and unknown cycles stay 'once'.
-  }
-
   if (absoluteMaxEndMs !== null) {
     if (endMs === null || endMs > absoluteMaxEndMs) {
       endMs = absoluteMaxEndMs;
     }
     if (startMs > absoluteMaxEndMs) {
       // Start is past the lifecycle cap — no tasks would ever fire.
-      return { start_date: null, end_date: null, recurrence_kind, recurs_until };
+      return { start_date: null, end_date: null, recurrence_kind: "once", recurs_until: null };
     }
   }
 
@@ -170,8 +155,23 @@ export function buildBlueprintFromSchedule(opts: {
     startMs += periods * freqMs;
   }
 
+  const finalStartStr = formatSafeDate(startMs);
+  // Derive recurrence across YEARS from the plant lifecycle (Track B), using the
+  // FINAL (floored) start so recurs_until aligns with the projected window
+  // template: perennial → every year (forever); biennial → 2 windows; annual /
+  // unknown → once. Inert on ongoing (no-end_date) routines.
+  let repeatAnnually = false;
+  let repeatYears: number | null = null;
+  if (plantCycle) {
+    const cycleStr = plantCycle.toLowerCase();
+    if (cycleStr.includes("perennial")) repeatAnnually = true;
+    else if (cycleStr.includes("biennial")) { repeatAnnually = true; repeatYears = 2; }
+    // "annual" (non-perennial) and unknown cycles stay 'once'.
+  }
+  const { recurrence_kind, recurs_until } = deriveRecurrence(finalStartStr, repeatAnnually, repeatYears);
+
   return {
-    start_date: formatSafeDate(startMs),
+    start_date: finalStartStr,
     end_date: endMs !== null ? formatSafeDate(endMs) : null,
     recurrence_kind,
     recurs_until,

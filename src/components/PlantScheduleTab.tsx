@@ -24,6 +24,7 @@ import { ConfirmModal } from "./ConfirmModal";
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { getLocalDateString } from "../lib/taskEngine";
+import { deriveRecurrence } from "../lib/recurrence";
 
 interface Props {
   homeId: string;
@@ -314,27 +315,12 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       }
     }
 
-    // Track B — recurrence across years, derived from the plant lifecycle:
-    // perennial repeats every year, biennial repeats until its 2-year cap,
-    // annual / unknown run once. Mirror of plantScheduleGenerator.
-    let recurrence_kind: "once" | "annual" | "lifecycle_capped" = "once";
-    let recurs_until: string | null = null;
-    if (plantCycle) {
-      const cycleStr = plantCycle.toLowerCase();
-      if (cycleStr.includes("perennial")) {
-        recurrence_kind = "annual";
-      } else if (cycleStr.includes("biennial")) {
-        recurrence_kind = "lifecycle_capped";
-        recurs_until = absoluteMaxEndMs ? formatSafeDate(absoluteMaxEndMs) : null;
-      }
-    }
-
     if (absoluteMaxEndMs) {
       if (!endMs || endMs > absoluteMaxEndMs) {
         endMs = absoluteMaxEndMs;
       }
       if (startMs > absoluteMaxEndMs) {
-        return { start_date: null, end_date: null, recurrence_kind, recurs_until };
+        return { start_date: null, end_date: null, recurrence_kind: "once" as const, recurs_until: null };
       }
     }
 
@@ -352,11 +338,25 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       startMs += periods * freqMs;
     }
 
+    const finalStartStr = formatSafeDate(startMs);
+    // Track B — recurrence from the plant lifecycle, from the FINAL start so
+    // recurs_until aligns with the projected window (mirror of
+    // plantScheduleGenerator): perennial → forever; biennial → 2 windows;
+    // annual / unknown → once.
+    let repeatAnnually = false;
+    let repeatYears: number | null = null;
+    if (plantCycle) {
+      const cs = plantCycle.toLowerCase();
+      if (cs.includes("perennial")) repeatAnnually = true;
+      else if (cs.includes("biennial")) { repeatAnnually = true; repeatYears = 2; }
+    }
+    const rec = deriveRecurrence(finalStartStr, repeatAnnually, repeatYears);
+
     return {
-      start_date: formatSafeDate(startMs),
+      start_date: finalStartStr,
       end_date: endStr,
-      recurrence_kind,
-      recurs_until,
+      recurrence_kind: rec.recurrence_kind,
+      recurs_until: rec.recurs_until,
     };
   };
 

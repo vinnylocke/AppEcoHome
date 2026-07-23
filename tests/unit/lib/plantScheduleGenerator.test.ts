@@ -196,10 +196,11 @@ describe("buildBlueprintFromSchedule — lifecycle → recurrence_kind (Track B)
     expect(r.recurs_until).toBeNull();
   });
 
-  it("biennial → 'lifecycle_capped' with recurs_until = trigger + 2 years", () => {
+  it("biennial → 'lifecycle_capped' with recurs_until = first window + 1 year (exactly 2 windows)", () => {
+    // Summer window starts 2026-06-01; 2 windows (2026, 2027) → cap 2027-06-01.
     const r = buildBlueprintFromSchedule({ ...base, plantCycle: "Biennial" });
     expect(r.recurrence_kind).toBe("lifecycle_capped");
-    expect(r.recurs_until).toBe("2028-05-15");
+    expect(r.recurs_until).toBe("2027-06-01");
   });
 
   it("null / unknown cycle → 'once' (safe default)", () => {
