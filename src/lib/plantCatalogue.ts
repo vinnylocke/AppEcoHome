@@ -456,10 +456,22 @@ export async function ensureCataloguePlantFromSearchResult(
         try {
           return await ensureCataloguePlantFromLibrary(result.plant_library_id);
         } catch (err) {
-          Logger.error("library-clone path failed; falling back to Gemini", err, {
-            plant_library_id: result.plant_library_id,
-            common_name: result.common_name,
-          });
+          // A stale/deleted plant_library_id (e.g. a pick cached before a
+          // library cleanup) is an EXPECTED miss — the Gemini fallback below
+          // recovers it, so keep it out of Sentry (RHOZLY-41). Only genuinely
+          // unexpected failures stay as a (recovered) warning.
+          const staleId = err instanceof Error && /not found/i.test(err.message);
+          if (staleId) {
+            Logger.log("library-clone: stale plant_library_id — falling back to Gemini", {
+              plant_library_id: result.plant_library_id,
+              common_name: result.common_name,
+            });
+          } else {
+            Logger.warn("library-clone path failed; falling back to Gemini", err, {
+              plant_library_id: result.plant_library_id,
+              common_name: result.common_name,
+            });
+          }
           // fall through to the Gemini path below
         }
       }

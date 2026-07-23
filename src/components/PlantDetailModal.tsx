@@ -8,7 +8,7 @@ import LightTab from "./LightTab";
 import SensorRequirementsTab from "./SensorRequirementsTab";
 import { useCataloguePlantFromResult } from "../hooks/useCataloguePlantFromResult";
 import type { ProviderSearchResult } from "../lib/verdantlyUtils";
-import { formatOtherNames } from "../lib/plantNames";
+import { formatOtherNames, preferSpecificName } from "../lib/plantNames";
 
 interface Props {
   result: ProviderSearchResult;
@@ -80,6 +80,10 @@ export default function PlantDetailModal({
   if (typeof document === "undefined") return null;
 
   const sciLine = plant?.details.scientific_name?.[0] ?? null;
+  // Keep the variety/cultivar the user actually picked ("Radish 'French
+  // Breakfast'") instead of the species name the catalogue clone collapses to
+  // ("Radish"). The clone still provides the care DATA; this is display only.
+  const displayName = preferSpecificName(result.common_name, plant?.details.common_name);
 
   return createPortal(
     <div className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in`}>
@@ -92,7 +96,7 @@ export default function PlantDetailModal({
         <div className="p-6 sm:p-8 pb-4 shrink-0 flex justify-between items-start border-b border-rhozly-outline/10">
           <div className="min-w-0">
             <h3 data-testid="plant-detail-name" className="text-2xl sm:text-3xl font-black truncate">
-              {plant?.details.common_name ?? result.common_name}
+              {displayName}
             </h3>
             {sciLine && (
               <p className="text-[11px] font-bold italic text-rhozly-on-surface/45 truncate mt-1">
@@ -165,7 +169,7 @@ export default function PlantDetailModal({
                 </div>
               ) : activeTab === "care" ? (
                 <div className="rounded-3xl bg-white border border-rhozly-outline/15 overflow-hidden p-4 relative">
-                  <ManualPlantCreation initialData={plant.details} isReadOnly submitLabel="" />
+                  <ManualPlantCreation initialData={{ ...plant.details, common_name: displayName }} isReadOnly submitLabel="" />
                   {ensuring && (
                     <div className="absolute inset-0 bg-white/85 backdrop-blur-sm flex items-center justify-center">
                       <div className="flex items-center gap-2 text-sm font-bold text-rhozly-on-surface/65">
@@ -178,7 +182,7 @@ export default function PlantDetailModal({
                 activeTab === "grow" ? (
                   <GrowGuideTab
                     plantId={plant.plantId}
-                    commonName={plant.details.common_name}
+                    commonName={displayName}
                     source={plant.source}
                     homeId={homeId}
                     aiEnabled={aiEnabled}
@@ -188,7 +192,7 @@ export default function PlantDetailModal({
                   <CompanionPlantsTab
                     source={plant.source}
                     verdantlyId={plant.details.verdantly_id ?? null}
-                    plantName={plant.details.common_name}
+                    plantName={displayName}
                     homeId={homeId}
                     aiEnabled={aiEnabled}
                     isPremium={isPremium}
@@ -197,7 +201,7 @@ export default function PlantDetailModal({
                   <SensorRequirementsTab
                     plant={{
                       id: plant.plantId,
-                      common_name: plant.details.common_name,
+                      common_name: displayName,
                     }}
                     homeId={homeId}
                     aiEnabled={aiEnabled}
@@ -205,7 +209,7 @@ export default function PlantDetailModal({
                 ) : (
                   <LightTab
                     plantId={plant.plantId}
-                    plantName={plant.details.common_name}
+                    plantName={displayName}
                     homeId={homeId}
                   />
                 )

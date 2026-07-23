@@ -1,5 +1,26 @@
 import { describe, test, expect } from "vitest";
-import { normalizePlantName, formatOtherNames } from "../../../src/lib/plantNames";
+import { normalizePlantName, formatOtherNames, preferSpecificName } from "../../../src/lib/plantNames";
+
+describe("preferSpecificName", () => {
+  test("keeps the cultivar/variety name when it extends the catalogue species name", () => {
+    expect(preferSpecificName("Radish 'French Breakfast'", "Radish")).toBe("Radish 'French Breakfast'");
+    expect(preferSpecificName("Beetroot 'Boltardy'", "Beetroot")).toBe("Beetroot 'Boltardy'");
+    expect(preferSpecificName("Lavender 'Hidcote' cuttings", "Lavender")).toBe("Lavender 'Hidcote' cuttings");
+    expect(preferSpecificName("Carrot 'Autumn King'", "Carrot")).toBe("Carrot 'Autumn King'");
+  });
+  test("uses the catalogue name when the picked name isn't a more specific form of it", () => {
+    // No shared prefix — trust the cleaner catalogue name (conservative; avoids
+    // regressing generic searches that resolve to a canonical catalogue name).
+    expect(preferSpecificName("rose", "Rosa 'Peace'")).toBe("Rosa 'Peace'");
+    expect(preferSpecificName("Radish", "Radish")).toBe("Radish");
+    expect(preferSpecificName("radish", "Radish")).toBe("Radish"); // case-only diff → catalogue
+  });
+  test("handles empties", () => {
+    expect(preferSpecificName("", "Radish")).toBe("Radish");
+    expect(preferSpecificName("Radish 'X'", "")).toBe("Radish 'X'");
+    expect(preferSpecificName(null, undefined)).toBe("");
+  });
+});
 
 describe("normalizePlantName", () => {
   test("collapses spacing and case so crab apple === crabapple", () => {

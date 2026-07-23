@@ -15,6 +15,32 @@ export function normalizePlantName(input: string): string {
 }
 
 /**
+ * Choose which name to DISPLAY for a resolved plant. When the name the user
+ * actually picked/searched (`picked`) extends the catalogue name (`catalogue`)
+ * — a cultivar / variety / form like "Radish 'French Breakfast'" that resolved
+ * onto the species row "Radish" — keep the picked name so the variety isn't
+ * lost. Otherwise use the catalogue name (cleaner for generic results).
+ *
+ * The species clone provides the care DATA; this keeps the specific IDENTITY.
+ */
+export function preferSpecificName(
+  picked: string | null | undefined,
+  catalogue: string | null | undefined,
+): string {
+  const p = (picked ?? "").trim();
+  const c = (catalogue ?? "").trim();
+  if (!p) return c;
+  if (!c) return p;
+  const pl = p.toLowerCase();
+  const cl = c.toLowerCase();
+  if (pl === cl) return c;
+  // Picked name is "<catalogue name> …" — extra tokens (a quoted cultivar, a
+  // variety, a form). Keep it. e.g. "Radish 'French Breakfast'" over "Radish".
+  if (p.length > c.length && pl.startsWith(cl + " ")) return p;
+  return c;
+}
+
+/**
  * Normalise an `other_names` value into a display-ready list.
  * @param value    string[] | jsonb array | comma string | null/undefined.
  * @param exclude  names already shown (common/scientific) — dropped, case- and
