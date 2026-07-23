@@ -210,7 +210,7 @@ const FALLBACK_TABLE: FallbackEntry[] = [
   },
   // ── Propagation cues ──────────────────────────────────────────────────
   {
-    common_name: "Geranium softwood cuttings",
+    common_name: "Geranium",
     scientific_name: "Pelargonium x hortorum",
     months_north: [4, 5, 6, 7, 8],
     sow_method: "cutting",
@@ -221,7 +221,7 @@ const FALLBACK_TABLE: FallbackEntry[] = [
       "Take softwood cuttings this {month_label} — overwinter them indoors as backups.",
   },
   {
-    common_name: "Lavender 'Hidcote' cuttings",
+    common_name: "Lavender 'Hidcote'",
     scientific_name: "Lavandula angustifolia",
     months_north: [5, 6, 7, 8],
     sow_method: "cutting",

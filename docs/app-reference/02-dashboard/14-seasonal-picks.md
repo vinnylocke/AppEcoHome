@@ -188,10 +188,10 @@ None. The card refetches only on mount + manual refresh.
 |------|---------------|
 | Sprout | Deterministic fallback picks from the JS table. No AI reasoning — templated reasoning lines. Manual refresh still works but always returns the same fallback shape. |
 | Botanist | Same as Sprout. |
-| Sage | AI-personalised picks with frost-aware reasoning, Shed-aware succession suggestions, dislikes honoured. Manual refresh re-runs the Gemini call. |
-| Evergreen | Same as Sage. |
+| Sage | Same as Sprout — AI **seasonal picks** are an Evergreen-only insight (`aiTier = tier === "evergreen"`). (Sage still gets AI elsewhere, e.g. grow guides — just not this card.) |
+| Evergreen | AI-personalised picks with frost-aware reasoning, Shed-aware succession suggestions, dislikes honoured. Manual refresh re-runs the Gemini call. |
 
-The card itself doesn't gate — the server decides which path runs based on the caller's `subscription_tier` (or the home's tier mix when invoked from the cron with `callerUserId = null`).
+The card itself doesn't gate — the server decides which path runs from `subscription_tier`. On the on-demand path it's the caller's tier (`user_profiles.uid = callerUserId`); on the **cron** path (`callerUserId = null`) it's the home **owner's** tier, resolved with a two-step lookup (`home_members role=owner → user_profiles.uid`), mirroring `guardAiByHome`. **History:** a prior PostgREST nested embed (`home_members.select("user_profiles(subscription_tier)")`) silently 400'd (no such FK relationship) and the swallowed error made every cron-pre-warmed home — including Evergreen ones — resolve to the fallback. Fixed 41.0064.
 
 ### Beta gating
 
@@ -288,8 +288,8 @@ The card also reframes the app for new gardeners. The Library is "search for pla
 |------|-------------|
 | Sprout | Deterministic picks. Reasoning is templated ("Direct-sow this April for cut-and-come-again leaves."). Refresh still works but produces the same shape. |
 | Botanist | Same as Sprout. |
-| Sage | AI-personalised picks. Reasoning references your frost date, your Shed, your dislikes. Refresh uses Gemini. |
-| Evergreen | Same as Sage. |
+| Sage | Same as Sprout for this card — AI seasonal picks are Evergreen-only (Sage still gets AI grow guides, diagnosis, etc.). |
+| Evergreen | AI-personalised picks. Reasoning references your frost date, your Shed, your dislikes. Refresh uses Gemini. |
 
 ### New user vs returning user vs power user
 

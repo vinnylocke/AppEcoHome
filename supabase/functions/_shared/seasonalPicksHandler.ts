@@ -6,7 +6,7 @@
  * Owns the full lifecycle for one home:
  *   1. Cache read against `home_seasonal_picks` for the current ISO week.
  *   2. Context gathering — home / climate / tier / shed.
- *   3. Generation — Gemini for Sage+, deterministic fallback otherwise.
+ *   3. Generation — Gemini for Evergreen only, deterministic fallback otherwise.
  *   4. Cache write (upsert).
  *
  * Caller controls AI usage attribution via `callerUserId`. The cron passes
@@ -26,7 +26,7 @@ import {
   type SeasonalPick,
 } from "./seasonalPicks.ts";
 import { fallbackSeasonalPicks } from "./seasonalPicksFallback.ts";
-import { bestLibraryMatch } from "./plantNameMatch.ts";
+import { bestLibraryMatch, stripPropagationMethod } from "./plantNameMatch.ts";
 
 export interface GenerateSeasonalPicksOpts {
   homeId: string;
@@ -111,18 +111,30 @@ export async function generateSeasonalPicksForHome(
   const tier = (profileRes.data?.subscription_tier as string | null)?.toLowerCase() ?? "sprout";
 
   // AI picks are part of the Evergreen-only insights experience (the deterministic
-  // fallback serves every other tier). Cron path resolves the tier from members.
+  // fallback serves every other tier). On the cron path (no caller) resolve the
+  // tier from the home OWNER — the two-step owner lookup used everywhere else
+  // (see aiGuard.ts). A prior PostgREST nested embed
+  // (`home_members.select("user_profiles(subscription_tier)")`) silently 400'd —
+  // there's no FK relationship it can traverse — so the swallowed error made EVERY
+  // home resolve to fallback, even Evergreen ones. The subsequent guardAiByHome
+  // call still fails-closed on the owner's ai_enabled, so this can't over-grant.
   let aiTier = tier === "evergreen";
   if (!opts.callerUserId) {
-    const { data: members } = await supabase
+    const { data: owner } = await supabase
       .from("home_members")
-      .select("user_profiles(subscription_tier)")
+      .select("user_id")
       .eq("home_id", opts.homeId)
-      .limit(8);
-    // deno-lint-ignore no-explicit-any
-    const tiers = ((members ?? []) as any[])
-      .map((m) => (m.user_profiles?.subscription_tier ?? "").toLowerCase());
-    aiTier = tiers.some((t: string) => t === "evergreen");
+      .eq("role", "owner")
+      .limit(1)
+      .maybeSingle();
+    if (owner?.user_id) {
+      const { data: ownerProfile } = await supabase
+        .from("user_profiles")
+        .select("subscription_tier")
+        .eq("uid", owner.user_id)
+        .maybeSingle();
+      aiTier = (ownerProfile?.subscription_tier as string | null)?.toLowerCase() === "evergreen";
+    }
   }
 
   const hemisphere: "Northern" | "Southern" =
@@ -149,7 +161,7 @@ export async function generateSeasonalPicksForHome(
     .join(", ");
   const shedCommonNames = shedList.map((s) => s.common_name);
 
-  // 3. Generate — AI for Sage+, fallback for everyone else (or AI failure).
+  // 3. Generate — AI for Evergreen only, fallback for everyone else (or AI failure).
   let picks: SeasonalPick[] = [];
   let source: "ai" | "fallback" = "fallback";
 
@@ -240,6 +252,13 @@ export async function generateSeasonalPicksForHome(
     }).picks;
     source = "fallback";
   }
+
+  // 3.25. Method hygiene for BOTH paths. The AI path already strips via
+  //       normaliseSeasonalPicks, but the fallback table carries a couple of
+  //       method-in-name entries ("Geranium softwood cuttings") — clean every
+  //       pick here so no path can surface a propagation method in the name (it
+  //       lives in sow_method). Idempotent on already-clean names.
+  picks = picks.map((p) => ({ ...p, common_name: stripPropagationMethod(p.common_name) }));
 
   // 3.5. Resolve plant_library_id for each pick. Library hits skip
   //      Gemini when the pick is later opened — we just clone the

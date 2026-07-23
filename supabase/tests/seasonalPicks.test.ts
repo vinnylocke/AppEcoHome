@@ -327,6 +327,38 @@ Deno.test("fallbackSeasonalPicks harvest_window populated for edibles, null for 
   }
 });
 
+Deno.test("fallbackSeasonalPicks never bakes a propagation method into the name", () => {
+  // The fallback table used to carry "Geranium softwood cuttings" /
+  // "Lavender 'Hidcote' cuttings" — the method belongs in sow_method, not the name.
+  for (let m = 0; m < 12; m++) {
+    const result = fallbackSeasonalPicks({
+      currentDate: new Date(Date.UTC(2026, m, 15)),
+      hemisphere: "Northern",
+      edibleFocus: null,
+      effortPreference: null,
+      shedCommonNames: [],
+    });
+    for (const p of result.picks) {
+      assert(
+        !/\b(cutting|cuttings|division|from seed|seeds?|plugs?|layering|offsets?|transplants?)\b/i.test(p.common_name),
+        `month ${m}: "${p.common_name}" carries a propagation method`,
+      );
+    }
+  }
+});
+
+Deno.test("fallbackSeasonalPicks retains cultivar names in quotes", () => {
+  // June surfaces several quoted cultivars (Lettuce 'Lollo Rossa', etc.).
+  const result = fallbackSeasonalPicks({
+    currentDate: new Date(Date.UTC(2026, 5, 15)),
+    hemisphere: "Northern",
+    edibleFocus: null,
+    effortPreference: null,
+    shedCommonNames: [],
+  });
+  assert(result.picks.some((p) => p.common_name.includes("'")), "expected at least one quoted cultivar");
+});
+
 Deno.test("fallbackSeasonalPicks interpolates the current month into reasoning", () => {
   const result = fallbackSeasonalPicks({
     currentDate: new Date(Date.UTC(2026, 3, 15)), // April
