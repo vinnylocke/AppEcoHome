@@ -3,6 +3,7 @@ import {
   assembleBrief,
   buildBriefVoicePrompt,
   buildDeterministicSummary,
+  dropResolvedWindows,
   prependBriefToDigest,
   MAX_ITEMS,
   type BriefSignals,
@@ -204,6 +205,51 @@ Deno.test("DB-014: care proposals with an id carry apply_care_adjustment; withou
 Deno.test("DB-015: photoFlags absent (undefined) is safe — no items, no crash", () => {
   const { items } = assembleBrief(signals({ overdueCount: 1 }));
   assertEquals(items.some((i) => i.kind === "photo_flag"), false);
+});
+
+// ─── Completed-window suppression (dropResolvedWindows) ──────────────────────
+// The windows signal is blueprint-sourced; a window whose task the user has
+// already Completed/Skipped this season must stop appearing. gatherSignals
+// builds the resolved-id set from a year-scoped query; the pure drop is here.
+
+type WindowBp = { id: string; title: string; task_type: string; start_date: string };
+
+const bp = (id: string, title: string): WindowBp => ({
+  id, title, task_type: "Harvesting", start_date: "2026-07-10",
+});
+
+Deno.test("DB-020: a window whose blueprint id is resolved is dropped; others pass through in order", () => {
+  const windows = [bp("bp-1", "Tomato harvest"), bp("bp-2", "Bean harvest"), bp("bp-3", "Apple harvest")];
+  const kept = dropResolvedWindows(windows, new Set(["bp-2"]));
+  assertEquals(kept.map((w) => w.id), ["bp-1", "bp-3"]);
+});
+
+Deno.test("DB-021: an empty resolved set is a no-op — every window survives", () => {
+  const windows = [bp("bp-1", "Tomato harvest"), bp("bp-2", "Bean harvest")];
+  const kept = dropResolvedWindows(windows, new Set<string>());
+  assertEquals(kept, windows);
+});
+
+Deno.test("DB-022: resolution is keyed per blueprint id — a resolved window never nukes a different open one", () => {
+  const windows = [bp("bp-1", "Strawberry harvest"), bp("bp-2", "Strawberry harvest")];
+  // Same title, different blueprint — only the resolved id drops.
+  const kept = dropResolvedWindows(windows, new Set(["bp-1"]));
+  assertEquals(kept.map((w) => w.id), ["bp-2"]);
+});
+
+Deno.test("DB-023: composed through assembleBrief — sole open window resolved ⇒ no window item, windowsOpen 0", () => {
+  const windowBps = [bp("bp-1", "Tomato harvest")];
+  const today = "2026-07-10";
+  const dayMs = 86_400_000;
+  const kept = dropResolvedWindows(windowBps, new Set(["bp-1"]));
+  const windows = kept.map((b) => ({
+    taskType: b.task_type,
+    title: b.title,
+    opensInDays: Math.max(0, Math.ceil((Date.parse(`${b.start_date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / dayMs)),
+  }));
+  const { items, stats } = assembleBrief(signals({ windows }));
+  assertEquals(items.some((i) => i.kind === "window"), false);
+  assertEquals(stats.windowsOpen, 0);
 });
 
 // ─── AI-voice prompt contract (home redesign Stage 3 — The Brief) ────────────

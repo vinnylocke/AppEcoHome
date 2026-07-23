@@ -75,6 +75,27 @@ export interface BriefPayload {
 
 export const MAX_ITEMS = 6;
 
+/**
+ * Drop harvest/pruning window blueprints whose current-season window task is
+ * already Completed or Skipped — so the brief stops nagging "{title} window is
+ * open" once the user has finished (or missed) it. Pure + generic (keys only on
+ * `id`) so the Deno tests can assert the filter without a DB.
+ *
+ * Year-scoping is the CALLER's job: `gatherSignals` builds `resolvedBlueprintIds`
+ * from a query gated on `window_end_date >= today` (and `due_date <= today`), so
+ * only THIS season's resolved window suppresses — last year's completed cycle
+ * (window_end_date < today) never lands in the set, leaving next year's window
+ * free to re-open. Mirrors the dashboard's Completed/Skipped ("DONE") suppression
+ * in `_shared/dashboardStats.ts`.
+ */
+export function dropResolvedWindows<T extends { id: string }>(
+  windows: T[],
+  resolvedBlueprintIds: ReadonlySet<string>,
+): T[] {
+  if (resolvedBlueprintIds.size === 0) return windows;
+  return windows.filter((w) => !resolvedBlueprintIds.has(w.id));
+}
+
 /** Deterministic scoring table — the ranking IS the product decision. */
 const SCORE = {
   overdue: 100,

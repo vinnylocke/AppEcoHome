@@ -25,7 +25,7 @@ import { extractJsonObject } from "../_shared/extractJson.ts";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 import { modelsForTier } from "../agent-chat/chatModels.ts";
 import { isOverdue, effectiveDueDate } from "../_shared/dashboardStats.ts";
-import { assembleBrief, buildBriefVoicePrompt, type BriefSignals, type BriefPayload } from "../_shared/dailyBrief.ts";
+import { assembleBrief, buildBriefVoicePrompt, dropResolvedWindows, type BriefSignals, type BriefPayload } from "../_shared/dailyBrief.ts";
 import type { Persona } from "../_shared/persona.ts";
 
 const FN = "generate-daily-brief";
@@ -57,6 +57,7 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
     { data: insights },
     { data: completions },
     { data: photoConcerns },
+    { data: resolvedWindows },
   ] = await Promise.all([
     db.from("tasks")
       .select("id, title, status, due_date, next_check_at, window_end_date")
@@ -69,7 +70,7 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
       .select("type, message, is_active, ends_at, locations!inner(home_id)")
       .eq("locations.home_id", homeId).eq("is_active", true).gte("ends_at", new Date().toISOString()),
     db.from("task_blueprints")
-      .select("title, task_type, start_date, end_date")
+      .select("id, title, task_type, start_date, end_date")
       .eq("home_id", homeId).eq("is_recurring", true).eq("is_archived", false)
       .in("task_type", ["Harvesting", "Harvest", "Pruning"])
       .not("end_date", "is", null)
@@ -91,6 +92,20 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
     db.from("photo_observations")
       .select("id, findings, inventory_items(plant_name, nickname)")
       .eq("home_id", homeId).eq("health", "concern").gte("created_at", since24h),
+    // Blueprints whose CURRENT-season window task is already resolved
+    // (Completed/Skipped) and still covers today — used to drop finished
+    // windows from the `windows` signal (mirrors dashboardStats' DONE-set
+    // suppression). The window_end_date >= today gate scopes it to this year's
+    // cycle, so a past completed window can't hide next year's open one.
+    db.from("tasks")
+      .select("blueprint_id")
+      .eq("home_id", homeId)
+      .in("status", ["Completed", "Skipped"])
+      .not("blueprint_id", "is", null)
+      .not("window_end_date", "is", null)
+      .in("type", ["Harvesting", "Harvest", "Pruning"])
+      .lte("due_date", today)
+      .gte("window_end_date", today),
   ]);
 
   const tasks = (pendingTasks ?? []) as Array<{ title: string; due_date: string; next_check_at: string | null; window_end_date: string | null; status: string }>;
@@ -120,6 +135,12 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
     else if (i > 0) break; // allow "today has no completion yet" at i=0
   }
 
+  // Blueprint ids whose current-season window the user has already resolved —
+  // drop them from the windows signal so a finished window stops nagging.
+  const resolvedWindowBlueprintIds = new Set(
+    ((resolvedWindows ?? []) as Array<{ blueprint_id: string }>).map((r) => r.blueprint_id),
+  );
+
   return {
     todayStr: today,
     overdueCount: overdue.length,
@@ -140,7 +161,10 @@ async function gatherSignals(db: any, homeId: string, ownerId: string, today: st
     verifications,
     onTrackAreas,
     weatherAlerts: ((alerts ?? []) as Array<{ type: string; message: string }>).map((a) => ({ type: a.type, message: a.message })),
-    windows: ((windowBps ?? []) as Array<{ title: string; task_type: string; start_date: string }>).map((b) => ({
+    windows: dropResolvedWindows(
+      (windowBps ?? []) as Array<{ id: string; title: string; task_type: string; start_date: string }>,
+      resolvedWindowBlueprintIds,
+    ).map((b) => ({
       taskType: b.task_type,
       title: b.title,
       opensInDays: Math.max(0, Math.ceil((Date.parse(`${b.start_date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / dayMs)),
