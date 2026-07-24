@@ -107,7 +107,11 @@ Everything below already exists — the watch just reads/writes it under the use
   - **Delete:** standalone → hard `DELETE`; **blueprint-linked physical → tombstone (`Skipped`)**, never
     hard-delete (or the cron/ghost engine regenerates it); ghost → Skipped tombstone; series delete →
     `DELETE task_blueprints` (CASCADE), behind the watch hard-confirm.
-  - **Add:** deferred to Phase 4.
+  - **Add** (✅ Phase 2b/4, 2026-07-24): a plain one-off task, so NOT via mutate-task —
+    `TasksRepository.addTask` does a **direct RLS-gated insert** with the watch's own session
+    (`home_id`, `title`, `type='Maintenance'`, `due_date`=viewed day, `status='Pending'`, `scope='home'`,
+    `created_by`=caller) + a fire-and-forget `task_created` event, mirroring the app's `QuickAddTaskModal`.
+    Voice-first: a `RemoteInput` (Wear voice dictation + keyboard/scribble fallback) captures the title.
   - `unique_blueprint_date` governs materialisation; the handler self-enforces auth + scope + home-match
     (service role bypasses RLS) and is CAS-idempotent. See docs/plans/wear-phase3-task-actions.md.
 
@@ -222,14 +226,15 @@ Console app; Play routes by form factor. Manage version codes per Play's multi-A
 
 | Phase | Deliverable |
 |------|-------------|
-| **0 — Scaffold** | The `wear/` Gradle project, manifest (watch feature), Compose-for-Wear skeleton, `supabase-kt` wired with your URL+key, runs on the Wear emulator showing "Hello". |
-| **1 — Auth** | Sign in (option §7) + session persistence; a signed-in landing screen. |
-| **2 — Task list (+ Realtime)** | Today's tasks for the active home (via §6's chosen path), round-screen list, live Realtime updates while open (§5a). Reads from the local Room cache. |
-| **3 — Actions** | Complete / Postpone / Delete on a task, writing to Supabase like the web app. |
-| **4 — Add task** | Voice-first add flow → date → insert. |
+| **0 — Scaffold** ✅ | The `wear/` Gradle project, manifest (watch feature), Compose-for-Wear skeleton, `supabase-kt` wired with your URL+key. Runs on device. |
+| **1 — Auth** ✅ | Email/password sign in + session persistence; signed-in landing. |
+| **2 — Task list** ✅ | Day-by-day view (any date, all statuses) via `get-today-tasks`; ‹ / › nav + back-to-today; Overdue / To-do / Done + future recurring ghosts. |
+| **2b — Realtime** ✅ | Live auto-refresh while open (phone→watch verified). |
+| **3 — Actions** ✅ | Complete / Postpone / Delete via `mutate-task` (fresh review = SHIP; device-verified). |
+| **4 — Add task** ✅ | Voice-first (`RemoteInput`) → one-off task on the viewed day, direct RLS-gated insert. |
 | **5 — Home switcher** | List homes, switch, re-scope; remember last home. |
-| **6 — Offline & sync** | Room as the UI source of truth; optimistic local writes + a queue; WorkManager flush + re-fetch on reconnect (§5b). Turns actions 3–5 offline-capable. |
-| **7 — Polish** | Overdue styling, empty/error/loading states, manual refresh; (optional later: a Tile + complication for glanceable "N tasks due"). |
+| **6 — Offline & sync** | Room as the UI source of truth; optimistic local writes + a queue; WorkManager flush + re-fetch on reconnect (§5b). Turns actions 3–5 offline-capable. (Includes the local Room cache originally sketched for Phase 2.) |
+| **7 — Polish** | Overdue styling, empty/error/loading states, realtime reconnect-reconcile + resume/pause teardown, manual refresh; (optional later: a Tile + complication for glanceable "N tasks due"). |
 
 ## 10. Division of labour (important)
 

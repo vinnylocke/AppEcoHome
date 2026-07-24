@@ -12,6 +12,7 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -26,6 +27,25 @@ object TasksRepository {
 
     @Serializable
     private data class HomeRow(val home_id: String? = null)
+
+    @Serializable
+    private data class NewTaskRow(
+        val home_id: String,
+        val title: String,
+        val type: String,
+        val description: String?,
+        val due_date: String,
+        val status: String,
+        val scope: String,
+        val created_by: String?,
+    )
+
+    @Serializable
+    private data class NewEventRow(
+        val user_id: String,
+        val event_type: String,
+        val meta: JsonObject,
+    )
 
     /** The user's active home (`user_profiles.home_id`), or null. */
     suspend fun activeHomeId(): String? {
@@ -70,6 +90,47 @@ object TasksRepository {
     /** Dismiss a task; `series=true` also deletes the whole recurring schedule. */
     suspend fun deleteTask(task: WatchTask, homeId: String, series: Boolean): MutateResult =
         mutate(homeId, "delete", task) { put("delete_series", series) }
+
+    /** Create a one-off task for this home. Mirrors the app's quick-add: home
+     *  scope, a direct RLS-gated insert (the watch's own session), plus a
+     *  fire-and-forget `task_created` event. No ghost/branch logic, so it
+     *  doesn't need the service-role mutate-task fn. */
+    suspend fun addTask(
+        homeId: String,
+        title: String,
+        type: String,
+        dueDate: String,
+        description: String?,
+    ): MutateResult {
+        val userId = Supabase.client.auth.currentUserOrNull()?.id
+        Supabase.client.from("tasks").insert(
+            NewTaskRow(
+                home_id = homeId,
+                title = title,
+                type = type,
+                description = description,
+                due_date = dueDate,
+                status = "Pending",
+                scope = "home",
+                created_by = userId,
+            ),
+        )
+        if (userId != null) {
+            runCatching {
+                Supabase.client.from("user_events").insert(
+                    NewEventRow(
+                        user_id = userId,
+                        event_type = "task_created",
+                        meta = buildJsonObject {
+                            put("type", type)
+                            put("source", "wear")
+                        },
+                    ),
+                )
+            }
+        }
+        return MutateResult(ok = true, hint = "Task added")
+    }
 
     private suspend fun mutate(
         homeId: String,

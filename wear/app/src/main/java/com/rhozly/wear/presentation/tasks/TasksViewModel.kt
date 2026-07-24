@@ -65,22 +65,44 @@ class TasksViewModel : ViewModel() {
         TasksRepository.deleteTask(task, home, series)
     }
 
-    private fun act(call: suspend (homeId: String) -> MutateResult) {
-        val home = homeId
-        if (home == null) {
-            _ui.value = _ui.value.copy(message = "No home set for this account")
+    /** Save a fully-specified new task (from the New-task editor). */
+    fun saveNewTask(title: String, type: String, dueDate: String, note: String) {
+        val name = title.trim()
+        if (name.isEmpty()) {
+            _ui.value = _ui.value.copy(message = "Add a task name first")
             return
         }
+        act { home -> TasksRepository.addTask(home, name, type, dueDate, note.trim().ifEmpty { null }) }
+    }
+
+    /** The day currently on screen (the New-task editor defaults its date to this). */
+    fun viewedDateString(): String = _ui.value.date.toString()
+
+    /** Show a transient toast (e.g. "Didn't catch that"). */
+    fun flash(message: String) { _ui.value = _ui.value.copy(message = message) }
+
+    private fun act(call: suspend (homeId: String) -> MutateResult) {
         viewModelScope.launch {
             _ui.value = _ui.value.copy(loading = true, message = null)
-            val result = runCatching { call(home) }.getOrNull()
+            // Resolve the home if it's not cached yet — launching the voice/keyboard
+            // activity can recreate this ViewModel, clearing homeId; bailing here was
+            // the likely "nothing happened" cause.
+            val home = homeId
+                ?: runCatching { TasksRepository.activeHomeId() }.getOrNull()?.also { homeId = it }
+            if (home == null) {
+                fetch(_ui.value.date)
+                _ui.value = _ui.value.copy(message = "No home set for this account")
+                return@launch
+            }
+            val outcome = runCatching { call(home) }
             // Reconcile against server truth either way (also reverts on failure).
             fetch(_ui.value.date)
             _ui.value = _ui.value.copy(
-                message = when {
-                    result?.ok == true -> result.hint // may be null → no toast
-                    else -> result?.error ?: "Couldn't update — try again"
-                },
+                message = outcome.fold(
+                    onSuccess = { if (it.ok) it.hint else (it.error ?: "Couldn't update — try again") },
+                    // Surface the real error (truncated) so a failed write is visible, not silent.
+                    onFailure = { it.message?.take(80) ?: "Couldn't update — try again" },
+                ),
             )
         }
     }

@@ -1,5 +1,10 @@
 package com.rhozly.wear.presentation.tasks
 
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,6 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +51,78 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
     val ui by vm.ui.collectAsState()
     var selected by remember { mutableStateOf<WatchTask?>(null) }
 
+    // New-task draft. rememberSaveable so it survives the ViewModel/activity
+    // recreation a voice launch can trigger. `capturing` = which field the
+    // current voice capture fills ("title" | "note").
+    var draftActive by rememberSaveable { mutableStateOf(false) }
+    var draftTitle by rememberSaveable { mutableStateOf("") }
+    var draftType by rememberSaveable { mutableStateOf("Maintenance") }
+    var draftDate by rememberSaveable { mutableStateOf("") }
+    var draftNote by rememberSaveable { mutableStateOf("") }
+    var capturing by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val field = capturing
+        capturing = null
+        if (result.resultCode == Activity.RESULT_OK && field != null) {
+            val spoken = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()?.trim().orEmpty()
+            when (field) {
+                "title" -> {
+                    if (spoken.isEmpty()) {
+                        if (!draftActive) vm.flash("Didn't catch that — try again")
+                    } else {
+                        draftTitle = spoken
+                        if (!draftActive) {
+                            draftType = "Maintenance"
+                            draftDate = vm.viewedDateString()
+                            draftNote = ""
+                            draftActive = true
+                        }
+                    }
+                }
+                "note" -> if (spoken.isNotEmpty()) draftNote = spoken
+            }
+        }
+    }
+    fun captureVoice(field: String) {
+        capturing = field
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+            )
+            putExtra(RecognizerIntent.EXTRA_PROMPT, if (field == "note") "Add a note" else "Say the task")
+        }
+        runCatching { voiceLauncher.launch(intent) }
+    }
+    fun closeDraft() {
+        draftActive = false
+        draftTitle = ""
+        draftNote = ""
+        draftType = "Maintenance"
+    }
+
+    // The New-task editor takes over the screen while active.
+    if (draftActive) {
+        NewTaskScreen(
+            title = draftTitle,
+            type = draftType,
+            dateStr = draftDate,
+            note = draftNote,
+            onReRecordTitle = { captureVoice("title") },
+            onTypeChange = { draftType = it },
+            onDateChange = { draftDate = it },
+            onAddNote = { captureVoice("note") },
+            onSave = { vm.saveNewTask(draftTitle, draftType, draftDate, draftNote); closeDraft() },
+            onCancel = { closeDraft() },
+        )
+        return
+    }
+
     // Tapping a task swaps in its action screen; swipe-to-dismiss / Cancel clears it.
     val sel = selected
     if (sel != null) {
@@ -72,6 +150,16 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 24.dp),
     ) {
         item { DayHeader(ui.date, ui.isToday, vm::goPrevDay, vm::goNextDay) }
+
+        item {
+            // Voice-first add; speak the title → the New-task editor opens.
+            // Compact/centered so it reads as a control, not a task.
+            CompactChip(
+                onClick = { captureVoice("title") },
+                label = { Text("＋ Add task") },
+                colors = ChipDefaults.primaryChipColors(),
+            )
+        }
 
         ui.message?.let { msg ->
             item {
