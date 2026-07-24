@@ -127,12 +127,11 @@ Deno.serve(async (req) => {
       freqBlueprints = (fbRaw ?? []) as FreqBlueprintRow[];
     }
 
-    // 4a. Materialised rows for the WINDOW blueprints → map keyed by
-    //     (blueprint, dueDate). The resolver looks up ONLY the canonical window
-    //     START slot, so a completed harvest/pruning surfaces there while the
-    //     legacy per-day pruning rows (many, each backfilled with the season-long
-    //     window_end_date) are never all shown at once.
-    const windowTasks = new Map<string, PersistedTaskRow>();
+    // 4a. All materialised rows for the WINDOW blueprints → map keyed by
+    //     blueprint_id. The resolver collapses each window to ONE representative
+    //     row (completion > pending > skip), so the legacy per-day harvest/pruning
+    //     rows (a fixed bug left many) show as a single task, not one per day.
+    const windowTasks = new Map<string, PersistedTaskRow[]>();
     if (windowBlueprints.length > 0) {
       const { data: existing } = await db
         .from("tasks")
@@ -141,7 +140,9 @@ Deno.serve(async (req) => {
         .in("blueprint_id", windowBlueprints.map((b) => b.id));
       for (const t of (existing ?? []) as PersistedTaskRow[]) {
         if (t.blueprint_id) {
-          windowTasks.set(`${t.blueprint_id}|${String(t.due_date).slice(0, 10)}`, t);
+          const arr = windowTasks.get(t.blueprint_id) ?? [];
+          arr.push(t);
+          windowTasks.set(t.blueprint_id, arr);
         }
       }
     }

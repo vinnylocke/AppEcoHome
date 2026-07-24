@@ -95,19 +95,24 @@ Deno.test("a seasonal window containing the viewed date emits one ghost", () => 
   assertEquals(out[0].window_end_date, "2026-08-31");
 });
 
-Deno.test("a materialised window task surfaces (with its status) instead of a ghost", () => {
+Deno.test("a window with a completed row shows it in Done even if the completion isn't at the window start", () => {
+  // The real harvest shape: window start (June 1) is Skipped, completion is June 9.
   const out = resolveDayTasks({
     ...base,
-    windowBlueprints: [windowBp()],
+    windowBlueprints: [windowBp()], // bp-harvest, 2026-06-01..2026-08-31, annual
     windowTasks: new Map([[
-      "bp-harvest|2026-06-01",
-      row({ id: "h", blueprint_id: "bp-harvest", due_date: "2026-06-01", status: "Completed", window_end_date: "2026-08-31", type: "Harvesting" }),
+      "bp-harvest",
+      [
+        row({ id: "s1", blueprint_id: "bp-harvest", due_date: "2026-06-01", status: "Skipped", window_end_date: "2026-08-31", type: "Harvesting" }),
+        row({ id: "s2", blueprint_id: "bp-harvest", due_date: "2026-06-02", status: "Skipped", window_end_date: "2026-08-31", type: "Harvesting" }),
+        row({ id: "done", blueprint_id: "bp-harvest", due_date: "2026-06-09", status: "Completed", window_end_date: "2026-08-31", type: "Harvesting" }),
+      ],
     ]]),
   });
   assertEquals(out.length, 1);
-  assertEquals(out[0].id, "h"); // the real row, not a ghost
-  assertEquals(out[0].is_ghost, false);
+  assertEquals(out[0].id, "done"); // the completion, not the skipped window-start
   assertEquals(out[0].status, "Completed");
+  assertEquals(out[0].is_ghost, false);
 });
 
 Deno.test("a window that does NOT contain the viewed date emits nothing", () => {
@@ -231,29 +236,27 @@ Deno.test("a seasonal WINDOW type is skipped by the frequency pass (window pass 
 
 // ── Window-covering tasks (the handler's query 1b) ───────────────────────────
 
-Deno.test("legacy per-day pruning rows do NOT pile up — only the canonical window-start row shows", () => {
-  // The real bug: a fixed daily-materialisation bug left many completed pruning
-  // rows, each backfilled with the season-long window_end_date. The resolver must
-  // look up ONLY the (blueprint, windowStart) slot, never every covering row.
-  const prune = windowBp({ id: "bp-prune", task_type: "Pruning", start_date: "2026-06-01", end_date: "2026-08-31" });
-  const wt = new Map<string, PersistedTaskRow>([
-    ["bp-prune|2026-06-01", row({ id: "canon", blueprint_id: "bp-prune", due_date: "2026-06-01", status: "Completed", window_end_date: "2026-08-31", type: "Pruning" })],
-    ["bp-prune|2026-07-10", row({ id: "legacy1", blueprint_id: "bp-prune", due_date: "2026-07-10", status: "Completed", window_end_date: "2026-08-31", type: "Pruning" })],
-    ["bp-prune|2026-07-15", row({ id: "legacy2", blueprint_id: "bp-prune", due_date: "2026-07-15", status: "Completed", window_end_date: "2026-08-31", type: "Pruning" })],
-  ]);
-  const out = resolveDayTasks({ ...base, date: TODAY, windowBlueprints: [prune], windowTasks: wt });
+Deno.test("many completed per-day pruning rows collapse to ONE representative", () => {
+  // The real pruning shape: 8 completed rows (daily-bug remnants) in one window.
+  const prune = windowBp({ id: "bp-prune", task_type: "Pruning", start_date: "2026-07-01", end_date: "2026-07-31" });
+  const rows = Array.from({ length: 8 }, (_, i) =>
+    row({ id: `p${i}`, blueprint_id: "bp-prune", due_date: `2026-07-0${i + 1}`, status: "Completed", window_end_date: "2026-07-31", type: "Pruning" }),
+  );
+  const out = resolveDayTasks({ ...base, date: TODAY, windowBlueprints: [prune], windowTasks: new Map([["bp-prune", rows]]) });
   assertEquals(out.length, 1);
-  assertEquals(out[0].id, "canon"); // ONLY the window-start row, not the per-day rows
+  assertEquals(out[0].status, "Completed");
+  assertEquals(out[0].id, "p7"); // latest completed (2026-07-08)
 });
 
-Deno.test("a window task on its start day (also a day task) is not duplicated", () => {
-  const startDayTask = row({ id: "h", blueprint_id: "bp-harvest", due_date: TODAY, status: "Pending", window_end_date: "2026-08-31", type: "Harvesting" });
+Deno.test("window-type rows are excluded from the day source — the window pass owns them (no double)", () => {
+  const t = row({ id: "h", blueprint_id: "bp-harvest", due_date: TODAY, status: "Completed", window_end_date: "2026-08-31", type: "Harvesting" });
   const out = resolveDayTasks({
     ...base,
     date: TODAY,
-    dayTasks: [startDayTask], // due == TODAY
-    windowBlueprints: [windowBp({ start_date: TODAY, end_date: "2026-08-31", recurrence_kind: "once" })],
-    windowTasks: new Map([[`bp-harvest|${TODAY}`, startDayTask]]),
+    dayTasks: [t], // due == TODAY, but a window type → skipped in the day loop
+    windowBlueprints: [windowBp({ start_date: "2026-06-01", end_date: "2026-08-31" })],
+    windowTasks: new Map([["bp-harvest", [t]]]),
   });
-  assertEquals(out.filter((t) => t.id === "h").length, 1); // deduped by id
+  assertEquals(out.filter((x) => x.id === "h").length, 1); // once, via the window pass only
+  assertEquals(out[0].status, "Completed");
 });
