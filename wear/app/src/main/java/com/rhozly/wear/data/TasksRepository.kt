@@ -1,5 +1,7 @@
 package com.rhozly.wear.data
 
+import com.rhozly.wear.data.model.HomeMemberRow
+import com.rhozly.wear.data.model.HomeOption
 import com.rhozly.wear.data.model.MutateResult
 import com.rhozly.wear.data.model.TodayTasksResponse
 import com.rhozly.wear.data.model.WatchTask
@@ -56,6 +58,18 @@ object TasksRepository {
             }
             .decodeSingleOrNull<HomeRow>()
             ?.home_id
+    }
+
+    /** Every home the signed-in user belongs to (RLS-scoped), for the switcher. */
+    suspend fun homes(): List<HomeOption> {
+        val userId = Supabase.client.auth.currentUserOrNull()?.id ?: return emptyList()
+        return Supabase.client.from("home_members")
+            .select(Columns.raw("homes(id, name)")) {
+                filter { eq("user_id", userId) }
+            }
+            .decodeList<HomeMemberRow>()
+            .mapNotNull { it.homes }
+            .distinctBy { it.id }
     }
 
     /** A given day's tasks (all statuses) for a home via get-today-tasks.

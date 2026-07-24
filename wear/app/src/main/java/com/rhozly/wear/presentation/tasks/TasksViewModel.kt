@@ -2,8 +2,10 @@ package com.rhozly.wear.presentation.tasks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rhozly.wear.data.Prefs
 import com.rhozly.wear.data.Supabase
 import com.rhozly.wear.data.TasksRepository
+import com.rhozly.wear.data.model.HomeOption
 import com.rhozly.wear.data.model.MutateResult
 import com.rhozly.wear.data.model.WatchTask
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
@@ -29,6 +31,10 @@ data class TasksUiState(
     val error: String? = null,
     /** Transient toast (a "finish on phone" hint, or an action error). */
     val message: String? = null,
+    /** Homes the user belongs to (for the switcher) + the active one. */
+    val homes: List<HomeOption> = emptyList(),
+    val homeName: String? = null,
+    val activeHomeId: String? = null,
 )
 
 class TasksViewModel : ViewModel() {
@@ -38,11 +44,30 @@ class TasksViewModel : ViewModel() {
 
     // Cached after the first lookup so day navigation doesn't re-query the home.
     private var homeId: String? = null
+    private var homesLoaded = false
 
     // Live auto-refresh: one channel on the home's tasks, alive while the VM is.
     private var realtimeChannel: RealtimeChannel? = null
 
     init { load(today) }
+
+    /** Switch the watch to another home (local preference — doesn't touch the
+     *  phone's active home). Re-scopes the task view + Realtime channel. */
+    fun selectHome(id: String) {
+        if (id == homeId) return
+        Prefs.selectedHomeId = id
+        homeId = id
+        _ui.value = _ui.value.copy(
+            homeName = _ui.value.homes.find { it.id == id }?.name,
+            activeHomeId = id,
+        )
+        // Tear down the old home's Realtime channel; the next fetch re-subscribes.
+        realtimeChannel?.let { ch ->
+            realtimeChannel = null
+            CoroutineScope(Dispatchers.IO).launch { runCatching { Supabase.client.realtime.removeChannel(ch) } }
+        }
+        load(today)
+    }
 
     fun goPrevDay() = load(_ui.value.date.minusDays(1))
     fun goNextDay() = load(_ui.value.date.plusDays(1))
@@ -84,11 +109,10 @@ class TasksViewModel : ViewModel() {
     private fun act(call: suspend (homeId: String) -> MutateResult) {
         viewModelScope.launch {
             _ui.value = _ui.value.copy(loading = true, message = null)
-            // Resolve the home if it's not cached yet — launching the voice/keyboard
-            // activity can recreate this ViewModel, clearing homeId; bailing here was
-            // the likely "nothing happened" cause.
-            val home = homeId
-                ?: runCatching { TasksRepository.activeHomeId() }.getOrNull()?.also { homeId = it }
+            // Resolve the home if it's not cached yet — launching the voice activity
+            // can recreate this ViewModel, clearing homeId. resolveHome() respects the
+            // watch's selected home (not just the phone's active one).
+            val home = runCatching { resolveHome() }.getOrNull()
             if (home == null) {
                 fetch(_ui.value.date)
                 _ui.value = _ui.value.copy(message = "No home set for this account")
@@ -111,6 +135,29 @@ class TasksViewModel : ViewModel() {
 
     private fun load(date: LocalDate) = viewModelScope.launch { fetch(date) }
 
+    /** Effective home: the watch's local pick, else the phone's active home (then seed the pick). */
+    private suspend fun resolveHome(): String? {
+        homeId?.let { return it }
+        val resolved = Prefs.selectedHomeId ?: TasksRepository.activeHomeId()
+        if (resolved != null) {
+            homeId = resolved
+            if (Prefs.selectedHomeId == null) Prefs.selectedHomeId = resolved
+        }
+        return resolved
+    }
+
+    /** Load the homes list once (for the switcher). Best-effort — never fatal. */
+    private suspend fun ensureHomesLoaded() {
+        if (homesLoaded) return
+        homesLoaded = true
+        val list = runCatching { TasksRepository.homes() }.getOrDefault(emptyList())
+        _ui.value = _ui.value.copy(
+            homes = list,
+            homeName = list.find { it.id == homeId }?.name,
+            activeHomeId = homeId,
+        )
+    }
+
     /** @param silent a realtime-triggered refresh — don't flash the spinner, and
      *   keep the existing list if it fails (a transient socket hiccup shouldn't
      *   blank the screen). */
@@ -122,9 +169,8 @@ class TasksViewModel : ViewModel() {
             isToday = date == today,
         )
         try {
-            val home = homeId
-                ?: TasksRepository.activeHomeId()?.also { homeId = it }
-                ?: throw IllegalStateException("No home set for this account")
+            val home = resolveHome() ?: throw IllegalStateException("No home set for this account")
+            ensureHomesLoaded()
             startRealtime(home)
             val res = TasksRepository.dayTasks(home, date.toString(), today.toString())
             _ui.value = _ui.value.copy(loading = false, tasks = res.tasks)

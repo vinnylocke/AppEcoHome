@@ -50,6 +50,7 @@ import java.time.format.DateTimeFormatter
 fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
     val ui by vm.ui.collectAsState()
     var selected by remember { mutableStateOf<WatchTask?>(null) }
+    var showHomes by remember { mutableStateOf(false) }
 
     // New-task draft. rememberSaveable so it survives the ViewModel/activity
     // recreation a voice launch can trigger. `capturing` = which field the
@@ -136,6 +137,16 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
         return
     }
 
+    if (showHomes) {
+        HomeSwitcherScreen(
+            homes = ui.homes,
+            currentId = ui.activeHomeId,
+            onSelect = { id -> vm.selectHome(id); showHomes = false },
+            onDismiss = { showHomes = false },
+        )
+        return
+    }
+
     // Auto-clear the transient toast (a "finish on phone" hint or an action error).
     LaunchedEffect(ui.message) {
         if (ui.message != null) {
@@ -149,6 +160,17 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 24.dp),
     ) {
+        if (ui.homes.size > 1) {
+            item {
+                // Home switcher — only when the user is in more than one home.
+                CompactChip(
+                    onClick = { showHomes = true },
+                    label = { Text("🏠 " + (ui.homeName ?: "Home")) },
+                    colors = ChipDefaults.secondaryChipColors(),
+                )
+            }
+        }
+
         item { DayHeader(ui.date, ui.isToday, vm::goPrevDay, vm::goNextDay) }
 
         item {
