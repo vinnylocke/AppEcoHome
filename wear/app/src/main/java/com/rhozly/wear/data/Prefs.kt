@@ -11,6 +11,7 @@ object Prefs {
     private const val FILE = "rhozly_wear_prefs"
     private const val KEY_HOME = "selected_home_id"
     private const val KEY_HOMES = "homes_json"
+    private const val KEY_NOTIF_DATE = "last_notified_date"
 
     @Volatile private var sp: android.content.SharedPreferences? = null
 
@@ -26,6 +27,11 @@ object Prefs {
     var homesJson: String?
         get() = sp?.getString(KEY_HOMES, null)
         set(value) { sp?.edit()?.putString(KEY_HOMES, value)?.apply() }
+
+    /** YYYY-MM-DD the daily task notification last fired — caps it to once/day. */
+    var lastNotifiedDate: String?
+        get() = sp?.getString(KEY_NOTIF_DATE, null)
+        set(value) { sp?.edit()?.putString(KEY_NOTIF_DATE, value)?.apply() }
 
     fun clearAll() { sp?.edit()?.clear()?.apply() }
 }

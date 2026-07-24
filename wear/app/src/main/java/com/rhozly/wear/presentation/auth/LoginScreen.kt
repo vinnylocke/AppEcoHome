@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -35,6 +36,7 @@ import androidx.wear.compose.material.Text
 @Composable
 fun LoginScreen(vm: AuthViewModel) {
     val ui by vm.ui.collectAsState()
+    val context = LocalContext.current
 
     ScalingLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -76,6 +78,23 @@ fun LoginScreen(vm: AuthViewModel) {
                         Text("Sign in")
                     }
                 },
+            )
+        }
+        item {
+            Text(
+                "or",
+                style = MaterialTheme.typography.caption2,
+                color = MaterialTheme.colors.onSurface.copy(alpha = 0.5f),
+                modifier = Modifier.padding(vertical = 2.dp),
+            )
+        }
+        item {
+            Chip(
+                onClick = { vm.signInWithGoogle(context) },
+                enabled = !ui.loading,
+                colors = ChipDefaults.secondaryChipColors(),
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Continue with Google") },
             )
         }
     }

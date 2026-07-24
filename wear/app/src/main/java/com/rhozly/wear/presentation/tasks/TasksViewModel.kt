@@ -54,6 +54,8 @@ data class TasksUiState(
     val notCached: Boolean = false,
     /** Pending offline writes waiting to sync (the "N queued" chip). */
     val queuedCount: Int = 0,
+    /** Pull-to-refresh in progress (keeps the list visible, shows a top spinner). */
+    val refreshing: Boolean = false,
 )
 
 class TasksViewModel(app: Application) : AndroidViewModel(app) {
@@ -106,6 +108,18 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     fun goToday() = load(today)
     fun reload() = load(_ui.value.date)
     fun clearMessage() { _ui.value = _ui.value.copy(message = null) }
+
+    /** Pull-to-refresh: force a real network fetch (reconnect if the connection is
+     *  back) + kick the background sync to flush the offline write queue. Silent so
+     *  the list stays visible under the pull spinner. */
+    fun refresh() {
+        viewModelScope.launch {
+            _ui.value = _ui.value.copy(refreshing = true)
+            SyncScheduler.syncNow(getApplication())
+            fetch(_ui.value.date, silent = true, forceNetwork = true)
+            _ui.value = _ui.value.copy(refreshing = false)
+        }
+    }
 
     // ── Actions ──────────────────────────────────────────────────────────────
 
@@ -267,8 +281,10 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     /** @param silent a realtime-triggered refresh — don't flash the spinner, and
      *   keep the existing list if it fails (a transient socket hiccup shouldn't
      *   blank the screen). */
-    private suspend fun fetch(date: LocalDate, silent: Boolean = false) {
-        val online = ConnectivityMonitor.isOnline.value
+    private suspend fun fetch(date: LocalDate, silent: Boolean = false, forceNetwork: Boolean = false) {
+        // forceNetwork (pull-to-refresh) attempts the network even if we think
+        // we're offline — reconnecting if the connection is actually back.
+        val online = forceNetwork || ConnectivityMonitor.isOnline.value
         _ui.value = _ui.value.copy(
             loading = !silent && online, // no spinner in offline mode — cache is instant
             error = if (silent) _ui.value.error else null,

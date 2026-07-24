@@ -6,12 +6,16 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -44,8 +48,9 @@ import java.time.format.DateTimeFormatter
 /**
  * A day view you can page through (‹ / ›), with a "Back to today" shortcut,
  * showing Overdue / To-do / Done. Tapping a task opens [TaskActionScreen]
- * (Complete / Postpone / Delete).
+ * (Complete / Postpone / Delete). Pull down to force a reconnect + sync.
  */
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
     val ui by vm.ui.collectAsState()
@@ -155,6 +160,8 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
         }
     }
 
+    val pullState = rememberPullRefreshState(refreshing = ui.refreshing, onRefresh = vm::refresh)
+    Box(Modifier.fillMaxSize().pullRefresh(pullState)) {
     ScalingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -287,6 +294,17 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
                 label = { Text("Sign out") },
                 colors = ChipDefaults.secondaryChipColors(),
                 modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+
+        // Pull-to-refresh spinner at the top while pulling / refreshing.
+        if (ui.refreshing || pullState.progress > 0f) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 4.dp)
+                    .size(22.dp),
             )
         }
     }

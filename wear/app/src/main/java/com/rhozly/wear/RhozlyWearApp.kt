@@ -17,5 +17,6 @@ class RhozlyWearApp : Application() {
         OfflineStore.init(this)
         ConnectivityMonitor.init(this)
         SyncScheduler.schedulePeriodic(this)
+        SyncScheduler.scheduleDailyNotification(this)
     }
 }

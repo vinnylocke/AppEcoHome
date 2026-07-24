@@ -30,6 +30,9 @@ android {
 
         buildConfigField("String", "SUPABASE_URL", "\"${secret("SUPABASE_URL")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${secret("SUPABASE_ANON_KEY")}\"")
+        // Google OAuth web client id (public, client-safe) — used as the serverClientId
+        // for native "Sign in with Google" so the ID token's audience matches Supabase.
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${secret("GOOGLE_WEB_CLIENT_ID")}\"")
     }
 
     buildTypes {
@@ -65,6 +68,7 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.foundation)
+    implementation(libs.compose.material) // Modifier.pullRefresh only
     implementation(libs.wear.compose.material)
     implementation(libs.wear.compose.foundation)
 
@@ -83,6 +87,13 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.work.runtime.ktx)
+    implementation(libs.play.app.update)
+
+    // Native "Sign in with Google": Credential Manager gets a Google ID token,
+    // which we hand to Supabase (signInWith(IDToken)) to reuse the web app's provider.
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
+    implementation(libs.google.identity.googleid)
 
     debugImplementation(libs.compose.ui.tooling)
 }

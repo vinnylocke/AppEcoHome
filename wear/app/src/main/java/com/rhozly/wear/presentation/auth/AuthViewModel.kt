@@ -1,5 +1,8 @@
 package com.rhozly.wear.presentation.auth
 
+import android.content.Context
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rhozly.wear.data.AuthRepository
@@ -37,6 +40,29 @@ class AuthViewModel : ViewModel() {
                 _ui.value = _ui.value.copy(loading = false, password = "")
             } catch (e: Exception) {
                 _ui.value = _ui.value.copy(loading = false, error = e.message ?: "Sign-in failed")
+            }
+        }
+    }
+
+    /** Native Google sign-in. [context] must be the Activity (Credential Manager
+     *  launches the account picker). Cancel is silent; other failures surface a
+     *  message so the user can fall back to email + password. */
+    fun signInWithGoogle(context: Context) {
+        _ui.value = _ui.value.copy(loading = true, error = null)
+        viewModelScope.launch {
+            try {
+                AuthRepository.signInWithGoogle(context)
+                // sessionStatus flips to Authenticated → WearApp swaps to the home screen.
+                _ui.value = _ui.value.copy(loading = false, password = "")
+            } catch (e: GetCredentialCancellationException) {
+                _ui.value = _ui.value.copy(loading = false) // user backed out — not an error
+            } catch (e: NoCredentialException) {
+                _ui.value = _ui.value.copy(
+                    loading = false,
+                    error = "Google sign-in unavailable on this watch — use email instead",
+                )
+            } catch (e: Exception) {
+                _ui.value = _ui.value.copy(loading = false, error = e.message ?: "Google sign-in failed")
             }
         }
     }

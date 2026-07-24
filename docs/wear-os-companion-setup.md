@@ -38,6 +38,10 @@ in your web app's `.env`) — I'll wire them into the Wear project's `local.prop
 - [ ] `VITE_SUPABASE_URL` → the project URL
 - [ ] `VITE_SUPABASE_PUBLISHABLE_KEY` → the publishable/anon key (safe to embed in a client app;
       RLS protects the data)
+- [ ] `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` → the Google **web** client id (ends in
+      `.apps.googleusercontent.com`). Also public/client-safe; wired into `local.properties` as
+      `GOOGLE_WEB_CLIENT_ID` and used by "Continue with Google" as the `serverClientId` so the
+      Google ID token's audience matches what Supabase's Google provider expects.
 
 ### A5. (Only for testing on the *physical* Pixel Watch — optional; the emulator covers most work)
 - [ ] On the watch: **Settings → System → About → tap "Build number" 7×** to unlock Developer options.

@@ -207,13 +207,20 @@ watch's task list (Phase 2) needs it.
 days ahead); if the cron were disabled/lagging, a not-yet-materialised recurring instance could be
 missing for that day. Acceptable given the cron is a core, always-on mechanism.
 
-## 7. Auth-on-watch — ✅ DECIDED: **A (email + password)**
+## 7. Auth-on-watch — ✅ DECIDED: **A (email + password)** + **Google (Credential Manager)**
 
 - **A. Email + password on the watch** — Wear keyboard is small but works; voice dictation helps.
-  Simplest, no extra plumbing.
+  Simplest, no extra plumbing. **Always available as the reliable fallback.**
+- **A′. Continue with Google (added later)** — native **Credential Manager** (`GetGoogleIdOption`)
+  shows the Google accounts on the watch, returns a Google **ID token**, which we hand to Supabase
+  via `signInWith(IDToken) { provider = Google }`. Reuses the exact Google provider the web/phone
+  app already uses (`GOOGLE_WEB_CLIENT_ID` = the web client id; Supabase provider has
+  `skip_nonce_check = true`, so no nonce round-trip). Wired in `AuthRepository.signInWithGoogle`.
+  **Caveat:** Google sign-in on Wear depends on the watch's Play Services / account-picker support,
+  so it's best-effort — email + password stays the guaranteed path.
 - **B. Phone→watch handoff** — the phone shows a short code / QR, the watch enters it to claim a
-  session (a small device-code flow). Nicer UX, more to build.
-- **Recommendation: A for v1**, revisit B if entry is annoying.
+  session (a small device-code flow). Nicer UX, more to build. Still the fallback if Credential
+  Manager turns out unusable on the watch.
 
 ## 8. Publishing later (one listing)
 
@@ -227,7 +234,7 @@ Console app; Play routes by form factor. Manage version codes per Play's multi-A
 | Phase | Deliverable |
 |------|-------------|
 | **0 — Scaffold** ✅ | The `wear/` Gradle project, manifest (watch feature), Compose-for-Wear skeleton, `supabase-kt` wired with your URL+key. Runs on device. |
-| **1 — Auth** ✅ | Email/password sign in + session persistence; signed-in landing. |
+| **1 — Auth** ✅ | Email/password sign in + session persistence; signed-in landing. Later: **Continue with Google** via Credential Manager → Supabase ID-token sign-in (best-effort on Wear; email is the fallback). |
 | **2 — Task list** ✅ | Day-by-day view (any date, all statuses) via `get-today-tasks`; ‹ / › nav + back-to-today; Overdue / To-do / Done + future recurring ghosts. |
 | **2b — Realtime** ✅ | Live auto-refresh while open (phone→watch verified). |
 | **3 — Actions** ✅ | Complete / Postpone / Delete via `mutate-task` (fresh review = SHIP; device-verified). |
