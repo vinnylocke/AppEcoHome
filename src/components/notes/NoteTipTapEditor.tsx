@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { TaskList } from "@tiptap/extension-task-list";
@@ -20,6 +20,9 @@ interface Props {
   /** Used in image upload path: `notes/{homeId}/{filename}`. */
   homeId: string;
   placeholder?: string;
+  /** When false, the editor is read-only (no toolbar, no editing) — used by the
+   *  note View mode (#9). Defaults to true. */
+  editable?: boolean;
 }
 
 // ─── NoteTipTapEditor ──────────────────────────────────────────────────
@@ -130,8 +133,10 @@ export default function NoteTipTapEditor({
   onChange,
   homeId,
   placeholder = "Start writing…",
+  editable = true,
 }: Props) {
   const editor = useEditor({
+    editable,
     extensions: [
       StarterKit,
       TaskList,
@@ -155,11 +160,14 @@ export default function NoteTipTapEditor({
     },
   });
 
+  // useEditor's `editable` is initial-only; keep it in sync when the mode flips.
+  useEffect(() => { editor?.setEditable(editable); }, [editor, editable]);
+
   if (!editor) return <div className="p-3 text-xs text-rhozly-on-surface/50">Loading editor…</div>;
 
   return (
     <div className="bg-white rounded-2xl border border-rhozly-outline/15 overflow-hidden" data-testid="note-tiptap-editor">
-      <Toolbar editor={editor} homeId={homeId} />
+      {editable && <Toolbar editor={editor} homeId={homeId} />}
       <EditorContent editor={editor} />
     </div>
   );

@@ -16,6 +16,7 @@ import { Logger } from "../lib/errorHandler";
 import { useGlobalJournal, getEntryTargetType } from "../hooks/useGlobalJournal";
 import type { JournalFilter } from "../hooks/useGlobalJournal";
 import JournalEntryCard from "./journal/JournalEntryCard";
+import JournalEntryModal from "./journal/JournalEntryModal";
 import JournalComposer from "./journal/JournalComposer";
 import EmptyState from "./shared/EmptyState";
 import SurfaceLoader from "./shared/SurfaceLoader";
@@ -82,6 +83,8 @@ export default function GlobalJournal({ homeId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [deleteTarget, setDeleteTarget] = useState<JournalEntry | null>(null);
+  // #9 — tap an entry → read-only View modal (Edit lives inside it).
+  const [viewEntry, setViewEntry] = useState<JournalEntry | null>(null);
   const [targetLabels, setTargetLabels] = useState<
     Partial<Record<JournalTargetType, Record<string, string>>>
   >({});
@@ -283,12 +286,24 @@ export default function GlobalJournal({ homeId }: Props) {
                     entry={entry}
                     targetLabels={targetLabels}
                     onDelete={setDeleteTarget}
+                    onOpen={setViewEntry}
                   />
                 ))}
               </div>
             </section>
           ))}
         </div>
+      )}
+
+      {viewEntry && (
+        <JournalEntryModal
+          entry={viewEntry}
+          homeId={homeId}
+          targetLabels={targetLabels}
+          onClose={() => setViewEntry(null)}
+          onUpdated={() => { setViewEntry(null); void refresh(); }}
+          onDelete={setDeleteTarget}
+        />
       )}
 
       <ConfirmModal

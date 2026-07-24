@@ -4,8 +4,8 @@ import toast from "react-hot-toast";
 import PhotoUploader from "../PhotoUploader";
 import TargetPicker, { applyTargetToPayload } from "./TargetPicker";
 import type { TargetSelection } from "./TargetPicker";
-import type { JournalTargetType } from "../../types";
-import { useGlobalJournal } from "../../hooks/useGlobalJournal";
+import type { JournalTargetType, JournalEntry } from "../../types";
+import { useGlobalJournal, getEntryTargetType } from "../../hooks/useGlobalJournal";
 import { logEvent, EVENT } from "../../events/registry";
 
 interface Props {
@@ -21,6 +21,9 @@ interface Props {
   /** Called after a successful save with the new entry id. */
   onSaved?: (entryId: string) => void;
   autoFocus?: boolean;
+  /** When set, the composer EDITS this existing entry (prefilled + update)
+   *  instead of creating a new one. */
+  entry?: JournalEntry | null;
 }
 
 /**
@@ -35,16 +38,23 @@ export default function JournalComposer({
   onClose,
   onSaved,
   autoFocus,
+  entry,
 }: Props) {
-  const { create } = useGlobalJournal(homeId);
-  const [subject, setSubject] = useState("");
-  const [description, setDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const { create, update } = useGlobalJournal(homeId);
+  const isEdit = !!entry;
+  const [subject, setSubject] = useState(entry?.subject ?? "");
+  const [description, setDescription] = useState(entry?.description ?? "");
+  const [imageUrl, setImageUrl] = useState(entry?.image_url ?? "");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [subjectError, setSubjectError] = useState(false);
 
   const [target, setTarget] = useState<TargetSelection>(() => {
+    if (entry) {
+      const t = getEntryTargetType(entry);
+      const id = entry.inventory_item_id || entry.location_id || entry.area_id || entry.plan_id || null;
+      return { type: t, id, label: fixedLabel ?? null };
+    }
     if (fixedType && fixedId) {
       return { type: fixedType, id: fixedId, label: fixedLabel ?? null };
     }
@@ -70,23 +80,31 @@ export default function JournalComposer({
         description: description.trim() || null,
         image_url: imageUrl || null,
       });
-      const created = await create(payload);
-      if (created) {
-        logEvent(EVENT.JOURNAL_ENTRY_ADDED, {
-          target_type: target.type,
-          has_image: !!imageUrl,
-          source: "global_journal",
-        });
-        toast.success("Journal entry saved");
-        setSubject("");
-        setDescription("");
-        setImageUrl("");
+      if (entry) {
+        await update(entry.id, payload);
+        toast.success("Journal entry updated");
         setSubjectError(false);
-        if (!fixedType) {
-          setTarget({ type: "none", id: null, label: null });
-        }
-        onSaved?.(created.id);
+        onSaved?.(entry.id);
         onClose?.();
+      } else {
+        const created = await create(payload);
+        if (created) {
+          logEvent(EVENT.JOURNAL_ENTRY_ADDED, {
+            target_type: target.type,
+            has_image: !!imageUrl,
+            source: "global_journal",
+          });
+          toast.success("Journal entry saved");
+          setSubject("");
+          setDescription("");
+          setImageUrl("");
+          setSubjectError(false);
+          if (!fixedType) {
+            setTarget({ type: "none", id: null, label: null });
+          }
+          onSaved?.(created.id);
+          onClose?.();
+        }
       }
     } catch (err: any) {
       const msg = err?.message ?? "Couldn't save the entry.";
@@ -103,7 +121,7 @@ export default function JournalComposer({
     >
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-black text-rhozly-on-surface uppercase tracking-widest">
-          New journal entry
+          {isEdit ? "Edit journal entry" : "New journal entry"}
         </h3>
         {onClose && (
           <button
@@ -186,7 +204,7 @@ export default function JournalComposer({
         className="w-full flex items-center justify-center gap-2 bg-rhozly-primary text-white text-sm font-black px-4 py-3 rounded-2xl hover:opacity-90 active:scale-95 transition disabled:opacity-50"
       >
         {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-        Save entry
+        {isEdit ? "Save changes" : "Save entry"}
       </button>
     </div>
   );

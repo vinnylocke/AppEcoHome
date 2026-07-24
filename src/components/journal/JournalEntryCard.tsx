@@ -19,6 +19,8 @@ interface Props {
   targetLabels?: Partial<Record<JournalTargetType, Record<string, string>>>;
   /** Called when the user taps delete. Parent owns the confirm flow. */
   onDelete?: (entry: JournalEntry) => void;
+  /** Called when the card body is tapped — opens the read-only View modal (#9). */
+  onOpen?: (entry: JournalEntry) => void;
 }
 
 const TYPE_META: Record<
@@ -52,7 +54,7 @@ const TYPE_META: Record<
   },
 };
 
-export default function JournalEntryCard({ entry, targetLabels, onDelete }: Props) {
+export default function JournalEntryCard({ entry, targetLabels, onDelete, onOpen }: Props) {
   const type = getEntryTargetType(entry);
   const meta = TYPE_META[type];
   const targetId =
@@ -71,7 +73,15 @@ export default function JournalEntryCard({ entry, targetLabels, onDelete }: Prop
   return (
     <article
       data-testid="journal-entry-card"
-      className="bg-white border border-rhozly-outline/15 rounded-2xl p-4 flex gap-3"
+      onClick={onOpen ? () => onOpen(entry) : undefined}
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onKeyDown={
+        onOpen
+          ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(entry); } }
+          : undefined
+      }
+      className={`bg-white border border-rhozly-outline/15 rounded-2xl p-4 flex gap-3 ${onOpen ? "cursor-pointer hover:border-rhozly-primary/30 hover:shadow-md transition-all" : ""}`}
     >
       {entry.image_url && (
         <img
@@ -88,7 +98,7 @@ export default function JournalEntryCard({ entry, targetLabels, onDelete }: Prop
           {onDelete && (
             <button
               type="button"
-              onClick={() => onDelete(entry)}
+              onClick={(e) => { e.stopPropagation(); onDelete(entry); }}
               aria-label="Delete entry"
               className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 transition-colors"
             >
@@ -97,7 +107,7 @@ export default function JournalEntryCard({ entry, targetLabels, onDelete }: Prop
           )}
         </div>
         {entry.description && (
-          <p className="text-xs font-medium text-rhozly-on-surface/60 mt-1 line-clamp-3 whitespace-pre-line">
+          <p className="text-xs font-medium text-rhozly-on-surface/60 mt-1 line-clamp-2 whitespace-pre-line">
             {entry.description}
           </p>
         )}
@@ -105,6 +115,7 @@ export default function JournalEntryCard({ entry, targetLabels, onDelete }: Prop
           {href ? (
             <Link
               to={href}
+              onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-rhozly-surface-low text-rhozly-on-surface/60 hover:bg-rhozly-primary/10 hover:text-rhozly-primary transition-colors"
             >
               {meta.icon}

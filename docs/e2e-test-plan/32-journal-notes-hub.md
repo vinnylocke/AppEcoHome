@@ -21,6 +21,9 @@
 | JNH-001 | ✅ | `/journal` shows the `journal-notes-switch` and defaults to the Journal tab (`aria-selected`), Notes surface not mounted | — | ✅ Passing |
 | JNH-002 | ✅ | Tapping the **Notes** tab swaps in `notes-page` and updates the URL to `/journal?tab=notes` | — | ✅ Passing |
 | JNH-003 | ✅ | Legacy `/notes` redirects into the hub's Notes tab (`/journal?tab=notes`, `notes-page` visible) | — | ✅ Passing |
+| JNH-004 | 🔲 | Journal entry tap → `journal-entry-modal` opens read-only (View); `journal-entry-edit` flips to the composer; edit + save updates the entry (#9) | seed journal entry | 🔲 Planned |
+| JNH-005 | 🔲 | Note card tap → `note-editor-overlay` opens in **View** mode (`note-edit` visible, `note-tiptap-editor` present with **no** toolbar); `note-edit` → editable + `note-save` appears (#9) | seed note | 🔲 Planned |
+| JNH-006 | 🔲 | `/journal?tab=notes&open=add-note` (Capture "Add a note" chooser, #8) opens the new-note editor straight away | — | 🔲 Planned |
 
 ## Related
 

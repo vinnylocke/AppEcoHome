@@ -169,6 +169,7 @@ export default function NotesPage({ homeId }: Props) {
         <NoteEditorOverlay
           homeId={homeId}
           note={editing}
+          startInView
           onClose={() => setEditing(null)}
           onSave={async (patch) => {
             await updateNote(editing.id, {

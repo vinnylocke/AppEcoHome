@@ -163,6 +163,7 @@ Gardens are made of small notable moments — "the courgettes finally took off",
 
 #### 4. Delete an entry
 
+- **Tap an entry** → a read-only **View** modal (`JournalEntryModal`) shows the full entry (image, subject, full description, target chip, Auto badge, timestamp); an **Edit** button opens the shared `JournalComposer` in edit mode (subject / description / target / photo → **Save changes** via `useGlobalJournal.update()`). List rows are condensed to a 2-line description clamp. The delete button + target chip on a card `stopPropagation` so they don't trigger View. (#9)
 - Trash icon on each card → confirm modal → gone.
 - Auto-created entries (from task completions) can be deleted exactly the same way. They won't reappear unless you re-complete the same task — and even then the DB invariant prevents duplicates.
 

@@ -19,7 +19,7 @@
 
 ## Quick Summary
 
-Notes (the Notes tab at `/journal?tab=notes`) shows a responsive grid of note cards — pinned notes first, then by `updated_at`. Tapping a card opens a portal-modal editor. The editor uses TipTap with our toolbar (headings, bold/italic, bullet/ordered/checklist, blockquote, table, image, link, undo/redo). Every note can link to **any number of** plants, areas, locations, plans, ailments, or seed packets via a join table — and the same `NotesDrawer` component renders a per-entity list on any detail surface that mounts it.
+Notes (the Notes tab at `/journal?tab=notes`) shows a responsive grid of note cards — pinned notes first, then by `updated_at`. Tapping a card opens the note in a read-only **View** (portal modal, `startInView`); an **Edit** button flips it into the editor (#9 — new notes still open straight in edit mode; read-only mode hides the toolbar, makes the title read-only, shows links as chips, and closes-not-saves on backdrop click). The editor uses TipTap with our toolbar (headings, bold/italic, bullet/ordered/checklist, blockquote, table, image, link, undo/redo). Every note can link to **any number of** plants, areas, locations, plans, ailments, or seed packets via a join table — and the same `NotesDrawer` component renders a per-entity list on any detail surface that mounts it.
 
 ---
 

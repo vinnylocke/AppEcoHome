@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Pin, Trash2, Archive, Save, Loader2 } from "lucide-react";
+import { X, Pin, Pencil, Trash2, Archive, Save, Loader2 } from "lucide-react";
 import NoteTipTapEditor from "./NoteTipTapEditor";
 import LinkTargetsPanel from "./LinkTargetsPanel";
 import type { NoteWithLinks } from "../../hooks/useNotes";
 import type { NoteLinkRef } from "../../lib/noteHelpers";
-import { isDocEmpty } from "../../lib/noteHelpers";
+import { isDocEmpty, NOTE_TARGET_LABELS } from "../../lib/noteHelpers";
 
 interface Props {
   homeId: string;
@@ -21,6 +21,9 @@ interface Props {
     links: NoteLinkRef[];
   }) => Promise<void>;
   onDelete?: () => Promise<void>;
+  /** Open in read-only View mode first (tap-to-view, #9); an Edit button flips
+   *  to editing. Ignored for brand-new notes. Defaults false. */
+  startInView?: boolean;
 }
 
 // ─── NoteEditorOverlay ─────────────────────────────────────────────────
@@ -28,8 +31,9 @@ interface Props {
 // Modal editor — title + TipTap + links picker + pin/archive/delete.
 
 export default function NoteEditorOverlay({
-  homeId, note, initialLinks, onClose, onSave, onDelete,
+  homeId, note, initialLinks, onClose, onSave, onDelete, startInView,
 }: Props) {
+  const [viewing, setViewing] = useState(!!startInView && !!note);
   const [title, setTitle] = useState(note?.title ?? "");
   const [content, setContent] = useState<any>(note?.content ?? { type: "doc", content: [] });
   const [pinned, setPinned] = useState<boolean>(note?.pinned ?? false);
@@ -96,7 +100,7 @@ export default function NoteEditorOverlay({
   return createPortal(
     <div
       className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-2 sm:p-4 animate-in fade-in"
-      onClick={(e) => { if (e.target === e.currentTarget) handleSave(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) { viewing ? onClose() : handleSave(); } }}
       data-testid="note-editor-overlay"
     >
       <div className="bg-rhozly-surface w-full max-w-3xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
@@ -106,20 +110,32 @@ export default function NoteEditorOverlay({
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            readOnly={viewing}
             placeholder="Untitled note"
             className="flex-1 min-w-0 bg-transparent text-base sm:text-lg font-black text-rhozly-on-surface outline-none px-2 py-1.5"
             data-testid="note-title-input"
           />
-          <button
-            type="button"
-            onClick={() => setPinned((p) => !p)}
-            title={pinned ? "Unpin" : "Pin to top"}
-            aria-pressed={pinned}
-            className={`p-2 rounded-lg transition-colors ${pinned ? "bg-amber-100 text-amber-700" : "text-rhozly-on-surface/50 hover:bg-rhozly-surface-low"}`}
-            data-testid="note-pin-toggle"
-          >
-            <Pin size={14} className={pinned ? "fill-current" : ""} />
-          </button>
+          {viewing ? (
+            <button
+              type="button"
+              onClick={() => setViewing(false)}
+              data-testid="note-edit"
+              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] rounded-xl bg-rhozly-primary/10 text-rhozly-primary text-xs font-black hover:bg-rhozly-primary/20 transition-colors"
+            >
+              <Pencil size={13} /> Edit
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setPinned((p) => !p)}
+              title={pinned ? "Unpin" : "Pin to top"}
+              aria-pressed={pinned}
+              className={`p-2 rounded-lg transition-colors ${pinned ? "bg-amber-100 text-amber-700" : "text-rhozly-on-surface/50 hover:bg-rhozly-surface-low"}`}
+              data-testid="note-pin-toggle"
+            >
+              <Pin size={14} className={pinned ? "fill-current" : ""} />
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -137,18 +153,39 @@ export default function NoteEditorOverlay({
             initialContent={content}
             onChange={setContent}
             homeId={homeId}
+            editable={!viewing}
           />
 
-          <div className="bg-white rounded-2xl border border-rhozly-outline/10 p-3">
-            <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/45 mb-2">
-              Links
-            </p>
-            <LinkTargetsPanel
-              homeId={homeId}
-              value={links}
-              onChange={setLinks}
-            />
-          </div>
+          {viewing ? (
+            links.length > 0 && (
+              <div className="bg-white rounded-2xl border border-rhozly-outline/10 p-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/45 mb-2">
+                  Links
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {links.map((l) => (
+                    <span
+                      key={`${l.target_type}:${l.target_id}`}
+                      className="inline-flex items-center px-2 py-0.5 rounded-md bg-rhozly-primary/10 text-rhozly-primary text-[10px] font-black uppercase tracking-widest"
+                    >
+                      {NOTE_TARGET_LABELS[l.target_type]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="bg-white rounded-2xl border border-rhozly-outline/10 p-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/45 mb-2">
+                Links
+              </p>
+              <LinkTargetsPanel
+                homeId={homeId}
+                value={links}
+                onChange={setLinks}
+              />
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -165,7 +202,7 @@ export default function NoteEditorOverlay({
               Delete
             </button>
           )}
-          {note && (
+          {!viewing && note && (
             <button
               type="button"
               onClick={handleArchive}
@@ -177,18 +214,20 @@ export default function NoteEditorOverlay({
               Archive
             </button>
           )}
-          <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[40px] rounded-xl bg-rhozly-primary text-white text-xs font-black hover:opacity-95 disabled:opacity-50"
-              data-testid="note-save"
-            >
-              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              {saving ? "Saving…" : "Save"}
-            </button>
-          </div>
+          {!viewing && (
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[40px] rounded-xl bg-rhozly-primary text-white text-xs font-black hover:opacity-95 disabled:opacity-50"
+                data-testid="note-save"
+              >
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>,
