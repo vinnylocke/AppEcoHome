@@ -311,6 +311,7 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
 
 /** Top pull-to-refresh spinner. Reads pullState.progress in its OWN scope so a
  *  pull gesture doesn't recompose the entire ScalingLazyColumn every frame. */
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 private fun BoxScope.PullSpinner(refreshing: Boolean, pullState: PullRefreshState) {
     if (refreshing || pullState.progress > 0f) {
