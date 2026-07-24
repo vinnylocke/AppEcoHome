@@ -132,7 +132,7 @@ export function rankAttention(inputs: AttentionInputs): AttentionItem[] {
       kind: "overdue_tasks",
       title: `${inputs.overdueCount} overdue task${inputs.overdueCount === 1 ? "" : "s"}`,
       body: "Catch up before they pile up.",
-      route: "/dashboard?view=calendar",
+      route: "/calendar",
       rank: 0,
     });
   }
@@ -143,7 +143,7 @@ export function rankAttention(inputs: AttentionInputs): AttentionItem[] {
       kind: "weather_alert",
       title: "Weather alert",
       body: alert.message,
-      route: "/dashboard?view=weather",
+      route: "/calendar?tab=weather",
       rank: 1,
     });
   }
@@ -184,7 +184,7 @@ export function rankAttention(inputs: AttentionInputs): AttentionItem[] {
       kind: "harvest_closing",
       title: `Harvest window closing: ${h.title}`,
       body: `Open until ${h.windowEndDate} — don't miss it.`,
-      route: "/dashboard?view=calendar",
+      route: "/calendar",
       rank: 5,
     });
   }

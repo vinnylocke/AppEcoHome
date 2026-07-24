@@ -17,7 +17,7 @@ const ITEMS = [
   {
     label: "Add Task",
     icon: <CheckSquare size={16} />,
-    url: "/dashboard?view=calendar&open=add-task",
+    url: "/calendar?open=add-task",
     testId: "quick-add-add-task",
   },
   {

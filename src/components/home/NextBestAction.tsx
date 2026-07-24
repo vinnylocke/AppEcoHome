@@ -54,7 +54,7 @@ export default function NextBestAction({ attentionItems, firstTaskTitle }: Props
           icon: ListChecks,
           headline: firstTaskTitle,
           body: "It's first on today's list — tick it off and you're winning.",
-          go: () => navigate("/dashboard?view=calendar"),
+          go: () => navigate("/calendar"),
         }
       : {
           icon: Sprout,

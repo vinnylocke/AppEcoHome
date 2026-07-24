@@ -173,7 +173,7 @@ test.describe("Task Modal — Harvest window (Wave 20)", () => {
     const today = new Date();
     const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
-    await authenticatedPage.goto("/dashboard?view=calendar");
+    await authenticatedPage.goto("/calendar");
     await authenticatedPage
       .locator(".animate-spin, .animate-pulse")
       .first()

@@ -25,7 +25,7 @@ App (AppShell) — owns `trayOpen` state + the header trigger
             ├── sticky header (title "Today's tasks" + overdue badge + quick-add + close)
             ├── Today / Completed segmented tabs (2026-07-22 — `today-tray-tab-pending` / `today-tray-tab-completed`; drives TaskList's `compactView`)
             ├── TaskList (compact, compactView={view}, hideCalendarLink, targetDate = today) — key={refreshKey}
-            └── sticky footer → "Open the full board" (→ /dashboard?view=calendar)
+            └── sticky footer → "Open the full board" (→ /calendar — #12)
     └── QuickAddTaskModal (rendered only while open && quickAddOpen)
 ```
 

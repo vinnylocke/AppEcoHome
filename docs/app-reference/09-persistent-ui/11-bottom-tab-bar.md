@@ -75,7 +75,7 @@ action like More — never lights).
 
 ### The More slot
 
-`id: "more"`, `Menu` icon, `variant` defaults to `"nav"` but it carries **no `matchPaths`** (so `active` is always false — it never lights) and **no `to`**; its `onPress` → `setQuickDrawerOpen(true)` opens the **Shelf** — the same `MobileNavDrawer` the Phase 6a header hamburger used to open. This is where Tools, Journal, Notes, Integrations, Head Gardener, and every long-tail destination now live. **Since the dashboard-nav-tasks-tray Stage 4 (2026-07-21, B7) the Shelf is passed a FILTERED `navLinks` in normal mode** — App.tsx drops the ids already on the Deck (`dashboard` / `shed`; `planner` rejoined the Shelf 2026-07-22 when its Deck slot became Tasks) at the call site, so "More" shows only true overflow (Planner / Journal / Tools / Integrations / Head Gardener) instead of re-listing Home / Plants. **In focus mode the FULL `navLinks` is passed** (`isFocusMode ? navLinks : navLinks.filter(...)`) — there the Deck is hidden and the Shelf is the only nav surface, so Home/Plants must stay reachable. (The mobile-only **Quick** nav item was removed 2026-07-20 when the `/quick` launcher home was folded into the responsive dashboard.)
+`id: "more"`, `Menu` icon, `variant` defaults to `"nav"` but it carries **no `matchPaths`** (so `active` is always false — it never lights) and **no `to`**; its `onPress` → `setQuickDrawerOpen(true)` opens the **Shelf** — the same `MobileNavDrawer` the Phase 6a header hamburger used to open. This is where **Calendar** (the new #12 section — Calendar · Weather · Routines), Plan, Journal, Notes, Tools, Integrations, Head Gardener, and every long-tail destination now live. **Since the dashboard-nav-tasks-tray Stage 4 (2026-07-21, B7) the Shelf is passed a FILTERED `navLinks` in normal mode** — App.tsx drops the ids already on the Deck (`dashboard` / `shed`; `planner` rejoined the Shelf 2026-07-22 when its Deck slot became Tasks) at the call site, so "More" shows only true overflow (**Calendar** / Plan / Journal / Tools / Integrations / Head Gardener — the **Calendar** item was added in the #12 IA reorg, 2026-07-24, and has no Deck slot, so it is Shelf-only on phone) instead of re-listing Home / Plants. **In focus mode the FULL `navLinks` is passed** (`isFocusMode ? navLinks : navLinks.filter(...)`) — there the Deck is hidden and the Shelf is the only nav surface, so Home/Plants must stay reachable. (The mobile-only **Quick** nav item was removed 2026-07-20 when the `/quick` launcher home was folded into the responsive dashboard.)
 
 ### Active-state contract
 
@@ -91,7 +91,7 @@ Same semantics as the sidebar: exact path match or `path + "/"` prefix, applied 
 | **Tasks** (tray) | — (action, never lit; `/planner` + `/journal` etc. light no tab since 2026-07-22 — reached via the Shelf) |
 | **More** (Shelf) | — (action, never lit) |
 
-Note the mobile-specific behaviour: with no Journal tab on mobile, `/journal` and `/notes` fold under **Planner** (on desktop the sidebar has a dedicated Journal item). Likewise `/schedule` (Routines) → Planner, and `/management` + `/home-management` (Location Manager / home management) → Home. `/doctor`, `/tools`, `/visualiser`, `/lightsensor`, `/guides`, `/weekly` and the rest of the toolbox reach their surfaces through Capture or the Shelf and light no destination tab.
+Note the mobile-specific behaviour: only **Home** and **Plants** are route-backed Deck tabs, so most routes light no destination tab and are reached through the Shelf. `/journal` and `/notes`, `/planner` + `/shopping` (the **Plan** item), and — since the #12 IA reorg (2026-07-24) — **`/calendar` and `/schedule` (the new Calendar section / Routines)** all light no Deck tab and open from **More → the Shelf** (on desktop the sidebar has dedicated Calendar / Plan / Journal items). `/management` + `/home-management` (Location Manager / home management) fold under **Home**. `/doctor`, `/tools`, `/visualiser`, `/lightsensor`, `/guides`, `/weekly` and the rest of the toolbox reach their surfaces through Capture or the Shelf and light no destination tab.
 
 ### Visibility & layering
 
@@ -164,6 +164,7 @@ Identical for every tier. (What the Capture sheet's Diagnose action leads to is 
 
 - [Capture Sheet](../08-modals-and-overlays/41-capture-sheet.md) — what the centre Capture FAB opens (Diagnose hero + create verbs)
 - [Sidebar Navigation](./02-sidebar.md) — the full nav (desktop-only since Phase 6a; the Shelf drawer is the phone overflow)
+- [Calendar Section (CalendarHub)](../02-dashboard/19-calendar-section.md) — the #12 section with no Deck slot (Shelf-only on phone)
 - [Header / Top Bar](./01-header.md) — de-crowded on mobile (Phase 6b): the Deck's Capture FAB + More carry create + overflow
 - [Global Quick Add](../08-modals-and-overlays/23-global-quick-add.md) — the desktop header "+" the Capture sheet folds in on phones
 - [Garden Walk](../02-dashboard/13-garden-walk.md) — the focus-mode surface where the bar hides (with the mobile `/quick/calendar` planting helper)

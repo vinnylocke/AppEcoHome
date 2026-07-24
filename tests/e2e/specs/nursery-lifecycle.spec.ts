@@ -736,7 +736,7 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
       vendor: "Suttons",
     });
 
-    await authenticatedPage.goto("/schedule");
+    await authenticatedPage.goto("/calendar?tab=routines");
     await authenticatedPage.getByTestId("blueprint-new-btn").click();
     await expect(authenticatedPage.getByPlaceholder("Task Name *")).toBeVisible({ timeout: 10000 });
 
@@ -755,7 +755,7 @@ test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
       vendor: "Suttons",
     });
 
-    await authenticatedPage.goto("/schedule");
+    await authenticatedPage.goto("/calendar?tab=routines");
     await authenticatedPage.getByTestId("blueprint-new-btn").click();
     const titleInput = authenticatedPage.getByPlaceholder("Task Name *");
     await expect(titleInput).toBeVisible({ timeout: 10000 });

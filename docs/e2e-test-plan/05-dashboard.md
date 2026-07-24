@@ -5,24 +5,24 @@
 **Seed dependencies:** `00_bootstrap.sql`, `01_locations_areas.sql`, `03_tasks_blueprints.sql`, `04_weather.sql`
 **App-reference:** [02-dashboard/01-dashboard-tab.md](../app-reference/02-dashboard/01-dashboard-tab.md)
 
-Covers the classic dashboard content. Since the Phase 4.2 dashboard merge this **no longer lives at `?view=overview`** — the Overview tab is gone. The **stats+locations redesign Stage 4a (2026-07-20) then retired the Locations tab** into the home garden grid, so `/dashboard` now has **three** sub-tabs (Dashboard / Calendar / Weather); `?view=locations` falls through to home exactly like legacy `?view=overview`. The former Overview content (full `TaskList`, Head Gardener / AI Insights cards, Week Ahead — the Garden Snapshot stat wall it also carried was **deleted outright** in the stats+locations redesign Stage 2, 2026-07-20) now renders on the merged Home view behind the **Detailed** density: `DashboardPage.goto()` seeds `localStorage["rhozly:home:density"] = "detailed"` via an init script and navigates to plain `/dashboard`, so the classic-content specs in this section see it all without UI toggling. **Home redesign Stage 2 (2026-07-20): `DailyBriefCard` is deleted** — the one `HomeStatusStrip` hero serves both densities (console voice in Detailed), so specs anchor on `home-status-strip` instead of `daily-brief-card`. Also covers the **Weather** view (`?view=weather`), the **Calendar** view (`?view=calendar`) and the **Location detail** view (`?locationId=…`). The Home view's own surface (status strip, overview grid, quick actions, telemetry) is covered separately in [30-home-main.md](./30-home-main.md).
+Covers the classic dashboard content. Since the Phase 4.2 dashboard merge this **no longer lives at `?view=overview`** — the Overview tab is gone. The **stats+locations redesign Stage 4a (2026-07-20) then retired the Locations tab** into the home garden grid. **#12 IA reorg (2026-07-24) then made `/dashboard` HOME-ONLY** — the three-tab `?view=` switcher (Dashboard / Calendar / Weather) and the `dashboard-view-switcher` testid were **deleted**; Calendar + Weather left for the new top-level **Calendar section** at `/calendar` (`CalendarHub`), documented in **[37-calendar.md](./37-calendar.md)**. Legacy `?view=calendar|weather` links now **redirect** to `/calendar` (weather → `/calendar?tab=weather`); `?view=overview` / `?view=locations` still fall through to home. The former Overview content (full `TaskList`, Head Gardener / AI Insights cards, Week Ahead — the Garden Snapshot stat wall it also carried was **deleted outright** in the stats+locations redesign Stage 2, 2026-07-20) now renders on the merged Home view behind the **Detailed** density: `DashboardPage.goto()` seeds `localStorage["rhozly:home:density"] = "detailed"` via an init script and navigates to plain `/dashboard`, so the classic-content specs in this section see it all without UI toggling. **Home redesign Stage 2 (2026-07-20): `DailyBriefCard` is deleted** — the one `HomeStatusStrip` hero serves both densities (console voice in Detailed), so specs anchor on `home-status-strip` instead of `daily-brief-card`. The **Calendar** view (`DashboardPage.gotoCalendar()` → `/calendar`) and **Weather** view (`gotoWeather()` → `/calendar?tab=weather`) specs still live in `dashboard.spec.ts`/`weather.spec.ts` but now belong to the Calendar section — they are cross-documented in [37-calendar.md](./37-calendar.md). Also covers the **Location detail** view (`?locationId=…`). The Home view's own surface (status strip, overview grid, quick actions, telemetry) is covered separately in [30-home-main.md](./30-home-main.md).
 
 ## Weather widget
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
 | DASH-001 | ✅ | Weather card renders with temperature + icon | — | ✅ Passing |
-| DASH-002 | ✅ | Calendar and Weather view tabs visible (the switcher is now Dashboard / Calendar / Weather) | — | ⚠️ DRIFT (2026-07-20) — this test (`weather.spec.ts`, "the three view tabs (Locations, Calendar, Weather)") still asserts `dashboard.locationsTab` visible, but Stage 4a retired the Locations tab from the switcher. **Needs repointing** (drop the Locations assertion) — not done in Stage 4a's spec pass |
-| DASH-003 | ✅ | Weather tab click → URL `?view=weather`, forecast panel visible | — | ✅ Passing |
+| DASH-002 | ✅ | ~~Calendar and Weather view tabs visible on the dashboard switcher~~ | — | ❌ RETIRED (#12, 2026-07-24) — the dashboard `?view=` switcher was **deleted**; Calendar + Weather moved to the Calendar section. The tab-switcher assertion is now **CAL-011** (asserts the `calendar-hub-switch` Calendar/Weather/Routines tabs at `/calendar` + `dashboard-view-switcher` count 0). See [37-calendar.md](./37-calendar.md) |
+| DASH-003 | ✅ | Weather forecast panel visible on the **Weather tab of the Calendar section** — `gotoWeather()` → `/calendar?tab=weather` (repointed from the retired `?view=weather` in #12) | — | ✅ Passing |
 | DASH-004 | ✅ | Full Forecast button — 7-day forecast expands or navigates | — | ✅ Passing |
 | DASH-004b | 🔲 | Calendar view live-refreshes on external task writes — a `tasks` INSERT (Wear watch via `mutate-task`, another household member, or a cron) triggers a **silent** refetch (no loading flash) via `useHomeRealtime("tasks")` + `useHomeRealtime("task_blueprints")` on `TaskCalendar` | insert a `tasks` row mid-session | 🔲 Planned |
-| DASH-005..009 | ✅ | Weather code icons render correctly (WMO 0 clear, 61 rain, 71 snow, 95 thunder, 45 fog) | — | ✅ Passing |
+| DASH-005..009 | ✅ | Weather-code forecast icons render correctly (WMO 0 clear, 61 rain, 71 snow, 95 thunder, 45 fog) — on the Weather tab of the Calendar section (`/calendar?tab=weather`, #12) | — | ✅ Passing |
 | DASH-009b | ✅ | 2+ alerts collapse into one 44px strip (`weather-alert-strip`); tap expands the per-type rows in place; `weather-alert-strip-collapse` restores the strip (Stage 5, 2026-07-21) | — | ✅ Passing |
 | DASH-010..013 | ✅ | Alert badges (heat, frost, rain, wind). DASH-010 (heat), **DASH-011 (frost)** and DASH-013 (wind) are each scoped to the compact bar's own `weather-alert-bar-{type}` testid (`weather-alert-bar-frost` for DASH-011, asserting `/Frost risk tomorrow/i`) — the same alert text also renders elsewhere (the AttentionRow weather card on non-dashboard consumers, and — since redesign Stage 3 — **The Brief's `garden-brain-brief` row surfaces the frost item on the Workbench**), so a bare `getByText` goes strict-ambiguous. **Stage 5:** each expands the collapse strip first (2+ alerts render as one strip) | — | ✅ Passing |
-| DASH-MOBILE-001 | ✅ | Phone-portrait (412×915): the **three** view tabs (Dashboard / Calendar / Weather) each present exactly once; **Overview count 0 AND Locations count 0** (Phase 4.2 merged Overview into Dashboard; Stage 4a retired the Locations tab into the home garden grid); Weather reachable + navigates (regression: Weather clipped off-screen) | — | ✅ Passing (re-verified 2026-07-20) |
+| DASH-MOBILE-001 | ✅ | ~~Phone-portrait: the three dashboard view tabs each present once~~ | — | ♻️ BECAME **CAL-011** (#12, 2026-07-24) — the dashboard `?view=` switcher was deleted; the phone-reachable tab-switcher assertion now targets the Calendar section's `calendar-hub-switch` (Calendar/Weather/Routines) and asserts `dashboard-view-switcher` count 0. See the Calendar view section below + [37-calendar.md](./37-calendar.md) |
 | DASH-014 | ✅ | No alerts on mild forecast | — | ✅ Passing |
-| DASH-015 | ✅ | Garden Intelligence panel renders with at least one rule heading | — | ✅ Passing |
-| DASH-016..019 | ✅ | GI rules — auto-watering, frost protection, heatwave, high wind | — | ✅ Passing |
+| DASH-015 | ✅ | Garden Intelligence panel renders with at least one rule heading — on the **Weather tab of the Calendar section** (`/calendar?tab=weather`, #12) | — | ✅ Passing |
+| DASH-016..019 | ✅ | GI rules — auto-watering, frost protection, heatwave, high wind (Weather tab, `/calendar?tab=weather`) | — | ✅ Passing |
 
 ## Garden grid location cards (was the "Locations view") — Section 02
 
@@ -132,10 +132,13 @@ The Daily Brief "Overdue" chip is now home-scoped + ghost-aware (runs the same `
 
 ## Calendar view
 
+> **#12 IA reorg (2026-07-24):** these rows are now the **Calendar section**'s tests (the Calendar tab of `/calendar`, `CalendarHub`). They still physically live in `tests/e2e/specs/dashboard.spec.ts` but are cross-documented in the dedicated **[37-calendar.md](./37-calendar.md)**. `DashboardPage.gotoCalendar()` now navigates to **`/calendar`** (was `?view=calendar`). **CAL-011 was repurposed** — it is no longer "To-Do List button visible" but the new **section tab-switcher** test (the old switcher test, formerly DASH-MOBILE-001).
+
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
-| CAL-001 | ✅ | `?view=calendar` → calendar grid visible | — | ✅ Passing |
-| CAL-002 | ✅ | Current month heading | — | ✅ Passing |
+| CAL-001 | ✅ | `/calendar` → calendar grid visible (repointed from `?view=calendar` in #12) | — | ✅ Passing |
+| CAL-001b | ✅ | Legacy redirects (#12) — `/dashboard?view=calendar&date=…` lands on `/calendar` (date carried); `/dashboard?view=weather` lands on `/calendar?tab=weather` (URLs never die) | — | ✅ Passing |
+| CAL-002 | ✅ | Current month heading (`gotoCalendar()` → `/calendar`) | — | ✅ Passing |
 | CAL-003 | ✅ | Task dots on dates with tasks | — | ✅ Passing |
 | CAL-004 | ✅ | Ghost task dots for blueprint recurring dates | — | ✅ Passing |
 | CAL-005 | ✅ | Click date with tasks opens panel | — | ✅ Passing |
@@ -144,10 +147,10 @@ The Daily Brief "Overdue" chip is now home-scoped + ghost-aware (runs the same `
 | CAL-008 | ✅ | Navigate to previous month — `calendarPrevButton` repointed to aria-label (`/Previous (month\|week)/`), same reason | — | ✅ Passing (re-verified 2026-07-20) |
 | CAL-009 | ✅ | Completed task date shows completed indicator | — | ✅ Passing |
 | CAL-010 | ✅ | Skipped task not shown as pending | — | ✅ Passing |
-| CAL-011 | ✅ | To-Do List button visible (`calendar-add-todo-list`) | — | ✅ Passing |
-| CAL-012 | ✅ | To-Do List create flow — fill date + 2 rows → tasks linked to one `todo_lists` row | — | ✅ Passing |
-| CAL-013 | ✅ | My To-Do Lists modal — `?open=todo-lists` → status pill + ticking flips derived status | — | ✅ Passing |
-| CAL-014 | ✅ | TaskModal From-list pill — click opens Manage modal scrolled to that list | — | ✅ Passing |
+| CAL-011 | ✅ | **Calendar section tab switcher (#12)** — at `/calendar` on a phone, `calendar-hub-switch` shows Calendar / Weather / Routines tabs; the deleted `dashboard-view-switcher` has count 0 (replaces the old DASH-MOBILE-001) | — | ✅ Passing |
+| CAL-012 | 🔲 | To-Do List create flow — fill date + 2 rows → tasks linked to one `todo_lists` row (To-Do Lists feature; not part of #12) | — | 🔲 Planned (no spec found 2026-07-24) |
+| CAL-013 | 🔲 | My To-Do Lists modal — `?open=todo-lists` → status pill + ticking flips derived status (To-Do Lists feature; not part of #12) | — | 🔲 Planned (no spec found 2026-07-24) |
+| CAL-014 | 🔲 | TaskModal From-list pill — click opens Manage modal scrolled to that list (To-Do Lists feature; not part of #12) | — | 🔲 Planned (no spec found 2026-07-24) |
 
 ## Calendar harvest-window visualisations (Wave 20+)
 

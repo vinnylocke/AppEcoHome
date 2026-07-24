@@ -15,19 +15,19 @@ const LOC_GARDEN_ID = `0000000${workerNum}-0000-0000-0001-000000000001`;
 const LOC_INDOOR_ID = `0000000${workerNum}-0000-0000-0001-000000000002`;
 
 test.describe("Home dashboard (Section 30)", () => {
-  test("HOME-001: plain /dashboard lands on the Home view with the 3-tab switcher", async ({ authenticatedPage }) => {
+  test("HOME-001: plain /dashboard is home-only — the old ?view= switcher is gone (#12 IA reorg)", async ({ authenticatedPage }) => {
     const home = new HomeMainPage(authenticatedPage);
     await home.goto();
     await home.waitForLoad();
 
     await expect(home.root).toBeVisible();
-    await expect(home.viewSwitcher.getByRole("button", { name: "Dashboard" })).toBeVisible();
-    await expect(home.viewSwitcher.getByRole("button", { name: "Calendar" })).toBeVisible();
-    await expect(home.viewSwitcher.getByRole("button", { name: "Weather" })).toBeVisible();
-    // Phase 4.2 merged the Overview tab into Home; stats+locations Stage 4
-    // retired the Locations tab into the garden grid — neither reappears.
-    await expect(home.viewSwitcher.getByRole("button", { name: "Overview" })).toHaveCount(0);
-    await expect(home.viewSwitcher.getByRole("button", { name: "Locations" })).toHaveCount(0);
+    // #12 IA reorg — Calendar + Weather left the Dashboard for the top-level
+    // /calendar section, so the dashboard's 3-pill ?view= switcher no longer
+    // exists. The Calendar section is reached from the primary nav instead.
+    await expect(authenticatedPage.getByTestId("dashboard-view-switcher")).toHaveCount(0);
+    await expect(
+      authenticatedPage.getByRole("button", { name: "Calendar" }).first(),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test("HOME-002: garden overview grid renders both seeded locations with area rows", async ({ authenticatedPage }) => {
@@ -93,7 +93,8 @@ test.describe("Home dashboard (Section 30)", () => {
 
     await expect(home.todaysTasks).toBeVisible();
     await home.tasksSeeAll.click();
-    await expect(authenticatedPage).toHaveURL(/view=calendar/);
+    // #12 IA reorg — the calendar now lives at the top-level /calendar section.
+    await expect(authenticatedPage).toHaveURL(/\/calendar/);
   });
 
   test("HOME-014: the home's compact today list exposes inline complete + postpone without leaving the home (redesign Stage 3)", async ({ authenticatedPage }) => {

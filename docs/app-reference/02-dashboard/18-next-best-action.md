@@ -44,7 +44,7 @@ None. The card derives a single `Resolved` object (`{ icon, headline, body, go }
 None. The only action is navigation:
 
 - **Rung 1 — first attention item** (`attentionItems[0]`): headline = `item.title`, body = `item.body`, icon = `AlertCircle`; tap → `navigate(item.route)`.
-- **Rung 2 — first pending task** (`firstTaskTitle`): headline = the title, body = a fixed encouragement line, icon = `ListChecks`; tap → `navigate("/dashboard?view=calendar")`. *(Wired in Stage 2 (B6) from `TaskEngine.peekCache` — the Porch now points at your actual next task when nothing is flagged. `null` on a cold first paint, so the ladder falls through to seasonal on a first-ever visit and fills from the next render once TaskList has fetched.)*
+- **Rung 2 — first pending task** (`firstTaskTitle`): headline = the title, body = a fixed encouragement line, icon = `ListChecks`; tap → `navigate("/calendar")` (#12 — the calendar is the top-level Calendar section now). *(Wired in Stage 2 (B6) from `TaskEngine.peekCache` — the Porch now points at your actual next task when nothing is flagged. `null` on a cold first paint, so the ladder falls through to seasonal on a first-ever visit and fills from the next render once TaskList has fetched.)*
 - **Rung 3 — seasonal fallback** ("Browse what to plant right now"), icon = `Sprout`; tap →
   - scrolls to the on-page learn section if present: `document.querySelector('[data-section="learn"]')?.scrollIntoView({ behavior: motionTier() === "off" ? "auto" : "smooth", block: "start" })` — the learn section is HomeMain's `SeasonalPicksCard` wrapper (`data-section="learn"`);
   - otherwise deep-links `navigate("/shed?open=add-plant")`.

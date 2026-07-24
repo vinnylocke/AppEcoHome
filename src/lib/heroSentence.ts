@@ -135,7 +135,7 @@ export function composeConsoleSegments(i: ConsoleInputs): ConsoleSegment[] {
   segs.push({
     id: "tasks",
     label: t.total === 0 ? "clear today" : `${t.done}/${t.total} today`,
-    to: "/dashboard?view=calendar",
+    to: "/calendar",
     tone: "default",
   });
 
@@ -143,7 +143,7 @@ export function composeConsoleSegments(i: ConsoleInputs): ConsoleSegment[] {
     segs.push({
       id: "overdue",
       label: `${i.overdueCount} overdue`,
-      to: "/dashboard?view=calendar",
+      to: "/calendar",
       tone: "danger",
     });
   }
@@ -152,7 +152,7 @@ export function composeConsoleSegments(i: ConsoleInputs): ConsoleSegment[] {
     segs.push({
       id: "weather",
       label: `${Math.round(i.weatherNow.tempC)}° ${i.weatherNow.description.toLowerCase()}`,
-      to: "/dashboard?view=weather",
+      to: "/calendar?tab=weather",
       tone: "default",
     });
   }
@@ -161,7 +161,7 @@ export function composeConsoleSegments(i: ConsoleInputs): ConsoleSegment[] {
     segs.push({
       id: "frost",
       label: `frost ${Math.round(i.frostMinC)}°`,
-      to: "/dashboard?view=weather",
+      to: "/calendar?tab=weather",
       tone: "danger",
     });
   }

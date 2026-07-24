@@ -35,13 +35,14 @@ BrowserRouter
     │    the overflow nav — opened by the header hamburger on normal routes,
     │    by QuickAccessMenuButton in focus mode. The left sidebar rail is
     │    gated behind isMdBreakpoint and never renders on phones now.)
-    ├── /dashboard         ← Dashboard container (Dashboard [home] / Calendar / Weather sub-tabs via ?view=; Locations tab retired Stage 4a)
+    ├── /dashboard         ← Dashboard — HOME-ONLY since #12 (the Calendar + Weather ?view= sub-tabs left for /calendar; Locations tab retired Stage 4a). Legacy ?view=calendar → /calendar, ?view=weather → /calendar?tab=weather (redirect); ?view=home/dashboard/overview/locations fall through to home
+    ├── /calendar          ← CalendarHub (#12 IA reorg — the top-level Calendar section: ?tab= absent → Calendar [TaskCalendar], ?tab=weather → Weather [WeatherForecast], ?tab=routines → Routines [BlueprintManager embedded])
     ├── /shed              ← GardenHub (Plants | Ailments — Hub v3 Stage D; ?tab=nursery → Seed box sheet, ?tab=senescence[&plant=] → Inactive chip, both auto-redirect; legacy flag restores 4 tabs)
 │                        Stage E: ?detail=<ailment_library.id> on tab=watchlist opens the shared field-guide detail (shareable; open PUSHes, close REPLACE-deletes; unknown id fail-softs)
 │                        #7: ?owned=<ailments.id> on tab=watchlist opens the OWNED-ailment detail modal — same reactive pattern (open PUSHes, close REPLACE-deletes; derived from the loaded `ailments`), so swipe-back / Escape closes JUST the modal instead of popping the Plants→Ailments tab switch
 │                        #7b: ?lib=<ailment_library.id> inside the ailment SEARCH takeover opens the library-row detail with the same open-PUSH/close-REPLACE pattern (object stashed in a ref, param is source-of-truth), so Back closes just the detail, not the whole takeover
 ├── /ailment-library   ← REDIRECT (Stage F): → /shed?tab=watchlist; ?ailment=X → &detail=X (AilmentLibraryRedirect in App.tsx — page deleted, URLs never die)
-    ├── /schedule          ← BlueprintManager
+    ├── /schedule          ← REDIRECT (#12): → /calendar?tab=routines (Routines reparented into the Calendar section; the old URL stays alive)
     ├── /planner           ← PlannerHub (?tab=planner|shopping)
     ├── /doctor            ← PlantDoctor
     ├── /profile           ← GardenProfile + HabitQuiz
@@ -78,8 +79,8 @@ BrowserRouter
 
 | Pattern | Purpose |
 |---------|---------|
-| `?view=X` | Sub-tab within Dashboard (home \| locations \| calendar \| weather — see the table below) |
-| `?tab=X` | Sub-tab elsewhere (Garden Hub shed/watchlist/senescence, Planner, Guides, Account, Routines blueprints/optimise) |
+| `?view=X` | **Retired for the Dashboard (#12).** The dashboard is home-only; legacy `?view=calendar\|weather` links redirect to the `/calendar` section (see the table below). `?view=home/dashboard/overview/locations` still fall through to home. |
+| `?tab=X` | Sub-tab within a hub: **Calendar section** (`/calendar` — absent=Calendar, `weather`, `routines`), Garden Hub (shed/watchlist/senescence), Planner (planner/shopping), Guides, Account |
 | `?open=X` | Auto-open a modal on the destination |
 | `?q=X` | Search query (Guides) |
 | `?locationId=X` / `?areaId=X` / `?instanceId=X` | Drill-in (Dashboard locations → area → plant) |
@@ -88,27 +89,31 @@ BrowserRouter
 | `?section=plans` | Force the Account tab + scroll to the "Your Plan" picker (`#plan-section`); tier-locked `UpgradeNudge` banners route here (RHO-12) |
 | `?ailment=X` | Deep-link an Ailment Library entry |
 
-### `/dashboard` `?view=` param (three tabs — Overview merged in Phase 4.2, Locations retired Stage 4a)
+### `/dashboard` is home-only (`?view=` retired — #12 IA reorg)
 
-Parsed in `src/App.tsx` (~line 514; `DashboardView = "home" | "calendar" | "weather"`). Three sub-tabs: Dashboard (home) / Calendar / Weather.
+The dashboard used to carry a 3-pill `?view=` switcher (Dashboard / Calendar / Weather). **#12 moved Calendar + Weather to the top-level [`/calendar` section](#calendar-section-calendar--tab) and deleted the switcher**, the `DashboardView` type, and the `rhozly_dashboard_view` localStorage persistence. `/dashboard` now renders only the merged Home dashboard (plus the `?locationId=` drill-in) — see [Home (Main Dashboard)](../02-dashboard/17-home-main.md). The `dashboard-view-switcher` testid no longer exists.
 
-| `?view=` value | Resolves to | Label | Content |
-|---------------|-------------|-------|---------|
-| *(absent)* | `home` | **Dashboard** | The merged Home dashboard (default) — [Home (Main Dashboard)](../02-dashboard/17-home-main.md) |
-| `home` | `home` | Dashboard | Same |
-| `calendar` | `calendar` | Calendar | unchanged |
-| `weather` | `weather` | Weather | unchanged |
-| `locations` *(legacy)* | `home` | — | The Locations tab was **retired** into the home garden grid (stats+locations redesign Stage 4a, 2026-07-20) — dropped from the `DashboardView` union + parser allowlist; old links fall through to home. See [Locations Tab — RETIRED](../02-dashboard/02-locations-tab.md) |
-| `dashboard` *(legacy)* | `home` | — | Backwards compat: old deep links / notifications land on the merged home |
-| `overview` *(legacy)* | `home` | — | The Overview tab was **merged into Home** (Phase 4.2) — its cards live behind Home's Detailed density; old links fall through to home. See [Dashboard Tab (Overview) — ARCHIVED](../02-dashboard/01-dashboard-tab.md) |
-| *anything else* | `home` | — | Unknown values fall back to the default |
+**Legacy `?view=` handling** (parsed at the top of the `/dashboard` route element in `src/App.tsx`):
 
-**localStorage persistence (`rhozly_dashboard_view`):**
+| `?view=` value | Result |
+|---------------|--------|
+| `calendar` | **Redirect** → `/calendar` (carrying any `?date=` / `?open=`) |
+| `weather` | **Redirect** → `/calendar?tab=weather` |
+| *(absent)*, `home`, `dashboard`, `overview`, `locations`, *anything else* | Fall through to the merged Home dashboard (no redirect) — Overview merged Phase 4.2; Locations retired into the home garden grid Stage 4a |
 
-- Visiting `/dashboard` with an explicit `?view=` writes the **resolved** view (legacy `dashboard` / `overview` persist as `home`).
-- Visiting plain `/dashboard` restores the saved view **once per mount** only (subsequent sub-tab clicks to "Dashboard" stick, and record `home` for next session).
-- Only `calendar | weather` are restored. Stored legacy `"dashboard"`, `"overview"` **and** `"locations"` values are **deliberately not restored** — they fall through to the `home` default once; the user's next explicit choice is respected from then on. (Stage 4a dropped `"locations"` from the restore allowlist.)
-- The switcher's "Dashboard" button navigates to plain `/dashboard` (no param); the other two navigate to `/dashboard?view=<v>` (all `replace: true`).
+Already-sent weekly-digest emails, stored `daily_briefs` rows, and old bookmarks all pointed at `?view=calendar|weather`, so the redirect keeps them working ("URLs never die"). New in-app links + edge-function deep links point straight at `/calendar`.
+
+### Calendar section (`/calendar` `?tab=`)
+
+`CalendarHub` (`src/components/CalendarHub.tsx`) — a `SegmentedTabs` shell (mirrors `JournalNotesHub`) reading `?tab=`:
+
+| `?tab=` value | Tab | Content |
+|--------------|-----|---------|
+| *(absent)* | **Calendar** (default — clean URL) | `TaskCalendar` — still consumes `?open=add-task` / `?date=YYYY-MM-DD` and strips them. See [Calendar Tab](../02-dashboard/03-calendar-tab.md) |
+| `weather` | **Weather** | Full `WeatherAlertBanner` + `WeatherForecast`; the app-wide compact alert bar is suppressed here. See [Weather Tab](../02-dashboard/04-weather-tab.md) |
+| `routines` | **Routines** | `BlueprintManager` **embedded** (recurring care rules). `/schedule` redirects here. See [Blueprint Manager](../04-planner/07-blueprint-manager.md) |
+
+Switcher testid `calendar-hub-switch`; tabs `calendar-hub-tab-calendar` / `calendar-hub-tab-weather` / `calendar-hub-tab-routines`. Weather data (`rawWeather`, `alerts`) is fetched globally on home load and passed to the hub as props. The Calendar nav item lives in the **Garden** group (after Dashboard + Plants) with `matchPaths: ["/calendar", "/schedule"]`; it has no mobile Deck slot (reached on phone via More → Shelf).
 
 ### Quick-add deep links (from GlobalQuickAdd)
 
@@ -117,7 +122,7 @@ Pruned to the 5 highest-frequency "create" verbs (Phase 5 IA pass) — cut items
 | Action | Path |
 |--------|------|
 | Add Plant | `/shed?open=add-plant` |
-| Add Task | `/dashboard?view=calendar&open=add-task` |
+| Add Task | `/calendar?open=add-task` (#12 — was `/dashboard?view=calendar&open=add-task`; the Calendar section's default tab is `TaskCalendar`, which consumes `?open=add-task`) |
 | Diagnose a Plant | `/doctor` |
 | Create Plan | `/planner?open=new-plan` |
 | Add Location | `/management?open=add-location` |
@@ -148,13 +153,13 @@ Several routes have no nav item of their own, so they're folded into a parent it
 
 | Orphan route | Highlights |
 |---|---|
-| `/schedule` (Routines) | Planner |
+| `/calendar`, `/schedule` (Routines redirects into `/calendar?tab=routines`) | Calendar (#12 — the new Garden-group nav item owns both paths) |
 | `/weekly` (Weekly Overview) | Tools |
 | `/reports` (Garden Reports) | Tools |
 | `/management`, `/home-management` (Location Manager / home management) | Dashboard |
 | `/journal`, `/notes` | Journal |
 
-**The mobile bottom tab bar (the Deck) is a separate, narrower list and does NOT use `navLinks`.** Since Phase 6b it has only two route-backed destination tabs — **Home** (`matchPaths: /dashboard, /management, /home-management`) and **Plants** (`matchPaths: /shed, /watchlist`) — plus three action slots with no `matchPaths` at all: **Capture** (opens the Capture sheet), **Tasks** (opens the Today's-Tasks tray), and **More** (opens the Shelf). Planner, Tools, Journal, Integrations, and Head Gardener have **no Deck slot** and light no bottom tab; they're reached via **More → the Shelf**, whose own active-highlighting falls back to the desktop table above. See [Bottom Tab Bar](../09-persistent-ui/11-bottom-tab-bar.md) for the full slot-by-slot breakdown.
+**The mobile bottom tab bar (the Deck) is a separate, narrower list and does NOT use `navLinks`.** Since Phase 6b it has only two route-backed destination tabs — **Home** (`matchPaths: /dashboard, /management, /home-management`) and **Plants** (`matchPaths: /shed, /watchlist`) — plus three action slots with no `matchPaths` at all: **Capture** (opens the Capture sheet), **Tasks** (opens the Today's-Tasks tray), and **More** (opens the Shelf). **Calendar** (#12), **Plan** (the renamed Planner item), Journal, Tools, Integrations, and Head Gardener have **no Deck slot** and light no bottom tab; they're reached via **More → the Shelf**, whose own active-highlighting falls back to the desktop table above. See [Bottom Tab Bar](../09-persistent-ui/11-bottom-tab-bar.md) for the full slot-by-slot breakdown.
 
 The **Head Gardener** nav item (`/manager`) is conditionally rendered — it only appears when `tierAllowsFeature(profile.subscription_tier, "head_gardener")` is true (Evergreen tier; see `src/constants/tierFeatures.ts`). Lower tiers don't see the nav entry, but the `/manager` route still exists and renders its own `FeatureGate` upgrade wall for anyone who deep-links in. See [Sidebar Navigation](../09-persistent-ui/02-sidebar.md) and [Bottom Tab Bar](../09-persistent-ui/11-bottom-tab-bar.md) for the full per-item `matchPaths`.
 
@@ -166,6 +171,9 @@ Legacy / alias paths that immediately `Navigate ... replace` to their canonical 
 |---|---|
 | `/` (index) | `/dashboard` (BOTH phone + desktop since 2026-07-20 — previously phone redirected to `/quick`) |
 | `/quick` | `/dashboard` (`replace`; the phone-only Quick Access Home was retired — the launcher now lives on the dashboard) |
+| `/schedule` | `/calendar?tab=routines` (#12 — Routines reparented into the Calendar section; the old URL stays alive for bookmarks / notifications / help) |
+| `/dashboard?view=calendar` | `/calendar` (#12 — query-param redirect from the `/dashboard` route element; carries `?date=`/`?open=` over) |
+| `/dashboard?view=weather` | `/calendar?tab=weather` (#12) |
 | `/notes` | `/journal?tab=notes` (Phase 5 IA — Notes folded into the Journal hub) |
 | `/insights` | `/manager?tab=insights` |
 | `/watchlist` | `/shed?tab=watchlist` |

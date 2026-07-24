@@ -5,7 +5,7 @@
 **Seed dependencies:** `03_tasks_blueprints.sql`
 **App-reference:** [04-planner/](../app-reference/04-planner/)
 
-Covers `/schedule` (Routines + Suggestions/Optimise tabs).
+Covers the **Routines** surface (Routines + Suggestions/Optimise tabs). **#12 IA reorg (2026-07-24):** Routines moved from the standalone `/schedule` route into the **Routines tab of the Calendar section** — `SchedulePage.goto()` now navigates to **`/calendar?tab=routines`**, where `BlueprintManager` renders `embedded` (all `schedule-*`/`blueprint-*` testids unchanged, so the suite is otherwise untouched). The old `/schedule` URL still **redirects** there (asserted by NAV-002 in `navigation-deeplinks.spec.ts`; see [37-calendar.md](./37-calendar.md)).
 
 > **Phase 4.5 (design overhaul) — Routines card redesign + locator repairs.** The Routines cards are now colour-coded by task type (left accent bar + tinted icon tile + dot-track, all one hue per type), the "Next: date · date · date" footnote is replaced by a single "Next:" line plus a 30-day dot track (`blueprint-{id}-dot-track`), pause + delete controls are now **always visible** (were hover-only, invisible to touch), and the **Filters** button shows a real active-filter count instead of a "!". As part of this pass the suites were repaired for the long-standing Automations→Routines rename: `SchedulePage` now uses the "Search routines…" placeholder, "No routines yet" empty state, "Create your first routine" CTA, the filter drawer `getByRole` heading "Filters", the modal heading `/New Routine|Edit Routine/`, and `tasks.spec` targets the `/Routines/` heading; the delete-confirm path now clicks `confirm-modal-confirm`. A **pre-existing SCH-011 failure** was also fixed — the test lacked a `window.confirm` dialog-accept handler for the duplicate-schedule prompt that area-linked saves fire (Playwright auto-dismisses by default, silently aborting the save; a stash test confirmed it failed on committed code too). **Schedule suites are now 42/42.** The tour anchors (`schedule-heading`, `blueprint-new-btn`, `blueprint-list`) are unchanged, and the pause/delete `data-testid`s + aria-labels are preserved.
 
@@ -14,7 +14,7 @@ Covers `/schedule` (Routines + Suggestions/Optimise tabs).
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
 | SCH-001 | ✅ | "Automations" / "Routines" heading | — | ✅ Passing |
-| SCH-002 | ✅ | Nav link → `/schedule` | — | ✅ Passing |
+| SCH-002 | ✅ | Nav link → the Routines tab (`/calendar?tab=routines`; `/schedule` redirects in — NAV-002) | — | ✅ Passing |
 | SCH-003 | ✅ | Seeded blueprint cards render | — | ✅ Passing |
 | SCH-004 | ✅ | Card shows task type — now via the colour-coded card (accent bar + tinted icon tile, hue per type) rather than a text badge | — | ✅ Passing |
 | SCH-005 | ✅ | Card shows frequency ("Every 7 Days") | — | ✅ Passing |

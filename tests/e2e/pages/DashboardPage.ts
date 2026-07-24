@@ -29,9 +29,11 @@ export class DashboardPage {
     this.fullForecastButton = page.getByRole("button", { name: "Full Forecast" });
     this.signOutButton = page.getByRole("button", { name: "Sign Out" });
     this.weatherCard = page.locator("text=°C").first();
-    // locationsTab removed — the Locations tab was retired in Stage 4.
-    this.calendarTab = page.getByRole("button", { name: "Calendar" }).first();
-    this.weatherTab = page.getByRole("button", { name: "Weather" }).first();
+    // #12 IA reorg — Calendar + Weather left the Dashboard for the top-level
+    // /calendar section (CalendarHub). The tabs are now that hub's SegmentedTabs
+    // (role="tab") — target them by their stable testids.
+    this.calendarTab = page.getByTestId("calendar-hub-tab-calendar");
+    this.weatherTab = page.getByTestId("calendar-hub-tab-weather");
 
     this.giPanelHeading = page.getByText("Garden Intelligence", { exact: true });
     this.calendarMonthHeading = page.locator("h3").filter({ hasText: /[A-Z][a-z]+ \d{4}/ });
@@ -66,8 +68,12 @@ export class DashboardPage {
     await this.page.goto("/dashboard");
   }
 
+  // #12 IA reorg — the Calendar + Weather sub-tabs moved to the top-level
+  // /calendar section (CalendarHub). Calendar is the default tab (clean URL);
+  // Weather is ?tab=weather. Legacy /dashboard?view=calendar|weather links still
+  // redirect here, but tests navigate the canonical URLs directly.
   async gotoCalendar() {
-    await this.page.goto("/dashboard?view=calendar");
+    await this.page.goto("/calendar");
   }
 
   // gotoLocations() removed — the Locations tab (?view=locations) was retired
@@ -75,7 +81,7 @@ export class DashboardPage {
   // "what's growing where" surface now; ?view=locations falls through to home).
 
   async gotoWeather() {
-    await this.page.goto("/dashboard?view=weather");
+    await this.page.goto("/calendar?tab=weather");
   }
 
   async gotoLocation(locationId: string) {

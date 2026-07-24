@@ -167,7 +167,7 @@ export function assembleBrief(s: BriefSignals): BriefPayload {
       reason: s.topTaskTitles.length
         ? `Oldest first: ${s.topTaskTitles.slice(0, 3).join(", ")}.`
         : "Clearing these first keeps the schedule honest.",
-      route: "/dashboard?view=calendar",
+      route: "/calendar",
       score: SCORE.overdue,
     });
   }
@@ -205,7 +205,7 @@ export function assembleBrief(s: BriefSignals): BriefPayload {
       kind: "weather",
       title: w.message,
       reason: "Active weather alert for today.",
-      route: "/dashboard?view=weather",
+      route: "/calendar?tab=weather",
       score: SCORE.weather,
     });
   }
@@ -219,7 +219,7 @@ export function assembleBrief(s: BriefSignals): BriefPayload {
       reason: win.taskType === "Harvesting"
         ? "Pick across the window — log a partial harvest any time."
         : "One window task covers the whole period.",
-      route: "/dashboard?view=calendar",
+      route: "/calendar",
       score: SCORE.window,
     });
   }

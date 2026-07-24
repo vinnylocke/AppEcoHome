@@ -353,7 +353,7 @@ export default function HomeMain({
   const taskBoardLink = (testId: string, label: string) => (
     <button
       data-testid={testId}
-      onClick={() => navigate("/dashboard?view=calendar")}
+      onClick={() => navigate("/calendar")}
       className="flex items-center gap-1 text-[11px] font-black text-rhozly-primary bg-rhozly-primary/5 px-2.5 py-1 rounded-full can-hover:hover:bg-rhozly-primary/10 active:scale-[0.97] transition"
     >
       {label} <ArrowRight size={12} />

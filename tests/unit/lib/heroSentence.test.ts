@@ -144,8 +144,8 @@ describe("composeConsoleSegments — the Workbench line", () => {
       "golden hour 19:30",
     ]);
     expect(segs.find((s) => s.id === "overdue")?.tone).toBe("danger");
-    expect(segs.find((s) => s.id === "tasks")?.to).toBe("/dashboard?view=calendar");
-    expect(segs.find((s) => s.id === "weather")?.to).toBe("/dashboard?view=weather");
+    expect(segs.find((s) => s.id === "tasks")?.to).toBe("/calendar");
+    expect(segs.find((s) => s.id === "weather")?.to).toBe("/calendar?tab=weather");
   });
 
   test("zero-value segments drop; empty day reads 'clear today'", () => {

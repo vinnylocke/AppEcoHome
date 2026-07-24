@@ -342,7 +342,7 @@ function WeeklyOverviewPageInner({ homeId, aiEnabled = false, isPremium = false 
             <Section icon={<Wrench size={16} />} title="Routine maintenance" subtitle={`${payload.maintenance_count} task${payload.maintenance_count === 1 ? "" : "s"} keep the garden ticking over`}>
               <button
                 type="button"
-                onClick={() => navigate("/dashboard?view=calendar")}
+                onClick={() => navigate("/calendar")}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rhozly-surface-low text-xs font-black text-rhozly-on-surface/70 hover:bg-rhozly-surface-mid transition-colors"
               >
                 Open calendar →

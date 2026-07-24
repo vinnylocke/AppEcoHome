@@ -127,7 +127,7 @@ export default function TodayTasksTray({ open, onClose, homeId, overdueCount }: 
               data-testid="today-tray-open-board"
               onClick={() => {
                 onClose();
-                navigate("/dashboard?view=calendar");
+                navigate("/calendar");
               }}
               className="w-full flex items-center justify-center gap-1.5 text-xs font-black text-rhozly-primary bg-rhozly-primary/5 py-2.5 rounded-full can-hover:hover:bg-rhozly-primary/10 active:scale-[0.98] transition"
             >

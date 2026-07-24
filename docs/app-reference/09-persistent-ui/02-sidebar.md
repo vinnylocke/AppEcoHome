@@ -8,7 +8,7 @@
 
 ## Quick Summary
 
-**Desktop-only** vertical rail (Phase 6a — the render gate is `{!isFocusMode && isMdBreakpoint && (…)}`, so phones never see it) on the `bg-rhozly-primary-container` green, grouped under small uppercase labels — **Garden** (Dashboard, Plants), **Plan** (Planner, Journal), **AI & Tools** (Tools, Integrations, Head Gardener — Evergreen only). The rail's NavItems now always pass `isMobile={false}`. (The standalone **Notes** item was retired in the Phase 5 IA pass — Notes is now a tab inside the Journal hub. The mobile-only **Quick** item was retired 2026-07-20 when the `/quick` launcher home was folded into the responsive dashboard.) The active item shows a calm left accent bar + white tint (the old white-pill + icon-zoom treatment was retired in the design overhaul). Help Center, Privacy, Cookies pinned at the bottom. Active route highlighted via `routerLocation.pathname` match against `matchPaths`. On phones, primary nav is the [Bottom Tab Bar](./11-bottom-tab-bar.md) plus the Shelf overflow drawer — see the collapsed-state note below.
+**Desktop-only** vertical rail (Phase 6a — the render gate is `{!isFocusMode && isMdBreakpoint && (…)}`, so phones never see it) on the `bg-rhozly-primary-container` green, grouped under small uppercase labels — **Garden** (Dashboard, Plants, **Calendar** — added in the #12 IA reorg), **Plan** (**Plan** — renamed from "Planner" in #12, Journal), **AI & Tools** (Tools, Integrations, Head Gardener — Evergreen only). The rail's NavItems now always pass `isMobile={false}`. (The standalone **Notes** item was retired in the Phase 5 IA pass — Notes is now a tab inside the Journal hub. The mobile-only **Quick** item was retired 2026-07-20 when the `/quick` launcher home was folded into the responsive dashboard.) The active item shows a calm left accent bar + white tint (the old white-pill + icon-zoom treatment was retired in the design overhaul). Help Center, Privacy, Cookies pinned at the bottom. Active route highlighted via `routerLocation.pathname` match against `matchPaths`. On phones, primary nav is the [Bottom Tab Bar](./11-bottom-tab-bar.md) plus the Shelf overflow drawer — see the collapsed-state note below.
 
 ---
 
@@ -41,13 +41,15 @@ nav (left rail, aria-label="Primary navigation")
 }
 ```
 
-Current entries (top → bottom): **Garden:** Dashboard (`/dashboard`, `/management`, `/home-management`, `/` on desktop), Plants (`/shed`, `/watchlist`) · **Plan:** Planner (`/planner`, `/shopping`, `/schedule`), Journal (`/journal`, `/notes`) · **AI & Tools:** Tools (`/tools`, `/doctor`, `/visualiser`, `/lightsensor`, `/guides`, `/garden-layout`, `/sun-trajectory`, `/weekly`, `/reports` — icon `IconTools`/Wrench), Integrations, Head Gardener (`/manager` — **Evergreen only**, see below). (The mobile-only **Quick** item was removed 2026-07-20 with the retirement of the `/quick` launcher home.)
+Current entries (top → bottom): **Garden:** Dashboard (`/dashboard`, `/management`, `/home-management`, `/` on desktop), Plants (`/shed`, `/watchlist`), **Calendar** (`/calendar`, `/schedule` — lucide `Calendar` icon; **added in the #12 IA reorg, 2026-07-24**, positioned after Dashboard + Plants) · **Plan:** **Plan** (id still `planner`; `/planner`, `/shopping` — **renamed from "Planner" in #12**; `/schedule` was removed here and moved to the Calendar item), Journal (`/journal`, `/notes`) · **AI & Tools:** Tools (`/tools`, `/doctor`, `/visualiser`, `/lightsensor`, `/guides`, `/garden-layout`, `/sun-trajectory`, `/weekly`, `/reports` — icon `IconTools`/Wrench), Integrations, Head Gardener (`/manager` — **Evergreen only**, see below). (The mobile-only **Quick** item was removed 2026-07-20 with the retirement of the `/quick` launcher home.)
+
+**#12 IA reorg (2026-07-24) — new Calendar item + Planner→Plan rename.** A new **Calendar** nav item joined the **Garden** group (after Dashboard and Plants), owning the top-level Calendar section (Calendar · Weather · Routines) at `/calendar`; its `matchPaths` are `["/calendar", "/schedule"]`, so it now carries the active-nav highlight for `/schedule` (Routines) — which was **removed from the Planner item's `matchPaths`**. The **Planner item was renamed "Plan"** (nav item id unchanged: `planner`; route unchanged: `/planner`; `matchPaths` now `["/planner", "/shopping"]`). The sidebar **GROUP heading "Plan"** is unrelated and unchanged. On phones the Calendar item has **no Deck (bottom-bar) slot** — like Planner/Journal/Tools it's reached via More → the Shelf.
 
 **2026-07-23 IA reorg — the Dashboard item no longer carries the overdue badge.** The `badge`/`badgeTone` fields were dropped from the Dashboard entry in `navLinks`; the overdue count now lives ONLY on the [header's Today's-Tasks tray trigger](./01-header.md). This mirrors the mobile Deck's "one badge, on the surface that actually answers it" decision (the Deck's badge lives on its Tasks slot, not Home).
 
 The **Notes** item was removed in the Phase 5 IA pass — Notes is now a tab inside the Journal hub, so the **Journal** item's `matchPaths` cover both `/journal` and `/notes`.
 
-**Orphan-route reparenting (Phase 5 IA):** routes without their own nav item fold into a parent's `matchPaths` so the active-nav highlight resolves when you land on them — `/schedule` (Routines) → **Planner**, `/weekly` (Weekly Overview) → **Tools**, `/reports` (Garden Reports) → **Tools**, `/management` + `/home-management` (Location Manager / home management) → **Dashboard**, `/notes` → **Journal**. See [Routing](../99-cross-cutting/21-routing.md) for the mobile-side equivalent (the Shelf reuses this same `navLinks` array; the Deck's own two route-backed tabs are a separate, narrower list).
+**Orphan-route reparenting (Phase 5 IA):** routes without their own nav item fold into a parent's `matchPaths` so the active-nav highlight resolves when you land on them — `/schedule` (Routines) → **Calendar** (#12, 2026-07-24 — was Planner; the Calendar item now owns it via its `["/calendar", "/schedule"]` matchPaths), `/weekly` (Weekly Overview) → **Tools**, `/reports` (Garden Reports) → **Tools**, `/management` + `/home-management` (Location Manager / home management) → **Dashboard**, `/notes` → **Journal**. See [Routing](../99-cross-cutting/21-routing.md) for the mobile-side equivalent (the Shelf reuses this same `navLinks` array; the Deck's own two route-backed tabs are a separate, narrower list).
 
 **Conditional Head Gardener:** the Head Gardener item (`id: "manager"`, `/manager`) is only rendered when `tierAllowsFeature(profile.subscription_tier, "head_gardener")` is true — i.e. Evergreen tier (`head_gardener` is Evergreen-gated in `src/constants/tierFeatures.ts`). Lower tiers don't see the nav entry at all, but the `/manager` route still exists and renders its own `FeatureGate` upgrade wall for anyone who deep-links in. **Integrations is deliberately left visible for every tier** (first-run discoverability — hiding it would strand users trying to add their first device).
 
@@ -106,7 +108,7 @@ None.
 
 The full map of the app, now grouped the way you think: **Garden** is what's growing, **Plan** is what's next, **AI & Tools** is the clever kit. The quiet white bar on the left edge of an item shows where you are.
 
-On a phone there is no sidebar at all (Phase 6a) — the rail is a desktop convenience. You live in the [bottom bar](./11-bottom-tab-bar.md) for the core five, and reach everything beyond it (Journal, Integrations, and — on Evergreen — Head Gardener) through the **Shelf**: the overflow drawer the header hamburger slides in. Notes now lives as a tab inside Journal rather than as its own item.
+On a phone there is no sidebar at all (Phase 6a) — the rail is a desktop convenience. You live in the [bottom bar](./11-bottom-tab-bar.md) for the core five, and reach everything beyond it (Calendar, Journal, Integrations, and — on Evergreen — Head Gardener) through the **Shelf**: the overflow drawer the header hamburger slides in. (**Calendar** — the new #12 section holding Calendar · Weather · Routines — has no Deck slot, so on phone it lives here in the Shelf like Plan/Journal/Tools.) Notes now lives as a tab inside Journal rather than as its own item.
 
 ### Every flow
 
@@ -139,6 +141,7 @@ Same layout, with one difference: **Head Gardener only appears on Evergreen**. L
 
 - [Bottom Tab Bar](./11-bottom-tab-bar.md)
 - [Header / Top Bar](./01-header.md)
+- [Calendar Section (CalendarHub)](../02-dashboard/19-calendar-section.md) — the new Garden-group nav item added in #12
 - [Help Center](../08-modals-and-overlays/24-help-center.md)
 - [Design System](../99-cross-cutting/40-design-system.md)
 - [Routing (cross-cutting)](../99-cross-cutting/21-routing.md)

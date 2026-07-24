@@ -244,7 +244,7 @@ export default function HomeStatusStrip({
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           data-testid="hero-plan-day"
-          onClick={() => navigate("/dashboard?view=calendar")}
+          onClick={() => navigate("/calendar")}
           className="inline-flex items-center gap-1 text-xs font-black text-white bg-rhozly-primary px-3.5 py-2 min-h-[36px] pointer-coarse:min-h-11 rounded-full active:scale-[0.97] transition-transform duration-100 ease-spring"
         >
           Plan my day <ChevronRight size={13} aria-hidden />
@@ -252,7 +252,7 @@ export default function HomeStatusStrip({
         {weather && (
           <button
             data-testid="hero-weather-chip"
-            onClick={() => navigate("/dashboard?view=weather")}
+            onClick={() => navigate("/calendar?tab=weather")}
             className="inline-flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/60 bg-rhozly-primary/5 px-3 py-2 min-h-[36px] pointer-coarse:min-h-11 rounded-full can-hover:hover:bg-rhozly-primary/10 active:scale-[0.97] transition-all duration-100"
           >
             {weather.Icon ? <weather.Icon size={14} aria-hidden /> : null}

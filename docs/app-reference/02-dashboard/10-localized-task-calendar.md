@@ -16,7 +16,7 @@
 
 A phone-first composition of three small components. On mount, the screen makes one cheap Supabase parallel read (weather snapshot, home_climate row, today's open-watering count) plus one edge-fn call (`lookup_frost_dates`, cache-friendly). Total time-to-paint is dominated by the frost lookup on the first visit per home; subsequent visits within the 6-month TTL are sub-second.
 
-The screen is **additive** — `/dashboard` and `/dashboard?view=calendar` are unchanged for power users.
+The screen is **additive** — `/dashboard` and the `/calendar` section (#12 — was `/dashboard?view=calendar`) are unchanged for power users.
 
 ---
 

@@ -2,9 +2,9 @@
 
 > The home for Plans — multi-step garden projects like "Spring Veggie Bed 2026" or "Front Path Makeover". Lists plans grouped by Pending / Completed / Archived, with per-plan counts of tasks and blueprints. Tap a plan → Plan Staging engine.
 
-**Route:** `/planner` (default tab of PlannerHub)
+**Route:** `/planner` (default tab of PlannerHub). **Opened from the sidebar/Shelf nav item now labelled "Plan"** — renamed from "Planner" in the #12 IA reorg (2026-07-24); the item id is still `planner` and the route is still `/planner`, and the sidebar GROUP heading "Plan" is unchanged. Its `matchPaths` are now `["/planner", "/shopping"]` (`/schedule` was removed and moved to the new Calendar nav item).
 **Source files:**
-- `src/components/PlannerHub.tsx` — Planner + Shopping tabs wrapper
+- `src/components/PlannerHub.tsx` — Planner + Shopping tabs wrapper (**two tabs only** since #12 — Routines left)
 - `src/components/PlannerDashboard.tsx` — this view
 
 ---
@@ -13,7 +13,7 @@
 
 A list of `plans` rows for the current home, tabbed by status. Each card shows the plan name, contents preview (X plants · Y tasks · Z notes), status badge, and a kebab menu (Archive / Unarchive / Delete). Plus button at the top opens `NewPlanForm`. Tapping a plan card opens `PlanStaging` — the phase-by-phase execution view.
 
-PlannerHub is the parent wrapper that adds a Shopping Lists tab alongside Planner — the URL `?tab=shopping` switches without re-mounting the page.
+PlannerHub is the parent wrapper that adds a Shopping Lists tab alongside Planner — the URL `?tab=shopping` switches without re-mounting the page. **Since the #12 IA reorg (2026-07-24) PlannerHub has ONLY these two tabs** — the **Routines** tab (recurring-care templates / `BlueprintManager`) that briefly lived here was removed and moved to the new top-level **Calendar section** (`/calendar?tab=routines`); see [Blueprint Manager / Routines](./07-blueprint-manager.md) and [Calendar Section (CalendarHub)](../02-dashboard/19-calendar-section.md).
 
 ---
 
@@ -283,7 +283,8 @@ The top-right is now a single **New Plan** button with a small caret beside it:
 - [Plan Staging](./02-plan-staging.md)
 - [Plan Reference Photos](./03-plan-reference-photos.md)
 - [New Plan Form](./04-new-plan-form.md)
-- [Blueprint Manager](./07-blueprint-manager.md)
+- [Blueprint Manager / Routines](./07-blueprint-manager.md) — moved out of the Planner into the Calendar section (#12)
+- [Calendar Section (CalendarHub)](../02-dashboard/19-calendar-section.md) — the new host of the Routines tab
 - [Optimise Tab](./08-optimise-tab.md)
 - [Plans Data Model (cross-cutting)](../99-cross-cutting/05-data-model-plans.md)
 

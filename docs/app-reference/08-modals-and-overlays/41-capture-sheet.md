@@ -48,7 +48,7 @@ None directly. Each tile performs a **navigation**, not a mutation; the destinat
 | **Diagnose a plant** (hero) | `capture-diagnose` | `/doctor` | Plant Doctor (identify / diagnose / pest scan) |
 | Add a plant | `capture-add-plant` | `/shed?open=add-plant` | The Shed → Add-to-Shed source picker |
 | Journal note | `capture-journal` | *(opens an in-sheet chooser — no direct nav, #8)* | Chooser: **New journal entry** (`capture-journal-entry` → `/journal?open=add-entry`, the event-anchored composer) or **Add a note** (`capture-journal-note` → `/journal?tab=notes&open=add-note`, the Notes new-note editor). A back button (`capture-journal-back`) returns to the verbs. |
-| Add a task | `capture-add-task` | `/dashboard?view=calendar&open=add-task` | Calendar → Add Task modal |
+| Add a task | `capture-add-task` | `/calendar?open=add-task` (#12) | Calendar → Add Task modal |
 | Garden walk | `capture-walk` | `/walk` | Garden Walk (focus-mode plant-by-plant tour) |
 
 The `?open=…` / `?view=…` params are consumed by each destination's own URL-state parser — the same contract [Global Quick Add](./23-global-quick-add.md) uses.

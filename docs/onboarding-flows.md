@@ -157,7 +157,7 @@ interface StepDef {
 **`attachTo.element`**
 Any valid CSS selector. Always prefer `data-testid` attributes:
 ```
-"[data-testid='dashboard-view-switcher']"
+"[data-testid='home-status-strip']"
 "[data-testid='shed-add-plant-btn']"
 ```
 If `null`, the tooltip floats in the centre of the screen (good for intro/outro steps).

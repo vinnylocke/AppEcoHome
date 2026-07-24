@@ -39,9 +39,10 @@ import { projectAnnualWindows } from "../lib/windowTasks";
 interface BlueprintManagerProps {
   homeId: string;
   aiEnabled?: boolean;
-  /** When rendered embedded (e.g. inside the Planner's Routines tab, B12), skip
-   *  the URL deep-link consumption below — otherwise it strips the host's own
-   *  `?tab=` param (PlannerHub uses `?tab=routines`), bouncing the tab back. */
+  /** When rendered embedded (inside the Calendar section's Routines tab —
+   *  CalendarHub uses `?tab=routines`; #12 IA reorg moved it here from the
+   *  Planner), skip the URL deep-link consumption below — otherwise it strips
+   *  the host hub's own `?tab=` param, bouncing the tab back. */
   embedded?: boolean;
 }
 
@@ -112,10 +113,12 @@ export default function BlueprintManager({ homeId, aiEnabled = false, embedded =
     plants: [] as string[],
   });
 
+  // #12 IA reorg: BlueprintManager now only ever renders EMBEDDED (inside
+  // CalendarHub's Routines tab) — the standalone /schedule route redirects to
+  // /calendar?tab=routines. This non-embedded URL-consumption path is kept for
+  // the API but is currently unreachable; when embedded we skip it so we don't
+  // strip the host hub's own ?tab=routines (which would bounce the tab back).
   useEffect(() => {
-    // Embedded (Planner Routines tab, B12): don't consume/strip URL params — the
-    // ?open/?category/?tab deep-links target the standalone /schedule route, and
-    // stripping them would clobber the host PlannerHub's own ?tab=routines.
     if (embedded) return;
     if (openHandled.current) return;
     const open = searchParams.get("open");

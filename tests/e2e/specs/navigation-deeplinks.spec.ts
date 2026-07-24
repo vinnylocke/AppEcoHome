@@ -10,18 +10,24 @@ test.describe("Navigation deep-links", () => {
   // stats+locations redesign Stage 2; the dash-stat-* tiles no longer exist. The
   // calendar deep-link contract is still covered by NAV-004 + the CAL-* suite.
 
-  test("NAV-002: /schedule?category=Pruning is consumed (param stripped)", async ({ authenticatedPage }) => {
+  test("NAV-002: /schedule redirects into the Calendar section's Routines tab (#12 IA reorg)", async ({ authenticatedPage }) => {
+    // Routines left the standalone /schedule route for /calendar?tab=routines;
+    // the old URL redirects. Any legacy ?category= is dropped by the redirect —
+    // no live caller relies on it (the dashboard category chips were retired).
     await authenticatedPage.goto("/schedule?category=Pruning");
-    // BlueprintManager reads ?category → setFilterType, then strips it (replace).
-    await expect(authenticatedPage).not.toHaveURL(/category=/, { timeout: 10000 });
+    await expect(authenticatedPage).toHaveURL(/\/calendar\?tab=routines/, { timeout: 10000 });
+    await expect(authenticatedPage).not.toHaveURL(/category=/);
   });
 
   // NAV-003 (/gardener?section=quick-launcher → Account picker anchor) RETIRED
   // 2026-07-23 — the quick-launcher customiser was removed outright; the
   // ?section=quick-launcher deep link and its picker no longer exist.
 
-  test("NAV-004: /dashboard?view=calendar&date=YYYY-MM-DD is consumed (date stripped)", async ({ authenticatedPage }) => {
+  test("NAV-004: legacy /dashboard?view=calendar&date=YYYY-MM-DD lands on the Calendar section with the date consumed", async ({ authenticatedPage }) => {
+    // #12 IA reorg — the legacy ?view=calendar link redirects to /calendar
+    // (carrying ?date=), then TaskCalendar selects that day and strips the param.
     await authenticatedPage.goto("/dashboard?view=calendar&date=2026-06-19");
-    await expect(authenticatedPage).not.toHaveURL(/date=/, { timeout: 10000 });
+    await expect(authenticatedPage).toHaveURL(/\/calendar/, { timeout: 10000 });
+    await expect(authenticatedPage).not.toHaveURL(/date=/);
   });
 });

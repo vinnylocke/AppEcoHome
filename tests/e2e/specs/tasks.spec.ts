@@ -94,24 +94,34 @@ test.describe("Task lifecycle — dashboard task list", () => {
 });
 
 test.describe("Task lifecycle — Task Management page", () => {
-  test("navigating to /schedule renders the Blueprint Manager", async ({ authenticatedPage }) => {
+  test("navigating to /schedule redirects into the Calendar section's Routines tab (renders Blueprint Manager)", async ({ authenticatedPage }) => {
+    // #12 IA reorg — Routines moved from a standalone /schedule route into the
+    // Calendar section. /schedule now redirects to /calendar?tab=routines, where
+    // BlueprintManager renders embedded (same "Routines" heading). Keeping the
+    // old URL alive is the point — bookmarks / notifications / help links.
     await authenticatedPage.goto("/schedule");
+    await expect(authenticatedPage).toHaveURL(/\/calendar\?tab=routines/, { timeout: 8000 });
 
-    // BlueprintManager renders the "Routines" heading
     await expect(
       authenticatedPage.getByRole("heading", { name: /Routines/i }).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test("Task Management nav link navigates to /schedule", async ({ authenticatedPage }) => {
+  test("the Calendar nav item opens the Calendar section (the new home of Routines)", async ({ authenticatedPage }) => {
+    // #12 IA reorg — the recurring-task Routines surface moved into the Calendar
+    // section (Calendar · Weather · Routines); the primary nav exposes "Calendar".
     await authenticatedPage.goto("/dashboard");
 
     await authenticatedPage
-      .getByRole("button", { name: "Task Management" })
+      .getByRole("button", { name: "Calendar" })
       .first()
       .click();
 
-    await expect(authenticatedPage).toHaveURL("/schedule");
+    await expect(authenticatedPage).toHaveURL(/\/calendar/, { timeout: 8000 });
+    // Routines is one of the section's tabs.
+    await expect(
+      authenticatedPage.getByTestId("calendar-hub-tab-routines"),
+    ).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -590,12 +600,9 @@ test.describe("Task lifecycle — ghost tasks (Section 07)", () => {
 
   test("TASK-020: Weather auto-watering — 'Outdoor watering auto-completed' visible in Garden Intelligence", async ({ authenticatedPage }) => {
     // Seed Day 0 has precipMm=8 (>= 5mm threshold) → rainTriggered=true
-    // Navigate to the Weather tab and open the Garden Intelligence panel
+    // Open the Calendar section's Weather tab and its Garden Intelligence panel.
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
-
-    await expect(dashboard.weatherTab).toBeVisible({ timeout: 10000 });
-    await dashboard.clickWeatherTab();
+    await dashboard.gotoWeather();
 
     // Wait for the forecast to render
     await authenticatedPage.waitForTimeout(800);

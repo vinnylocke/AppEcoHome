@@ -2,8 +2,9 @@
 
 > Month or Week view of every task in your home — past, today, future. The page where you decide *when* things happen, including drag-and-drop rescheduling and ICS export to your phone calendar.
 
-**Route:** `/dashboard?view=calendar`
+**Route:** `/calendar` — the **default Calendar tab** of the top-level **Calendar section** (rendered inside `CalendarHub`; `?tab=` absent selects it). **#12 IA reorg (2026-07-24):** this surface is no longer a `?view=calendar` sub-tab of the Dashboard — Calendar + Weather left the home entirely for their own `/calendar` section. Legacy `/dashboard?view=calendar` links redirect here (carrying any `?date=` / `?open=` params). `TaskCalendar` itself is unchanged — it still consumes `?open=add-task` / `?date=` and strips them. See [Calendar Section (CalendarHub)](./19-calendar-section.md).
 **Source files (entry points):**
+- `src/components/CalendarHub.tsx` — the section shell that hosts this as its default tab
 - `src/components/TaskCalendar.tsx` — the calendar component
 - `src/components/TaskList.tsx` — the right-hand agenda panel
 - `src/components/AddTaskModal.tsx` — opened from the Add Task button
@@ -193,7 +194,7 @@ None directly. AddTaskModal's photo flow touches `plant-images/task-completions`
 
 ### Why open this view
 
-The Calendar tab answers "when does what need doing?" Where the Dashboard tab tells you about *today*, the Calendar lets you walk forwards and backwards across your gardening year. For a beginner, it's the discoverability of recurring tasks — "oh, I have watering set every 3 days, that's what those dots mean." For an experienced gardener, it's the planning canvas: drag the tomato pruning task from Tuesday to Saturday because you're away mid-week, export the whole next 90 days into your iPhone Calendar so it lives next to your work calendar, batch-look at when your spring planting tasks land.
+The Calendar tab answers "when does what need doing?" Where the Home dashboard tells you about *today*, the Calendar section lets you walk forwards and backwards across your gardening year — it's the first of the Calendar section's three tabs (Calendar · Weather · Routines). For a beginner, it's the discoverability of recurring tasks — "oh, I have watering set every 3 days, that's what those dots mean." For an experienced gardener, it's the planning canvas: drag the tomato pruning task from Tuesday to Saturday because you're away mid-week, export the whole next 90 days into your iPhone Calendar so it lives next to your work calendar, batch-look at when your spring planting tasks land.
 
 ### Every flow on this view
 
@@ -299,8 +300,10 @@ No beta-only Calendar features.
 
 ## Related reference files
 
+- [Calendar Section (CalendarHub)](./19-calendar-section.md) — the host section (Calendar · Weather · Routines)
 - [Home (Main Dashboard)](./17-home-main.md)
-- [Blueprint Manager](../04-planner/07-blueprint-manager.md)
+- [Weather Tab](./04-weather-tab.md) — the sibling Weather tab of the same section
+- [Blueprint Manager / Routines](../04-planner/07-blueprint-manager.md) — the section's Routines tab
 - [Add Task Modal](../08-modals-and-overlays/01-add-task-modal.md)
 - [Task Detail Modal](../08-modals-and-overlays/02-task-modal.md)
 - [Data Model — Tasks, Blueprints, Dependencies, Ghosts](../99-cross-cutting/04-data-model-tasks.md)
@@ -308,6 +311,8 @@ No beta-only Calendar features.
 
 ## Code references for ongoing maintenance
 
+- `src/components/CalendarHub.tsx` — the Calendar section shell; renders `TaskCalendar` for the default (`?tab=` absent) Calendar tab
+- `src/App.tsx` — the `/calendar` route + the `/dashboard?view=calendar` → `/calendar` legacy redirect
 - `src/components/TaskCalendar.tsx` — entire component
 - `src/lib/taskEngine.ts` — `fetchTasksWithGhosts` (ghost generation)
 - `src/lib/icsExport.ts` — ICS string builder + download helper

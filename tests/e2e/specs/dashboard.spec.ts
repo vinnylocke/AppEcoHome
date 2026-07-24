@@ -20,31 +20,26 @@ const LOC_GARDEN_ID = `0000000${workerNum}-0000-0000-0001-000000000001`;
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe("Dashboard — view switcher (Section 02)", () => {
-  test("DASH-MOBILE-001: all view tabs are reachable on a phone-portrait viewport, Weather included", async ({ authenticatedPage }) => {
-    // Regression: on a narrow phone the tab switcher clipped "Weather"
-    // off-screen with no way to reach it. It scrolls horizontally with
-    // full labels, so every tab (incl. Weather) is present and clickable.
-    // Phase 4.2 merged the old Overview tab into Dashboard; the stats+locations
-    // redesign Stage 4 (2026-07-20) retired the Locations tab into the home
-    // garden grid — THREE tabs now (Dashboard / Calendar / Weather).
+  test("CAL-011: the Calendar section's tab switcher shows Calendar/Weather/Routines and is reachable on a phone", async ({ authenticatedPage }) => {
+    // #12 IA reorg — the Dashboard's old 3-pill ?view= switcher (Dashboard /
+    // Calendar / Weather) was retired: Calendar + Weather moved to the top-level
+    // /calendar section (CalendarHub) and Routines joined them. This asserts the
+    // new hub's SegmentedTabs are all present + reachable on a narrow phone.
     await authenticatedPage.setViewportSize({ width: 412, height: 915 });
-    const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
-    await dashboard.waitForLoad();
+    await authenticatedPage.goto("/calendar");
 
-    const switcher = authenticatedPage.locator('[data-testid="dashboard-view-switcher"]');
+    const switcher = authenticatedPage.getByTestId("calendar-hub-switch");
     await expect(switcher).toBeVisible({ timeout: 10000 });
-    for (const label of ["Dashboard", "Calendar", "Weather"]) {
-      await expect(switcher.getByRole("button", { name: label, exact: true })).toHaveCount(1);
+    for (const label of ["Calendar", "Weather", "Routines"]) {
+      await expect(switcher.getByRole("tab", { name: label, exact: true })).toHaveCount(1);
     }
-    // The retired tabs must not reappear.
-    await expect(switcher.getByRole("button", { name: "Overview", exact: true })).toHaveCount(0);
-    await expect(switcher.getByRole("button", { name: "Locations", exact: true })).toHaveCount(0);
-    // Weather is reachable + navigates (scrollIntoView handles the horizontal scroll).
-    const weather = switcher.getByRole("button", { name: "Weather", exact: true });
+    // The dashboard's old switcher must not exist anywhere anymore.
+    await expect(authenticatedPage.getByTestId("dashboard-view-switcher")).toHaveCount(0);
+    // Weather is reachable + navigates (scrollIntoView handles any overflow).
+    const weather = switcher.getByRole("tab", { name: "Weather", exact: true });
     await weather.scrollIntoViewIfNeeded();
     await weather.click();
-    await expect(authenticatedPage).toHaveURL(/view=weather/, { timeout: 8000 });
+    await expect(authenticatedPage).toHaveURL(/tab=weather/, { timeout: 8000 });
   });
 
   test("DASH-009b: 2+ weather alerts collapse into one strip; tapping expands the per-type rows in place", async ({ authenticatedPage }) => {
@@ -239,9 +234,9 @@ test.describe("Dashboard — Garden grid location cards (Section 02)", () => {
 
   // DASH-034 retired (2026-07-20): the "View Calendar" button no longer exists
   // anywhere in src/ — the affordance predates the Phase 4.2 merged home. The
-  // calendar view is covered by the switcher-tab specs (DASH-MOBILE-001) and
-  // the CAL-* suite (gotoCalendar), plus the redesign hero's "Plan my day"
-  // chip (hero-plan-day → ?view=calendar).
+  // calendar view is covered by the CAL-* suite (gotoCalendar → /calendar), the
+  // Calendar-section switcher spec (CAL-011), plus the redesign hero's "Plan my
+  // day" chip (hero-plan-day → /calendar, #12 IA reorg).
 
   test("DASH-036: Skipped task does not appear in the Pending task list", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
@@ -722,12 +717,24 @@ test.describe("Dashboard — LocationPage (Section 03)", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe("Dashboard — Calendar view (Section 04)", () => {
-  test("CAL-001: Calendar grid renders at /dashboard?view=calendar", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/dashboard?view=calendar");
+  test("CAL-001: Calendar grid renders at /calendar", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/calendar");
     // Month heading in h3 (e.g. "April 2026")
     await expect(
       authenticatedPage.locator("h3").filter({ hasText: /[A-Z][a-z]+ \d{4}/ }).first(),
     ).toBeVisible({ timeout: 10000 });
+  });
+
+  test("CAL-001b: legacy /dashboard?view=calendar|weather redirect into the Calendar section (#12, URLs never die)", async ({ authenticatedPage }) => {
+    // #12 IA reorg — already-sent emails, stored daily briefs and old bookmarks
+    // point at the retired ?view= sub-tabs; they must land on the equivalent
+    // /calendar tab, carrying any ?date= over.
+    await authenticatedPage.goto("/dashboard?view=calendar&date=2026-06-19");
+    await expect(authenticatedPage).toHaveURL(/\/calendar/, { timeout: 8000 });
+    await expect(authenticatedPage).not.toHaveURL(/view=/);
+
+    await authenticatedPage.goto("/dashboard?view=weather");
+    await expect(authenticatedPage).toHaveURL(/\/calendar\?tab=weather/, { timeout: 8000 });
   });
 
   test("CAL-002: Calendar shows the current month heading", async ({ authenticatedPage }) => {

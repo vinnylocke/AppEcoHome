@@ -7,7 +7,7 @@
 > - **The today/overdue, temp, and frost chips** → the console line's `tasks` / `overdue` / `weather` / `frost` segments (same deep links: Calendar / Weather tab), and the sentence hero's clause ladder + weather chip.
 > - **The golden hour / sunset chips + sunrise/day-length footer** → the hero's sun facts (SunCalc): the sentence hero's **sun micro-line** ("Golden hour 19:42 · sunset 21:32") and the console line's `sun` segment.
 > - **The "Got a plant question?" ask-AI chip** → the console hero — **SAME testid `daily-brief-ask-ai`, same RHO-11 `aiEnabled` gate**; still opens PlantDoctorChat with page context via `usePlantDoctor`.
-> - **"Open today's calendar"** → the sentence hero's **"Plan my day"** chip (`hero-plan-day` → `?view=calendar`) and the console `tasks`/`overdue` segments.
+> - **"Open today's calendar"** → the sentence hero's **"Plan my day"** chip (`hero-plan-day` → `/calendar`, #12) and the console `tasks`/`overdue` segments.
 > - **The Zone / Microclimate chips** → retired outright; their facts live at their destination pages — `/home-management` (hardiness zone) and `/garden-layout` (microclimate). Testids `daily-brief-zone-chip` / `daily-brief-microclimate-chip` no longer exist (no tests referenced them).
 >
 > **Deleted with the card, by design:** (a) the `data-testid="daily-brief-card"` **collision** — `GardenBrainBriefCard.tsx` used the same testid and both mounted in Detailed density; the survivor was GardenBrainBriefCard's (renamed `garden-brain-brief` in Stage 3, 2026-07-20); (b) the latent footer-hint bug — it read `alerts[0].title`, which was **always `undefined`** (`weather_alerts` rows have `message`, no `title` column), so the "⚠ …" alert line never rendered its intended text.
@@ -158,8 +158,8 @@ For a beginner, the Daily Brief is the most important piece of UI in the app —
 
 | Chip | What happens |
 |------|--------------|
-| Today / Overdue tasks | Jumps to `/dashboard?view=calendar` with today selected |
-| Temp (Now) | Jumps to `/dashboard?view=weather` |
+| Today / Overdue tasks | Jumps to `/calendar` with today selected (#12) |
+| Temp (Now) | Jumps to `/calendar?tab=weather` (#12) |
 | Golden hour | Jumps to Sun Tracker `/sun-trajectory?mode=ar` |
 | Sunset | Jumps to Sun Tracker |
 | Frost (Tonight) | Jumps to Weather tab |

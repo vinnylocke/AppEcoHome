@@ -3,8 +3,8 @@
 > A "to-do list" in Rhozly is a named (or auto-named) bundle of `tasks` rows that share a single due date. Two modals deliver the feature: **Add To-Do List** (compose) and **My To-Do Lists** (manage). Both write to `public.todo_lists`; their child tasks live in the regular `public.tasks` table with a back-link via `tasks.todo_list_id`.
 
 **Triggers:**
-- Add → `?open=add-todo-list` on `/dashboard?view=calendar` and `/quick/calendar`, plus the **List** quick-add menu items.
-- Manage → `?open=todo-lists` on `/dashboard?view=calendar`, the "My To-Do Lists" entry in the Global Quick Add menu, and the **From: …** pill on any `tasks` row inside the [Task Detail Modal](./02-task-modal.md).
+- Add → `?open=add-todo-list` on `/calendar` (#12 — was `/dashboard?view=calendar`) and `/quick/calendar`, plus the **List** quick-add menu items.
+- Manage → `?open=todo-lists` on `/calendar` (#12), the "My To-Do Lists" entry in the Global Quick Add menu, and the **From: …** pill on any `tasks` row inside the [Task Detail Modal](./02-task-modal.md).
 
 **Source files:**
 - `src/components/todo/AddToDoListModal.tsx`

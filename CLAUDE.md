@@ -384,10 +384,11 @@ npm run test:e2e
 
 | Path | Component |
 |------|-----------|
-| `/dashboard` | Dashboard (weather, locations, daily tasks) |
+| `/dashboard` | Dashboard (home-only since #12 — Calendar + Weather moved to `/calendar`) |
+| `/calendar` | CalendarHub (#12 — Calendar · Weather · Routines via `?tab=`) |
 | `/shed` | TheShed (plant inventory) |
-| `/schedule` | BlueprintManager (recurring task management) |
-| `/planner` | PlannerDashboard |
+| `/schedule` | Redirect → `/calendar?tab=routines` (#12 — Routines reparented; BlueprintManager renders embedded there) |
+| `/planner` | PlannerHub (Planner + Shopping; nav item labelled "Plan" since #12) |
 | `/doctor` | PlantDoctor (AI vision identification/diagnosis) |
 | `/profile` | GardenProfile + HabitQuiz |
 | `/management` | LocationManager |

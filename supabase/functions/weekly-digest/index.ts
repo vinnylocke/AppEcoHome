@@ -160,7 +160,7 @@ function renderAlerts(alerts: Alert[]): string {
 }
 
 /** Each task row is now a clickable <a> that lands on the Calendar
- *  agenda for that day — `/dashboard?view=calendar&date=YYYY-MM-DD`
+ *  agenda for that day — `/calendar?date=YYYY-MM-DD`
  *  is the existing URL contract honoured by TaskCalendar's effect. */
 function renderTasks(tasks: Task[]): string {
   if (tasks.length === 0) {
@@ -174,7 +174,7 @@ function renderTasks(tasks: Task[]): string {
     ${tasks
       .map((t) => {
         const dayStr = t.due_date.split("T")[0];
-        const href = `${SITE_URL}/dashboard?view=calendar&date=${dayStr}`;
+        const href = `${SITE_URL}/calendar?date=${dayStr}`;
         return `<a href="${href}" style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:8px;background:#fafafa;margin-bottom:6px;text-decoration:none;color:inherit;">
           <span style="font-size:13px;color:#9aada3;font-weight:600;min-width:60px;">${formatDate(dayStr)}</span>
           <span style="flex:1;font-size:13px;color:#0f2a1e;font-weight:600;">${t.title}</span>
@@ -228,7 +228,7 @@ function buildEmail(
       <div style="padding:32px 36px;">
         <p style="margin:0 0 24px;font-size:15px;color:#4a6355;line-height:1.6;">${greeting}</p>
         ${sections}
-        <a href="${SITE_URL}/dashboard?view=calendar" style="display:block;background-color:#075737;color:#ffffff;text-decoration:none;text-align:center;padding:14px 32px;border-radius:10px;font-size:15px;font-weight:700;letter-spacing:0.01em;margin-top:8px;">Open this week in Rhozly →</a>
+        <a href="${SITE_URL}/calendar" style="display:block;background-color:#075737;color:#ffffff;text-decoration:none;text-align:center;padding:14px 32px;border-radius:10px;font-size:15px;font-weight:700;letter-spacing:0.01em;margin-top:8px;">Open this week in Rhozly →</a>
       </div>
       <div style="padding:18px 36px;border-top:1px solid #e8f0eb;">
         <p style="margin:0;font-size:12px;color:#9aada3;line-height:1.6;">

@@ -159,7 +159,7 @@ test.describe("Realtime — Section 15", () => {
       return;
     }
 
-    await authenticatedPage.goto("/schedule");
+    await authenticatedPage.goto("/calendar?tab=routines");
     await authenticatedPage
       .locator(".animate-spin")
       .first()

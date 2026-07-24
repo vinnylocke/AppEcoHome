@@ -81,7 +81,7 @@ test.describe("Schedule — validation + filter cascade + pause UI", () => {
   test("SCH-V-004: pause toggle is visible on a seeded blueprint card", async ({
     authenticatedPage,
   }) => {
-    await authenticatedPage.goto("/schedule");
+    await authenticatedPage.goto("/calendar?tab=routines");
     await authenticatedPage
       .locator(".animate-spin, .animate-pulse")
       .first()
@@ -99,7 +99,7 @@ test.describe("Schedule — validation + filter cascade + pause UI", () => {
   test("SCH-V-005: clicking the pause toggle reveals 7-day / 14-day / 30-day options", async ({
     authenticatedPage,
   }) => {
-    await authenticatedPage.goto("/schedule");
+    await authenticatedPage.goto("/calendar?tab=routines");
     await authenticatedPage
       .locator(".animate-spin, .animate-pulse")
       .first()

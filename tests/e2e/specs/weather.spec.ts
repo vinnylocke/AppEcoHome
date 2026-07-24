@@ -18,32 +18,34 @@ test.describe("Weather widget — dashboard", () => {
     await expect(weatherWidget.first()).toBeVisible({ timeout: 10000 });
   });
 
-  test("dashboard shows the three view tabs (Dashboard, Calendar, Weather)", async ({ authenticatedPage }) => {
-    // The Locations tab was retired in the stats+locations redesign Stage 4
-    // (2026-07-20) — the switcher is Dashboard / Calendar / Weather now.
-    const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
+  test("the Calendar section shows its three tabs (Calendar, Weather, Routines)", async ({ authenticatedPage }) => {
+    // #12 IA reorg — Calendar + Weather left the Dashboard for the top-level
+    // /calendar section (CalendarHub); Routines joined them. The switcher lives
+    // there now, as SegmentedTabs (role="tab").
+    await authenticatedPage.goto("/calendar");
 
-    const switcher = authenticatedPage.getByTestId("dashboard-view-switcher");
-    await expect(switcher.getByRole("button", { name: "Dashboard", exact: true })).toBeVisible({ timeout: 10000 });
-    await expect(switcher.getByRole("button", { name: "Calendar", exact: true })).toBeVisible();
-    await expect(switcher.getByRole("button", { name: "Weather", exact: true })).toBeVisible();
-    await expect(switcher.getByRole("button", { name: "Locations", exact: true })).toHaveCount(0);
+    const switcher = authenticatedPage.getByTestId("calendar-hub-switch");
+    await expect(switcher.getByRole("tab", { name: "Calendar", exact: true })).toBeVisible({ timeout: 10000 });
+    await expect(switcher.getByRole("tab", { name: "Weather", exact: true })).toBeVisible();
+    await expect(switcher.getByRole("tab", { name: "Routines", exact: true })).toBeVisible();
+    // The dashboard's retired ?view= switcher must not reappear.
+    await expect(authenticatedPage.getByTestId("dashboard-view-switcher")).toHaveCount(0);
   });
 
   test("clicking the Weather tab switches to the weather forecast view", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
+    // Land on the Calendar section (default Calendar tab), then switch to Weather.
+    await authenticatedPage.goto("/calendar");
 
     await expect(dashboard.weatherTab).toBeVisible({ timeout: 10000 });
     await dashboard.clickWeatherTab();
 
-    await expect(authenticatedPage).toHaveURL(/view=weather/, { timeout: 5000 });
+    await expect(authenticatedPage).toHaveURL(/tab=weather/, { timeout: 5000 });
   });
 
   test("the weather forecast view renders after tab click", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
+    await authenticatedPage.goto("/calendar");
 
     await expect(dashboard.weatherTab).toBeVisible({ timeout: 10000 });
     await dashboard.clickWeatherTab();
@@ -55,25 +57,12 @@ test.describe("Weather widget — dashboard", () => {
     await expect(forecastContent).toBeVisible({ timeout: 10000 });
   });
 
-  test("'Full Forecast' button on the weather card navigates to weather view", async ({ authenticatedPage }) => {
-    const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
-
-    // The Full Forecast button is on the locations view weather card
-    const btn = dashboard.fullForecastButton;
-    await expect(btn).toBeVisible({ timeout: 10000 });
-    await btn.click();
-
-    await expect(authenticatedPage).toHaveURL(/view=weather/, { timeout: 5000 });
-  });
-
   // ─── DASH-005 to DASH-009: Weather code icon rendering ───────────────────────
   // Seed 04_weather.sql contains WMO codes 0, 61, 71, 45 across the 7 forecast days.
 
   test("DASH-005: WMO 0 (clear sky) → Sun icon visible in forecast", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
-    await dashboard.clickWeatherTab();
+    await dashboard.gotoWeather();
     await authenticatedPage.waitForTimeout(500);
 
     await expect(
@@ -83,8 +72,7 @@ test.describe("Weather widget — dashboard", () => {
 
   test("DASH-006: WMO 61 (rain) → CloudRain icon visible in forecast", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
-    await dashboard.clickWeatherTab();
+    await dashboard.gotoWeather();
     await authenticatedPage.waitForTimeout(500);
 
     await expect(
@@ -94,8 +82,7 @@ test.describe("Weather widget — dashboard", () => {
 
   test("DASH-007: WMO 71 (snow) → CloudSnow icon visible in forecast", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
-    await dashboard.clickWeatherTab();
+    await dashboard.gotoWeather();
     await authenticatedPage.waitForTimeout(500);
 
     await expect(
@@ -105,8 +92,7 @@ test.describe("Weather widget — dashboard", () => {
 
   test("DASH-008: WMO 95 (thunderstorm) → CloudLightning icon visible in forecast", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
-    await dashboard.clickWeatherTab();
+    await dashboard.gotoWeather();
     await authenticatedPage.waitForTimeout(500);
 
     await expect(
@@ -116,8 +102,7 @@ test.describe("Weather widget — dashboard", () => {
 
   test("DASH-009: WMO 45 (fog) → Cloud icon visible in forecast", async ({ authenticatedPage }) => {
     const dashboard = new DashboardPage(authenticatedPage);
-    await dashboard.goto();
-    await dashboard.clickWeatherTab();
+    await dashboard.gotoWeather();
     await authenticatedPage.waitForTimeout(500);
 
     await expect(

@@ -2,7 +2,7 @@
 
 > A horizontal banner stack at the top of the Dashboard / Weather tab showing any active weather alerts (frost, heatwave, strong wind, heavy rain, dry spell).
 
-**Rendered on:** **app-wide** — a slim `compact` bar at the top of every padded screen (in `App.tsx`'s `<main>`), plus the **full** always-on banner on the Weather view (`/dashboard?view=weather`, `isForecastScreen=true`). The compact bar is hidden on the Weather view (no doubling) and on focus-mode screens.
+**Rendered on:** **app-wide** — a slim `compact` bar at the top of every padded screen (in `App.tsx`'s `<main>`), plus the **full** always-on banner on the Calendar section's **Weather tab** (`/calendar?tab=weather`, `isForecastScreen=true` — #12; was `/dashboard?view=weather`). The compact bar is hidden on that Weather tab (`isCalendarWeatherTab`, no doubling) and on focus-mode screens.
 
 > **Collapse strip (hub search-first overhaul Stage 5, 2026-07-21):** with **2+ active alerts** the compact bar renders as ONE 44px tappable strip (`weather-alert-strip`, "⚠ N weather alerts · {worst alert's type + when}", severity styling of the worst alert — critical beats warning) instead of stacking ~150px of pills on every screen. Tapping **expands in place** to the classic per-type rows (per-type dismissal untouched) with a collapse control (`weather-alert-strip-collapse`); the expansion is per-mount state (a fresh screen starts collapsed). A **single** alert renders as today's single row unchanged. Each expanded row is tappable → opens the Weather view, with a per-type dismiss ✕. Compact-row testids: `weather-alert-bar-{type}` (+ `weather-alert-bar-dismiss-{type}`) inside the `weather-alert-bar` wrapper.
 

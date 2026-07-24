@@ -28,7 +28,7 @@ GlobalQuickAdd
 | # | Action | Path | Testid |
 |---|--------|------|--------|
 | 1 | Add Plant | `/shed?open=add-plant` | `quick-add-add-plant` |
-| 2 | Add Task | `/dashboard?view=calendar&open=add-task` | `quick-add-add-task` |
+| 2 | Add Task | `/calendar?open=add-task` (#12 — was `/dashboard?view=calendar&open=add-task`) | `quick-add-add-task` |
 | 3 | Diagnose a Plant | `/doctor` | `quick-add-diagnose` |
 | 4 | Create Plan | `/planner?open=new-plan` | `quick-add-create-plan` |
 | 5 | Add Location | `/management?open=add-location` | `quick-add-create-location` |

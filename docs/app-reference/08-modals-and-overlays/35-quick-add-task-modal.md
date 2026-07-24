@@ -189,7 +189,7 @@ No difference.
 ### Recommended workflows
 
 - **Walking the beds**: see something → Add → type 3-5 words → Save → keep walking. Repeat.
-- **Friday review**: open `/dashboard?view=calendar` on desktop, open each Quick-Added task, fill in area + plant + linked plan as needed.
+- **Friday review**: open `/calendar` on desktop (#12 — was `/dashboard?view=calendar`), open each Quick-Added task, fill in area + plant + linked plan as needed.
 - **One-off vs recurring decision**: if you'd type the same task next week too, it should be a blueprint instead — open the full modal from Schedule.
 
 ### What to do if something looks wrong

@@ -56,7 +56,7 @@ describe("NextBestAction — priority ladder", () => {
     renderNBA({ attentionItems: [], firstTaskTitle: "Water the beds" });
     expect(screen.getByText("Water the beds")).toBeTruthy();
     fireEvent.click(screen.getByTestId("next-best-action-cta"));
-    expect(navigateMock).toHaveBeenCalledWith("/dashboard?view=calendar");
+    expect(navigateMock).toHaveBeenCalledWith("/calendar");
   });
 
   test("rung 3: seasonal fallback when neither attention nor a task title is present", () => {

@@ -626,13 +626,14 @@ test.describe("Schedule — blueprint cascade delete (Section 06)", () => {
     await expect(schedule.blueprintCard(title)).toBeVisible({ timeout: 10000 });
 
     // Navigate to calendar and verify the ghost task appears for today
-    await authenticatedPage.goto("/dashboard?view=calendar");
+    // (#12 IA reorg — the calendar is the top-level /calendar section now).
+    await authenticatedPage.goto("/calendar");
     const taskList = authenticatedPage.getByRole("heading", { name: "Agenda" });
     await expect(taskList).toBeVisible({ timeout: 10000 });
     await expect(authenticatedPage.getByText(title)).toBeVisible({ timeout: 10000 });
 
-    // Navigate back and delete the blueprint
-    await authenticatedPage.goto("/schedule");
+    // Navigate back to the Routines tab and delete the blueprint
+    await authenticatedPage.goto("/calendar?tab=routines");
     await schedule.waitForLoad();
     await expect(schedule.blueprintCard(title)).toBeVisible({ timeout: 10000 });
     await schedule.deleteButtonFor(title).click();
@@ -641,7 +642,7 @@ test.describe("Schedule — blueprint cascade delete (Section 06)", () => {
     await expect(schedule.blueprintCard(title)).not.toBeVisible({ timeout: 10000 });
 
     // Navigate back to calendar — the ghost task should no longer be there
-    await authenticatedPage.goto("/dashboard?view=calendar");
+    await authenticatedPage.goto("/calendar");
     await expect(taskList).toBeVisible({ timeout: 10000 });
     await authenticatedPage.waitForTimeout(2000); // allow calendar to fetch fresh data
     await expect(authenticatedPage.getByText(title)).not.toBeVisible({ timeout: 8000 });

@@ -236,7 +236,7 @@ export const WeatherAlertBanner = ({
             >
               <span className={`shrink-0 p-1 rounded-lg ${styles.iconBg}`}>{alertIcon(alert.type, "w-3.5 h-3.5")}</span>
               <button
-                onClick={() => navigate("/dashboard?view=weather")}
+                onClick={() => navigate("/calendar?tab=weather")}
                 className="flex-1 min-w-0 text-left flex items-baseline gap-1.5"
               >
                 <span className="text-[12px] font-black uppercase tracking-wide shrink-0">{alert.type}</span>

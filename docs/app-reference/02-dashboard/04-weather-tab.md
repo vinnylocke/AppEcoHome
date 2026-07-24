@@ -2,9 +2,9 @@
 
 > 7-day forecast for the home location, plus active weather alerts (frost / heat / wind / heavy rain). Drives recommendations across the rest of the app.
 
-**Route:** `/dashboard?view=weather`
+**Route:** `/calendar?tab=weather` — the **Weather tab** of the top-level **Calendar section** (rendered inside `CalendarHub`). **#12 IA reorg (2026-07-24):** this surface is no longer a `?view=weather` sub-tab of the Dashboard — Calendar + Weather left the home entirely for their own `/calendar` section. Legacy `/dashboard?view=weather` links redirect here. On this tab the app-wide **compact weather-alert bar is suppressed** — CalendarHub renders the full always-on `WeatherAlertBanner` (`isForecastScreen`) instead, so alerts are never double-shown. See [Calendar Section (CalendarHub)](./19-calendar-section.md).
 **Source files (entry points):**
-- `src/App.tsx` (lines ~1195–1273) — Weather sub-tab render block
+- `src/components/CalendarHub.tsx` — the section shell; the `?tab=weather` branch renders the banner + forecast
 - `src/components/WeatherForecast.tsx` — the 7-day strip
 - `src/components/WeatherAlertBanner.tsx` — alerts banner
 
@@ -21,8 +21,8 @@ The Weather Tab shows the next 7 days at your home's lat/lng (set during onboard
 ### Component graph
 
 ```
-/dashboard?view=weather (App.tsx)
-├── WeatherAlertBanner          ← when alerts.length > 0
+/calendar?tab=weather (CalendarHub)
+├── WeatherAlertBanner          ← always-on full banner (isForecastScreen); the app-wide compact bar is suppressed on this tab
 │   └── per-alert card
 ├── (loading) skeleton cards
 └── WeatherForecast
@@ -214,7 +214,9 @@ No difference.
 
 ## Related reference files
 
+- [Calendar Section (CalendarHub)](./19-calendar-section.md) — the host section (Calendar · Weather · Routines)
 - [Home (Main Dashboard)](./17-home-main.md)
+- [Calendar Tab](./03-calendar-tab.md) — the sibling default tab of the same section
 - [Weather Alert Banner](./08-weather-alert-banner.md)
 - [Microclimate Report](../03-garden-hub/07-microclimate-report.md)
 - [Weather (cross-cutting)](../99-cross-cutting/27-weather.md)
@@ -222,6 +224,7 @@ No difference.
 
 ## Code references for ongoing maintenance
 
+- `src/components/CalendarHub.tsx` — the Calendar section shell; the `?tab=weather` branch (full banner + forecast). Note `isCalendarWeatherTab` in `src/App.tsx` suppresses the app-wide compact alert bar on this tab
 - `src/components/WeatherForecast.tsx` — forecast component
 - `src/components/WeatherAlertBanner.tsx` — alert banner
 - `supabase/functions/sync-weather/index.ts` — hourly cron

@@ -109,7 +109,11 @@ export class SchedulePage {
   }
 
   async goto() {
-    await this.page.goto("/schedule");
+    // #12 IA reorg — Routines moved from /schedule into the Calendar section
+    // (CalendarHub's Routines tab). /schedule still redirects here; tests use
+    // the canonical URL. BlueprintManager renders embedded (same `schedule-*`
+    // testids), so the rest of this page object is unchanged.
+    await this.page.goto("/calendar?tab=routines");
   }
 
   async waitForLoad() {

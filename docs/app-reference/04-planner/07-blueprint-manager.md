@@ -9,7 +9,11 @@
 - The per-plant AI feature on the Plant Assignment modal that auto-generates routines is **Smart Routines** (previously "Smart Schedule").
 - Smart-device schedules under Integrations remain **Automations** (separate concept, separate table).
 
-**Route:** `/schedule` — **and, since the dashboard-nav-tasks-tray Stage 4 (2026-07-21, B12), also the Planner's "Routines" tab** (`/planner?tab=routines`, rendered by `PlannerHub`): the IA already reparented `/schedule` under the Planner nav item, so Routines is now a first-class tab there rather than only reachable from the account dropdown. In the tab it renders with the **`embedded` prop**, which skips BlueprintManager's mount-time URL deep-link consumption (`?open` / `?category` / `?tab`) — those deep-links target the standalone `/schedule` route, and consuming them embedded would strip PlannerHub's own `?tab=routines` and bounce the tab (review-caught defect).
+**Route:** `/calendar?tab=routines` — the **Routines tab of the top-level Calendar section** (rendered by `CalendarHub`). **#12 IA reorg (2026-07-24):** Routines moved OUT of the Planner (where it was briefly a `/planner?tab=routines` tab, dashboard-nav-tasks-tray Stage 4) **and** out of its own standalone `/schedule` page into the Calendar section, which now unifies the three time-and-schedule surfaces (Calendar · Weather · Routines). The old **`/schedule` route is now a redirect** (`<Navigate to="/calendar?tab=routines" replace />`) — kept alive so bookmarks, notification deep-links, and help links never die.
+
+**Always embedded now.** CalendarHub renders `<BlueprintManager … embedded />`, and since #12 BlueprintManager **only ever renders embedded** — the `embedded` prop skips its mount-time URL deep-link consumption (`?open` / `?category` / `?tab`), because consuming those inside the hub would strip CalendarHub's own `?tab=routines` and bounce the tab. That non-embedded URL-consumption path is retained in the code for the API but is currently **unreachable** (nothing renders BlueprintManager standalone any more). The `?open=add-task` deep-link for creating a routine is instead served by the Calendar tab's own Add-Task flow (`/calendar?open=add-task`).
+
+Reached on phone via **More → the Shelf → Calendar** (the Calendar nav item has no Deck slot); on desktop via the sidebar's **Calendar** item (Garden group). See [Calendar Section (CalendarHub)](../02-dashboard/19-calendar-section.md).
 **Source files:**
 - `src/components/BlueprintManager.tsx` — list + filters
 - `src/components/AddTaskModal.tsx` — builder modal
@@ -268,6 +272,8 @@ For a beginner, the routines created during Plan Staging cover most of what's ne
 
 ## Related reference files
 
+- [Calendar Section (CalendarHub)](../02-dashboard/19-calendar-section.md) — the section that now hosts Routines (its third tab), plus Calendar + Weather
+- [Planner Dashboard](./01-planner-dashboard.md) — the Planner (now Planner + Shopping only; Routines left in #12)
 - [Optimise Tab](./08-optimise-tab.md)
 - [Add Task / Edit Schedule Modal](../08-modals-and-overlays/01-add-task-modal.md)
 - [Task Detail Modal](../08-modals-and-overlays/02-task-modal.md)
@@ -276,7 +282,9 @@ For a beginner, the routines created during Plan Staging cover most of what's ne
 
 ## Code references for ongoing maintenance
 
-- `src/components/BlueprintManager.tsx` — list
+- `src/components/BlueprintManager.tsx` — list; **now only ever rendered `embedded`** (the `if (embedded) return;` guard at ~line 116 skips the standalone `?open`/`?category`/`?tab` deep-link path, kept but unreachable since #12)
+- `src/components/CalendarHub.tsx` — the Calendar section shell; its `?tab=routines` branch renders `<BlueprintManager … embedded />`
+- `src/App.tsx` — the `/schedule` → `/calendar?tab=routines` redirect (`<Navigate replace />`); the Calendar nav item's `matchPaths` include `/schedule`
 - `src/components/AddTaskModal.tsx` — builder
 - `src/components/OptimiseTab.tsx` — sibling tab
 - `src/constants/taskCategories.ts` — task type metadata

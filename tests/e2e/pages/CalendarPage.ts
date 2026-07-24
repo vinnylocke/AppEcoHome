@@ -35,7 +35,10 @@ export class CalendarPage {
   }
 
   async goto() {
-    await this.page.goto("/dashboard?view=calendar");
+    // #12 IA reorg — the Calendar view moved to the top-level /calendar section
+    // (CalendarHub's default tab). Legacy /dashboard?view=calendar still
+    // redirects here; tests use the canonical URL.
+    await this.page.goto("/calendar");
   }
 
   async waitForLoad() {

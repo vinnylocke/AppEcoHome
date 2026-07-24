@@ -100,15 +100,13 @@ export const flowRegistry: FlowDef[] = [
     // Anchors target the merged home (Phase 4.2) in its default Simple
     // density — new users (the tour audience) always land there.
     steps: [
-      {
-        title: "Three views in one",
-        body: "This switcher jumps between your home dashboard, a full task calendar, and a 7-day weather forecast. Your locations live right on the dashboard now.",
-        attachTo: { element: "[data-testid='dashboard-view-switcher']", on: "bottom" },
-        image: "/assets/onboarding/dashboard-view-switcher.png",
-      },
+      // #12 IA reorg — the dashboard's old 3-view switcher (Dashboard / Calendar
+      // / Weather) was retired; Calendar + Weather moved to the top-level
+      // Calendar section (the nav's "Calendar" item). The status-strip step below
+      // now teaches how to reach them (the "Plan my day" + weather chips).
       {
         title: "Your day in one sentence",
-        body: "The greeting is your garden's summary — tasks left, rain on the way, frost tonight, whatever matters most right now. \"Plan my day\" takes you straight to the calendar, and the weather chip to the full forecast.",
+        body: "The greeting is your garden's summary — tasks left, rain on the way, frost tonight, whatever matters most right now. \"Plan my day\" opens your full task calendar, and the weather chip the 7-day forecast — both in the Calendar section (find it any time in the nav).",
         attachTo: { element: "[data-testid='home-status-strip']", on: "bottom" },
       },
       {

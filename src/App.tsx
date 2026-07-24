@@ -12,6 +12,7 @@ import {
   AlertCircle,
   HelpCircle,
   BookOpen,
+  Calendar,
   Compass,
   ListChecks,
 } from "lucide-react";
@@ -46,10 +47,8 @@ import { clearAllSnapshots } from "./lib/snapshotCache";
 import { lazyWithRetry } from "./lib/lazyWithRetry";
 import { invalidateEntitlements } from "./hooks/useEntitlements";
 import * as Sentry from "@sentry/react";
-import WeatherForecast from "./components/WeatherForecast";
 import { WeatherAlertBanner } from "./components/WeatherAlertBanner";
 import TheShed from "./components/TheShed";
-import TaskCalendar from "./components/TaskCalendar";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import PullToRefresh from "./components/PullToRefresh";
 import { PlantDoctorProvider } from "./context/PlantDoctorContext";
@@ -108,7 +107,7 @@ const QuickAccessMenuButton = lazyWithRetry(() => import("./components/QuickAcce
 const LightSensor         = lazyWithRetry(() => import("./components/LightSensor"));
 const SunTrajectoryAR     = lazyWithRetry(() => import("./components/SunTrajectoryAR"));
 const GuideList           = lazyWithRetry(() => import("./components/GuideList"));
-const BlueprintManager    = lazyWithRetry(() => import("./components/BlueprintManager"));
+const CalendarHub         = lazyWithRetry(() => import("./components/CalendarHub"));
 const PlantVisualiser     = lazyWithRetry(() => import("./components/PlantVisualiser"));
 const GardenLayoutList    = lazyWithRetry(() => import("./components/GardenLayoutList"));
 const GardenLayoutEditor  = lazyWithRetry(() => import("./components/GardenLayoutEditor"));
@@ -214,6 +213,7 @@ const TAB_URL: Record<string, string> = {
   journal:         "/journal",
   notes:           "/notes",
   dashboard:       "/dashboard",
+  calendar:        "/calendar",
   task_management: "/schedule",
   shed:            "/shed",
   watchlist:       "/watchlist",
@@ -512,57 +512,20 @@ function AppShell() {
     };
   }, [profile?.home_id]);
 
-  const [searchParams, setSearchParamsForView] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const selectedLocationId = searchParams.get("locationId");
-  // "home" (labelled Dashboard) is the single main page. The old "overview"
-  // sub-tab was merged into it (design overhaul Phase 4.2) — its unique cards
-  // now live behind HomeMain's Detailed density. Legacy deep links with
-  // ?view=dashboard, ?view=overview, OR ?view=locations all fall through to
-  // home — the Locations tab was retired in the stats+locations redesign
-  // Stage 4 (2026-07-20): the home garden grid IS the "what's growing where"
-  // surface, and it now manages locations inline. See
-  // docs/plans/home-screen-redesign-2026-07.md §C.
-  type DashboardView = "home" | "calendar" | "weather";
-  const dashboardView: DashboardView = (() => {
-    const raw = searchParams.get("view");
-    if (raw === "calendar" || raw === "weather") return raw;
-    return "home"; // default, explicit "home", legacy "dashboard"/"overview"/"locations", or anything unknown
-  })();
-
-  // Persist last selected dashboard view; restore on first visit to /dashboard with no view param.
-  // Restore only runs once per mount — otherwise clicking the "Dashboard" sub-tab from a non-default
-  // view would immediately be reverted by the saved value, making the default view unreachable.
-  const hasRestoredViewRef = useRef(false);
-  useEffect(() => {
-    if (routerLocation.pathname !== "/dashboard") return;
-    if (selectedLocationId) return; // viewing a specific location, not switching views
-    const urlView = searchParams.get("view");
-    if (urlView) {
-      // User has an explicit view — remember the RESOLVED view (legacy
-      // "dashboard" persists as "home") and mark restore as resolved.
-      localStorage.setItem("rhozly_dashboard_view", dashboardView);
-      hasRestoredViewRef.current = true;
-      return;
-    }
-    // No view param — only restore on first mount; subsequent clicks to "Dashboard" sub-tab must stick
-    if (hasRestoredViewRef.current) {
-      // User explicitly chose the default view this session — record it so next session opens here too
-      localStorage.setItem("rhozly_dashboard_view", "home");
-      return;
-    }
-    hasRestoredViewRef.current = true;
-    const saved = localStorage.getItem("rhozly_dashboard_view");
-    // Legacy saved "dashboard", "overview" AND "locations" intentionally fall
-    // through to the default — those tabs no longer exist (Overview merged into
-    // Home; Locations retired into the home grid, Stage 4); the next explicit
-    // choice is respected from then on.
-    if (saved && ["calendar", "weather"].includes(saved)) {
-      const next = new URLSearchParams(searchParams);
-      next.set("view", saved);
-      setSearchParamsForView(next, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routerLocation.pathname, searchParams.toString()]);
+  // The Dashboard is now home-only. The old Calendar + Weather sub-tabs (the
+  // `?view=` pills + their `rhozly_dashboard_view` persistence) left for the new
+  // top-level `/calendar` section (#12 IA reorg); legacy `?view=calendar|weather`
+  // links redirect there from the /dashboard route below. `?view=dashboard`,
+  // `?view=overview` and `?view=locations` are historical no-ops that fall
+  // through to the merged home (Overview merged Phase 4.2; Locations retired
+  // into the home garden grid, stats+locations redesign Stage 4, 2026-07-20).
+  //
+  // The app-wide compact weather-alert bar is suppressed on the Calendar
+  // section's Weather tab (which shows the full always-on banner instead).
+  const isCalendarWeatherTab =
+    routerLocation.pathname === "/calendar" && searchParams.get("tab") === "weather";
   const [isNavCollapsed, setIsNavCollapsed] = useState(
     () => localStorage.getItem("rhozly_nav") === "true",
   );
@@ -1394,9 +1357,14 @@ function AppShell() {
     // count twice with a different cap ('99+' vs the trigger's '9+').
     { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/management", "/home-management", "/"], group: "garden" },
     { id: "shed",      icon: <IconPlants />, label: "Plants", matchPaths: ["/shed", "/watchlist"], group: "garden" },
-    // Phase 5 IA — /schedule (Routines) reparented under Planner so the nav
-    // resolves an active item when you're on it; Notes folded into Journal.
-    { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping", "/schedule"], group: "plan" },
+    // #12 IA reorg — the new top-level Calendar section (Calendar · Weather ·
+    // Routines) lives in the Garden group alongside Dashboard + Plants (three
+    // core daily surfaces). /schedule (Routines) now redirects into it, so it
+    // owns /schedule's active-nav highlight — moved off Planner's matchPaths.
+    { id: "calendar",  icon: <Calendar />, label: "Calendar",  matchPaths: ["/calendar", "/schedule"], group: "garden" },
+    // #12 IA reorg — the "Planner" item is renamed "Plan"; it opens PlannerHub
+    // (Planner + Shopping tabs). Notes stays folded into Journal.
+    { id: "planner",   icon: <IconPlanner />, label: "Plan",       matchPaths: ["/planner", "/shopping"], group: "plan" },
     { id: "journal",   icon: <BookOpen />, label: "Journal",    matchPaths: ["/journal", "/notes"], group: "plan" },
     { id: "tools",        icon: <IconTools />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory", "/weekly", "/reports"], group: "ai" },
     { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"], group: "ai" },
@@ -1702,8 +1670,9 @@ function AppShell() {
                       h-full; non-focus routes get the standard page padding. */}
                   <div className={isFocusMode ? "h-full" : "p-4 md:p-8 pb-28 md:pb-8 min-h-full"}>
                     {/* App-wide compact weather-alert bar — on every padded screen
-                        except the Weather view (which shows the full banner). */}
-                    {!isFocusMode && dashboardView !== "weather" && (
+                        except the Calendar section's Weather tab (which shows the
+                        full always-on banner). */}
+                    {!isFocusMode && !isCalendarWeatherTab && (
                       <div data-testid="global-weather-alert-bar" className="mb-4">
                         <WeatherAlertBanner alerts={alerts} compact />
                       </div>
@@ -1740,7 +1709,22 @@ function AppShell() {
                         </div>
                       } />
 
-                      <Route path="/dashboard" element={
+                      <Route path="/dashboard" element={(() => {
+                        // #12 IA reorg — the Calendar + Weather sub-tabs left for
+                        // the top-level /calendar section. Redirect legacy
+                        // ?view=calendar|weather links (already-sent emails,
+                        // stored daily briefs, old bookmarks) so they never die,
+                        // carrying any ?date=/?open= params over. weather → the
+                        // Weather tab; calendar → the default Calendar tab.
+                        const legacyView = searchParams.get("view");
+                        if (legacyView === "calendar" || legacyView === "weather") {
+                          const next = new URLSearchParams(searchParams);
+                          next.delete("view");
+                          if (legacyView === "weather") next.set("tab", "weather");
+                          const qs = next.toString();
+                          return <Navigate to={`/calendar${qs ? `?${qs}` : ""}`} replace />;
+                        }
+                        return (
                         <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
                           {selectedLocationId ? (
                             <div className="w-full">
@@ -1771,42 +1755,11 @@ function AppShell() {
                               <div
                                 className="col-span-full space-y-6"
                               >
-                                {/* Full always-on banner only on the Weather view;
-                                    other screens use the app-wide compact bar. */}
-                                {dashboardView === "weather" && (
-                                  <WeatherAlertBanner alerts={alerts} isForecastScreen />
-                                )}
-
-                                {/* Redesign Stage 1 — the switcher slims from a full-width
-                                    segmented bar to a compact inline pill row so it stops
-                                    competing with the hero. Same DOM, testid (tour step 1
-                                    anchor) and role=button selectors (e2e page objects). */}
-                                <div className="flex items-center px-1">
-                                  <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-full inline-flex gap-0.5 max-w-full overflow-x-auto scrollbar-none">
-                                    {([
-                                      { v: "home", label: "Dashboard" },
-                                      { v: "calendar", label: "Calendar" },
-                                      { v: "weather", label: "Weather" },
-                                    ] as const).map(({ v, label }) => (
-                                      <button
-                                        key={v}
-                                        onClick={() =>
-                                          navigate(v === "home" ? "/dashboard" : `/dashboard?view=${v}`, { replace: true })
-                                        }
-                                        // Row scrolls horizontally on narrow phones with full,
-                                        // readable labels instead of clipping the last tab.
-                                        className={`shrink-0 whitespace-nowrap px-3.5 py-1.5 min-h-[36px] rounded-full text-xs text-center transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-semibold"}`}
-                                      >
-                                        {label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
                                 {/* Sync status — redesign Stage 1: only speak when the data is
                                     genuinely STALE (>5 min) or never synced. "Synced just now"
                                     was permanent chrome repeating what the refresh toast says. */}
                                 {(lastSyncedAt == null || Date.now() - lastSyncedAt > 5 * 60_000) && (
-                                  <div className="flex items-center justify-end px-2 -mt-2 -mb-1">
+                                  <div className="flex items-center justify-end px-2">
                                     <span
                                       data-testid="dashboard-sync-status"
                                       className="text-[10px] font-bold text-amber-700/70 uppercase tracking-widest"
@@ -1816,7 +1769,8 @@ function AppShell() {
                                   </div>
                                 )}
 
-                                {dashboardView === "home" ? (
+                                {/* The Dashboard is home-only since #12 (Calendar +
+                                    Weather moved to /calendar). */}
                                   <div className="space-y-5">
                                     {/* SINGLE-SLOT ONBOARDING (Phase 4.2) — at most ONE promo card,
                                         priority: checklist → quiz prompt → notifications → PWA install.
@@ -1932,43 +1886,37 @@ function AppShell() {
                                       );
                                     })()}
                                   </div>
-                                ) : dashboardView === "calendar" ? (
-                                  <div className="bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/10 overflow-hidden shadow-sm">
-                                    {profile?.home_id && (
-                                      <TaskCalendar homeId={profile.home_id} preloadedLocations={locations} aiEnabled={profile?.ai_enabled ?? false} />
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="space-y-6">
-                                    {!dashboardLoaded && !rawWeather ? (
-                                      <div className="space-y-4">
-                                        <div className="rounded-3xl bg-rhozly-surface-low animate-pulse h-48" />
-                                        <div className="rounded-3xl bg-rhozly-surface-low animate-pulse h-32" />
-                                      </div>
-                                    ) : (
-                                      <WeatherForecast
-                                        weatherData={rawWeather}
-                                        alerts={alerts}
-                                        homeId={profile?.home_id ?? null}
-                                        onRefresh={fetchDashboardData}
-                                      />
-                                    )}
-                                  </div>
-                                )}
                               </div>
 
                             </div>
                           )}
                         </div>
-                      } />
+                        );
+                      })()} />
 
-                      <Route path="/schedule" element={
+                      {/* #12 IA reorg — the top-level Calendar section (Calendar ·
+                          Weather · Routines). Calendar + Weather left the Dashboard;
+                          Routines left the Planner (/schedule redirects in below).
+                          Weather data is fetched globally on home load, so the
+                          Weather tab receives it via props. */}
+                      <Route path="/calendar" element={
                         profile?.home_id ? (
-                          <div className="h-full animate-in fade-in duration-500">
-                            <BlueprintManager homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} />
-                          </div>
+                          <CalendarHub
+                            homeId={profile.home_id}
+                            locations={locations}
+                            aiEnabled={profile.ai_enabled ?? false}
+                            rawWeather={rawWeather}
+                            alerts={alerts}
+                            weatherLoading={!dashboardLoaded && !rawWeather}
+                            onWeatherRefresh={fetchDashboardData}
+                          />
                         ) : null
                       } />
+
+                      {/* /schedule (Routines) reparented into the Calendar section
+                          (#12). Keep the old URL alive as a redirect to the Routines
+                          tab so bookmarks / notifications / help links never die. */}
+                      <Route path="/schedule" element={<Navigate to="/calendar?tab=routines" replace />} />
 
                       <Route path="/shed" element={
                         profile?.home_id ? (

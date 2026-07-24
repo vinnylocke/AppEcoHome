@@ -1,1 +1,21 @@
-[]
+[
+  {
+    "label": "New",
+    "items": [
+      "A dedicated Calendar section brings your task calendar, weather forecast, and recurring care routines together in one place — open it from the main navigation."
+    ]
+  },
+  {
+    "label": "Improved",
+    "items": [
+      "The home Dashboard is now calmer and focused on your day — the Calendar and Weather views moved into the new Calendar section (your old links still work).",
+      "\"Planner\" is now \"Plan\" — your plans and shopping lists, together."
+    ]
+  },
+  {
+    "label": "Fixed",
+    "items": [
+      "Ailment treatment and prevention now list each step on its own, instead of collapsing several steps into one."
+    ]
+  }
+]

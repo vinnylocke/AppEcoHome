@@ -73,7 +73,7 @@ test.describe("Stage 4 — discoverability", () => {
   });
 
   test("DISC-B15: the Schedule header shows a live task summary, not 'Operational Hub'", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/dashboard?view=calendar");
+    await authenticatedPage.goto("/calendar");
     await expect(authenticatedPage.getByTestId("calendar-view-toggle")).toBeVisible({ timeout: 15000 });
     await expect(authenticatedPage.getByText("Operational Hub")).toHaveCount(0);
   });

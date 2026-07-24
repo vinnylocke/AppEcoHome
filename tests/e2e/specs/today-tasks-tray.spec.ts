@@ -49,7 +49,8 @@ test.describe("Today's Tasks tray (Section 34)", () => {
     await authenticatedPage.getByTestId("today-tasks-tray-trigger").click();
     await expect(authenticatedPage.getByTestId("today-tasks-tray")).toBeVisible({ timeout: 10000 });
     await authenticatedPage.getByTestId("today-tray-open-board").click();
-    await expect(authenticatedPage).toHaveURL(/view=calendar/, { timeout: 8000 });
+    // #12 IA reorg — the calendar board is the top-level /calendar section now.
+    await expect(authenticatedPage).toHaveURL(/\/calendar/, { timeout: 8000 });
   });
 
   test("TRAY-005: the Completed tab lists today's completed tasks with inline undo available", async ({ authenticatedPage }) => {

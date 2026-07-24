@@ -1482,7 +1482,7 @@ export default function TaskList({
           <button
             type="button"
             data-testid="task-list-compact-view-calendar"
-            onClick={() => navigate("/dashboard?view=calendar")}
+            onClick={() => navigate("/calendar")}
             className="text-xs font-black uppercase tracking-widest text-rhozly-primary can-hover:hover:underline px-2 py-1"
           >
             View calendar →

@@ -12,6 +12,7 @@ import { test as authTest } from "../fixtures/auth";
 const PROTECTED_ROUTES = [
   "/dashboard",
   "/shed",
+  "/calendar",
   "/schedule",
   "/planner",
   "/doctor",

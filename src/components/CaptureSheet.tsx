@@ -30,7 +30,7 @@ const HERO: CaptureAction = {
 const ACTIONS: CaptureAction[] = [
   { id: "add-plant", label: "Add a plant", hint: "To your Shed", icon: <Sprout size={20} />, url: "/shed?open=add-plant", testId: "capture-add-plant" },
   { id: "journal", label: "Journal note", hint: "Jot something down", icon: <PenLine size={20} />, url: "/journal?open=add-entry", testId: "capture-journal" },
-  { id: "add-task", label: "Add a task", hint: "One-off or today", icon: <CheckSquare size={20} />, url: "/dashboard?view=calendar&open=add-task", testId: "capture-add-task" },
+  { id: "add-task", label: "Add a task", hint: "One-off or today", icon: <CheckSquare size={20} />, url: "/calendar?open=add-task", testId: "capture-add-task" },
   { id: "walk", label: "Garden walk", hint: "Tend bed by bed", icon: <Footprints size={20} />, url: "/walk", testId: "capture-walk" },
 ];
 

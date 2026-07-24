@@ -178,7 +178,7 @@ export async function aggregateInsights(
           body: `Frost forecast for ${weekday} (low ~${Math.round(mins[frostIdx] as number)}°C) — fleece tender outdoor plants or move pots under cover.`,
           severity: 3,
           createdAt: new Date().toISOString(),
-          link: "/dashboard?view=weather",
+          link: "/calendar?tab=weather",
           dismissable: false,
         });
       }

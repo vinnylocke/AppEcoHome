@@ -17,7 +17,6 @@ export class HomeMainPage {
   readonly tasksSeeAll: Locator;
   readonly densitySimple: Locator;
   readonly densityDetailed: Locator;
-  readonly viewSwitcher: Locator;
   readonly emptyGarden: Locator;
 
   constructor(page: Page) {
@@ -30,7 +29,6 @@ export class HomeMainPage {
     this.tasksSeeAll = page.getByTestId("home-tasks-see-all");
     this.densitySimple = page.getByTestId("home-density-simple");
     this.densityDetailed = page.getByTestId("home-density-detailed");
-    this.viewSwitcher = page.getByTestId("dashboard-view-switcher");
     this.emptyGarden = page.getByTestId("home-empty-garden");
   }
 
