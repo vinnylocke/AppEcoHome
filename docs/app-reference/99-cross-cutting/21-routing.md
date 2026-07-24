@@ -39,6 +39,7 @@ BrowserRouter
     ├── /shed              ← GardenHub (Plants | Ailments — Hub v3 Stage D; ?tab=nursery → Seed box sheet, ?tab=senescence[&plant=] → Inactive chip, both auto-redirect; legacy flag restores 4 tabs)
 │                        Stage E: ?detail=<ailment_library.id> on tab=watchlist opens the shared field-guide detail (shareable; open PUSHes, close REPLACE-deletes; unknown id fail-softs)
 │                        #7: ?owned=<ailments.id> on tab=watchlist opens the OWNED-ailment detail modal — same reactive pattern (open PUSHes, close REPLACE-deletes; derived from the loaded `ailments`), so swipe-back / Escape closes JUST the modal instead of popping the Plants→Ailments tab switch
+│                        #7b: ?lib=<ailment_library.id> inside the ailment SEARCH takeover opens the library-row detail with the same open-PUSH/close-REPLACE pattern (object stashed in a ref, param is source-of-truth), so Back closes just the detail, not the whole takeover
 ├── /ailment-library   ← REDIRECT (Stage F): → /shed?tab=watchlist; ?ailment=X → &detail=X (AilmentLibraryRedirect in App.tsx — page deleted, URLs never die)
     ├── /schedule          ← BlueprintManager
     ├── /planner           ← PlannerHub (?tab=planner|shopping)

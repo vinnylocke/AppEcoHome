@@ -875,8 +875,24 @@ function AddAilmentModal({
   const totalSelected = checkedPerenualIds.size + checkedAiIds.size;
 
   // Row tap → the shared field-guide detail (plants-parity, Stage 2). The
-  // modal stacks at z-[100] over this z-[60] overlay.
-  const [detailAilment, setDetailAilment] = useState<LibraryAilment | null>(null);
+  // modal stacks at z-[100] over this z-[60] overlay. #7b — driven by a ?lib=
+  // URL param (PUSH on open, REPLACE-delete on close) so a swipe-back / browser
+  // Back closes JUST this detail instead of exiting the whole search takeover.
+  // The transient search-result object is stashed in a ref; the param is the
+  // source of truth for open/closed, so there is no state↔URL race.
+  const [libSp, setLibSp] = useSearchParams();
+  const detailRef = useRef<LibraryAilment | null>(null);
+  const libParam = libSp.get("lib");
+  const detailAilment =
+    libParam && detailRef.current && String(detailRef.current.id) === libParam
+      ? detailRef.current
+      : null;
+  const openDetail = (lib: LibraryAilment) => {
+    detailRef.current = lib;
+    setLibSp((p) => { const n = new URLSearchParams(p); n.set("lib", String(lib.id)); return n; }); // PUSH → Back closes it
+  };
+  const closeDetail = () =>
+    setLibSp((p) => { const n = new URLSearchParams(p); n.delete("lib"); return n; }, { replace: true });
 
   // Escape ladder (Stage 2 overlay): field-guide detail owns its own Escape →
   // review steps back to tabs → a deeper search tier returns to library
@@ -1241,7 +1257,7 @@ function AddAilmentModal({
                               <button
                                 type="button"
                                 data-testid={`ailment-library-open-${lib.id}`}
-                                onClick={() => setDetailAilment(lib)}
+                                onClick={() => openDetail(lib)}
                                 className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
                               >
                                 <div className="w-14 h-14 rounded-2xl bg-rhozly-surface-low overflow-hidden shrink-0 flex items-center justify-center text-rhozly-on-surface/20">
@@ -1811,7 +1827,7 @@ function AddAilmentModal({
           watchingBusy={libraryAddBusy === detailAilment.id}
           canWatch
           onWatch={() => addFromLibrary(detailAilment)}
-          onClose={() => setDetailAilment(null)}
+          onClose={() => closeDetail()}
           onLinkToPlant={() => linkFromDetail(detailAilment)}
         />
       )}
