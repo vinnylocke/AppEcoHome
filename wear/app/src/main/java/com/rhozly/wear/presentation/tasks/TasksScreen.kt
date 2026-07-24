@@ -195,10 +195,17 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
             }
         }
 
-        if (ui.offline) {
+        if (ui.offline || ui.queuedCount > 0) {
             item {
+                val label = buildString {
+                    if (ui.offline) append("⚡ Offline")
+                    if (ui.queuedCount > 0) {
+                        if (isNotEmpty()) append("  ·  ")
+                        append("⟳ ${ui.queuedCount} queued")
+                    }
+                }
                 Text(
-                    "⚡ Offline",
+                    label,
                     style = MaterialTheme.typography.caption2,
                     color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
                     textAlign = TextAlign.Center,

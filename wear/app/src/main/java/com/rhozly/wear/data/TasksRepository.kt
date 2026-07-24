@@ -32,6 +32,7 @@ object TasksRepository {
 
     @Serializable
     private data class NewTaskRow(
+        val id: String,
         val home_id: String,
         val title: String,
         val type: String,
@@ -115,10 +116,13 @@ object TasksRepository {
         type: String,
         dueDate: String,
         description: String?,
+        id: String,
     ): MutateResult {
         val userId = Supabase.client.auth.currentUserOrNull()?.id
-        Supabase.client.from("tasks").insert(
+        // Upsert on the client-generated id → a replayed offline add is idempotent.
+        Supabase.client.from("tasks").upsert(
             NewTaskRow(
+                id = id,
                 home_id = homeId,
                 title = title,
                 type = type,

@@ -1,14 +1,20 @@
 package com.rhozly.wear.presentation.tasks
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.rhozly.wear.data.ConnectivityMonitor
 import com.rhozly.wear.data.Prefs
 import com.rhozly.wear.data.Supabase
 import com.rhozly.wear.data.TasksRepository
 import com.rhozly.wear.data.local.OfflineStore
+import com.rhozly.wear.data.local.PendingWriteEntity
 import com.rhozly.wear.data.model.HomeOption
 import com.rhozly.wear.data.model.MutateResult
 import com.rhozly.wear.data.model.WatchTask
+import com.rhozly.wear.data.model.WritePayload
+import com.rhozly.wear.data.sync.SyncScheduler
+import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.RealtimeChannel
@@ -21,8 +27,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.time.LocalDate
+import java.util.UUID
 
 data class TasksUiState(
     val loading: Boolean = true,
@@ -40,12 +52,15 @@ data class TasksUiState(
     val offline: Boolean = false,
     /** Offline AND this day was never cached (so the empty list means "not synced"). */
     val notCached: Boolean = false,
+    /** Pending offline writes waiting to sync (the "N queued" chip). */
+    val queuedCount: Int = 0,
 )
 
-class TasksViewModel : ViewModel() {
+class TasksViewModel(app: Application) : AndroidViewModel(app) {
     private val today: LocalDate = LocalDate.now()
     private val _ui = MutableStateFlow(TasksUiState(date = today, isToday = true))
     val ui: StateFlow<TasksUiState> = _ui.asStateFlow()
+    private val json = Json { ignoreUnknownKeys = true }
 
     // Cached after the first lookup so day navigation doesn't re-query the home.
     private var homeId: String? = null
@@ -54,7 +69,19 @@ class TasksViewModel : ViewModel() {
     // Live auto-refresh: one channel on the home's tasks, alive while the VM is.
     private var realtimeChannel: RealtimeChannel? = null
 
-    init { load(today) }
+    init {
+        load(today)
+        // Reflect the offline write-queue size in the "N queued" chip.
+        OfflineStore.pendingCountFlow()
+            .onEach { count -> _ui.value = _ui.value.copy(queuedCount = count) }
+            .launchIn(viewModelScope)
+        // The moment connectivity returns: flush the queue + refetch (reconcile) —
+        // instead of waiting for realtime backoff / the periodic worker.
+        ConnectivityMonitor.isOnline
+            .drop(1) // skip the seeded value; react to transitions
+            .onEach { online -> if (online) { SyncScheduler.syncNow(getApplication()); reload() } }
+            .launchIn(viewModelScope)
+    }
 
     /** Switch the watch to another home (local preference — doesn't touch the
      *  phone's active home). Re-scopes the task view + Realtime channel. */
@@ -82,18 +109,26 @@ class TasksViewModel : ViewModel() {
 
     // ── Actions ──────────────────────────────────────────────────────────────
 
-    fun complete(task: WatchTask) = act { home -> TasksRepository.complete(task, home) }
+    fun complete(task: WatchTask) = mutateOrQueue(
+        action = "complete",
+        payload = WritePayload(task = task),
+        optimistic = { list -> list.map { if (it.id == task.id) it.copy(status = "Completed", overdue = false) else it } },
+    ) { home -> TasksRepository.complete(task, home) }
 
-    /** Postpone by `days`, anchored at max(due_date, today) so it always moves later. */
-    fun postpone(task: WatchTask, days: Int) = act { home ->
-        val due = runCatching { LocalDate.parse(task.dueDate) }.getOrDefault(today)
-        val base = if (due.isBefore(today)) today else due
-        TasksRepository.postpone(task, home, base.plusDays(days.toLong()).toString())
+    fun postpone(task: WatchTask, days: Int) {
+        val newDate = postponeDate(task, days)
+        mutateOrQueue(
+            action = "postpone",
+            payload = WritePayload(task = task, newDate = newDate),
+            optimistic = { list -> list.filterNot { it.id == task.id } }, // moved off this day
+        ) { home -> TasksRepository.postpone(task, home, newDate) }
     }
 
-    fun deleteTask(task: WatchTask, series: Boolean) = act { home ->
-        TasksRepository.deleteTask(task, home, series)
-    }
+    fun deleteTask(task: WatchTask, series: Boolean) = mutateOrQueue(
+        action = "delete",
+        payload = WritePayload(task = task, series = series),
+        optimistic = { list -> list.filterNot { it.id == task.id } },
+    ) { home -> TasksRepository.deleteTask(task, home, series) }
 
     /** Save a fully-specified new task (from the New-task editor). */
     fun saveNewTask(title: String, type: String, dueDate: String, note: String) {
@@ -102,7 +137,21 @@ class TasksViewModel : ViewModel() {
             _ui.value = _ui.value.copy(message = "Add a task name first")
             return
         }
-        act { home -> TasksRepository.addTask(home, name, type, dueDate, note.trim().ifEmpty { null }) }
+        val id = UUID.randomUUID().toString() // client id → idempotent replay (upsert)
+        val desc = note.trim().ifEmpty { null }
+        val optimisticRow = WatchTask(id = id, title = name, type = type, dueDate = dueDate, status = "Pending")
+        mutateOrQueue(
+            action = "add",
+            payload = WritePayload(title = name, type = type, dueDate = dueDate, description = desc, clientId = id),
+            optimistic = { list -> if (dueDate == _ui.value.date.toString()) list + optimisticRow else list },
+        ) { home -> TasksRepository.addTask(home, name, type, dueDate, desc, id) }
+    }
+
+    /** Postpone target date, anchored at max(due_date, today) so it always moves later. */
+    private fun postponeDate(task: WatchTask, days: Int): String {
+        val due = runCatching { LocalDate.parse(task.dueDate) }.getOrDefault(today)
+        val base = if (due.isBefore(today)) today else due
+        return base.plusDays(days.toLong()).toString()
     }
 
     /** The day currently on screen (the New-task editor defaults its date to this). */
@@ -111,29 +160,72 @@ class TasksViewModel : ViewModel() {
     /** Show a transient toast (e.g. "Didn't catch that"). */
     fun flash(message: String) { _ui.value = _ui.value.copy(message = message) }
 
-    private fun act(call: suspend (homeId: String) -> MutateResult) {
+    /**
+     * Run a write online; on a NETWORK failure apply it optimistically to the
+     * local list + cache and queue it for SyncWorker to replay on reconnect.
+     * On success, reconcile from the server.
+     */
+    private fun mutateOrQueue(
+        action: String,
+        payload: WritePayload,
+        optimistic: (List<WatchTask>) -> List<WatchTask>,
+        call: suspend (homeId: String) -> MutateResult,
+    ) {
         viewModelScope.launch {
-            _ui.value = _ui.value.copy(loading = true, message = null)
-            // Resolve the home if it's not cached yet — launching the voice activity
-            // can recreate this ViewModel, clearing homeId. resolveHome() respects the
-            // watch's selected home (not just the phone's active one).
             val home = runCatching { resolveHome() }.getOrNull()
             if (home == null) {
-                fetch(_ui.value.date)
                 _ui.value = _ui.value.copy(message = "No home set for this account")
                 return@launch
             }
-            val outcome = runCatching { call(home) }
-            // Reconcile against server truth either way (also reverts on failure).
-            fetch(_ui.value.date)
-            _ui.value = _ui.value.copy(
-                message = outcome.fold(
-                    onSuccess = { if (it.ok) it.hint else (it.error ?: "Couldn't update — try again") },
-                    // Surface the real error (truncated) so a failed write is visible, not silent.
-                    onFailure = { it.message?.take(80) ?: "Couldn't update — try again" },
-                ),
+            // OFFLINE mode: apply + queue immediately — no network attempt, no spinner.
+            if (!ConnectivityMonitor.isOnline.value) {
+                queueOffline(action, home, payload, optimistic)
+                return@launch
+            }
+            _ui.value = _ui.value.copy(loading = true, message = null)
+            runCatching { call(home) }.fold(
+                onSuccess = { res ->
+                    fetch(_ui.value.date) // reconcile from server truth
+                    _ui.value = _ui.value.copy(message = if (res.ok) res.hint else (res.error ?: "Couldn't update — try again"))
+                },
+                onFailure = { e ->
+                    if (isNetworkError(e)) {
+                        queueOffline(action, home, payload, optimistic) // lie-fi — queue it
+                    } else {
+                        fetch(_ui.value.date)
+                        _ui.value = _ui.value.copy(message = e.message?.take(80) ?: "Couldn't update — try again")
+                    }
+                },
             )
         }
+    }
+
+    /** Apply a write locally + persist + queue for replay on reconnect. */
+    private suspend fun queueOffline(
+        action: String,
+        home: String,
+        payload: WritePayload,
+        optimistic: (List<WatchTask>) -> List<WatchTask>,
+    ) {
+        val newList = optimistic(_ui.value.tasks)
+        _ui.value = _ui.value.copy(loading = false, tasks = newList, offline = true, message = "Queued — will sync")
+        runCatching { OfflineStore.cacheDay(home, _ui.value.date.toString(), newList) }
+        enqueueWrite(action, home, payload)
+        SyncScheduler.syncNow(getApplication())
+    }
+
+    private suspend fun enqueueWrite(action: String, home: String, payload: WritePayload) {
+        val userId = runCatching { Supabase.client.auth.currentUserOrNull()?.id }.getOrNull()
+        OfflineStore.enqueue(
+            PendingWriteEntity(
+                id = UUID.randomUUID().toString(),
+                userId = userId,
+                homeId = home,
+                action = action,
+                payloadJson = json.encodeToString(payload),
+                createdAt = System.currentTimeMillis(),
+            ),
+        )
     }
 
     // ── Loading ──────────────────────────────────────────────────────────────
@@ -176,8 +268,9 @@ class TasksViewModel : ViewModel() {
      *   keep the existing list if it fails (a transient socket hiccup shouldn't
      *   blank the screen). */
     private suspend fun fetch(date: LocalDate, silent: Boolean = false) {
+        val online = ConnectivityMonitor.isOnline.value
         _ui.value = _ui.value.copy(
-            loading = !silent,
+            loading = !silent && online, // no spinner in offline mode — cache is instant
             error = if (silent) _ui.value.error else null,
             date = date,
             isToday = date == today,
@@ -189,6 +282,20 @@ class TasksViewModel : ViewModel() {
                 else _ui.value.copy(loading = false, error = "No home set for this account", tasks = emptyList())
             return
         }
+
+        // OFFLINE mode: read straight from cache — instant, no network attempt.
+        if (!online) {
+            val cached = OfflineStore.cachedDay(home, date.toString())
+            _ui.value = _ui.value.copy(
+                loading = false,
+                tasks = cached ?: emptyList(),
+                offline = true,
+                notCached = cached == null,
+                error = null,
+            )
+            return
+        }
+
         ensureHomesLoaded()
         startRealtime(home)
         try {
@@ -196,8 +303,7 @@ class TasksViewModel : ViewModel() {
             OfflineStore.cacheDay(home, date.toString(), res.tasks)
             _ui.value = _ui.value.copy(loading = false, tasks = res.tasks, offline = false, notCached = false, error = null)
         } catch (e: Exception) {
-            // Offline → fall back to the last-synced snapshot for this day; if that
-            // day was never cached, show a clean empty offline state (NOT a raw error).
+            // Online but the call failed (lie-fi / server) → fall back to cache.
             val cached = OfflineStore.cachedDay(home, date.toString())
             val offlineDown = isNetworkError(e)
             _ui.value = when {
