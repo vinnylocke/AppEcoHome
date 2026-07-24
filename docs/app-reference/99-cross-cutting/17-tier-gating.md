@@ -15,6 +15,8 @@
 
 **Free Plant Doctor identify carve-out (Sprint 3, 2026-06-15):** `identify_vision` is the only AI action a Sprout / Botanist user can call. It runs against a sliding-window quota (5 per 7 days, no calendar reset — every call's 7-day-old slot drops off as new ones land). Helper: [`supabase/functions/_shared/identifyQuota.ts`](../../../supabase/functions/_shared/identifyQuota.ts). Recorded via the existing `ai_usage_log` table — no new schema. Quota state is returned on every successful identify response so the client can update its badge without a second round-trip.
 
+**Discover swipe deck (#10):** the "Discover plants" swipe deck (Garden Profile → Swipe) is **free for every tier** — it now sources from the internal `plant_library` (the `plant_library_swipe_sample` RPC) as its always-on primary. AI picks (`generate-swipe-plants`) layer in for `ai_enabled`; Perenual + Verdantly layer in for `enable_perenual`. Sprout previously saw a hard "no source enabled" error here; it now gets a full library deck.
+
 **Tier defaulting (Sprint 3, 2026-06-15):** New users no longer hit a Tier Selection screen on signup. The App.tsx onboarding flow now auto-assigns `'sprout'` + `ai_enabled = false` + `enable_perenual = false` when a profile lands with `subscription_tier IS NULL`. Upgrade is reachable via the `Upgrade Rhozly` entry in the user dropdown → `/gardener` (Account tab houses the picker).
 
 ---

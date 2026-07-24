@@ -35,6 +35,16 @@ DB constraint `plants_source_check` enforces the set (`manual` / `api` / `verdan
 
 The **ailment** equivalent (`ailments_source_check`, widened by `20260824000000`) allows `manual` / `perenual` / `ai` / **`library`**. Unlike plants, ailments ARE marked with a first-class `library` source: `addLibraryAilmentToWatchlist` / `mapLibraryToWatchlistPayload` store `source='library'`, and the Watchlist renders a **Library** badge (`SOURCE_META.library`). (No historical backfill — old library adds stored as `ai` stay `ai`.)
 
+### Discover swipe deck — sourcing (#10)
+
+The **Discover plants** swipe deck (`PlantSwipeDeck`, Garden Profile → Swipe) rates plants into `planner_preferences` (not the shed). Its sourcing changed in #10:
+
+- **Library** (always, **free for every tier — including Sprout**) is now the **primary** source, via the authenticated `plant_library_swipe_sample(p_home_id, p_sample_size, p_exclude_names)` RPC (migration `20261026000000`). The RPC is `SECURITY DEFINER` with a **same-home membership guard** and **excludes owned** (`inventory_items`) **+ disliked** (`planner_preferences` negative `plant`) **+ already-seen** names. (Rotation-avoidance stays an AI-source nicety — not ported to SQL.)
+- **AI** (`generate-swipe-plants`) — optional secondary, `ai_enabled` only.
+- **Perenual** + **Verdantly** (`verdantly-search` `filter` action, random page) — behind `enable_perenual`.
+
+All enabled sources are fetched in parallel and round-robin-interleaved (library first). The deck **no longer hard-errors** when no external source is enabled — Sprout gets a full library deck. Card mapping is pure: `src/lib/librarySwipePlant.ts` (`libraryRowToSwipePlant` / `verdantlyResultToSwipePlant`).
+
 ### Edge functions
 
 | Function | Purpose |

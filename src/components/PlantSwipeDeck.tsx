@@ -3,17 +3,11 @@ import { supabase } from "../lib/supabase";
 import { getPlantWikiInfo } from "../lib/wikipedia";
 import { Heart, X, Loader2, Sprout, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
-
-interface SwipePlant {
-  id: string;
-  name: string;
-  scientific_name: string;
-  tagline: string;
-  tags: string[];
-  image_query: string;
-  source: "ai" | "perenual";
-  thumbnail?: string | null;
-}
+import {
+  type SwipePlant,
+  libraryRowToSwipePlant,
+  verdantlyResultToSwipePlant,
+} from "../lib/librarySwipePlant";
 
 interface Props {
   homeId: string;
@@ -88,8 +82,46 @@ async function fetchAIBatch(
   return data?.plants || [];
 }
 
+// Library (#10) — the always-on, free primary source. Excludes owned + disliked
+// server-side via the plant_library_swipe_sample RPC (same-home guarded).
+async function fetchLibraryBatch(
+  homeId: string,
+  seenNames: string[],
+  count: number,
+): Promise<SwipePlant[]> {
+  const { data, error } = await supabase.rpc("plant_library_swipe_sample", {
+    p_home_id: homeId,
+    p_sample_size: count,
+    p_exclude_names: seenNames,
+  });
+  if (error) throw error;
+  return ((data as any[]) || []).map(libraryRowToSwipePlant);
+}
+
+// Verdantly (#10) — browse varieties by random page (behind the enable_perenual gate).
+async function fetchVerdantlyBatch(
+  seenNames: string[],
+  count: number,
+): Promise<SwipePlant[]> {
+  const page = Math.floor(Math.random() * 20) + 1;
+  const { data, error } = await supabase.functions.invoke("verdantly-search", {
+    body: { action: "filter", page },
+  });
+  if (error) throw error;
+  const seen = new Set(seenNames.map((n) => n.toLowerCase()));
+  const results: SwipePlant[] = [];
+  for (const r of (data?.results as any[]) || []) {
+    if (results.length >= count) break;
+    const plant = verdantlyResultToSwipePlant(r);
+    if (!plant.name || seen.has(plant.name.toLowerCase())) continue;
+    seen.add(plant.name.toLowerCase());
+    results.push(plant);
+  }
+  return results;
+}
+
 async function enrichWithThumbnail(plant: SwipePlant): Promise<SwipePlant> {
-  if (plant.thumbnail !== undefined) return plant;
+  if (plant.thumbnail) return plant;
   const wiki = await getPlantWikiInfo(plant.image_query || plant.name);
   return { ...plant, thumbnail: wiki?.thumbnail ?? null };
 }
@@ -137,45 +169,46 @@ export default function PlantSwipeDeck({
     setLoading(true);
     setFetchError(null);
     try {
-      if (!aiEnabled && !perenualEnabled) {
-        setFetchError("No plant data source is enabled for your account.");
+      // Library is the always-on, free primary source (#10). AI is an optional
+      // secondary for AI-tier accounts; Perenual + Verdantly ride the
+      // enable_perenual gate. Every enabled source is fetched in parallel and
+      // interleaved (library first each round), so the deck stays diverse and
+      // never hard-errors — Sprout-tier users still get a full library deck.
+      const seen = seenNames.current;
+      const jobs: Array<Promise<SwipePlant[]>> = [fetchLibraryBatch(homeId, seen, 8)];
+      if (aiEnabled) jobs.push(fetchAIBatch(homeId, seen, 4));
+      if (perenualEnabled) {
+        jobs.push(fetchPerenualBatch(seen, 3));
+        jobs.push(fetchVerdantlyBatch(seen, 3));
+      }
+
+      const settled = await Promise.allSettled(jobs);
+      const batches = settled.map((s) => (s.status === "fulfilled" ? s.value : []));
+
+      // Round-robin interleave — library first in each round.
+      const plants: SwipePlant[] = [];
+      const maxLen = Math.max(0, ...batches.map((b) => b.length));
+      for (let i = 0; i < maxLen; i++) {
+        for (const b of batches) if (i < b.length) plants.push(b[i]);
+      }
+
+      // If everything came back empty AND a source errored, surface a retry
+      // rather than a misleading "you've seen them all" empty state.
+      if (plants.length === 0 && settled.some((s) => s.status === "rejected")) {
+        setFetchError("Couldn't load plants — please try again.");
         setLoading(false);
         return;
       }
 
-      // When both sources are available, fetch 5 AI + 5 Perenual in parallel and interleave.
-      // When only one is available, fetch 10 from that source.
-      let plants: SwipePlant[];
-      if (aiEnabled && perenualEnabled) {
-        const [aiBatch, perenualBatch] = await Promise.allSettled([
-          fetchAIBatch(homeId, seenNames.current, 5),
-          fetchPerenualBatch(seenNames.current, 5),
-        ]);
-        const ai = aiBatch.status === "fulfilled" ? aiBatch.value : [];
-        const perenual = perenualBatch.status === "fulfilled" ? perenualBatch.value : [];
-        console.log(`[SwipeDeck] Both sources: AI=${ai.length}, Perenual=${perenual.length}`, {
-          aiStatus: aiBatch.status,
-          perenualStatus: perenualBatch.status,
-          aiError: aiBatch.status === "rejected" ? aiBatch.reason : null,
-          perenualError: perenualBatch.status === "rejected" ? perenualBatch.reason : null,
-        });
-        // Interleave: ai[0], perenual[0], ai[1], perenual[1], …
-        plants = [];
-        const maxLen = Math.max(ai.length, perenual.length);
-        for (let i = 0; i < maxLen; i++) {
-          if (i < ai.length) plants.push(ai[i]);
-          if (i < perenual.length) plants.push(perenual[i]);
-        }
-      } else if (aiEnabled) {
-        plants = await fetchAIBatch(homeId, seenNames.current, 10);
-      } else {
-        plants = await fetchPerenualBatch(seenNames.current, 10);
-      }
-
       for (const p of plants) seenNames.current.push(p.name);
 
+      // AI cards carry no image; a library card may lack one — enrich those via wiki.
       const enriched = await Promise.all(
-        plants.map((p) => (p.source === "ai" ? enrichWithThumbnail(p) : p)),
+        plants.map((p) =>
+          p.source === "ai" || (p.source === "library" && !p.thumbnail)
+            ? enrichWithThumbnail(p)
+            : p,
+        ),
       );
 
       setDeck(enriched);
@@ -454,7 +487,13 @@ export default function PlantSwipeDeck({
             )}
             {/* Source badge — subdued so it does not compete with the plant name */}
             <span className="absolute top-3 right-3 text-[9px] font-semibold uppercase tracking-wider bg-rhozly-on-surface/40 text-white px-2 py-0.5 rounded-full">
-              {current.source === "ai" ? "AI pick" : "Perenual"}
+              {current.source === "ai"
+                ? "AI pick"
+                : current.source === "verdantly"
+                  ? "Verdantly"
+                  : current.source === "perenual"
+                    ? "Perenual"
+                    : "Library"}
             </span>
           </div>
 
