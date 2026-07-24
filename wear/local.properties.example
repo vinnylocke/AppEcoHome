@@ -1,0 +1,13 @@
+# local.properties — gitignored. Android Studio writes `sdk.dir` for you on open.
+# Add the two Supabase lines below to your ACTUAL local.properties (not this
+# example file) so the app can reach your backend.
+#
+# sdk.dir=C\:\\Users\\FiercePC\\AppData\\Local\\Android\\Sdk
+
+# ── Supabase config (Phase 1) ──────────────────────────────────────────────
+# Copy these from your web app's .env:
+#   VITE_SUPABASE_URL             -> SUPABASE_URL
+#   VITE_SUPABASE_PUBLISHABLE_KEY -> SUPABASE_ANON_KEY
+# The publishable/anon key is client-safe (RLS protects the data).
+SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+SUPABASE_ANON_KEY=YOUR_PUBLISHABLE_ANON_KEY

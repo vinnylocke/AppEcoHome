@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simple leaf + stem, centred in the adaptive-icon safe zone. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,32 C65,43 65,60 54,74 C43,60 43,43 54,32 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M53,52 L55,52 L55,80 L53,80 Z" />
+</vector>
