@@ -233,8 +233,8 @@ Console app; Play routes by form factor. Manage version codes per Play's multi-A
 | **3 — Actions** ✅ | Complete / Postpone / Delete via `mutate-task` (fresh review = SHIP; device-verified). |
 | **4 — Add task** ✅ | Voice-first (`RecognizerIntent`) → New-task editor (type / date / note), direct RLS-gated insert. |
 | **5 — Home switcher** ✅ | List homes (`home_members` + embedded `homes`); a `🏠` chip (shown when >1 home) → picker → re-scopes tasks + Realtime. Selection is a LOCAL watch preference (`Prefs`), defaulting to the phone's active home — doesn't change `user_profiles.home_id`. |
-| **6 — Offline & sync** | Room as the UI source of truth; optimistic local writes + a queue; WorkManager flush + re-fetch on reconnect (§5b). Turns actions 3–5 offline-capable. (Includes the local Room cache originally sketched for Phase 2.) |
-| **7 — Polish** | Overdue styling, empty/error/loading states, realtime reconnect-reconcile + resume/pause teardown, manual refresh; (optional later: a Tile + complication for glanceable "N tasks due"). |
+| **6 — Offline & sync** ✅ | Room `day_cache` (multi-home) + `pending_write` queue. A `SyncWorker` (WorkManager) warms the cache in the background — TODAY for every home + a ~2-week window for the active home — periodically + on open + on reconnect, and **flushes the write queue** (idempotent replay). `ConnectivityMonitor` gives a **fast offline mode** (reads from cache, writes optimistic+queued, no network attempt) and an **instant flip back to online** on `onAvailable`. Offline-open fixed (RefreshFailure → show app). "⚡ Offline / ⟳ N queued" chips. See docs/plans/wear-phase6-offline.md. |
+| **7 — Polish** | Overdue styling, empty/error/loading states, resume/pause socket teardown, manual refresh; (optional later: a Tile + complication for glanceable "N tasks due"). |
 
 ## 10. Division of labour (important)
 

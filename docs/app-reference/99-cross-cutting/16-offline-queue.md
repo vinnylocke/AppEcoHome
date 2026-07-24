@@ -2,6 +2,8 @@
 
 > A localStorage-backed write queue. When the user makes changes while offline (or while a sync fails), the action is stashed locally and replayed when connectivity returns or via the QueuedActionsBadge.
 
+> **Wear OS companion has its own native equivalent** (not this localStorage queue): a Room `pending_write` table + a `SyncWorker` (WorkManager) that replays complete/postpone/delete/add via the `mutate-task` function / an idempotent `tasks` upsert, with per-user stamping and permanent-vs-transient handling that mirror this file. A `ConnectivityMonitor` drives a fast offline mode and flushes on reconnect. See `wear/` and docs/plans/wear-phase6-offline.md.
+
 ---
 
 ## Quick Summary
