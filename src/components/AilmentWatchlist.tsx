@@ -2147,7 +2147,6 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
     localStorage.getItem("rhozly_legacy_shed_filters") === "on";
   const [presenceChip, setPresenceChip] = useState<"all" | "active" | "inactive">("all");
   const [showBulkAdd, setShowBulkAdd] = useState(false);
-  const [selectedAilment, setSelectedAilment] = useState<Ailment | null>(null);
 
   // ── Cross-home favourites (Phase 2 — ailments) ─────────────────────────────
   // Scope pill: "Home" = today's home-scoped watchlist; "Favourites" = the
@@ -2287,6 +2286,21 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
   }, [detailId, detailLibrary, detailLibraryAilment, setSearchParams]);
   const closeDetailParam = () =>
     setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("detail"); return n; }, { replace: true });
+
+  // ── #7 — owned-ailment detail via ?owned=<ailments.id> ────────────────────
+  // Same reactive URL-param pattern as ?detail= above: OPENING pushes a history
+  // entry, CLOSING replace-deletes it — so a swipe-back / Escape closes JUST the
+  // modal instead of popping the Plants→Ailments tab switch (GardenHub.switchTab
+  // pushes an entry), which used to drop the user back onto the Plants tab.
+  const ownedId = searchParams.get("owned");
+  const selectedAilment = useMemo(
+    () => (ownedId ? ailments.find((a) => a.id === ownedId) ?? null : null),
+    [ownedId, ailments],
+  );
+  const openOwnedAilment = (a: Ailment) =>
+    setSearchParams((p) => { const n = new URLSearchParams(p); n.set("owned", a.id); return n; }); // PUSH → Back closes it
+  const closeOwnedAilment = () =>
+    setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("owned"); return n; }, { replace: true });
   const [detailWatchBusy, setDetailWatchBusy] = useState(false);
   const detailWatching =
     !!detailLibraryAilment &&
@@ -2403,7 +2417,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
         if (error) throw error;
         logEvent(EVENT.AILMENT_DELETED, { ailment_id: ailment.id, name: ailment.name, type: ailment.type });
         setAilments((prev) => prev.filter((a) => a.id !== ailment.id));
-        if (selectedAilment?.id === ailment.id) setSelectedAilment(null);
+        if (selectedAilment?.id === ailment.id) closeOwnedAilment();
         toast.success(`"${ailment.name}" deleted`);
       } else {
         const archived = type === "archive";
@@ -2645,7 +2659,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
               ailment={a}
               index={index}
               affectedCount={affectedCounts[a.id] ?? 0}
-              onClick={() => setSelectedAilment(a)}
+              onClick={() => openOwnedAilment(a)}
               onArchiveToggle={() => setConfirmState({ isOpen: true, type: a.is_archived ? "unarchive" : "archive", ailment: a })}
               onDelete={() => setConfirmState({ isOpen: true, type: "delete", ailment: a })}
               onAskAi={() => {
@@ -2724,7 +2738,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
             ailments.filter((a) => !a.is_archived).map((a) => ailmentIdentityKey(a.name)).filter(Boolean),
           )}
           ownedAilments={ailments}
-          onOpenOwnedAilment={(a) => { setShowAdd(false); setSelectedAilment(a); }}
+          onOpenOwnedAilment={(a) => { setShowAdd(false); openOwnedAilment(a); }}
           ailmentPresence={gardenPresence.ailmentPresence}
           favouriteLibraryIds={new Set(
             favourites.map((f) => f.ailment_library_id).filter((x): x is number => x != null),
@@ -2748,7 +2762,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false, perenualEn
       {selectedAilment && createPortal(
         <AilmentDetailModal
           ailment={selectedAilment}
-          onClose={() => setSelectedAilment(null)}
+          onClose={() => closeOwnedAilment()}
           onDelete={(id) => setAilments((prev) => prev.filter((a) => a.id !== id))}
           aiEnabled={aiEnabled}
         />,

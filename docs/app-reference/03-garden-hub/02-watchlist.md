@@ -62,7 +62,7 @@ AilmentWatchlist
 | `search` | Free text |
 | `showAdd` | Add modal open |
 | `showBulkAdd` | Bulk-add modal open (RHO-4 Phase 2) |
-| `selectedAilment` | Currently open detail |
+| `selectedAilment` | Currently open OWNED-ailment detail — **derived from `?owned=<ailments.id>`** (not local state, #7), so open PUSHes a history entry / close REPLACE-deletes it, and swipe-back / Escape closes just the modal instead of popping the Plants→Ailments tab switch. (The search-takeover library-row detail `detailAilment` is still local state — the same fix there is a follow-up.) |
 
 ### Data flow — read paths
 

@@ -24,6 +24,7 @@
 | WL-010 | ❌ | Blank name → "Name is required" | — | ✅ Passing |
 | WL-011 | ✅ | Manual happy path | — | ✅ Passing |
 | WL-012 | ✅ | AI mode — mocked search result | `watchlist-search` mock | ✅ Passing |
+| WL-013 | 🔲 | Owned-ailment back-routing (#7) — on `/shed?tab=watchlist`, tapping an owned ailment (e.g. Aphid) adds `?owned=<id>` to the URL and opens `detail-modal`; browser Back removes `?owned=` and closes the modal **while staying on the Ailments tab** (regression: it used to also pop back to the Plants tab) | — | 🔲 Planned |
 | WL-013 | ❌ | AI search 500 → error message | `watchlist-search` 500 | ✅ Passing |
 | WL-014 | ✅ | Card click opens AilmentDetailModal | — | ✅ Passing |
 | WL-015 | ✅ | Info tab shows description + affected plants | — | ✅ Passing |
