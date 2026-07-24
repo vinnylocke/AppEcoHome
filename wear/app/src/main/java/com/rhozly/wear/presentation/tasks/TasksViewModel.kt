@@ -2,12 +2,22 @@ package com.rhozly.wear.presentation.tasks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rhozly.wear.data.Supabase
 import com.rhozly.wear.data.TasksRepository
 import com.rhozly.wear.data.model.MutateResult
 import com.rhozly.wear.data.model.WatchTask
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.RealtimeChannel
+import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.postgresChangeFlow
+import io.github.jan.supabase.realtime.realtime
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -28,6 +38,9 @@ class TasksViewModel : ViewModel() {
 
     // Cached after the first lookup so day navigation doesn't re-query the home.
     private var homeId: String? = null
+
+    // Live auto-refresh: one channel on the home's tasks, alive while the VM is.
+    private var realtimeChannel: RealtimeChannel? = null
 
     init { load(today) }
 
@@ -76,20 +89,58 @@ class TasksViewModel : ViewModel() {
 
     private fun load(date: LocalDate) = viewModelScope.launch { fetch(date) }
 
-    private suspend fun fetch(date: LocalDate) {
-        _ui.value = _ui.value.copy(loading = true, error = null, date = date, isToday = date == today)
+    /** @param silent a realtime-triggered refresh — don't flash the spinner, and
+     *   keep the existing list if it fails (a transient socket hiccup shouldn't
+     *   blank the screen). */
+    private suspend fun fetch(date: LocalDate, silent: Boolean = false) {
+        _ui.value = _ui.value.copy(
+            loading = !silent,
+            error = if (silent) _ui.value.error else null,
+            date = date,
+            isToday = date == today,
+        )
         try {
             val home = homeId
                 ?: TasksRepository.activeHomeId()?.also { homeId = it }
                 ?: throw IllegalStateException("No home set for this account")
+            startRealtime(home)
             val res = TasksRepository.dayTasks(home, date.toString(), today.toString())
             _ui.value = _ui.value.copy(loading = false, tasks = res.tasks)
         } catch (e: Exception) {
-            _ui.value = _ui.value.copy(
-                loading = false,
-                error = e.message ?: "Couldn't load tasks",
-                tasks = emptyList(),
-            )
+            if (silent) {
+                _ui.value = _ui.value.copy(loading = false)
+            } else {
+                _ui.value = _ui.value.copy(
+                    loading = false,
+                    error = e.message ?: "Couldn't load tasks",
+                    tasks = emptyList(),
+                )
+            }
         }
+    }
+
+    /** Subscribe once to the home's `tasks` changes (RLS-scoped by the user's
+     *  session) and silently refetch the viewed day on any change. Debounced so
+     *  a burst of writes = one refetch. */
+    private fun startRealtime(homeId: String) {
+        if (realtimeChannel != null) return
+        val ch = Supabase.client.channel("home-tasks-$homeId")
+        realtimeChannel = ch
+        viewModelScope.launch {
+            val changes = ch.postgresChangeFlow<PostgresAction>(schema = "public") {
+                table = "tasks"
+                filter("home_id", FilterOperator.EQ, homeId)
+            }
+            launch { changes.debounce(300L).collect { fetch(_ui.value.date, silent = true) } }
+            ch.subscribe()
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        val ch = realtimeChannel ?: return
+        realtimeChannel = null
+        // viewModelScope is already cancelled here; remove on a throwaway scope.
+        CoroutineScope(Dispatchers.IO).launch { runCatching { Supabase.client.realtime.removeChannel(ch) } }
     }
 }

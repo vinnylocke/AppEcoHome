@@ -67,12 +67,13 @@ dependencies {
     implementation(libs.wear.compose.material)
     implementation(libs.wear.compose.foundation)
 
-    // Supabase (Phase 1: auth; Phase 2: postgrest to resolve the home + functions
-    // to call get-today-tasks. Realtime is added in Phase 2b).
+    // Supabase (auth; postgrest to resolve the home; functions for
+    // get-today-tasks / mutate-task; realtime for live task auto-refresh).
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.auth)
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.functions)
+    implementation(libs.supabase.realtime)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.kotlinx.serialization.json)
 

@@ -138,7 +138,15 @@ watch. So:
 
 **Consistency is never at risk** — the watch reads the same RLS-scoped source of truth; only *how
 instantly* the on-screen list reflects a change varies (instant while open, on-open otherwise).
-Folded into **Phase 2** (task list) — the Realtime subscription ships with the list, not as a bolt-on.
+
+**✅ BUILT (Phase 2b, 2026-07-24).** `TasksViewModel.startRealtime()` opens one `supabase-kt` Realtime
+channel (`home-tasks-{homeId}`) on `tasks` filtered by `home_id`, authenticated by the watch's own
+session so **RLS scopes it** (you only get your home's changes). Any INSERT/UPDATE/DELETE → a
+**silent, debounced** re-call of `get-today-tasks` for the viewed day (no spinner flash; a transient
+socket error keeps the current list). The channel is **ViewModel-scoped** (foreground-only) and removed
+in `onCleared`, so no background WebSocket drains the battery. Deferred: gap-reconciliation on reconnect
+(a missed event during a flap is caught by the next change or on-open) and a finer resume/pause
+tear-down (Phase 7 polish). Needs the `supabase-realtime-kt` dep (`install(Realtime)`).
 
 ## 5b. Offline & sync — use it anywhere, reconcile later
 

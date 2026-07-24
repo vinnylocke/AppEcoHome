@@ -7,10 +7,11 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.realtime.Realtime
 
 /**
  * The Supabase client, initialised once from the Application (needs a Context
- * for the session store). Auth for now; Postgrest + Realtime are added in Phase 2.
+ * for the session store). Auth + Postgrest + Functions + Realtime.
  */
 object Supabase {
     @Volatile private var _client: SupabaseClient? = null
@@ -29,6 +30,7 @@ object Supabase {
             }
             install(Postgrest)
             install(Functions)
+            install(Realtime)
         }
     }
 

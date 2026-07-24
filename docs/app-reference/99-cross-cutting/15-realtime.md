@@ -50,6 +50,10 @@ Internally:
 | `plants` (Wave 1 of AI Plant Overhaul) | `useCachedShed` only — refetch when home-scoped rows change. `useAiPlantFreshness` does NOT yet subscribe to realtime because `useHomeRealtime` filters by `home_id` and global AI plants have `home_id IS NULL`. Wave 5 ships a fetch-on-mount model; freshness only refreshes on page navigation. Realtime on globals is deferred to Wave 7 if cross-device freshness sync becomes important. |
 | `user_plant_ack` (Wave 1 of AI Plant Overhaul) | Published in the `supabase_realtime` table set so the channel is available, but no client currently subscribes. Wave 5 uses optimistic local updates from `useAiPlantFreshness.acknowledge()` instead of waiting for a realtime echo. Wave 7 could add a sub for cross-device sync (acknowledging on phone clears chip on desktop immediately). |
 
+### Wear OS companion (separate SDK)
+
+The native Wear app doesn't use `useHomeRealtime` (that's the browser hook) — it opens its own `supabase-kt` Realtime channel `home-tasks-{homeId}` on `tasks`, filtered by `home_id` and authenticated by the watch's session (so **RLS scopes it identically**). On any change it silently re-calls `get-today-tasks` for the viewed day. The channel is ViewModel-scoped (foreground-only) to bound battery. See `wear/app/.../presentation/tasks/TasksViewModel.kt` and docs/wear-os-companion-plan.md §5a.
+
 ### Presence (`PresenceAvatars`)
 
 Plan Staging opens a presence channel keyed on `plan.id`. Other users editing the same plan appear as avatar chips.
