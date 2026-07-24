@@ -13,13 +13,15 @@ interface Props {
 }
 
 /**
- * Lets the user change their self-declared gardening experience after
- * the initial welcome flow. Captured originally in the WelcomeModal's
- * persona slide; this surface gives them an escape hatch.
+ * "Detail level" — lets the user change how much guidance Rhozly shows.
+ * Stored as the `persona` column ("new" | "experienced") on user_profiles,
+ * captured originally in the WelcomeModal's persona slide; this surface is the
+ * escape hatch to change it later.
  *
- * Wire-up is intentionally minimal — reads + writes the `persona`
- * column on user_profiles directly. Future waves will read the value
- * to bias copy (more tooltips for "new", terser for "experienced").
+ * The value is read live via usePersona to bias presentation only: inline-tip /
+ * tooltip density (InfoTooltip dims for "experienced"), AI copy tone,
+ * isNewGardener framing, and the default home posture (porch vs workbench). It
+ * does NOT gate, filter, or unlock any feature. Reads + writes `persona` directly.
  */
 export default function PersonaSetting({ userId }: Props) {
   const [persona, setPersona] = useState<Persona>(null);
@@ -61,10 +63,10 @@ export default function PersonaSetting({ userId }: Props) {
       notifyPersonaChanged(next);
       toast.success(
         next === "new"
-          ? "Switched to friendly-tips mode."
+          ? "More guidance on — extra tips + plainer copy."
           : next === "experienced"
-            ? "Switched to expert mode."
-            : "Cleared your experience level.",
+            ? "Less clutter on — terser copy + fewer tooltips."
+            : "Cleared your detail level.",
       );
     } catch (err) {
       Logger.error("PersonaSetting save failed", err);
@@ -80,11 +82,12 @@ export default function PersonaSetting({ userId }: Props) {
       className="bg-white rounded-3xl border border-rhozly-outline/10 p-5 sm:p-6"
     >
       <h3 className="font-black text-base text-rhozly-on-surface mb-1">
-        Gardening experience
+        Detail level
       </h3>
       <p className="text-xs text-rhozly-on-surface/55 leading-snug mb-4">
-        Tells Rhozly how much detail you want. We use this to decide when to
-        explain things vs when to stay out of your way.
+        How much guidance you want. This changes how many inline tips and
+        tooltips you see, the tone of AI replies, and your default home layout —
+        it doesn't lock or unlock any features.
       </p>
 
       {loading ? (
@@ -99,8 +102,8 @@ export default function PersonaSetting({ userId }: Props) {
             disabled={saving}
             onSelect={() => save("new")}
             icon={<Sprout size={18} />}
-            title="New to gardening"
-            subtitle="More tips, less jargon, friendly nudges"
+            title="More guidance"
+            subtitle="Extra tips, plainer language, friendly nudges — best if you're newer to gardening"
           />
           <PersonaOption
             value="experienced"
@@ -108,8 +111,8 @@ export default function PersonaSetting({ userId }: Props) {
             disabled={saving}
             onSelect={() => save("experienced")}
             icon={<Leaf size={18} />}
-            title="Experienced"
-            subtitle="Terser copy, advanced shortcuts, fewer tooltips"
+            title="Less clutter"
+            subtitle="Terser copy, fewer tooltips, advanced shortcuts — best if you're experienced"
           />
         </div>
       )}

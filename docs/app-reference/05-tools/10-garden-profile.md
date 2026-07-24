@@ -18,6 +18,7 @@ A tab between "Quiz" and "Swipe":
 
 - **Quiz** — run / re-run the Habit Quiz. Saved answers feed personalisation.
 - **Swipe** — a Tinder-style deck of plants. Right swipe = "I like this plant"; left = "Not for me". Each swipe writes a `planner_preferences` row.
+- **Detail level** (`PersonaSetting`) — a two-option card ("More guidance" / "Less clutter") writing `user_profiles.persona` (`"new"` | `"experienced"`). **Presentation only** — it biases inline-tip / tooltip density (`InfoTooltip` dims for experienced), AI copy tone, `isNewGardener` framing, and the default home posture (porch vs workbench). It does **not** gate, filter, or unlock any feature. (Renamed 2026-07 from "Gardening experience" — the old name implied it did more than it does; the underlying `persona` values are unchanged.)
 
 Below the tabs, a collapsible "Your Preferences" list shows every captured preference (from quiz, swipe, AI chat) with source chip, sentiment, timestamp, and a per-row delete button. A "Reset all preferences" action wipes everything (with confirm).
 
