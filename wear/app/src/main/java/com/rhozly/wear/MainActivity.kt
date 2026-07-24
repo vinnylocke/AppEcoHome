@@ -3,6 +3,7 @@ package com.rhozly.wear
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.rhozly.wear.data.sync.SyncScheduler
 import com.rhozly.wear.presentation.WearApp
 
 /**
@@ -12,6 +13,8 @@ import com.rhozly.wear.presentation.WearApp
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Warm the offline cache on open (background; completes even if we close).
+        SyncScheduler.syncNow(this)
         setContent { WearApp() }
     }
 }

@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
 }
 
 // Read Supabase config from local.properties (gitignored) so keys aren't
@@ -76,6 +77,12 @@ dependencies {
     implementation(libs.supabase.realtime)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.kotlinx.serialization.json)
+
+    // Offline: Room (local cache + write queue) + WorkManager (background flush).
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+    implementation(libs.work.runtime.ktx)
 
     debugImplementation(libs.compose.ui.tooling)
 }

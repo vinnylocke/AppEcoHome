@@ -12,6 +12,9 @@ lifecycleViewmodel = "2.8.7"
 supabase = "3.1.4"
 ktor = "3.0.3"
 kotlinxSerialization = "1.7.3"
+room = "2.6.1"
+work = "2.9.1"
+ksp = "2.0.21-1.0.28"
 
 [libraries]
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -34,9 +37,16 @@ supabase-realtime = { group = "io.github.jan-tennert.supabase", name = "realtime
 supabase-functions = { group = "io.github.jan-tennert.supabase", name = "functions-kt" }
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+# Room (local offline cache + write queue) — compiler via KSP.
+room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+# WorkManager (background flush of the offline write queue).
+work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

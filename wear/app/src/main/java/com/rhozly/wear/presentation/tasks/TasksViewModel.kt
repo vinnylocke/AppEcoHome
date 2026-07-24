@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.rhozly.wear.data.Prefs
 import com.rhozly.wear.data.Supabase
 import com.rhozly.wear.data.TasksRepository
+import com.rhozly.wear.data.local.OfflineStore
 import com.rhozly.wear.data.model.HomeOption
 import com.rhozly.wear.data.model.MutateResult
 import com.rhozly.wear.data.model.WatchTask
@@ -35,6 +36,10 @@ data class TasksUiState(
     val homes: List<HomeOption> = emptyList(),
     val homeName: String? = null,
     val activeHomeId: String? = null,
+    /** True when the shown list came from the offline cache (fetch failed). */
+    val offline: Boolean = false,
+    /** Offline AND this day was never cached (so the empty list means "not synced"). */
+    val notCached: Boolean = false,
 )
 
 class TasksViewModel : ViewModel() {
@@ -146,11 +151,20 @@ class TasksViewModel : ViewModel() {
         return resolved
     }
 
-    /** Load the homes list once (for the switcher). Best-effort — never fatal. */
+    /** Load the homes list (for the switcher), caching it. Offline → cached list. */
     private suspend fun ensureHomesLoaded() {
         if (homesLoaded) return
-        homesLoaded = true
-        val list = runCatching { TasksRepository.homes() }.getOrDefault(emptyList())
+        val list = runCatching { TasksRepository.homes() }.getOrNull()
+        if (!list.isNullOrEmpty()) {
+            homesLoaded = true
+            OfflineStore.cacheHomes(list)
+            setHomes(list)
+        } else if (_ui.value.homes.isEmpty()) {
+            setHomes(OfflineStore.cachedHomes()) // offline first paint; retries next fetch
+        }
+    }
+
+    private fun setHomes(list: List<HomeOption>) {
         _ui.value = _ui.value.copy(
             homes = list,
             homeName = list.find { it.id == homeId }?.name,
@@ -168,23 +182,41 @@ class TasksViewModel : ViewModel() {
             date = date,
             isToday = date == today,
         )
+        val home = runCatching { resolveHome() }.getOrNull()
+        if (home == null) {
+            _ui.value =
+                if (silent) _ui.value.copy(loading = false)
+                else _ui.value.copy(loading = false, error = "No home set for this account", tasks = emptyList())
+            return
+        }
+        ensureHomesLoaded()
+        startRealtime(home)
         try {
-            val home = resolveHome() ?: throw IllegalStateException("No home set for this account")
-            ensureHomesLoaded()
-            startRealtime(home)
             val res = TasksRepository.dayTasks(home, date.toString(), today.toString())
-            _ui.value = _ui.value.copy(loading = false, tasks = res.tasks)
+            OfflineStore.cacheDay(home, date.toString(), res.tasks)
+            _ui.value = _ui.value.copy(loading = false, tasks = res.tasks, offline = false, notCached = false, error = null)
         } catch (e: Exception) {
-            if (silent) {
-                _ui.value = _ui.value.copy(loading = false)
-            } else {
-                _ui.value = _ui.value.copy(
-                    loading = false,
-                    error = e.message ?: "Couldn't load tasks",
-                    tasks = emptyList(),
-                )
+            // Offline → fall back to the last-synced snapshot for this day; if that
+            // day was never cached, show a clean empty offline state (NOT a raw error).
+            val cached = OfflineStore.cachedDay(home, date.toString())
+            val offlineDown = isNetworkError(e)
+            _ui.value = when {
+                cached != null -> _ui.value.copy(loading = false, tasks = cached, offline = true, notCached = false, error = null)
+                offlineDown -> _ui.value.copy(loading = false, tasks = emptyList(), offline = true, notCached = true, error = null)
+                silent -> _ui.value.copy(loading = false)
+                else -> _ui.value.copy(loading = false, error = e.message ?: "Couldn't load tasks", tasks = emptyList())
             }
         }
+    }
+
+    /** Network-shaped failure (host unresolved / connect / timeout — all IOException). */
+    private fun isNetworkError(e: Throwable?): Boolean {
+        var t: Throwable? = e
+        while (t != null) {
+            if (t is java.io.IOException) return true
+            t = t.cause
+        }
+        return false
     }
 
     /** Subscribe once to the home's `tasks` changes (RLS-scoped by the user's

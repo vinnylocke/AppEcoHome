@@ -195,6 +195,18 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
             }
         }
 
+        if (ui.offline) {
+            item {
+                Text(
+                    "⚡ Offline",
+                    style = MaterialTheme.typography.caption2,
+                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                )
+            }
+        }
+
         if (!ui.isToday) {
             item {
                 // A compact, auto-width pill (NOT full-width) so it reads as a
@@ -231,7 +243,11 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
             }
             ui.tasks.isEmpty() -> item {
                 Text(
-                    if (ui.isToday) "Nothing due today" else "Nothing on this day",
+                    when {
+                        ui.notCached -> "This day isn't cached — go online to load it"
+                        ui.isToday -> "Nothing due today"
+                        else -> "Nothing on this day"
+                    },
                     style = MaterialTheme.typography.caption1,
                     color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center,

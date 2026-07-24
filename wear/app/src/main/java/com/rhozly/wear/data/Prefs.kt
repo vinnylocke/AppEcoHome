@@ -10,6 +10,7 @@ import android.content.Context
 object Prefs {
     private const val FILE = "rhozly_wear_prefs"
     private const val KEY_HOME = "selected_home_id"
+    private const val KEY_HOMES = "homes_json"
 
     @Volatile private var sp: android.content.SharedPreferences? = null
 
@@ -20,4 +21,11 @@ object Prefs {
     var selectedHomeId: String?
         get() = sp?.getString(KEY_HOME, null)
         set(value) { sp?.edit()?.putString(KEY_HOME, value)?.apply() }
+
+    /** Cached homes list (JSON) so the switcher renders offline. */
+    var homesJson: String?
+        get() = sp?.getString(KEY_HOMES, null)
+        set(value) { sp?.edit()?.putString(KEY_HOMES, value)?.apply() }
+
+    fun clearAll() { sp?.edit()?.clear()?.apply() }
 }

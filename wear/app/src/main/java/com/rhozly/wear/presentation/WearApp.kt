@@ -32,7 +32,11 @@ fun WearApp() {
 
         Scaffold(timeText = { TimeText() }) {
             when (status) {
-                is SessionStatus.Authenticated -> {
+                // A token-refresh failure is almost always just "offline" — the
+                // stored session is still valid for cached reads (writes queue /
+                // fail gracefully), so show the app instead of a dead spinner.
+                is SessionStatus.Authenticated,
+                is SessionStatus.RefreshFailure -> {
                     val tasksVm: TasksViewModel = viewModel()
                     TasksScreen(tasksVm, onSignOut = vm::signOut)
                 }
