@@ -222,3 +222,48 @@ Deno.test("a seasonal WINDOW type is skipped by the frequency pass (window pass 
   });
   assertEquals(out.length, 0);
 });
+
+// ── Window-covering tasks (the handler's query 1b) ───────────────────────────
+
+Deno.test("a COMPLETED window task covering the day shows in Done (due_date before the day)", () => {
+  // The handler carries it in via `dayTasks` even though due_date (window start)
+  // is before the viewed day, because window_end_date still spans today.
+  const completedHarvest = row({
+    id: "h",
+    blueprint_id: "bp-harvest",
+    due_date: "2026-06-01",
+    status: "Completed",
+    window_end_date: "2026-08-31",
+    type: "Harvesting",
+  });
+  const out = resolveDayTasks({
+    ...base,
+    date: TODAY,
+    dayTasks: [completedHarvest],
+    windowBlueprints: [windowBp()],
+    suppressed: new Set(["bp-harvest|2026-06-01"]), // the completed row suppresses its ghost
+  });
+  assertEquals(out.length, 1); // the completed task, NOT a duplicate ghost
+  assertEquals(out[0].id, "h");
+  assertEquals(out[0].status, "Completed");
+  assertEquals(out[0].overdue, false);
+});
+
+Deno.test("a pending in-window task arriving from BOTH overdue and window sources is deduped", () => {
+  const pendingInWindow = row({
+    id: "h",
+    blueprint_id: "bp-harvest",
+    due_date: "2026-07-01",
+    status: "Pending",
+    window_end_date: "2026-08-31",
+    type: "Harvesting",
+  });
+  const out = resolveDayTasks({
+    ...base,
+    date: TODAY,
+    overdueTasks: [pendingInWindow], // query 2 (pending, due < today)
+    dayTasks: [pendingInWindow], // query 1b (window covers today)
+  });
+  assertEquals(out.filter((t) => t.id === "h").length, 1); // deduped
+  assertEquals(out[0].overdue, false); // window still open → not overdue
+});

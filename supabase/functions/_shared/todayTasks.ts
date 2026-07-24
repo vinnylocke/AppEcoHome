@@ -143,10 +143,13 @@ export function resolveDayTasks(args: {
   const { date, today, dayTasks, overdueTasks, windowBlueprints, suppressed } = args;
   const freqBlueprints = args.freqBlueprints ?? [];
 
-  const out: WatchTask[] = [
-    ...overdueTasks.map((t) => toWatchTask(t, today)),
-    ...dayTasks.map((t) => toWatchTask(t, today)),
-  ];
+  // Persisted tasks, deduped by id — a task can arrive from more than one source
+  // (e.g. a pending in-window task is both an overdue carry and a window-covering
+  // row; a window task on its start day is both a day task and a window row).
+  const persisted = new Map<string, WatchTask>();
+  for (const t of overdueTasks) persisted.set(t.id, toWatchTask(t, today));
+  for (const t of dayTasks) persisted.set(t.id, toWatchTask(t, today));
+  const out: WatchTask[] = [...persisted.values()];
 
   // Seasonal-window ghosts whose window contains `date` (suppressed if acted on).
   for (const bp of windowBlueprints) {

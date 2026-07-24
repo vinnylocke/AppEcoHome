@@ -81,7 +81,25 @@ Deno.serve(async (req) => {
       .eq("due_date", date)
       .or(scopeFilter);
     if (dErr) throw dErr;
-    const dayTasks = (dayRaw ?? []) as PersistedTaskRow[];
+
+    // 1b. Seasonal-WINDOW tasks whose window COVERS `date` (any status). A
+    //     harvest/pruning task lives at its window START with `window_end_date`
+    //     spanning the season, so a completed one for today has `due_date < date`
+    //     and would be missed by (1) — and the window-ghost pass below only
+    //     SUPPRESSES its ghost, never surfaces the completed row. This carries it
+    //     in so it shows in Done across the whole window, matching the app.
+    const { data: winRaw, error: wErr } = await db
+      .from("tasks")
+      .select(TASK_COLS)
+      .eq("home_id", homeId)
+      .in("type", [...SEASONAL_WINDOW_TYPES])
+      .lte("due_date", date)
+      .gte("window_end_date", date)
+      .or(scopeFilter);
+    if (wErr) throw wErr;
+
+    // Merge; resolveDayTasks dedupes by id (a window task on its start day is in both).
+    const dayTasks = [...(dayRaw ?? []), ...(winRaw ?? [])] as PersistedTaskRow[];
 
     // 2. Overdue carry — pending tasks due before today (only when viewing today).
     let overdueTasks: PersistedTaskRow[] = [];
