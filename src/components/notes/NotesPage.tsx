@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus, Search, NotebookPen, Loader2 } from "lucide-react";
 import { useNotes, type NoteWithLinks } from "../../hooks/useNotes";
 import NoteCard from "./NoteCard";
@@ -23,6 +24,18 @@ export default function NotesPage({ homeId }: Props) {
   // Wave 23.0001 — record that the user has been to /notes. Gates the
   // notes walkthrough (23.0003) so it only fires after a real visit.
   useEffect(() => { void recordSignal("first_notes_visit"); }, []);
+
+  // Deep-link entry — /journal?tab=notes&open=add-note (the Capture "Add note"
+  // chooser, #8) pops the new-note editor straight away. One-shot: the param is
+  // stripped so refreshes don't re-open it. Mirrors GlobalJournal's ?open=add-entry.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("open") === "add-note") {
+      setComposingNew(true);
+      setSearchParams((prev) => { prev.delete("open"); return prev; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

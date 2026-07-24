@@ -48,4 +48,37 @@ describe("CaptureSheet — Phase 6b phone create/capture hub", () => {
     fireEvent.click(screen.getByTestId("capture-walk"));
     expect(onNavigate).toHaveBeenCalledWith("/walk");
   });
+
+  test("the Journal tile opens the entry/note chooser instead of navigating (#8)", () => {
+    const { onNavigate } = renderSheet(true);
+    fireEvent.click(screen.getByTestId("capture-journal"));
+    expect(onNavigate).not.toHaveBeenCalled();
+    expect(screen.getByTestId("capture-journal-choice")).toBeTruthy();
+    expect(screen.getByTestId("capture-journal-entry")).toBeTruthy();
+    expect(screen.getByTestId("capture-journal-note")).toBeTruthy();
+  });
+
+  test("chooser → New journal entry routes to /journal?open=add-entry and closes", () => {
+    const { onNavigate, onClose } = renderSheet(true);
+    fireEvent.click(screen.getByTestId("capture-journal"));
+    fireEvent.click(screen.getByTestId("capture-journal-entry"));
+    expect(onNavigate).toHaveBeenCalledWith("/journal?open=add-entry");
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  test("chooser → Add a note routes to /journal?tab=notes&open=add-note and closes", () => {
+    const { onNavigate, onClose } = renderSheet(true);
+    fireEvent.click(screen.getByTestId("capture-journal"));
+    fireEvent.click(screen.getByTestId("capture-journal-note"));
+    expect(onNavigate).toHaveBeenCalledWith("/journal?tab=notes&open=add-note");
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  test("chooser back button returns to the capture verbs", () => {
+    renderSheet(true);
+    fireEvent.click(screen.getByTestId("capture-journal"));
+    fireEvent.click(screen.getByTestId("capture-journal-back"));
+    expect(screen.queryByTestId("capture-journal-choice")).toBeNull();
+    expect(screen.getByTestId("capture-diagnose")).toBeTruthy();
+  });
 });

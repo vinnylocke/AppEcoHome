@@ -1,5 +1,5 @@
-import { Stethoscope, Sprout, PenLine, CheckSquare, Footprints } from "lucide-react";
-import type { ReactNode } from "react";
+import { Stethoscope, Sprout, PenLine, CheckSquare, Footprints, BookOpen, NotebookPen, ChevronLeft } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ModalShell } from "./ui/ModalShell";
 import { Z } from "./ui/zIndex";
 
@@ -40,7 +40,18 @@ interface Props {
   onNavigate: (url: string) => void;
 }
 
+// The two journal-note destinations, shown in the in-sheet chooser (#8).
+const JOURNAL_CHOICES = [
+  { id: "entry", label: "New journal entry", hint: "Logged against a plant, area or date", icon: <BookOpen size={20} />, url: "/journal?open=add-entry", testId: "capture-journal-entry" },
+  { id: "note", label: "Add a note", hint: "A free-form note in your notebook", icon: <NotebookPen size={20} />, url: "/journal?tab=notes&open=add-note", testId: "capture-journal-note" },
+];
+
 export default function CaptureSheet({ open, onClose, onNavigate }: Props) {
+  // Tapping "Journal note" opens an in-sheet chooser (journal entry vs note)
+  // rather than jumping straight into the event-anchored journal composer (#8).
+  const [journalChoice, setJournalChoice] = useState(false);
+  useEffect(() => { if (!open) setJournalChoice(false); }, [open]);
+
   const go = (url: string) => {
     onClose();
     onNavigate(url);
@@ -59,44 +70,79 @@ export default function CaptureSheet({ open, onClose, onNavigate }: Props) {
     >
       <div className="px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         <div aria-hidden className="mx-auto mb-4 h-1 w-10 rounded-full bg-rhozly-outline/25" />
-        <h2 className="text-2xs font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-3">
-          Capture
-        </h2>
 
-        {/* Hero — the flagship in-garden capture flow */}
-        <button
-          type="button"
-          data-testid={HERO.testId}
-          onClick={() => go(HERO.url)}
-          className="w-full flex items-center gap-3 p-4 rounded-2xl bg-rhozly-primary text-white text-left shadow-raised active:scale-[0.98] transition-transform duration-100 ease-spring"
-        >
-          <span className="shrink-0 grid place-items-center w-11 h-11 rounded-full bg-white/15">
-            {HERO.icon}
-          </span>
-          <span className="min-w-0">
-            <span className="block font-black leading-tight">{HERO.label}</span>
-            <span className="block text-xs text-white/70">{HERO.hint}</span>
-          </span>
-        </button>
-
-        {/* The rest of the create/capture verbs */}
-        <div className="grid grid-cols-2 gap-2.5 mt-2.5">
-          {ACTIONS.map((a) => (
+        {journalChoice ? (
+          <div data-testid="capture-journal-choice">
             <button
-              key={a.id}
               type="button"
-              data-testid={a.testId}
-              onClick={() => go(a.url)}
-              className="flex flex-col gap-1.5 p-3.5 min-h-[84px] rounded-2xl bg-rhozly-surface-low border border-rhozly-outline/10 text-left active:scale-[0.98] transition-transform duration-100 ease-spring"
+              data-testid="capture-journal-back"
+              onClick={() => setJournalChoice(false)}
+              className="flex items-center gap-1 text-2xs font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-3 -ml-1"
             >
-              <span className="grid place-items-center w-9 h-9 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
-                {a.icon}
-              </span>
-              <span className="font-bold text-sm text-rhozly-on-surface leading-tight">{a.label}</span>
-              <span className="text-2xs text-rhozly-on-surface/45 leading-tight">{a.hint}</span>
+              <ChevronLeft size={12} /> Capture
             </button>
-          ))}
-        </div>
+            <div className="grid grid-cols-1 gap-2.5">
+              {JOURNAL_CHOICES.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  data-testid={c.testId}
+                  onClick={() => go(c.url)}
+                  className="flex items-center gap-3 p-3.5 rounded-2xl bg-rhozly-surface-low border border-rhozly-outline/10 text-left active:scale-[0.98] transition-transform duration-100 ease-spring"
+                >
+                  <span className="shrink-0 grid place-items-center w-9 h-9 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
+                    {c.icon}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-bold text-sm text-rhozly-on-surface leading-tight">{c.label}</span>
+                    <span className="block text-2xs text-rhozly-on-surface/45 leading-tight">{c.hint}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            <h2 className="text-2xs font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-3">
+              Capture
+            </h2>
+
+            {/* Hero — the flagship in-garden capture flow */}
+            <button
+              type="button"
+              data-testid={HERO.testId}
+              onClick={() => go(HERO.url)}
+              className="w-full flex items-center gap-3 p-4 rounded-2xl bg-rhozly-primary text-white text-left shadow-raised active:scale-[0.98] transition-transform duration-100 ease-spring"
+            >
+              <span className="shrink-0 grid place-items-center w-11 h-11 rounded-full bg-white/15">
+                {HERO.icon}
+              </span>
+              <span className="min-w-0">
+                <span className="block font-black leading-tight">{HERO.label}</span>
+                <span className="block text-xs text-white/70">{HERO.hint}</span>
+              </span>
+            </button>
+
+            {/* The rest of the create/capture verbs */}
+            <div className="grid grid-cols-2 gap-2.5 mt-2.5">
+              {ACTIONS.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  data-testid={a.testId}
+                  onClick={() => (a.id === "journal" ? setJournalChoice(true) : go(a.url))}
+                  className="flex flex-col gap-1.5 p-3.5 min-h-[84px] rounded-2xl bg-rhozly-surface-low border border-rhozly-outline/10 text-left active:scale-[0.98] transition-transform duration-100 ease-spring"
+                >
+                  <span className="grid place-items-center w-9 h-9 rounded-full bg-rhozly-primary/10 text-rhozly-primary">
+                    {a.icon}
+                  </span>
+                  <span className="font-bold text-sm text-rhozly-on-surface leading-tight">{a.label}</span>
+                  <span className="text-2xs text-rhozly-on-surface/45 leading-tight">{a.hint}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </ModalShell>
   );

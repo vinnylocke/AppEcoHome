@@ -47,7 +47,7 @@ None directly. Each tile performs a **navigation**, not a mutation; the destinat
 |---|---|---|---|
 | **Diagnose a plant** (hero) | `capture-diagnose` | `/doctor` | Plant Doctor (identify / diagnose / pest scan) |
 | Add a plant | `capture-add-plant` | `/shed?open=add-plant` | The Shed → Add-to-Shed source picker |
-| Journal note | `capture-journal` | `/journal?open=add-entry` | Global Journal → add-entry composer |
+| Journal note | `capture-journal` | *(opens an in-sheet chooser — no direct nav, #8)* | Chooser: **New journal entry** (`capture-journal-entry` → `/journal?open=add-entry`, the event-anchored composer) or **Add a note** (`capture-journal-note` → `/journal?tab=notes&open=add-note`, the Notes new-note editor). A back button (`capture-journal-back`) returns to the verbs. |
 | Add a task | `capture-add-task` | `/dashboard?view=calendar&open=add-task` | Calendar → Add Task modal |
 | Garden walk | `capture-walk` | `/walk` | Garden Walk (focus-mode plant-by-plant tour) |
 
@@ -105,7 +105,7 @@ For **Sarah** (amateur): it's the friendly green **+** that says "what do you wa
 
 1. **Diagnose a plant (the hero).** The big green bar at the top. Tap it → the sheet closes and you land in **Plant Doctor**, ready to point the camera at a leaf or problem. This is the flow the whole sheet is built around — it's why the Deck's centre button exists.
 2. **Add a plant.** Tap → the Shed opens with the Add-to-Shed picker already up, so you can search or add from a source without an extra tap.
-3. **Journal note.** Tap → the Journal opens straight into the add-entry composer to jot what you just noticed.
+3. **Journal note.** Tap → an in-sheet chooser (#8): **New journal entry** (opens the event-anchored Journal composer) or **Add a note** (opens the Notes tab's new-note editor). This stops the one button from forcing a journal entry when you actually wanted a free-form note.
 4. **Add a task.** Tap → the Calendar opens with the Add Task modal ready — a one-off or today's job.
 5. **Garden walk.** Tap → starts the guided, bed-by-bed **Garden Walk** so you can tend everything in one pass.
 

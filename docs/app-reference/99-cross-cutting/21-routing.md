@@ -121,6 +121,8 @@ Pruned to the 5 highest-frequency "create" verbs (Phase 5 IA pass) — cut items
 | Diagnose a Plant | `/doctor` |
 | Create Plan | `/planner?open=new-plan` |
 | Add Location | `/management?open=add-location` |
+| Add journal entry | `/journal?open=add-entry` (GlobalJournal composer) |
+| Add note (#8) | `/journal?tab=notes&open=add-note` (NotesPage new-note editor — Capture "Add a note" chooser) |
 
 ### URL state consumption
 
