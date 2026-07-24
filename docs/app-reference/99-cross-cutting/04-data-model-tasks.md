@@ -60,7 +60,7 @@ Ghost tasks are materialised into real `tasks` rows when the user acts on them (
 | `user_id` | uuid? | Personal scope |
 | `title`, `description`, `task_type` | text | |
 | `due_date` | date | |
-| `status` | text | Pending / Completed / Postponed / Skipped |
+| `status` | text | Pending / Completed / Skipped (`tasks_status_check`, migration 20260417111420). Legacy `'Postponed'` is **never written** by the current code — postpone tombstones the slot as `Skipped` and inserts a new `Pending` row at the new date. |
 | `completion_photo_url` | text | |
 | `completed_at` | timestamptz | |
 | `completed_by` | uuid | |
@@ -171,6 +171,27 @@ The complete / skip / postpone semantics that used to live inline in `TaskList.t
 - `materialiseGhost(ghost, status, overrides, select)` — the ghost INSERT with a **`unique_blueprint_date` 23505 fallback**: if the slot was already materialised from another surface (walk + task list in two tabs), it recovers by UPDATEing the existing `(blueprint_id, due_date)` row instead of failing.
 
 `TaskList.tsx` calls `materialiseGhost` (its ghost-complete branch) and `postponeTask`; its offline-queue, optimistic-UI, blueprint-shift and sowing/automation side-effects remain component-local. Any new surface adding task actions must call these functions, not re-implement the branches.
+
+### Delete / dismiss — inline in `TaskList.tsx` (NOT in `taskActions.ts`)
+
+Delete is branch-dependent and lives in `TaskList.executeSingleDelete`:
+
+- **Standalone** (no `blueprint_id`) → hard `DELETE` (permanent, no undo).
+- **Physical blueprint-linked** → UPDATE `status='Skipped'` (a tombstone — hard-deleting it would let the cron / ghost engine regenerate the occurrence).
+- **Ghost** → INSERT a `Skipped` tombstone.
+- **"Delete recurring schedule?"** (opt-in checkbox, shown only when `blueprint_id`) → hard `DELETE` the `task_blueprints` row → **CASCADE** wipes every child task incl. completed history (`tasks_blueprint_id_fkey ON DELETE CASCADE`).
+- Note: single-occurrence delete currently fires **no** pattern-engine event, while **bulk** delete logs `task_skipped` — a known inconsistency.
+
+### Wear write path — `mutate-task` edge function (2026-07)
+
+The Wear OS companion can't re-run the browser branches, so a service-role function [`supabase/functions/mutate-task`](../../../supabase/functions/mutate-task/index.ts) mirrors them server-side for `complete` / `postpone` / `delete`. The pure branch logic + `buildGhostPayload` live in [`_shared/taskWrite.ts`](../../../supabase/functions/_shared/taskWrite.ts) (`planTaskMutation`; `supabase/tests/taskWrite.test.ts`, 20 tests). The handler:
+
+- **Authorises itself** — `requireAuth` + `requireHomeMembership` + a self-enforced scope subset (`scope='home' OR created_by=uid OR assigned_to=uid`) + a `home_id` match on the fetched target row/blueprint — because the service client bypasses RLS.
+- Runs the planned ops with the same **`23505 → UPDATE-on-(blueprint_id,due_date)`** recovery, and emits the `user_events` row itself (there are **no DB triggers on `tasks`**, so a bare write would starve the pattern engine + streaks). Replicates auto-journal (resolved real `task_id`).
+- Is **idempotent** via CAS `guardNeq` (a retried watch action changes 0 rows → no double-logged event).
+- Guards a materialise INSERT against `tasks_type_check` (returns **422** for the orphan `Feeding` type), never writes `status='Postponed'`, and fires `task_skipped` on single dismiss (fixing the inline gap above). Series delete is exposed on the watch behind a hard-confirm.
+
+See [Edge Functions Catalogue](./10-edge-functions-catalogue.md) and `docs/plans/wear-phase3-task-actions.md`.
 
 ### `generate-tasks` cron
 

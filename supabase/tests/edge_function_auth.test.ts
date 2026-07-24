@@ -299,3 +299,103 @@ Deno.test({
     assertEquals(res.status, 400);
   },
 });
+
+// ─── Batch 4 (Wear write path) — mutate-task auth + membership + guards ───────
+
+// EF-018: mutate-task — no Authorization header → 401
+Deno.test({
+  name: "EF-018: mutate-task — no Authorization header → 401",
+  ignore: SKIP,
+  fn: async () => {
+    const res = await callFunction("mutate-task", {
+      body: {
+        home_id: "00000001-0000-0000-0000-000000000002",
+        action: "complete",
+        task: { id: "x", due_date: "2026-08-04", is_ghost: false },
+      },
+    });
+    assertEquals(res.status, 401);
+  },
+});
+
+// EF-019: mutate-task — valid JWT, alien homeId → 403 (membership gate)
+Deno.test({
+  name: "EF-019: mutate-task — member JWT, alien homeId → 403",
+  ignore: SKIP,
+  fn: async () => {
+    const jwt = await getJwt("test1@rhozly.com");
+    const res = await callFunction("mutate-task", {
+      headers: { Authorization: `Bearer ${jwt}` },
+      body: {
+        home_id: "00000002-0000-0000-0000-000000000002", // worker2's home
+        action: "complete",
+        task: { id: "x", due_date: "2026-08-04", is_ghost: false },
+      },
+    });
+    assertEquals(res.status, 403);
+  },
+});
+
+// EF-020: mutate-task — own home, invalid action → 400
+Deno.test({
+  name: "EF-020: mutate-task — own home, invalid action → 400",
+  ignore: SKIP,
+  fn: async () => {
+    const jwt = await getJwt("test1@rhozly.com");
+    const res = await callFunction("mutate-task", {
+      headers: { Authorization: `Bearer ${jwt}` },
+      body: {
+        home_id: "00000001-0000-0000-0000-000000000002",
+        action: "frobnicate",
+        task: { id: "x", due_date: "2026-08-04", is_ghost: false },
+      },
+    });
+    assertEquals(res.status, 400);
+  },
+});
+
+// EF-021: mutate-task — IDOR: own home membership + a task id from ANOTHER home
+//          → 403 wrong_home (the home-match guard, not just membership).
+//          Worker2's seeded standalone task carried under worker1's own home.
+Deno.test({
+  name: "EF-021: mutate-task — own home + foreign task id → 403 (no cross-home write)",
+  ignore: SKIP,
+  fn: async () => {
+    const jwt = await getJwt("test1@rhozly.com");
+    const res = await callFunction("mutate-task", {
+      headers: { Authorization: `Bearer ${jwt}` },
+      body: {
+        home_id: "00000001-0000-0000-0000-000000000002", // worker1's own home (member → passes membership)
+        action: "complete",
+        task: {
+          id: "00000002-0000-0000-0005-000000000001", // worker2's task
+          due_date: "2026-08-04",
+          is_ghost: false,
+        },
+      },
+    });
+    assertEquals(res.status, 403);
+  },
+});
+
+// EF-022: mutate-task — own home, unknown task id → 404 (clean, never 500 / never a write)
+Deno.test({
+  name: "EF-022: mutate-task — own home, unknown task id → 404",
+  ignore: SKIP,
+  fn: async () => {
+    const jwt = await getJwt("test1@rhozly.com");
+    const res = await callFunction("mutate-task", {
+      headers: { Authorization: `Bearer ${jwt}` },
+      body: {
+        home_id: "00000001-0000-0000-0000-000000000002",
+        action: "complete",
+        task: {
+          id: "00000001-0000-0000-0005-0000000000ff", // does not exist
+          due_date: "2026-08-04",
+          is_ghost: false,
+        },
+      },
+    });
+    assertEquals(res.status, 404);
+  },
+});
