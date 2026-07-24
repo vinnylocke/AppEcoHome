@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Leaf, LayoutDashboard, ClipboardList, CalendarDays, Sparkles, MessageCircle } from "lucide-react";
+import { Compass, LayoutDashboard, ClipboardList, CalendarDays, Sparkles, MessageCircle } from "lucide-react";
 import FeatureGate from "../shared/FeatureGate";
 import AiInsightsPage from "../AiInsightsPage";
 import GardenBriefPanel from "./GardenBriefPanel";
@@ -56,7 +56,7 @@ function HeadGardenerPageInner({ homeId }: { homeId: string }) {
       {/* Header */}
       <div className="flex items-center gap-2.5">
         <div className="w-10 h-10 rounded-2xl bg-rhozly-primary/10 flex items-center justify-center">
-          <Leaf size={20} className="text-rhozly-primary" />
+          <Compass size={20} className="text-rhozly-primary" />
         </div>
         <div>
           <h1 className="text-2xl font-black text-rhozly-on-surface tracking-tight">Head Gardener</h1>

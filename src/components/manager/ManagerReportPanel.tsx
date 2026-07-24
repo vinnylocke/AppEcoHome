@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, RefreshCw, ArrowRight, Leaf, AlertTriangle, Sparkles } from "lucide-react";
+import { Loader2, RefreshCw, ArrowRight, Compass, AlertTriangle, Sparkles } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
   type ManagerReport, sortSections, severityTone, isReportEmpty,
@@ -42,7 +42,7 @@ export default function ManagerReportPanel({ homeId }: { homeId: string }) {
     return (
       <div className="text-center py-16 space-y-3" data-testid="report-empty">
         <div className="w-12 h-12 mx-auto rounded-2xl bg-rhozly-surface flex items-center justify-center">
-          <Leaf size={20} className="text-rhozly-on-surface/40" />
+          <Compass size={20} className="text-rhozly-on-surface/40" />
         </div>
         <p className="text-sm font-bold text-rhozly-on-surface/60">Nothing to report yet</p>
         <p className="text-xs font-medium text-rhozly-on-surface/45 max-w-xs mx-auto">
@@ -68,7 +68,7 @@ export default function ManagerReportPanel({ homeId }: { homeId: string }) {
       <div className="rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-white/70">
-            <Leaf size={12} /> From your head gardener
+            <Compass size={12} /> From your head gardener
           </div>
           <button
             onClick={() => load(true)}

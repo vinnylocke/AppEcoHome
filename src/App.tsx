@@ -12,7 +12,7 @@ import {
   AlertCircle,
   HelpCircle,
   BookOpen,
-  Leaf,
+  Compass,
   ListChecks,
 } from "lucide-react";
 import { IconPlants, IconPlanner, IconAI, IconIntegrations, IconTools } from "./constants/icons";
@@ -1404,7 +1404,7 @@ function AppShell() {
     // Hide the nav entry for tiers that can't use it — the /manager route
     // still renders its own upgrade gate for anyone who deep-links in.
     ...(tierAllowsFeature(profile?.subscription_tier, "head_gardener")
-      ? [{ id: "manager", icon: <Leaf />, label: "Head Gardener", matchPaths: ["/manager"], group: "ai" as const }]
+      ? [{ id: "manager", icon: <Compass />, label: "Head Gardener", matchPaths: ["/manager"], group: "ai" as const }]
       : []),
   ];
 

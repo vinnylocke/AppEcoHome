@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Leaf, ArrowRight } from "lucide-react";
+import { Compass, ArrowRight } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import FeatureGate from "../shared/FeatureGate";
 import UpgradeNudge from "../shared/UpgradeNudge";
@@ -67,7 +67,7 @@ function HeadGardenerCardInner({ embedded = false, onVisibilityChange }: HeadGar
         className="w-full text-left group"
       >
         <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
-          <Leaf size={11} className="text-emerald-600" /> Your head gardener
+          <Compass size={11} className="text-emerald-600" /> Your head gardener
           {openItems > 0 && (
             <span className="font-black px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
               {openItems} to look at
@@ -90,7 +90,7 @@ function HeadGardenerCardInner({ embedded = false, onVisibilityChange }: HeadGar
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-white/70">
-          <Leaf size={12} /> Your head gardener
+          <Compass size={12} /> Your head gardener
         </div>
         {openItems > 0 && (
           <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-white/15">

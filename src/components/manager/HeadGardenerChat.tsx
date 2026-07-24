@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Loader2, Send, Leaf } from "lucide-react";
+import { Loader2, Send, Compass } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
 interface ChatMsg { role: "user" | "assistant"; content: string }
@@ -50,7 +50,7 @@ export default function HeadGardenerChat({ homeId }: { homeId: string }) {
           <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             {m.role === "assistant" && (
               <div className="w-7 h-7 rounded-xl bg-rhozly-primary/10 flex items-center justify-center shrink-0 mr-2 mt-0.5">
-                <Leaf size={14} className="text-rhozly-primary" />
+                <Compass size={14} className="text-rhozly-primary" />
               </div>
             )}
             <div
