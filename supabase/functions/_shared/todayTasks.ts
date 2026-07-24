@@ -129,7 +129,11 @@ function onFrequencyGrid(
  * @param overdueTasks  Pending tasks with `due_date < today` (only when date == today), scope-filtered.
  * @param windowBlueprints  Active seasonal-window blueprints (scope-filtered).
  * @param freqBlueprints  Active recurring frequency blueprints (scope-filtered). Optional.
- * @param suppressed  Set of `${blueprint_id}|${date}` that already have a task row.
+ * @param windowTasks  Map `${blueprint_id}|${dueDate}` → the materialised task row, for the
+ *   seasonal-window blueprints. The window pass looks up ONLY the canonical slot
+ *   (blueprint, windowStart), so legacy per-day pruning rows (a fixed bug left many, each
+ *   backfilled with the season-long window_end_date) never all show at once.
+ * @param suppressed  Set of `${blueprint_id}|${date}` that already have a task row (frequency pass).
  */
 export function resolveDayTasks(args: {
   date: string;
@@ -138,20 +142,23 @@ export function resolveDayTasks(args: {
   overdueTasks: PersistedTaskRow[];
   windowBlueprints: WindowBlueprintRow[];
   freqBlueprints?: FreqBlueprintRow[];
+  windowTasks?: Map<string, PersistedTaskRow>;
   suppressed: Set<string>;
 }): WatchTask[] {
   const { date, today, dayTasks, overdueTasks, windowBlueprints, suppressed } = args;
   const freqBlueprints = args.freqBlueprints ?? [];
+  const windowTasks = args.windowTasks ?? new Map<string, PersistedTaskRow>();
 
-  // Persisted tasks, deduped by id — a task can arrive from more than one source
-  // (e.g. a pending in-window task is both an overdue carry and a window-covering
-  // row; a window task on its start day is both a day task and a window row).
-  const persisted = new Map<string, WatchTask>();
-  for (const t of overdueTasks) persisted.set(t.id, toWatchTask(t, today));
-  for (const t of dayTasks) persisted.set(t.id, toWatchTask(t, today));
-  const out: WatchTask[] = [...persisted.values()];
+  // Everything keyed by id so the day / overdue / window / ghost sources dedupe.
+  const byId = new Map<string, WatchTask>();
+  for (const t of overdueTasks) byId.set(t.id, toWatchTask(t, today));
+  for (const t of dayTasks) byId.set(t.id, toWatchTask(t, today));
 
-  // Seasonal-window ghosts whose window contains `date` (suppressed if acted on).
+  // Seasonal windows: surface the ONE canonical task per window (the row at the
+  // window START) with its real status — so a completed harvest/pruning shows in
+  // Done across the whole window. If the canonical slot is empty, emit a Pending
+  // ghost. Legacy per-day pruning rows at other due_dates are never looked up
+  // here, so they don't pile up (they still show on their own day via `dayTasks`).
   for (const bp of windowBlueprints) {
     if (!SEASONAL_WINDOW_TYPES.has(bp.task_type) || !bp.end_date) continue;
 
@@ -165,18 +172,22 @@ export function resolveDayTasks(args: {
 
     for (const w of windows) {
       if (date < w.start || date > w.end) continue;
-      if (suppressed.has(`${bp.id}|${w.start}`)) continue;
-      out.push({
-        id: `ghost-${bp.id}-${w.start}`,
-        blueprint_id: bp.id,
-        title: bp.title,
-        type: bp.task_type,
-        due_date: w.start,
-        status: "Pending",
-        is_ghost: true,
-        window_end_date: w.end,
-        overdue: false,
-      });
+      const existing = windowTasks.get(`${bp.id}|${w.start}`);
+      if (existing) {
+        byId.set(existing.id, toWatchTask(existing, today));
+      } else {
+        byId.set(`ghost-${bp.id}-${w.start}`, {
+          id: `ghost-${bp.id}-${w.start}`,
+          blueprint_id: bp.id,
+          title: bp.title,
+          type: bp.task_type,
+          due_date: w.start,
+          status: "Pending",
+          is_ghost: true,
+          window_end_date: w.end,
+          overdue: false,
+        });
+      }
     }
   }
 
@@ -219,7 +230,7 @@ export function resolveDayTasks(args: {
       }
       if (!hit) continue;
 
-      out.push({
+      byId.set(`ghost-${bp.id}-${date}`, {
         id: `ghost-${bp.id}-${date}`,
         blueprint_id: bp.id,
         title: bp.title,
@@ -234,6 +245,7 @@ export function resolveDayTasks(args: {
   }
 
   // Group order: overdue → to-do (Pending) → done (Completed) → other; title within.
+  const out = [...byId.values()];
   const rank = (t: WatchTask) =>
     t.overdue ? 0 : t.status === "Pending" ? 1 : t.status === "Completed" ? 2 : 3;
   out.sort((a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title));

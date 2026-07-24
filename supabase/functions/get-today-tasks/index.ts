@@ -81,25 +81,7 @@ Deno.serve(async (req) => {
       .eq("due_date", date)
       .or(scopeFilter);
     if (dErr) throw dErr;
-
-    // 1b. Seasonal-WINDOW tasks whose window COVERS `date` (any status). A
-    //     harvest/pruning task lives at its window START with `window_end_date`
-    //     spanning the season, so a completed one for today has `due_date < date`
-    //     and would be missed by (1) — and the window-ghost pass below only
-    //     SUPPRESSES its ghost, never surfaces the completed row. This carries it
-    //     in so it shows in Done across the whole window, matching the app.
-    const { data: winRaw, error: wErr } = await db
-      .from("tasks")
-      .select(TASK_COLS)
-      .eq("home_id", homeId)
-      .in("type", [...SEASONAL_WINDOW_TYPES])
-      .lte("due_date", date)
-      .gte("window_end_date", date)
-      .or(scopeFilter);
-    if (wErr) throw wErr;
-
-    // Merge; resolveDayTasks dedupes by id (a window task on its start day is in both).
-    const dayTasks = [...(dayRaw ?? []), ...(winRaw ?? [])] as PersistedTaskRow[];
+    const dayTasks = (dayRaw ?? []) as PersistedTaskRow[];
 
     // 2. Overdue carry — pending tasks due before today (only when viewing today).
     let overdueTasks: PersistedTaskRow[] = [];
@@ -145,25 +127,28 @@ Deno.serve(async (req) => {
       freqBlueprints = (fbRaw ?? []) as FreqBlueprintRow[];
     }
 
-    // 4. Suppression set — a task already logged for a blueprint on the relevant
-    //    day means we must NOT re-show it as a ghost:
-    //      • window ghosts key on the window START (may be months before `date`),
-    //        so pull ALL of the window blueprints' task rows (few — ~1/season);
-    //      • frequency ghosts key on `date` itself, so a targeted due_date == date
-    //        lookup for the frequency blueprints is enough (and stays tiny).
-    const suppressed = new Set<string>();
+    // 4a. Materialised rows for the WINDOW blueprints → map keyed by
+    //     (blueprint, dueDate). The resolver looks up ONLY the canonical window
+    //     START slot, so a completed harvest/pruning surfaces there while the
+    //     legacy per-day pruning rows (many, each backfilled with the season-long
+    //     window_end_date) are never all shown at once.
+    const windowTasks = new Map<string, PersistedTaskRow>();
     if (windowBlueprints.length > 0) {
       const { data: existing } = await db
         .from("tasks")
-        .select("blueprint_id, due_date")
+        .select(TASK_COLS)
         .eq("home_id", homeId)
         .in("blueprint_id", windowBlueprints.map((b) => b.id));
-      for (const t of existing ?? []) {
+      for (const t of (existing ?? []) as PersistedTaskRow[]) {
         if (t.blueprint_id) {
-          suppressed.add(`${t.blueprint_id}|${String(t.due_date).slice(0, 10)}`);
+          windowTasks.set(`${t.blueprint_id}|${String(t.due_date).slice(0, 10)}`, t);
         }
       }
     }
+
+    // 4b. Frequency-ghost suppression — a materialised freq task at `date` means
+    //     don't also project its ghost. Keyed on `date` (tiny lookup).
+    const suppressed = new Set<string>();
     if (freqBlueprints.length > 0) {
       const { data: existingFreq } = await db
         .from("tasks")
@@ -185,6 +170,7 @@ Deno.serve(async (req) => {
       overdueTasks,
       windowBlueprints,
       freqBlueprints,
+      windowTasks,
       suppressed,
     });
 

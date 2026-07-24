@@ -95,13 +95,19 @@ Deno.test("a seasonal window containing the viewed date emits one ghost", () => 
   assertEquals(out[0].window_end_date, "2026-08-31");
 });
 
-Deno.test("window ghost is suppressed when a task row already exists for it", () => {
+Deno.test("a materialised window task surfaces (with its status) instead of a ghost", () => {
   const out = resolveDayTasks({
     ...base,
     windowBlueprints: [windowBp()],
-    suppressed: new Set(["bp-harvest|2026-06-01"]),
+    windowTasks: new Map([[
+      "bp-harvest|2026-06-01",
+      row({ id: "h", blueprint_id: "bp-harvest", due_date: "2026-06-01", status: "Completed", window_end_date: "2026-08-31", type: "Harvesting" }),
+    ]]),
   });
-  assertEquals(out.length, 0);
+  assertEquals(out.length, 1);
+  assertEquals(out[0].id, "h"); // the real row, not a ghost
+  assertEquals(out[0].is_ghost, false);
+  assertEquals(out[0].status, "Completed");
 });
 
 Deno.test("a window that does NOT contain the viewed date emits nothing", () => {
@@ -225,45 +231,29 @@ Deno.test("a seasonal WINDOW type is skipped by the frequency pass (window pass 
 
 // ── Window-covering tasks (the handler's query 1b) ───────────────────────────
 
-Deno.test("a COMPLETED window task covering the day shows in Done (due_date before the day)", () => {
-  // The handler carries it in via `dayTasks` even though due_date (window start)
-  // is before the viewed day, because window_end_date still spans today.
-  const completedHarvest = row({
-    id: "h",
-    blueprint_id: "bp-harvest",
-    due_date: "2026-06-01",
-    status: "Completed",
-    window_end_date: "2026-08-31",
-    type: "Harvesting",
-  });
-  const out = resolveDayTasks({
-    ...base,
-    date: TODAY,
-    dayTasks: [completedHarvest],
-    windowBlueprints: [windowBp()],
-    suppressed: new Set(["bp-harvest|2026-06-01"]), // the completed row suppresses its ghost
-  });
-  assertEquals(out.length, 1); // the completed task, NOT a duplicate ghost
-  assertEquals(out[0].id, "h");
-  assertEquals(out[0].status, "Completed");
-  assertEquals(out[0].overdue, false);
+Deno.test("legacy per-day pruning rows do NOT pile up — only the canonical window-start row shows", () => {
+  // The real bug: a fixed daily-materialisation bug left many completed pruning
+  // rows, each backfilled with the season-long window_end_date. The resolver must
+  // look up ONLY the (blueprint, windowStart) slot, never every covering row.
+  const prune = windowBp({ id: "bp-prune", task_type: "Pruning", start_date: "2026-06-01", end_date: "2026-08-31" });
+  const wt = new Map<string, PersistedTaskRow>([
+    ["bp-prune|2026-06-01", row({ id: "canon", blueprint_id: "bp-prune", due_date: "2026-06-01", status: "Completed", window_end_date: "2026-08-31", type: "Pruning" })],
+    ["bp-prune|2026-07-10", row({ id: "legacy1", blueprint_id: "bp-prune", due_date: "2026-07-10", status: "Completed", window_end_date: "2026-08-31", type: "Pruning" })],
+    ["bp-prune|2026-07-15", row({ id: "legacy2", blueprint_id: "bp-prune", due_date: "2026-07-15", status: "Completed", window_end_date: "2026-08-31", type: "Pruning" })],
+  ]);
+  const out = resolveDayTasks({ ...base, date: TODAY, windowBlueprints: [prune], windowTasks: wt });
+  assertEquals(out.length, 1);
+  assertEquals(out[0].id, "canon"); // ONLY the window-start row, not the per-day rows
 });
 
-Deno.test("a pending in-window task arriving from BOTH overdue and window sources is deduped", () => {
-  const pendingInWindow = row({
-    id: "h",
-    blueprint_id: "bp-harvest",
-    due_date: "2026-07-01",
-    status: "Pending",
-    window_end_date: "2026-08-31",
-    type: "Harvesting",
-  });
+Deno.test("a window task on its start day (also a day task) is not duplicated", () => {
+  const startDayTask = row({ id: "h", blueprint_id: "bp-harvest", due_date: TODAY, status: "Pending", window_end_date: "2026-08-31", type: "Harvesting" });
   const out = resolveDayTasks({
     ...base,
     date: TODAY,
-    overdueTasks: [pendingInWindow], // query 2 (pending, due < today)
-    dayTasks: [pendingInWindow], // query 1b (window covers today)
+    dayTasks: [startDayTask], // due == TODAY
+    windowBlueprints: [windowBp({ start_date: TODAY, end_date: "2026-08-31", recurrence_kind: "once" })],
+    windowTasks: new Map([[`bp-harvest|${TODAY}`, startDayTask]]),
   });
-  assertEquals(out.filter((t) => t.id === "h").length, 1); // deduped
-  assertEquals(out[0].overdue, false); // window still open → not overdue
+  assertEquals(out.filter((t) => t.id === "h").length, 1); // deduped by id
 });
