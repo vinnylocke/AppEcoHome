@@ -81,6 +81,31 @@ export function severityToWatchlist(sev: AilmentSeverity | null): "mild" | "mode
 
 const uid = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
 
+/**
+ * Split a library `treatment` / `prevention` TEXT blob into discrete steps (#11).
+ * The persisted shape is newline-joined (`ailmentLibraryMap.ts` `stepText()`), so
+ * a pest like aphids stores ~6 control steps in ONE field — collapsing that to a
+ * single step made the watchlist "N treatments" count read 0–1. Newlines split
+ * first; a single-blob fallback splits on numbered / bulleted markers or
+ * semicolons; leading list markers are stripped. Pure.
+ */
+export function splitStepsText(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const t = text.trim();
+  if (!t) return [];
+  let parts = t.split(/\r?\n+/).map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 1) {
+    const byMarker = parts[0]
+      .split(/\s*(?:\d+[.)]\s+|;\s+|•\s+|\s-\s+)/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (byMarker.length > 1) parts = byMarker;
+  }
+  return parts
+    .map((s) => s.replace(/^\s*(?:\d+[.)]|[-•*])\s+/, "").trim())
+    .filter(Boolean);
+}
+
 export interface WatchlistInsert {
   home_id: string;
   name: string;
@@ -102,12 +127,12 @@ export function mapLibraryToWatchlistPayload(a: LibraryAilment, homeId: string):
   const symptoms: AilmentSymptom[] = (a.symptoms ?? []).map((s) => ({
     id: uid(), title: s, description: "", severity: sev, location: "",
   }));
-  const remedy_steps: AilmentStep[] = a.treatment
-    ? [{ id: uid(), step_order: 0, title: "Treatment", description: a.treatment, task_type: "other", frequency_type: "once" }]
-    : [];
-  const prevention_steps: AilmentStep[] = a.prevention
-    ? [{ id: uid(), step_order: 0, title: "Prevention", description: a.prevention, task_type: "inspect", frequency_type: "once" }]
-    : [];
+  const remedy_steps: AilmentStep[] = splitStepsText(a.treatment).map((description, i) => ({
+    id: uid(), step_order: i, title: "Treatment", description, task_type: "other", frequency_type: "once",
+  }));
+  const prevention_steps: AilmentStep[] = splitStepsText(a.prevention).map((description, i) => ({
+    id: uid(), step_order: i, title: "Prevention", description, task_type: "inspect", frequency_type: "once",
+  }));
   return {
     home_id: homeId,
     name: a.name,
@@ -150,8 +175,8 @@ export function libraryRowToFavouriteInput(a: LibraryAilment): AilmentFavouriteI
     description: a.description ?? null,
     symptoms: a.symptoms ?? [],
     affected_plants: a.affected_plant_types ?? [],
-    prevention_steps: a.prevention ? [{ title: "Prevention", description: a.prevention }] : [],
-    remedy_steps: a.treatment ? [{ title: "Treatment", description: a.treatment }] : [],
+    prevention_steps: splitStepsText(a.prevention).map((description) => ({ title: "Prevention", description })),
+    remedy_steps: splitStepsText(a.treatment).map((description) => ({ title: "Treatment", description })),
     perenual_id: null,
   };
 }

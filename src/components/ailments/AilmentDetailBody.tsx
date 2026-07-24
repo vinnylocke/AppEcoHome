@@ -13,6 +13,7 @@ import {
   Binoculars, Sparkles, Check, CalendarRange, Link2,
 } from "lucide-react";
 import type { LibraryAilment, AilmentKind } from "../../services/ailmentLibraryService";
+import { splitStepsText } from "../../services/ailmentLibraryService";
 import { AILMENT_KIND_CLASSES, AILMENT_SEVERITY_CLASSES, matchAffectedPlants } from "../../lib/ailmentPresentation";
 import SmartImage from "../SmartImage";
 
@@ -275,12 +276,20 @@ export default function AilmentDetailBody({
         {remedySteps && remedySteps.length > 0 ? (
           <DetailSection title="Treatment"><StepList steps={remedySteps} /></DetailSection>
         ) : ailment.treatment && (
-          <DetailSection title="Treatment"><p>{ailment.treatment}</p></DetailSection>
+          <DetailSection title="Treatment">
+            <ul className="list-disc pl-4 space-y-1">
+              {splitStepsText(ailment.treatment).map((s, i) => <li key={i}>{s}</li>)}
+            </ul>
+          </DetailSection>
         )}
         {preventionSteps && preventionSteps.length > 0 ? (
           <DetailSection title="Prevention"><StepList steps={preventionSteps} /></DetailSection>
         ) : ailment.prevention && (
-          <DetailSection title="Prevention"><p>{ailment.prevention}</p></DetailSection>
+          <DetailSection title="Prevention">
+            <ul className="list-disc pl-4 space-y-1">
+              {splitStepsText(ailment.prevention).map((s, i) => <li key={i}>{s}</li>)}
+            </ul>
+          </DetailSection>
         )}
         {affectedPlants && affectedPlants.length > 0 ? (
           <DetailSection title="Affected plants">

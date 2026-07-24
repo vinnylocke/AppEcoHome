@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   kindToWatchlistType, severityToWatchlist, mapLibraryToWatchlistPayload, filterAilmentLibrary,
-  libraryRowToFavouriteInput,
+  libraryRowToFavouriteInput, splitStepsText,
   type LibraryAilment,
 } from "../../../src/services/ailmentLibraryService";
 
@@ -43,7 +43,11 @@ describe("mapLibraryToWatchlistPayload", () => {
     expect(p.thumbnail_url).toBe("http://x/y.jpg");
     expect(p.symptoms).toHaveLength(2);
     expect(p.symptoms[0]).toMatchObject({ title: "brown lesions", severity: "severe" });
-    expect(p.remedy_steps[0]).toMatchObject({ title: "Treatment", description: base.treatment });
+    // #11 — a "a; b" blob splits into discrete steps so the count reads correctly.
+    expect(p.remedy_steps).toHaveLength(2);
+    expect(p.remedy_steps[0]).toMatchObject({ title: "Treatment", description: "Remove infected foliage", step_order: 0 });
+    expect(p.remedy_steps[1]).toMatchObject({ title: "Treatment", description: "copper fungicide.", step_order: 1 });
+    expect(p.prevention_steps).toHaveLength(2);
     expect(p.prevention_steps[0]).toMatchObject({ title: "Prevention", task_type: "inspect" });
   });
 
@@ -92,8 +96,14 @@ describe("libraryRowToFavouriteInput (Stage 1 — favourite from the library)", 
     expect(input.thumbnail_url).toBe("http://x/y.jpg");
     expect(input.scientific_name).toBe("Phytophthora infestans");
     expect(input.affected_plants).toEqual(["tomato", "potato"]);
-    expect(input.prevention_steps).toEqual([{ title: "Prevention", description: "Space plants; water at base." }]);
-    expect(input.remedy_steps).toEqual([{ title: "Treatment", description: "Remove infected foliage; copper fungicide." }]);
+    expect(input.prevention_steps).toEqual([
+      { title: "Prevention", description: "Space plants" },
+      { title: "Prevention", description: "water at base." },
+    ]);
+    expect(input.remedy_steps).toEqual([
+      { title: "Treatment", description: "Remove infected foliage" },
+      { title: "Treatment", description: "copper fungicide." },
+    ]);
     expect(input.perenual_id).toBeNull();
   });
 
@@ -105,5 +115,31 @@ describe("libraryRowToFavouriteInput (Stage 1 — favourite from the library)", 
     expect(input.type).toBe("invasive_plant");
     expect(input.prevention_steps).toEqual([]);
     expect(input.remedy_steps).toEqual([]);
+  });
+});
+
+describe("splitStepsText (#11 — text blob → discrete steps)", () => {
+  it("splits a newline-joined blob (the persisted shape) into every step", () => {
+    const text = "Squash colonies by hand\nSpray with insecticidal soap\nIntroduce ladybirds\nRemove infested shoots\nHose off with water\nEncourage lacewings";
+    const steps = splitStepsText(text);
+    expect(steps).toHaveLength(6);
+    expect(steps[0]).toBe("Squash colonies by hand");
+  });
+  it("splits a single blob on numbered / semicolon markers", () => {
+    expect(splitStepsText("1. Prune out. 2) Feed. 3. Mulch.")).toEqual(["Prune out.", "Feed.", "Mulch."]);
+    expect(splitStepsText("Water deeply; mulch well; feed monthly")).toEqual(["Water deeply", "mulch well", "feed monthly"]);
+  });
+  it("strips leading list markers", () => {
+    expect(splitStepsText("- Remove leaves\n- Copper spray")).toEqual(["Remove leaves", "Copper spray"]);
+  });
+  it("returns [] for empty / null / whitespace", () => {
+    expect(splitStepsText(null)).toEqual([]);
+    expect(splitStepsText("")).toEqual([]);
+    expect(splitStepsText("   ")).toEqual([]);
+  });
+  it("keeps genuine prose as a single step", () => {
+    expect(splitStepsText("Keep the soil moist and watch for signs of stress.")).toEqual([
+      "Keep the soil moist and watch for signs of stress.",
+    ]);
   });
 });
