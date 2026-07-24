@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshState
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
@@ -160,6 +162,13 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
         }
     }
 
+    // Partition once per task-list change, not on every recomposition (each
+    // pull-to-refresh frame previously re-ran three .filter passes) — a real
+    // scroll/jank cost on-device.
+    val overdueTasks = remember(ui.tasks) { ui.tasks.filter { it.overdue } }
+    val todoTasks = remember(ui.tasks) { ui.tasks.filter { !it.overdue && it.status == "Pending" } }
+    val doneTasks = remember(ui.tasks) { ui.tasks.filter { it.status == "Completed" } }
+
     val pullState = rememberPullRefreshState(refreshing = ui.refreshing, onRefresh = vm::refresh)
     Box(Modifier.fillMaxSize().pullRefresh(pullState)) {
     ScalingLazyColumn(
@@ -269,21 +278,17 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
                 )
             }
             else -> {
-                val overdue = ui.tasks.filter { it.overdue }
-                val todo = ui.tasks.filter { !it.overdue && it.status == "Pending" }
-                val done = ui.tasks.filter { it.status == "Completed" }
-
-                if (overdue.isNotEmpty()) {
+                if (overdueTasks.isNotEmpty()) {
                     item { SectionLabel("Overdue", MaterialTheme.colors.error) }
-                    items(overdue) { task -> TaskChip(task) { selected = task } }
+                    items(overdueTasks, key = { it.id }) { task -> TaskChip(task) { selected = task } }
                 }
-                if (todo.isNotEmpty()) {
+                if (todoTasks.isNotEmpty()) {
                     item { SectionLabel("To do") }
-                    items(todo) { task -> TaskChip(task) { selected = task } }
+                    items(todoTasks, key = { it.id }) { task -> TaskChip(task) { selected = task } }
                 }
-                if (done.isNotEmpty()) {
+                if (doneTasks.isNotEmpty()) {
                     item { SectionLabel("Done") }
-                    items(done) { task -> TaskChip(task) { selected = task } }
+                    items(doneTasks, key = { it.id }) { task -> TaskChip(task) { selected = task } }
                 }
             }
         }
@@ -298,15 +303,23 @@ fun TasksScreen(vm: TasksViewModel, onSignOut: () -> Unit) {
         }
     }
 
-        // Pull-to-refresh spinner at the top while pulling / refreshing.
-        if (ui.refreshing || pullState.progress > 0f) {
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 4.dp)
-                    .size(22.dp),
-            )
-        }
+        // Pull-to-refresh spinner. Extracted so the per-frame pullState.progress
+        // read recomposes only this indicator, not the whole task list.
+        PullSpinner(ui.refreshing, pullState)
+    }
+}
+
+/** Top pull-to-refresh spinner. Reads pullState.progress in its OWN scope so a
+ *  pull gesture doesn't recompose the entire ScalingLazyColumn every frame. */
+@Composable
+private fun BoxScope.PullSpinner(refreshing: Boolean, pullState: PullRefreshState) {
+    if (refreshing || pullState.progress > 0f) {
+        CircularProgressIndicator(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 4.dp)
+                .size(22.dp),
+        )
     }
 }
 

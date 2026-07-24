@@ -40,7 +40,8 @@ Internally:
 | Table | Subscribers |
 |-------|-------------|
 | `plans` | PlannerDashboard |
-| `task_blueprints` | BlueprintManager |
+| `tasks` | TaskList, TaskCalendar — the calendar live-refreshes so tasks written by the Wear watch (via `mutate-task`), another household member, or a cron appear without a manual reload. Silent refetch (no loading flash) that invalidates the `TaskEngine` cache first so ghost tasks rebuild. |
+| `task_blueprints` | BlueprintManager, TaskList, TaskCalendar |
 | `shopping_lists` | ShoppingLists hook |
 | `shopping_list_items` | ShoppingLists hook |
 | `plant_instance_ailments` | AilmentWatchlist — refreshes affected-plant counts when an ailment is linked/unlinked. Added to `HOME_TABLES` + the `supabase_realtime` publication (migration `20260829000000_plant_instance_ailments_realtime.sql`). Low write rate (explicit user action only), so the per-client channel cost is negligible. |

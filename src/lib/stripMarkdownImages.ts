@@ -34,3 +34,31 @@ export function stripCodeBlocks(text: string): string {
 export function sanitizeAssistantText(text: string): string {
   return stripCodeBlocks(stripMarkdownImages(text));
 }
+
+/**
+ * Convert an assistant markdown reply into clean plain text for text-to-speech
+ * so the synth voice never reads literal markdown aloud ("asterisk asterisk
+ * bold", "hash heading"). Builds on sanitizeAssistantText (drops images + code)
+ * then removes the remaining line- and inline-level markers, keeping the words.
+ * The chat bubble still renders the markdown visually; this is TTS-only. Pure.
+ */
+export function markdownToSpeech(text: string): string {
+  if (!text) return "";
+  let t = sanitizeAssistantText(text); // drop images + fenced code first
+  t = t.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1"); // [label](url) → label
+  t = t.replace(/`([^`]+)`/g, "$1"); // `code` → code
+  // Line-level markers first, before the stray-marker sweep nukes * and _.
+  t = t.replace(/^\s{0,3}#{1,6}\s+/gm, ""); // ## Heading → Heading
+  t = t.replace(/^\s{0,3}>\s?/gm, ""); // > quote → quote
+  t = t.replace(/^\s{0,3}[-+*]\s+/gm, ""); // "- item" / "* item" → item
+  // Inline emphasis: keep the words, drop the markers.
+  t = t.replace(/(\*\*|__)(.*?)\1/g, "$2");
+  t = t.replace(/(\*|_)(.*?)\1/g, "$2");
+  t = t.replace(/[*_~]/g, ""); // any stray emphasis/strikethrough markers
+  t = t.replace(/\|/g, " "); // table pipes
+  return t
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n") // drop spaces left dangling before a newline
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}

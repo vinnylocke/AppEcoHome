@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stripMarkdownImages, stripCodeBlocks, sanitizeAssistantText } from "../../../src/lib/stripMarkdownImages";
+import { stripMarkdownImages, stripCodeBlocks, sanitizeAssistantText, markdownToSpeech } from "../../../src/lib/stripMarkdownImages";
 
 describe("stripMarkdownImages", () => {
   it("removes inline image syntax", () => {
@@ -38,5 +38,41 @@ describe("sanitizeAssistantText", () => {
   it("strips both images and code blocks", () => {
     const t = "Look: ![x](http://y) and\n```tool_code\nfoo()\n```\ndone";
     expect(sanitizeAssistantText(t)).toBe("Look: and\n\ndone".replace(/\n{3,}/g, "\n\n").trim());
+  });
+});
+
+describe("markdownToSpeech", () => {
+  it("drops bold markers but keeps the words (the asterisks-read-aloud bug)", () => {
+    expect(markdownToSpeech("Water your **tomatoes** now")).toBe("Water your tomatoes now");
+  });
+  it("drops italic markers (single * and _)", () => {
+    expect(markdownToSpeech("that is *really* important")).toBe("that is really important");
+    expect(markdownToSpeech("a _subtle_ hint")).toBe("a subtle hint");
+  });
+  it("strips heading hashes", () => {
+    expect(markdownToSpeech("## Care tips\nWater weekly")).toBe("Care tips\nWater weekly");
+  });
+  it("strips unordered list bullets (- and *)", () => {
+    expect(markdownToSpeech("- prune\n- water\n* feed")).toBe("prune\nwater\nfeed");
+  });
+  it("keeps link text, drops the URL", () => {
+    expect(markdownToSpeech("see [the guide](http://x) for more")).toBe("see the guide for more");
+  });
+  it("keeps inline code words, drops the backticks", () => {
+    expect(markdownToSpeech("run `npm test` first")).toBe("run npm test first");
+  });
+  it("removes images and fenced code entirely", () => {
+    expect(markdownToSpeech("Look ![x](http://y)\n```\ncode()\n```\ndone")).toBe("Look\n\ndone");
+  });
+  it("leaves plain prose untouched and handles empty", () => {
+    expect(markdownToSpeech("just a plain sentence")).toBe("just a plain sentence");
+    expect(markdownToSpeech("")).toBe("");
+  });
+  it("has no stray asterisks or underscores left in a mixed reply", () => {
+    const out = markdownToSpeech("**Aphids**: try _neem oil_ and\n- ladybirds\n- soapy water");
+    expect(out).not.toMatch(/[*_]/);
+    expect(out).toContain("Aphids");
+    expect(out).toContain("neem oil");
+    expect(out).toContain("ladybirds");
   });
 });

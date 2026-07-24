@@ -67,10 +67,15 @@ Plus reads from `usePlantDoctor()` context:
 ### Data flow — read paths
 
 ```ts
+// Newest 50 (created_at DESC), reversed client-side to chronological for display.
+// Was ascending + limit(50) = the OLDEST 50, so once a thread passed 50 messages
+// the recent tail was never fetched and new chats looked "lost" on reopen.
 supabase.from("chat_messages")
-  .select("*")
+  .select("id, role, content, suggested_plants, suggested_tasks, preferences_captured, plan_suggestion")
+  .eq("home_id", homeId)
   .eq("user_id", userId)
-  .order("created_at", { ascending: true });
+  .order("created_at", { ascending: false })
+  .limit(50); // then data.reverse() before mapping into `messages`
 ```
 
 ```ts
@@ -86,6 +91,10 @@ When `voice_settings.auto_read_assistant_replies` is `true`, an effect speaks ea
 
 > **Native APK requirements:** tap-to-talk needs `RECORD_AUDIO` in the Android manifest; read-aloud needs `MainActivity` to set `setMediaPlaybackRequiresUserGesture(false)` (the WebView default blocks both auto-read and the post-`await` `audio.play()`). **Read-aloud fallback chain:** cloud Chirp3-HD → on any failure the `@capacitor-community/text-to-speech` native device voice (works in the WebView) → raw `speechSynthesis` only if the plugin is absent. The Web Speech API alone is silent in the Android System WebView, hence the native plugin. All baked into the APK (rebuild required); the PWA is unaffected. See [Capacitor](../99-cross-cutting/23-capacitor.md).
 
+### Message rendering & voice
+
+Assistant replies render as **markdown** in the bubble (`react-markdown` + `remark-gfm`, styled via a compact `CHAT_MD_COMPONENTS` map); user messages stay plain text (`whitespace-pre-wrap`). Both TTS paths — the auto-read effect and each `ReadAloudButton` — first pass the reply through `markdownToSpeech()` (in `src/lib/stripMarkdownImages.ts`) so the synth voice never reads literal markdown (`**bold**`, `## heading`, `- bullet`) aloud. `sanitizeAssistantText` still strips images + tool-code before both render and speech.
+
 ### Data flow — write paths
 
 #### Each turn
@@ -93,8 +102,8 @@ When `voice_settings.auto_read_assistant_replies` is `true`, an effect speaks ea
 2. Call edge function `plant-doctor-ai` with `{ history, message, image, pageContext, homeId }`.
 3. Receive assistant message; insert into `chat_messages`.
 
-#### Clear conversation
-- `supabase.from("chat_messages").delete().eq("user_id", userId)`.
+#### Start Fresh (clear the on-screen conversation)
+- The header trash button (`handleStartFresh`) is a **local view reset** — it clears the on-screen `messages` back to the welcome stub only. It does **not** delete `chat_messages`; the stored history is retained and reloads (newest 50) next time the chat opens. No `delete()` is issued.
 
 #### Feedback
 - `chat_messages.update({ feedback })` or a separate `chat_feedback` table (implementation detail).
@@ -250,9 +259,9 @@ It's also context-aware. Open it from the Light Sensor with a reading of 800 lx 
 
 - 👍 / 👎 per message helps train the system.
 
-#### 7. Clear history
+#### 7. Start Fresh (clear the on-screen thread)
 
-- Trash icon in header. Wipes all `chat_messages` for your user. Cannot be undone.
+- Trash icon in header. Clears the **visible** conversation back to the welcome message. Your stored history is **not** deleted — reopening the chat reloads your most recent 50 messages.
 
 #### 8. Listen to replies (voice)
 

@@ -31,7 +31,9 @@ import { getPlantWikiInfo } from "../lib/wikipedia";
 import { reduceAutoRead, initialAutoReadState } from "../lib/chatAutoRead";
 import { chatErrorToUserMessage, parseFunctionsErrorBody } from "../lib/chatError";
 import ImageDisclaimer from "./ImageDisclaimer";
-import { sanitizeAssistantText } from "../lib/stripMarkdownImages";
+import { sanitizeAssistantText, markdownToSpeech } from "../lib/stripMarkdownImages";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { visibleToolResults } from "../lib/visibleToolResults";
 import { plantPhotoQuery } from "../lib/plantPhotoQuery";
 import { Lightbox, type GalleryImage } from "./DiagnosisImageGallery";
@@ -47,6 +49,31 @@ import ToolConfirmCard, {
   type PendingCall,
   type ConfirmState,
 } from "./chat/ToolConfirmCard";
+
+// Markdown renderer for assistant chat bubbles — compact styling tuned for the
+// narrow chat width. User messages stay plain text; only assistant replies are
+// markdown (they were previously shown raw, so **bold** / lists / `code` leaked
+// as literal syntax and the voice read the asterisks). Module-level for a
+// stable identity across renders.
+const CHAT_MD_COMPONENTS: Components = {
+  p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+  ul: ({ children }) => <ul className="mb-2 last:mb-0 pl-4 list-disc space-y-0.5">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-2 last:mb-0 pl-4 list-decimal space-y-0.5">{children}</ol>,
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+  a: ({ children, href }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-rhozly-primary underline">
+      {children}
+    </a>
+  ),
+  code: ({ children }) => (
+    <code className="px-1 py-0.5 rounded bg-black/5 text-[0.85em] font-mono">{children}</code>
+  ),
+  h1: ({ children }) => <p className="font-semibold mb-1">{children}</p>,
+  h2: ({ children }) => <p className="font-semibold mb-1">{children}</p>,
+  h3: ({ children }) => <p className="font-semibold mb-1">{children}</p>,
+};
 
 interface PendingImage {
   base64: string;       // raw base64 (no data-URL prefix)
@@ -435,7 +462,10 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
           )
           .eq("home_id", homeId)
           .eq("user_id", user.id)
-          .order("created_at", { ascending: true })
+          // Newest 50 (created_at DESC) so recent turns survive reopening a long
+          // thread — ascending+limit(50) previously returned the OLDEST 50, which
+          // made new chats look "lost". Reversed below for chronological display.
+          .order("created_at", { ascending: false })
           .limit(50);
 
         if (!data || data.length === 0) {
@@ -444,6 +474,9 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
           ]);
           return;
         }
+
+        // Fetched newest-first; flip to chronological (oldest→newest) for display.
+        data.reverse();
 
         const ids = data.map((m) => m.id);
 
@@ -625,7 +658,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     });
     autoReadStateRef.current = state;
     if (speak && last?.content && last._key) {
-      tts.speak(last.content, { key: `chat-${last._key}`, voice: preferredVoice }).catch(() => { /* swallowed in hook */ });
+      tts.speak(markdownToSpeech(last.content), { key: `chat-${last._key}`, voice: preferredVoice }).catch(() => { /* swallowed in hook */ });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, autoReadReplies, isOpen, isLoadingHistory, isLoading]);
@@ -1188,10 +1221,18 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                           />
                         )}
                         <div
-                          className="whitespace-pre-wrap"
+                          className={msg.role === "assistant" ? "chat-markdown" : "whitespace-pre-wrap"}
                           data-testid={msg.error_kind ? "chat-error-message" : undefined}
                           data-error-kind={msg.error_kind}
-                        >{msg.role === "assistant" ? sanitizeAssistantText(msg.content) : msg.content}</div>
+                        >
+                          {msg.role === "assistant" ? (
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={CHAT_MD_COMPONENTS}>
+                              {sanitizeAssistantText(msg.content)}
+                            </ReactMarkdown>
+                          ) : (
+                            msg.content
+                          )}
+                        </div>
 
                         {msg.role === "assistant" &&
                           !!msg.preferences_captured &&
@@ -1285,7 +1326,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                             {/* Wave 22.0001-A — Read aloud */}
                             {msg.content && (
                               <ReadAloudButton
-                                text={msg.content}
+                                text={markdownToSpeech(msg.content)}
                                 messageKey={`chat-${msg._key}`}
                                 voice={preferredVoice}
                                 size="sm"

@@ -28,6 +28,7 @@ import TaskList from "./TaskList";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { TaskEngine, collectHarvestWindowDates, lateCompletionDueDate, completedLocalDate } from "../lib/taskEngine";
 import { getLocalDateString } from "../lib/dateUtils";
+import { useHomeRealtime } from "../hooks/useHomeRealtime";
 
 export interface Task {
   id: string;
@@ -411,8 +412,8 @@ export default function TaskCalendar({
     fetchFilters();
   }, [homeId]);
 
-  const fetchTasksAndBlueprints = async () => {
-    setIsLoading(true);
+  const fetchTasksAndBlueprints = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setFetchError(false);
     try {
       const startOfMonth = new Date(
@@ -499,13 +500,26 @@ export default function TaskCalendar({
       setFetchError(true);
       toast.error("Could not load your schedule. Please try again.");
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     fetchTasksAndBlueprints();
   }, [currentDate, homeId]);
+
+  // Live-refresh when tasks/blueprints change elsewhere — a task added on the
+  // Wear watch (via mutate-task), by another household member, or by a cron.
+  // Silent so it never flashes the calendar's loading state; invalidate the
+  // engine cache first so ghost tasks rebuild from the new rows. Mirrors
+  // TaskList.tsx:300-308. useHomeRealtime keeps the latest closure via a ref,
+  // so this inline callback always sees the current month + home.
+  const refreshFromRealtime = () => {
+    TaskEngine.invalidateCache(homeId);
+    fetchTasksAndBlueprints(true);
+  };
+  useHomeRealtime("tasks", refreshFromRealtime);
+  useHomeRealtime("task_blueprints", refreshFromRealtime);
 
   const generateWeekDays = () => {
     // Build a 7-day window starting on the Sunday on/before currentDate.
@@ -915,7 +929,7 @@ export default function TaskCalendar({
             <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-2xl text-sm font-bold text-red-600">
               <span>Failed to load schedule.</span>
               <button
-                onClick={fetchTasksAndBlueprints}
+                onClick={() => fetchTasksAndBlueprints()}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 rounded-xl transition-colors text-xs font-black"
               >
                 <RefreshCw size={13} /> Retry
